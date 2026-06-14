@@ -1,0 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Cairo:wght@400;700;900&family=Caveat:wght@400..700&family=Space+Grotesk:wght@400..700&display=swap');
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'Lutfey';
+  src: url('./assets/fonts/LutfeyArabicDEMO-Regular.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-lutfey: "Lutfey", "Space Grotesk", sans-serif;
+  
+  /* Primary slate color based on exact logo deep green #21543d */
+  --color-slate-50: #f3f7f5;
+  --color-slate-100: #e4efe9;
+  --color-slate-200: #ccdfd4;
+  --color-slate-300: #a8ccb8;
+  --color-slate-400: #7fb497;
+  --color-slate-500: #5c9976;
+  --color-slate-600: #467e5e;
+  --color-slate-700: #39664c;
+  --color-slate-800: #2f543f;
+  --color-slate-900: #21543d; /* Exact logo Green */
+  --color-slate-950: #133425;
+
+  /* Accent amber color based on exact logo gold #ca9258 */
+  --color-teal-50: #faf6f1;
+  --color-teal-100: #f5e9da;
+  --color-teal-200: #ecd2b5;
+  --color-teal-300: #dfb689;
+  --color-teal-400: #d49b5c;
+  --color-teal-500: #ca9258; /* Exact logo Gold */
+  --color-teal-600: #bb7f44;
+  --color-teal-700: #a06634;
+  --color-teal-800: #835028;
+  --color-teal-900: #6a3f20;
+  --color-teal-950: #462512;
+}
+
+@layer utilities {
+  /* Hide utility elements during output print jobs */
+  @media print {
+    body {
+      background-color: white !important;
+      color: black !important;
+    }
+    
+    /* Hide normal app dashboards of admin or teacher layout */
+    #admin-workspace, #teacher-workspace, #login-container, .pointer-print-none {
+      display: none !important;
+    }
+
+    /* Target frame to print uniquely */
+    #printable-report-canvas {
+      display: block !important;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100% !important;
+      height: auto !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      border: none !important;
+    }
+
+    #printable-receipt-card {
+      display: block !important;
+      position: relative !important;
+      width: 100% !important;
+      max-width: 420px !important;
+      margin: 30px auto !important;
+      padding: 24px !important;
+      border: 2px dashed #394F4F !important;
+      border-radius: 12px !important;
+      box-shadow: none !important;
+      background: white !important;
+      overflow: visible !important;
+    }
+
+    #receipt-modal-bg, #report-modal-bg {
+      background: white !important;
+      position: absolute !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    
+    #receipt-print-wrapper, #report-print-wrapper {
+      box-shadow: none !important;
+      border: none !important;
+      max-width: 100% !important;
+      width: 100% !important;
+      height: auto !important;
+    }
+  }
+
+  /* Custom animation keyframes */
+  .animate-fade-in {
+    animation: fadeIn 0.4s ease-out forwards;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+

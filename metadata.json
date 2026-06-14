@@ -1,0 +1,6 @@
+{
+  "name": "Banuu Jalaal",
+  "description": "An elegant, comprehensive Management System designed for tracking students, teachers, classes, daily progress (surad, subac, manners, hygiene), reports, and billing.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

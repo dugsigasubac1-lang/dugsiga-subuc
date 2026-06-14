@@ -1,0 +1,266 @@
+{
+  "entities": {
+    "Teacher": {
+      "title": "Teacher",
+      "description": "Accredited teaching staff credentials and classroom assignments.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique teacher identifier starting with T-"
+        },
+        "name": {
+          "type": "string",
+          "description": "Full name of the teacher"
+        },
+        "username": {
+          "type": "string",
+          "description": "Unique username used for portal sign-in"
+        },
+        "passwordHash": {
+          "type": "string",
+          "description": "Authentication password in plain text/hash form"
+        },
+        "classAssigned": {
+          "type": "string",
+          "description": "Name of the classroom division assigned to this teacher"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "username",
+        "passwordHash",
+        "classAssigned"
+      ]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Student registration record containing demographic and academic grouping information.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique registration identifier starting with BJ-"
+        },
+        "name": {
+          "type": "string",
+          "description": "Full name of the student"
+        },
+        "parentName": {
+          "type": "string",
+          "description": "Full name of the parent or guardian"
+        },
+        "parentPhone": {
+          "type": "string",
+          "description": "Contact phone number for SMS and phone-call alerts"
+        },
+        "teacherId": {
+          "type": "string",
+          "description": "Identifier of the assigned teacher"
+        },
+        "className": {
+          "type": "string",
+          "description": "Assigned classroom or memorization division"
+        },
+        "monthlyFee": {
+          "type": "number",
+          "description": "Assigned monthly tuition fee in USD"
+        },
+        "registrationDate": {
+          "type": "string",
+          "description": "The date the student registered (YYYY-MM-DD)"
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Status indicating whether the student is currently enrolled and active"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "parentName",
+        "parentPhone",
+        "teacherId",
+        "className",
+        "monthlyFee",
+        "registrationDate",
+        "active"
+      ]
+    },
+    "DailyProgress": {
+      "title": "DailyProgress",
+      "description": "Daily attendance and study progress logged by the assigned teacher.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique compound key representing date and student ID"
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of the study session (YYYY-MM-DD)"
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Reference identifier of the student"
+        },
+        "studentName": {
+          "type": "string",
+          "description": "Full name of the student"
+        },
+        "teacherId": {
+          "type": "string",
+          "description": "ID of the teacher logging the entry"
+        },
+        "className": {
+          "type": "string",
+          "description": "Classroom division of the student"
+        },
+        "attendance": {
+          "type": "string",
+          "enum": [
+            "Present",
+            "Late",
+            "Absent"
+          ],
+          "description": "Daily attendance registration state"
+        },
+        "lessonCompleted": {
+          "type": "string",
+          "enum": [
+            "Completed",
+            "Not Completed"
+          ],
+          "description": "Status of the daily assigned lesson"
+        },
+        "surad": {
+          "type": "string",
+          "description": "Status of the surad assignment recitation"
+        },
+        "subac": {
+          "type": "string",
+          "description": "Status of the subac revision performance"
+        },
+        "dhaqan": {
+          "type": "string",
+          "description": "Refined behavior state assessment"
+        },
+        "nadaafad": {
+          "type": "string",
+          "description": "Personal hygiene and cleanliness assessment"
+        },
+        "faahfaahin": {
+          "type": "string",
+          "description": "Detailed notes and comments recorded by the teacher"
+        }
+      },
+      "required": [
+        "id",
+        "date",
+        "studentId",
+        "studentName",
+        "teacherId",
+        "className",
+        "attendance",
+        "lessonCompleted",
+        "surad",
+        "subac",
+        "dhaqan",
+        "nadaafad"
+      ]
+    },
+    "BillingRecord": {
+      "title": "BillingRecord",
+      "description": "Tuition ledger and fee payment records catalogued by month.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique billing key compound"
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Reference identifier of the student"
+        },
+        "studentName": {
+          "type": "string",
+          "description": "Full name of the student"
+        },
+        "className": {
+          "type": "string",
+          "description": "Registered classroom space details"
+        },
+        "month": {
+          "type": "string",
+          "description": "Billing statement month in YYYY-MM format"
+        },
+        "amountPaid": {
+          "type": "number",
+          "description": "Total tuition amount captured in USD"
+        },
+        "paymentDate": {
+          "type": "string",
+          "description": "The date the payment transaction occurred (YYYY-MM-DD)"
+        },
+        "receiptNo": {
+          "type": "string",
+          "description": "Officially tracked receipt document serial number"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "Paid",
+            "Unpaid"
+          ],
+          "description": "Settlement state of the invoice"
+        }
+      },
+      "required": [
+        "id",
+        "studentId",
+        "studentName",
+        "className",
+        "month",
+        "amountPaid",
+        "status"
+      ]
+    },
+    "Classroom": {
+      "title": "Classroom",
+      "description": "Dynamic registered spaces for study groupings.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Clean display name of the classroom space"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    }
+  },
+  "firestore": {
+    "/teachers/{teacherId}": {
+      "schema": "Teacher",
+      "description": "Official teaching staff catalog"
+    },
+    "/students/{studentId}": {
+      "schema": "Student",
+      "description": "Subscribers roster and fee levels"
+    },
+    "/progress/{progressId}": {
+      "schema": "DailyProgress",
+      "description": "Daily attendance and surah recitation logs"
+    },
+    "/billing/{billingId}": {
+      "schema": "BillingRecord",
+      "description": "Tuition ledgers and invoicing historical logs"
+    },
+    "/classes/{classId}": {
+      "schema": "Classroom",
+      "description": "Active registered study grouping divisions"
+    }
+  }
+}
