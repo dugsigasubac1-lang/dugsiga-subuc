@@ -239,8 +239,48 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    
+    // Serve static files with proper control rules
+    app.use(express.static(distPath, {
+      maxAge: '1y',
+      immutable: true,
+      setHeaders: (res, filePath) => {
+        const relativePath = path.relative(distPath, filePath);
+        
+        // Don't cache HTML files
+        if (filePath.endsWith('.html')) {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+          res.setHeader('Surrogate-Control', 'no-store');
+        } 
+        // Cache hashed assets aggressively
+        else if (
+          relativePath.startsWith('assets' + path.sep) ||
+          filePath.endsWith('.js') || 
+          filePath.endsWith('.css') ||
+          filePath.endsWith('.woff') ||
+          filePath.endsWith('.woff2') ||
+          filePath.endsWith('.svg') ||
+          filePath.endsWith('.png') ||
+          filePath.endsWith('.jpg') ||
+          filePath.endsWith('.jpeg') ||
+          filePath.endsWith('.ico')
+        ) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } 
+        // Fallback for any non-hashed static file
+        else {
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+      }
+    }));
+
     app.get('*', (req, res) => {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Surrogate-Control', 'no-store');
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
