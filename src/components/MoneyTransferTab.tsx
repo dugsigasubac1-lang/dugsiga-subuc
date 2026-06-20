@@ -43,6 +43,18 @@ const formatDateTime = (isoString: string) => {
   }
 };
 
+const formatRecordDate = (dateStr: string) => {
+  if (!dateStr) return "-";
+  if (dateStr.includes('-')) {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const [year, month, day] = parts;
+      return `${day}/${month}/${year}`;
+    }
+  }
+  return dateStr;
+};
+
 interface MoneyTransferTabProps {
   database: DatabaseState;
   onSaveDatabase: (updatedDb: DatabaseState) => void;
@@ -82,6 +94,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
   const [formPhone, setFormPhone] = useState('');
   const [formAmount, setFormAmount] = useState<number | ''>('');
   const [formNotes, setFormNotes] = useState('');
+  const [formDate, setFormDate] = useState('');
   const [formError, setFormError] = useState('');
 
   // Active Report Generation States
@@ -95,6 +108,54 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
 
   // Success Feedbacks
   const [feedback, setFeedback] = useState('');
+
+  // Autocomplete support state
+  const [showNameSuggestions, setShowNameSuggestions] = useState(false);
+  const [showPhoneSuggestions, setShowPhoneSuggestions] = useState(false);
+
+  // Extract unique previous clients sorted by most recent
+  const uniqueCustomers = useMemo(() => {
+    const sorted = [...records].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const result: { name: string; phone: string }[] = [];
+    const seenNames = new Set<string>();
+
+    for (const r of sorted) {
+      const normName = r.customerName.trim().toLowerCase();
+      if (normName && !seenNames.has(normName)) {
+        seenNames.add(normName);
+        result.push({
+          name: r.customerName.trim(),
+          phone: r.customerPhone.trim()
+        });
+      }
+    }
+    return result;
+  }, [records]);
+
+  // Name autocomplete suggestions
+  const nameSuggestions = useMemo(() => {
+    if (!formName.trim()) return [];
+    const query = formName.trim().toLowerCase();
+    return uniqueCustomers.filter(c => 
+      c.name.toLowerCase().includes(query)
+    ).slice(0, 5);
+  }, [formName, uniqueCustomers]);
+
+  // Phone autocomplete suggestions
+  const phoneSuggestions = useMemo(() => {
+    if (!formPhone.trim()) return [];
+    const query = formPhone.trim().toLowerCase();
+    return uniqueCustomers.filter(c => 
+      c.phone.toLowerCase().includes(query)
+    ).slice(0, 5);
+  }, [formPhone, uniqueCustomers]);
+
+  const handleSelectCustomer = (c: { name: string; phone: string }) => {
+    setFormName(c.name);
+    setFormPhone(c.phone);
+    setShowNameSuggestions(false);
+    setShowPhoneSuggestions(false);
+  };
 
   // Custom confirmation modal state to bypass iframe modal blockages
   const [confirmModal, setConfirmModal] = useState<{
@@ -164,7 +225,11 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
       const matchYear = yearFilter === '' || r.date.split('-')[0] === yearFilter;
 
       return matchSearch && matchDate && matchMonth && matchYear;
-    }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    }).sort((a, b) => {
+      const dateCompare = b.date.localeCompare(a.date);
+      if (dateCompare !== 0) return dateCompare;
+      return b.createdAt.localeCompare(a.createdAt);
+    });
   }, [records, searchTerm, dateFilter, monthFilter, yearFilter]);
 
   // Customer History Lookup (if search term matches or customer name is clicked)
@@ -207,7 +272,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
       customerName: formName.trim(),
       customerPhone: formPhone.trim(),
       amountSent: formAmount,
-      date: todayDateStr,
+      date: formDate || todayDateStr,
       notes: formNotes.trim(),
       createdBy: 'yaxyecabdisalanmohamed1234@gmail.com',// Admin email from user session metadata
       createdAt: new Date().toISOString()
@@ -225,6 +290,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
     setFormPhone('');
     setFormAmount('');
     setFormNotes('');
+    setFormDate('');
     triggerFeedback(`Successfully logged Money Transfer ${nextNo} for $${formAmount}!`);
   };
 
@@ -234,6 +300,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
     setFormName(record.customerName);
     setFormPhone(record.customerPhone);
     setFormAmount(record.amountSent);
+    setFormDate(record.date || todayDateStr);
     setFormNotes(record.notes);
     setFormError('');
     setIsEditModalOpen(true);
@@ -258,6 +325,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
           customerName: formName.trim(),
           customerPhone: formPhone.trim(),
           amountSent: formAmount,
+          date: formDate || r.date,
           notes: formNotes.trim()
         };
       }
@@ -270,6 +338,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
     });
 
     setIsEditModalOpen(false);
+    setFormDate('');
     triggerFeedback(`Successfully updated Money Transfer ${selectedRecord.transNo}!`);
   };
 
@@ -369,7 +438,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
             <thead>
               <tr>
                 <th style="text-align: left; padding: 12px 10px; border-bottom: 2px solid #cbd5e1; font-size: 11px; text-transform: uppercase; color: #475569; letter-spacing: 0.05em;">Trans Number</th>
-                <th style="text-align: left; padding: 12px 10px; border-bottom: 2px solid #cbd5e1; font-size: 11px; text-transform: uppercase; color: #475569; letter-spacing: 0.05em;">Created At</th>
+                <th style="text-align: left; padding: 12px 10px; border-bottom: 2px solid #cbd5e1; font-size: 11px; text-transform: uppercase; color: #475569; letter-spacing: 0.05em;">Record Date</th>
                 <th style="text-align: left; padding: 12px 10px; border-bottom: 2px solid #cbd5e1; font-size: 11px; text-transform: uppercase; color: #475569; letter-spacing: 0.05em;">Customer Name</th>
                 <th style="text-align: left; padding: 12px 10px; border-bottom: 2px solid #cbd5e1; font-size: 11px; text-transform: uppercase; color: #475569; letter-spacing: 0.05em;">Phone Number</th>
                 <th style="text-align: left; padding: 12px 10px; border-bottom: 2px solid #cbd5e1; font-size: 11px; text-transform: uppercase; color: #475569; letter-spacing: 0.05em;">Amount</th>
@@ -380,7 +449,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
               ${reportRecords.map(r => `
                 <tr>
                   <td style="padding: 12px 10px; border-bottom: 1px solid #edf2f7; font-size: 12px;"><strong>${r.transNo}</strong></td>
-                  <td style="padding: 12px 10px; border-bottom: 1px solid #edf2f7; font-size: 12px;">${formatDateTime(r.createdAt)}</td>
+                  <td style="padding: 12px 10px; border-bottom: 1px solid #edf2f7; font-size: 12px;">${formatRecordDate(r.date)}</td>
                   <td style="padding: 12px 10px; border-bottom: 1px solid #edf2f7; font-size: 12px;">${r.customerName}</td>
                   <td style="padding: 12px 10px; border-bottom: 1px solid #edf2f7; font-size: 12px;">${r.customerPhone}</td>
                   <td style="padding: 12px 10px; border-bottom: 1px solid #edf2f7; font-size: 12px;"><strong>$${r.amountSent}</strong></td>
@@ -484,7 +553,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
           <thead>
             <tr>
               <th style="width: 130px;">Transaction Number</th>
-              <th style="width: 140px;">Created At</th>
+              <th style="width: 140px;">Record Date</th>
               <th style="width: 180px;">Customer Name</th>
               <th style="width: 130px;">Phone Number</th>
               <th style="width: 100px;">Amount Sent ($)</th>
@@ -499,7 +568,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
       html += `
         <tr>
           <td class="trans-id">${r.transNo}</td>
-          <td>${formatDateTime(r.createdAt)}</td>
+          <td>${formatRecordDate(r.date)}</td>
           <td>${r.customerName}</td>
           <td style="mso-number-format:'\\@';">${r.customerPhone}</td>
           <td class="amount">$${r.amountSent}</td>
@@ -607,7 +676,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
         doc.setFont("Helvetica", "bold");
         doc.setTextColor(71, 85, 105);
         doc.text("TRANS ID", 17, y - 1);
-        doc.text("CREATED AT", 38, y - 1);
+        doc.text("RECORD DATE", 38, y - 1);
         doc.text("CUSTOMER NAME", 72, y - 1);
         doc.text("PHONE", 115, y - 1);
         doc.text("AMOUNT", 147, y - 1);
@@ -624,7 +693,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
       }
       
       doc.text(r.transNo, 17, y);
-      doc.text(formatDateTime(r.createdAt), 38, y);
+      doc.text(formatRecordDate(r.date), 38, y);
       
       // Name truncation to prevent clipping
       const cleanName = r.customerName.length > 20 ? r.customerName.slice(0, 18) + ".." : r.customerName;
@@ -705,6 +774,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
               setFormPhone('');
               setFormAmount('');
               setFormNotes('');
+              setFormDate(todayDateStr);
               setIsAddModalOpen(true);
             }}
             className="py-2.5 px-4 text-xs font-extrabold uppercase bg-[#1e5ee6] hover:bg-blue-700 text-white transition-all rounded-xl shadow-md shadow-blue-500/10 flex items-center gap-2 cursor-pointer"
@@ -915,7 +985,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                 <th scope="col" className="px-6 py-3.5 text-left text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Customer Name</th>
                 <th scope="col" className="px-6 py-3.5 text-left text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Phone Number</th>
                 <th scope="col" className="px-6 py-3.5 scope-col text-left text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Amount Sent</th>
-                <th scope="col" className="px-6 py-3.5 text-left text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Created At</th>
+                <th scope="col" className="px-6 py-3.5 text-left text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Record Date</th>
                 <th scope="col" className="px-6 py-3.5 text-left text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Notes</th>
                 <th scope="col" className="px-6 py-3.5 text-right text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Actions</th>
               </tr>
@@ -935,8 +1005,13 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                   <td className="px-6 py-4 whitespace-nowrap text-xs font-extrabold text-[#11b981]">
                     ${r.amountSent.toLocaleString()}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500 font-semibold font-mono">
-                    {formatDateTime(r.createdAt)}
+                  <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-800 font-bold font-mono">
+                    <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg border border-blue-100/60 block w-fit shadow-xs">
+                      {formatRecordDate(r.date)}
+                    </span>
+                    <span className="text-[9.5px] text-slate-400 font-normal font-sans block mt-1.5 opacity-90">
+                      Logged: {formatDateTime(r.createdAt)}
+                    </span>
                   </td>
                   <td className="px-6 py-4 text-xs text-slate-400 font-medium max-w-[200px] truncate" title={r.notes}>
                     {r.notes || <span className="text-slate-200">-</span>}
@@ -1029,10 +1104,48 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                         required
                         placeholder="John Doe"
                         value={formName}
-                        onChange={(e) => setFormName(e.target.value)}
+                        onChange={(e) => {
+                          setFormName(e.target.value);
+                          setShowNameSuggestions(true);
+                        }}
+                        onFocus={() => setShowNameSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowNameSuggestions(false), 250)}
                         className="w-full pl-9 pr-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 focus:border-[#1e5ee6] transition-all text-slate-800"
+                        autoComplete="off"
                       />
                       <User className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+
+                      {/* Name Suggestions Dropdown */}
+                      <AnimatePresence>
+                        {showNameSuggestions && nameSuggestions.length > 0 && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto overflow-x-hidden divide-y divide-slate-100"
+                          >
+                            <div className="px-3 py-1.5 bg-slate-50/50 border-b border-slate-100 text-[9px] font-bold text-slate-400 tracking-wider uppercase">
+                              Matching Customers ({nameSuggestions.length})
+                            </div>
+                            {nameSuggestions.map((sug, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onMouseDown={() => handleSelectCustomer(sug)}
+                                className="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer"
+                              >
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-bold text-slate-700">{sug.name}</span>
+                                  <span className="text-[10px] text-slate-400 font-medium font-mono">Phone: {sug.phone}</span>
+                                </div>
+                                <div className="text-[9px] px-2 py-0.5 rounded-md font-bold bg-blue-50 text-blue-600 border border-blue-100/60 uppercase">
+                                  Use Customer
+                                </div>
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   </div>
 
@@ -1045,10 +1158,48 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                         required
                         placeholder="+252 ... or 061..."
                         value={formPhone}
-                        onChange={(e) => setFormPhone(e.target.value)}
+                        onChange={(e) => {
+                          setFormPhone(e.target.value);
+                          setShowPhoneSuggestions(true);
+                        }}
+                        onFocus={() => setShowPhoneSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowPhoneSuggestions(false), 250)}
                         className="w-full pl-9 pr-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 focus:border-[#1e5ee6] transition-all text-slate-800"
+                        autoComplete="off"
                       />
                       <Phone className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+
+                      {/* Phone Suggestions Dropdown */}
+                      <AnimatePresence>
+                        {showPhoneSuggestions && phoneSuggestions.length > 0 && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto overflow-x-hidden divide-y divide-slate-100"
+                          >
+                            <div className="px-3 py-1.5 bg-slate-50/50 border-b border-slate-100 text-[9px] font-bold text-slate-400 tracking-wider uppercase">
+                              Matching Phone Numbers ({phoneSuggestions.length})
+                            </div>
+                            {phoneSuggestions.map((sug, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onMouseDown={() => handleSelectCustomer(sug)}
+                                className="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer"
+                              >
+                                <div className="flex flex-col">
+                                  <span className="text-[11px] font-bold text-slate-700 font-mono">{sug.phone}</span>
+                                  <span className="text-[9.5px] text-slate-400 font-medium font-sans">Name: {sug.name}</span>
+                                </div>
+                                <div className="text-[9px] px-2 py-0.5 rounded-md font-bold bg-blue-50 text-blue-600 border border-blue-100/60 uppercase">
+                                  Use Customer
+                                </div>
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   </div>
 
@@ -1059,13 +1210,29 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                       <input
                         type="number"
                         required
-                        min="1"
+                        min="0.01"
+                        step="any"
                         placeholder="150"
                         value={formAmount}
                         onChange={(e) => setFormAmount(e.target.value === '' ? '' : Number(e.target.value))}
                         className="w-full pl-9 pr-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 focus:border-[#1e5ee6] transition-all text-slate-800"
                       />
                       <CircleDollarSign className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                    </div>
+                  </div>
+
+                  {/* Record Date */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Record Date *</label>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        required
+                        value={formDate}
+                        onChange={(e) => setFormDate(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 focus:border-[#1e5ee6] transition-all text-slate-800"
+                      />
+                      <Calendar className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
                     </div>
                   </div>
 
@@ -1148,10 +1315,48 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                         required
                         placeholder="John Doe"
                         value={formName}
-                        onChange={(e) => setFormName(e.target.value)}
+                        onChange={(e) => {
+                          setFormName(e.target.value);
+                          setShowNameSuggestions(true);
+                        }}
+                        onFocus={() => setShowNameSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowNameSuggestions(false), 250)}
                         className="w-full pl-9 pr-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 focus:border-[#1e5ee6] transition-all text-slate-800"
+                        autoComplete="off"
                       />
                       <User className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+
+                      {/* Name Suggestions Dropdown */}
+                      <AnimatePresence>
+                        {showNameSuggestions && nameSuggestions.length > 0 && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto overflow-x-hidden divide-y divide-slate-100"
+                          >
+                            <div className="px-3 py-1.5 bg-slate-50/50 border-b border-slate-100 text-[9px] font-bold text-slate-400 tracking-wider uppercase">
+                              Matching Customers ({nameSuggestions.length})
+                            </div>
+                            {nameSuggestions.map((sug, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onMouseDown={() => handleSelectCustomer(sug)}
+                                className="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer"
+                              >
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-bold text-slate-700">{sug.name}</span>
+                                  <span className="text-[10px] text-slate-400 font-medium font-mono">Phone: {sug.phone}</span>
+                                </div>
+                                <div className="text-[9px] px-2 py-0.5 rounded-md font-bold bg-blue-50 text-blue-600 border border-blue-100/60 uppercase">
+                                  Use Customer
+                                </div>
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   </div>
 
@@ -1164,10 +1369,48 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                         required
                         placeholder="+252"
                         value={formPhone}
-                        onChange={(e) => setFormPhone(e.target.value)}
+                        onChange={(e) => {
+                          setFormPhone(e.target.value);
+                          setShowPhoneSuggestions(true);
+                        }}
+                        onFocus={() => setShowPhoneSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowPhoneSuggestions(false), 250)}
                         className="w-full pl-9 pr-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 focus:border-[#1e5ee6] transition-all text-slate-800"
+                        autoComplete="off"
                       />
                       <Phone className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+
+                      {/* Phone Suggestions Dropdown */}
+                      <AnimatePresence>
+                        {showPhoneSuggestions && phoneSuggestions.length > 0 && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto overflow-x-hidden divide-y divide-slate-100"
+                          >
+                            <div className="px-3 py-1.5 bg-slate-50/50 border-b border-slate-100 text-[9px] font-bold text-slate-400 tracking-wider uppercase">
+                              Matching Phone Numbers ({phoneSuggestions.length})
+                            </div>
+                            {phoneSuggestions.map((sug, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onMouseDown={() => handleSelectCustomer(sug)}
+                                className="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer"
+                              >
+                                <div className="flex flex-col">
+                                  <span className="text-[11px] font-bold text-slate-700 font-mono">{sug.phone}</span>
+                                  <span className="text-[9.5px] text-slate-400 font-medium font-sans">Name: {sug.name}</span>
+                                </div>
+                                <div className="text-[9px] px-2 py-0.5 rounded-md font-bold bg-blue-50 text-blue-600 border border-blue-100/60 uppercase">
+                                  Use Customer
+                                </div>
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   </div>
 
@@ -1178,13 +1421,29 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                       <input
                         type="number"
                         required
-                        min="1"
+                        min="0.01"
+                        step="any"
                         placeholder="150"
                         value={formAmount}
                         onChange={(e) => setFormAmount(e.target.value === '' ? '' : Number(e.target.value))}
                         className="w-full pl-9 pr-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 focus:border-[#1e5ee6] transition-all text-slate-800"
                       />
                       <CircleDollarSign className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                    </div>
+                  </div>
+
+                  {/* Record Date */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Record Date *</label>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        required
+                        value={formDate}
+                        onChange={(e) => setFormDate(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 focus:border-[#1e5ee6] transition-all text-slate-800"
+                      />
+                      <Calendar className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
                     </div>
                   </div>
 
@@ -1280,8 +1539,8 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                       <p className="font-black text-emerald-600 mt-1 text-sm">${selectedRecord.amountSent}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase font-bold text-slate-400">Created At</p>
-                      <p className="font-bold text-slate-800 mt-1 font-mono">{formatDateTime(selectedRecord.createdAt)}</p>
+                      <p className="text-[10px] uppercase font-bold text-slate-400">Record Date</p>
+                      <p className="font-bold text-blue-700 bg-blue-50/70 border border-blue-100/40 px-2 py-0.5 rounded-lg w-fit mt-1 font-mono">{formatRecordDate(selectedRecord.date)}</p>
                     </div>
                   </div>
 
@@ -1330,7 +1589,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                               <div key={h.id} className="p-2 px-3 flex items-center justify-between text-xs hover:bg-slate-50 transition-all">
                                 <div>
                                   <p className="font-extrabold text-slate-800">{h.transNo}</p>
-                                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">{formatDateTime(h.createdAt)}</p>
+                                  <p className="text-[10px] text-blue-600 font-mono mt-0.5">{formatRecordDate(h.date)} <span className="text-slate-400 font-sans text-[9px] font-normal ml-1.5">(Logged: {formatDateTime(h.createdAt)})</span></p>
                                 </div>
                                 <div className="text-right">
                                   <span className="font-black text-emerald-600">${h.amountSent}</span>
@@ -1516,7 +1775,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                         <div key={rec.id} className="p-2.5 px-3.5 flex items-center justify-between text-xs font-medium">
                           <div>
                             <span className="font-extrabold text-slate-800">{rec.transNo}</span>
-                            <span className="text-[10px] text-slate-400 font-mono ml-3">{formatDateTime(rec.createdAt)}</span>
+                            <span className="text-[10px] text-blue-600 bg-blue-50/70 border border-blue-100/40 px-1.5 py-0.5 rounded-md font-mono ml-3">{formatRecordDate(rec.date)}</span>
                           </div>
                           <div className="text-right">
                             <span className="font-semibold text-slate-700">{rec.customerName}</span>

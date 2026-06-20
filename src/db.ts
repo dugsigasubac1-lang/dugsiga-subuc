@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DatabaseState, Teacher, Student, DailyProgress, BillingRecord, Exam, MoneyTransferRecord, TeacherAttendanceRecord, SchoolLocationSettings, LandingPageSettings } from './types';
+import { DatabaseState, Teacher, Student, DailyProgress, BillingRecord, Exam, MoneyTransferRecord, TeacherAttendanceRecord, SchoolLocationSettings, LandingPageSettings, Invoice } from './types';
 
 /// Let's create some beautiful, realistic seed data
 const DEFAULT_TEACHERS: Teacher[] = [];
@@ -441,6 +441,28 @@ const DEFAULT_MONEY_TRANSFERS: MoneyTransferRecord[] = [
     notes: "alxanka albaabka shabaqa ah ee irida",
     createdBy: "yaxyecabdisalanmohamed1234@gmail.com",
     createdAt: "2026-06-09T10:30:00.000Z"
+  },
+  {
+    id: "MT-seed-39",
+    transNo: "7044513",
+    customerName: "cabdirixman axmed yusuf",
+    customerPhone: "7044513",
+    amountSent: 5,
+    date: "2026-06-11",
+    notes: "geedaha la beeray",
+    createdBy: "yaxyecabdisalanmohamed1234@gmail.com",
+    createdAt: "2026-06-11T10:00:00.000Z"
+  },
+  {
+    id: "MT-seed-40",
+    transNo: "4345399",
+    customerName: "amal production sales",
+    customerPhone: "4345399",
+    amountSent: 20,
+    date: "2026-06-11",
+    notes: "geedaha la beeray",
+    createdBy: "yaxyecabdisalanmohamed1234@gmail.com",
+    createdAt: "2026-06-11T10:30:00.000Z"
   }
 ];
 
@@ -544,6 +566,219 @@ export const DEFAULT_LANDING_SETTINGS: LandingPageSettings = {
   regOfficeHours: "Sabti - Khamiis: 7:30 subax - 5:30 galabnimo"
 };
 
+export function sanitizeLocalDatabase(parsed: DatabaseState): DatabaseState {
+  if (parsed && parsed.teachers && Array.isArray(parsed.teachers)) {
+    let corrected = false;
+    parsed.teachers = parsed.teachers.map((t: any) => {
+      if (t && t.username === 'caac' && t.id === 'T-08') {
+        corrected = true;
+        return { ...t, id: 'T-10' };
+      }
+      return t;
+    });
+    if (corrected) {
+      console.log('[Local Sanitizer] Corrected teacher "caac" duplicate ID from T-08 to T-10 in client.');
+    }
+  }
+
+  // Auto-prune system notifications older than 24 hours (86,400,000 ms) to keep the db clean every day
+  if (parsed && parsed.notifications && Array.isArray(parsed.notifications)) {
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const initialCount = parsed.notifications.length;
+    parsed.notifications = parsed.notifications.filter((n: any) => {
+      if (!n || !n.timestamp) return false;
+      try {
+        const time = new Date(n.timestamp).getTime();
+        return !isNaN(time) && time > oneDayAgo;
+      } catch (e) {
+        return false;
+      }
+    });
+    if (parsed.notifications.length !== initialCount) {
+      console.log(`[Local Sanitizer] Automatically pruned ${initialCount - parsed.notifications.length} notifications older than 24 hours.`);
+    }
+  }
+
+  // Auto-translate old Somali item descriptions dynamically to guarantee standardized names during print / download
+  if (parsed && parsed.invoices && Array.isArray(parsed.invoices)) {
+    parsed.invoices.forEach((inv: any) => {
+      if (inv && Array.isArray(inv.items)) {
+        inv.items.forEach((item: any) => {
+          if (item && item.description) {
+            const d = item.description.trim().toLowerCase();
+            if (d === 'lacagta fiiga quranka' || d === 'lacagta fiiga ee quranka' || d === "lacagta fiiga ee qur'anka" || d === 'fiiga quranka') {
+              item.description = "lacagta bisha ee qur'aanka";
+            } else if (d === 'lacagta fiiga higgaadda' || d === 'lacagta fiiga ee higgaadda' || d === 'lacagta fiiga ardada higgaadda' || d === 'fiiga higgaadda') {
+              item.description = "lacagta bisha ee higgaadda";
+            } else if (d === 'lacagta faylasha arday kasta' || d === 'faylasha lagu kaydiyo xogta ardayga' || d === 'faylasha ardayga' || d === 'faylasha' || d === 'faylalka lagu kaydiyo xogta ardayga') {
+              item.description = "lacagta faylasha";
+            } else if (d === 'lacagta diiwan galinta arday kasta' || d === 'lacagta diiwan-galinta arday kasta' || d === 'diiwan galinta' || d === 'diiwangelinta' || d === 'diiwan-gelinta' || d === 'diiwan galinta ardayga') {
+              item.description = "lacagta diiwan galinta ardayga";
+            }
+          }
+        });
+      }
+    });
+  }
+
+  // Auto-migrate old student IDs to DS001, DS002, etc. sorted by registration date
+  if (parsed && parsed.students && Array.isArray(parsed.students)) {
+    const hasOldIds = parsed.students.some((s: any) => s && s.id && s.id.startsWith('BJ-'));
+    if (hasOldIds) {
+      console.log('[Local Migration] Migrating student IDs on the fly...');
+      // Sort students: ascending by registrationDate.
+      // If equal, stable sort via array indices to guarantee "which one got registered first".
+      const sortedStudents = [...parsed.students].sort((a: any, b: any) => {
+        const dateA = a.registrationDate || '';
+        const dateB = b.registrationDate || '';
+        if (dateA !== dateB) {
+          return dateA.localeCompare(dateB);
+        }
+        const indexA = parsed.students.indexOf(a);
+        const indexB = parsed.students.indexOf(b);
+        return indexA - indexB;
+      });
+
+      // Build ID mapping dictionary
+      const idMap: Record<string, string> = {};
+      sortedStudents.forEach((student: any, index: number) => {
+        const oldId = student.id;
+        const newId = `DS${String(index + 1).padStart(3, '0')}`;
+        idMap[oldId] = newId;
+        student.id = newId;
+      });
+
+      // 1. Update DailyProgress
+      if (Array.isArray(parsed.progress)) {
+        parsed.progress.forEach((p: any) => {
+          if (p && p.studentId && idMap[p.studentId]) {
+            const oldId = p.studentId;
+            const newId = idMap[oldId];
+            p.studentId = newId;
+            if (p.id && typeof p.id === 'string') {
+              p.id = p.id.replace(oldId, newId);
+            }
+          }
+        });
+      }
+
+      // 2. Update BillingRecord
+      if (Array.isArray(parsed.billing)) {
+        parsed.billing.forEach((b: any) => {
+          if (b && b.studentId && idMap[b.studentId]) {
+            const oldId = b.studentId;
+            const newId = idMap[oldId];
+            b.studentId = newId;
+            if (b.id && typeof b.id === 'string') {
+              b.id = b.id.replace(oldId, newId);
+            }
+            if (b.receiptNo && typeof b.receiptNo === 'string') {
+              const oldNum = oldId.replace('BJ-', '');
+              const newNum = newId.replace('DS', '');
+              b.receiptNo = b.receiptNo.replace(oldNum, newNum);
+            }
+          }
+        });
+      }
+
+      // 3. Update Exam Scores
+      if (Array.isArray(parsed.exams)) {
+        parsed.exams.forEach((ex: any) => {
+          if (ex && Array.isArray(ex.scores)) {
+            ex.scores.forEach((sc: any) => {
+              if (sc && sc.studentId && idMap[sc.studentId]) {
+                sc.studentId = idMap[sc.studentId];
+              }
+            });
+          }
+        });
+      }
+
+      // 4. Update Invoices
+      if (Array.isArray(parsed.invoices)) {
+        parsed.invoices.forEach((inv: any) => {
+          if (inv && inv.studentId && typeof inv.studentId === 'string') {
+            Object.keys(idMap).forEach((oldId) => {
+              const regex = new RegExp(oldId, 'g');
+              inv.studentId = inv.studentId.replace(regex, idMap[oldId]);
+            });
+          }
+        });
+      }
+
+      // 5. Update Teacher Submissions
+      if (Array.isArray(parsed.submissions)) {
+        parsed.submissions.forEach((sub: any) => {
+          if (sub && Array.isArray(sub.studentsDetail)) {
+            sub.studentsDetail.forEach((stud: any) => {
+              if (stud && stud.studentId && idMap[stud.studentId]) {
+                stud.studentId = idMap[stud.studentId];
+              }
+            });
+          }
+        });
+      }
+
+      parsed.students = sortedStudents;
+      console.log('[Local Migration] Successfully migrated student IDs. Map:', idMap);
+    }
+  }
+
+  // 6. Generic Sweep of any remaining old BJ- prefixes in the state to ensure DS uniformity
+  if (parsed && typeof parsed === 'object') {
+    const fixPrefix = (val: any): any => {
+      if (typeof val === 'string') {
+        return val.replace(/BJ-/g, 'DS');
+      }
+      return val;
+    };
+
+    if (Array.isArray(parsed.progress)) {
+      parsed.progress.forEach((p: any) => {
+        if (p) {
+          if (p.studentId) p.studentId = fixPrefix(p.studentId);
+          if (p.id) p.id = fixPrefix(p.id);
+        }
+      });
+    }
+    if (Array.isArray(parsed.billing)) {
+      parsed.billing.forEach((b: any) => {
+        if (b) {
+          if (b.studentId) b.studentId = fixPrefix(b.studentId);
+          if (b.id) b.id = fixPrefix(b.id);
+        }
+      });
+    }
+    if (Array.isArray(parsed.exams)) {
+      parsed.exams.forEach((ex: any) => {
+        if (ex && Array.isArray(ex.scores)) {
+          ex.scores.forEach((sc: any) => {
+            if (sc && sc.studentId) sc.studentId = fixPrefix(sc.studentId);
+          });
+        }
+      });
+    }
+    if (Array.isArray(parsed.invoices)) {
+      parsed.invoices.forEach((inv: any) => {
+        if (inv) {
+          if (inv.studentId) inv.studentId = fixPrefix(inv.studentId);
+        }
+      });
+    }
+    if (Array.isArray(parsed.submissions)) {
+      parsed.submissions.forEach((sub: any) => {
+        if (sub && Array.isArray(sub.studentsDetail)) {
+          sub.studentsDetail.forEach((stud: any) => {
+            if (stud && stud.studentId) stud.studentId = fixPrefix(stud.studentId);
+          });
+        }
+      });
+    }
+  }
+
+  return parsed;
+}
+
 export function getDatabase(): DatabaseState {
   try {
     // Force a absolute reset of old test seeds to ensure a starting clean state as requested
@@ -578,7 +813,8 @@ export function getDatabase(): DatabaseState {
         },
         landingPageSettings: DEFAULT_LANDING_SETTINGS,
         contactMessages: [],
-        teacherAttendance: []
+        teacherAttendance: [],
+        invoices: []
       };
       saveDatabase(initial);
       return initial;
@@ -649,7 +885,11 @@ export function getDatabase(): DatabaseState {
       parsed.contactMessages = [];
       saveDatabase(parsed);
     }
-    return parsed;
+    if (!parsed.invoices) {
+      parsed.invoices = [];
+      saveDatabase(parsed);
+    }
+    return sanitizeLocalDatabase(parsed);
   } catch (e) {
     console.error("Error reading database from localStorage, loading fallback seeds", e);
     return {
@@ -664,7 +904,8 @@ export function getDatabase(): DatabaseState {
         'Al-Baqarah Memorization',
         'Juz Amma Preparatory',
         'Advanced Quran Tajweed'
-      ]
+      ],
+      invoices: []
     };
   }
 }
@@ -696,7 +937,7 @@ export function mergeSeedRemittances(parsed: DatabaseState): { updated: Database
       parsed.moneyTransfers = updatedTransfers;
     }
   }
-  return { updated: parsed, changed };
+  return { updated: sanitizeLocalDatabase(parsed), changed };
 }
 
 // Generate reports content for downloading

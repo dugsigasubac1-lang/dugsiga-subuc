@@ -702,6 +702,10 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
   const [dhaqanRecords, setDhaqanRecords] = useState<Record<string, GradeType>>({});
   const [nadaafadRecords, setNadaafadRecords] = useState<Record<string, GradeType>>({});
   const [commentsRecords, setCommentsRecords] = useState<Record<string, string>>({});
+  const [suuradeeMarayaRecords, setSuuradeeMarayaRecords] = useState<Record<string, string>>({});
+  const [inteeBogRecords, setInteeBogRecords] = useState<Record<string, string>>({});
+  const [boggeeRecords, setBoggeeRecords] = useState<Record<string, string>>({});
+  const [openInteeBogStudentId, setOpenInteeBogStudentId] = useState<string | null>(null);
   const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
 
   const existingProgressForDay = database.progress.filter(p => 
@@ -737,6 +741,9 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
     const tempDhaq: Record<string, GradeType> = {};
     const tempNad: Record<string, GradeType> = {};
     const tempComm: Record<string, string> = {};
+    const tempSuuradee: Record<string, string> = {};
+    const tempInteeBog: Record<string, string> = {};
+    const tempBoggee: Record<string, string> = {};
 
     sessionStudents.forEach(stu => {
       const recorded = existingProgress.find(p => p.studentId === stu.id);
@@ -748,6 +755,9 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
         tempDhaq[stu.id] = recorded.dhaqan;
         tempNad[stu.id] = recorded.nadaafad;
         tempComm[stu.id] = recorded.faahfaahin;
+        tempSuuradee[stu.id] = recorded.suuradeeMaraya || '';
+        tempInteeBog[stu.id] = recorded.inteeBog || '';
+        tempBoggee[stu.id] = recorded.boggee || '';
       } else {
         // Defaults
         tempAtt[stu.id] = 'Present';
@@ -757,6 +767,9 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
         tempDhaq[stu.id] = 'Good';
         tempNad[stu.id] = 'Good';
         tempComm[stu.id] = '';
+        tempSuuradee[stu.id] = '';
+        tempInteeBog[stu.id] = '';
+        tempBoggee[stu.id] = '';
       }
     });
 
@@ -767,6 +780,9 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
     setDhaqanRecords(tempDhaq);
     setNadaafadRecords(tempNad);
     setCommentsRecords(tempComm);
+    setSuuradeeMarayaRecords(tempSuuradee);
+    setInteeBogRecords(tempInteeBog);
+    setBoggeeRecords(tempBoggee);
     setSuccessMsg('');
     setErrorMsg('');
   }, [selectedDate, currentSession, database, teacher.id, hasJustSubmitted]);
@@ -1187,7 +1203,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
   const handleFieldChange = <T extends string>(
 
     studentId: string, 
-    field: 'attendance' | 'lesson' | 'surad' | 'subac' | 'dhaqan' | 'nadaafad' | 'comment', 
+    field: 'attendance' | 'lesson' | 'surad' | 'subac' | 'dhaqan' | 'nadaafad' | 'comment' | 'suuradeeMaraya' | 'inteeBog' | 'boggee', 
     value: T
   ) => {
     if (field === 'attendance') setAttendanceRecords(prev => ({ ...prev, [studentId]: value as unknown as AttendanceType }));
@@ -1197,6 +1213,9 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
     if (field === 'dhaqan') setDhaqanRecords(prev => ({ ...prev, [studentId]: value as unknown as GradeType }));
     if (field === 'nadaafad') setNadaafadRecords(prev => ({ ...prev, [studentId]: value as unknown as GradeType }));
     if (field === 'comment') setCommentsRecords(prev => ({ ...prev, [studentId]: value }));
+    if (field === 'suuradeeMaraya') setSuuradeeMarayaRecords(prev => ({ ...prev, [studentId]: value }));
+    if (field === 'inteeBog') setInteeBogRecords(prev => ({ ...prev, [studentId]: value }));
+    if (field === 'boggee') setBoggeeRecords(prev => ({ ...prev, [studentId]: value }));
   };
 
   const handleSubmitDailyWork = (e: React.FormEvent) => {
@@ -1225,6 +1244,9 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
           nadaafad: nadaafadRecords[stu.id] || 'Good',
           faahfaahin: commentsRecords[stu.id] || '',
           session: currentSession,
+          suuradeeMaraya: suuradeeMarayaRecords[stu.id] || '',
+          inteeBog: inteeBogRecords[stu.id] || '',
+          boggee: boggeeRecords[stu.id] || '',
         };
 
         if (existingIdx > -1) {
@@ -1390,9 +1412,6 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
         {/* Brand Header */}
         <div className="flex items-center justify-between pb-6 border-b border-slate-800/80 mb-6 shrink-0">
           <div className="flex items-center gap-3">
-            <span className="p-1 bg-white border border-slate-100 rounded-xl shadow-md inline-flex overflow-hidden shrink-0">
-              <DugsigaSubucLogo className="w-10 h-10" />
-            </span>
             <div className="flex flex-col">
               <span className="font-extrabold text-white text-base tracking-tight leading-none font-sans" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Dugsiga Subuc</span>
               <span className="text-[10px] font-medium text-emerald-400 mt-1.5 leading-none font-mono">مدرسة السبع</span>
@@ -1837,6 +1856,9 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                           <th className="py-3 px-4 text-center w-64">Lessons & Revision Checks</th>
                           <th className="py-3 px-4 text-center w-32">Dhaqan (Behavior)</th>
                           <th className="py-3 px-4 text-center w-32">Nadaafad (Hygiene)</th>
+                          <th className="py-3 px-4 text-center w-48">Surada</th>
+                          <th className="py-3 px-4 text-center w-32">Boggee</th>
+                          <th className="py-3 px-4 text-center w-32">Intee Bog</th>
                           <th className="py-3 px-4 pl-6">Notes / Observations</th>
                         </tr>
                       </thead>
@@ -1849,6 +1871,9 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                           const currentDhaq = dhaqanRecords[stu.id] || 'Good';
                           const currentNad = nadaafadRecords[stu.id] || 'Good';
                           const currentComm = commentsRecords[stu.id] || '';
+                          const currentSuuradee = suuradeeMarayaRecords[stu.id] || '';
+                          const currentInteeBog = inteeBogRecords[stu.id] || '';
+                          const currentBoggee = boggeeRecords[stu.id] || '';
 
                           const isAbsent = currentAtt === 'Absent';
                           const initialLetter = stu.name.trim() ? stu.name.trim().charAt(0).toUpperCase() : 'S';
@@ -1884,10 +1909,10 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                                     const isActive = currentAtt === status;
                                     const styles = 
                                       status === 'Present' 
-                                        ? (isActive ? 'bg-emerald-600 text-white font-extrabold shadow-sm' : 'text-slate-500 hover:text-emerald-700 hover:bg-emerald-50/40')
+                                        ? (isActive ? 'bg-emerald-600 text-white font-extrabold shadow-sm' : 'text-slate-550 hover:text-emerald-700 hover:bg-emerald-50/40')
                                         : status === 'Absent'
-                                        ? (isActive ? 'bg-rose-600 text-white font-extrabold shadow-sm' : 'text-slate-500 hover:text-rose-700 hover:bg-rose-50/40')
-                                        : (isActive ? 'bg-amber-500 text-white font-extrabold shadow-sm' : 'text-slate-500 hover:text-amber-700 hover:bg-amber-50/40');
+                                        ? (isActive ? 'bg-rose-600 text-white font-extrabold shadow-sm' : 'text-slate-555 hover:text-rose-700 hover:bg-rose-50/40')
+                                        : (isActive ? 'bg-amber-500 text-white font-extrabold shadow-sm' : 'text-slate-555 hover:text-amber-700 hover:bg-amber-50/40');
 
                                     return (
                                       <button
@@ -1907,7 +1932,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                               {/* 3. Conditional rendering logic */}
                               {isAbsent ? (
                                 <>
-                                  <td colSpan={3} className="py-2.5 px-4 text-center bg-slate-50/30">
+                                  <td colSpan={5} className="py-2.5 px-4 text-center bg-slate-50/30">
                                     <span className="text-[10px] font-extrabold text-rose-500 tracking-widest uppercase flex items-center justify-center gap-1.5 py-1">
                                       <Moon className="w-3.5 h-3.5 text-rose-450 shrink-0" />
                                       Ardaygu waa maqan yahay • Horumarka waa la hakahay
@@ -2019,6 +2044,96 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                                     </div>
                                   </td>
 
+                                  {/* 3dd. Suuradda uu Marayo Column */}
+                                  <td className="py-2.5 px-4 pl-6">
+                                    <input
+                                      type="text"
+                                      placeholder="Surada..."
+                                      value={currentSuuradee}
+                                      onChange={(e) => handleFieldChange(stu.id, 'suuradeeMaraya', e.target.value)}
+                                      className={`w-full px-2.5 py-1.5 rounded-lg text-[10px] sm:text-xs font-semibold outline-none transition-all placeholder:text-slate-400 border ${
+                                        currentSuuradee
+                                          ? 'bg-indigo-50 border-indigo-300 text-indigo-950 font-bold ring-2 ring-indigo-100 shadow-sm'
+                                          : 'bg-slate-50 hover:bg-slate-105 border-slate-200 text-slate-700 focus:border-blue-500 focus:bg-white'
+                                      }`}
+                                    />
+                                  </td>
+
+                                  {/* Boggee Column */}
+                                  <td className="py-2.5 px-4 text-center">
+                                    <input
+                                      type="text"
+                                      placeholder="Boggee..."
+                                      value={currentBoggee}
+                                      onChange={(e) => handleFieldChange(stu.id, 'boggee', e.target.value)}
+                                      className={`w-full px-2.5 py-1.5 rounded-lg text-[10px] sm:text-xs font-semibold outline-none transition-all placeholder:text-slate-400 border text-center ${
+                                        currentBoggee
+                                          ? 'bg-purple-50 border-purple-300 text-purple-950 font-bold ring-2 ring-purple-100 shadow-sm'
+                                          : 'bg-slate-50 hover:bg-slate-105 border-slate-200 text-slate-700 focus:border-purple-500 focus:bg-white'
+                                      }`}
+                                    />
+                                  </td>
+
+                                  {/* Intee Bog Column */}
+                                  <td className="py-2.5 px-4 text-center">
+                                    <div className="relative inline-block w-full text-center">
+                                      <div className="relative flex items-center">
+                                        <input
+                                          type="text"
+                                          placeholder="Intee Bog..."
+                                          value={currentInteeBog}
+                                          onChange={(e) => handleFieldChange(stu.id, 'inteeBog', e.target.value)}
+                                          className={`w-full pl-2 pr-7 py-1.5 rounded-lg text-[10px] sm:text-xs font-semibold outline-none transition-all placeholder:text-slate-400 border text-center ${
+                                            currentInteeBog
+                                              ? 'bg-violet-50 border-violet-300 text-violet-950 font-bold ring-2 ring-violet-100 shadow-sm'
+                                              : 'bg-slate-50 hover:bg-slate-105 border-slate-200 text-slate-700 focus:border-violet-500 focus:bg-white'
+                                          }`}
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => setOpenInteeBogStudentId(openInteeBogStudentId === stu.id ? null : stu.id)}
+                                          className="absolute right-1 text-slate-400 hover:text-slate-600 p-1 rounded-md transition-colors"
+                                          title="Choose page count"
+                                        >
+                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                          </svg>
+                                        </button>
+                                      </div>
+
+                                      {openInteeBogStudentId === stu.id && (
+                                        <>
+                                          <div 
+                                            className="fixed inset-0 z-40" 
+                                            onClick={() => setOpenInteeBogStudentId(null)} 
+                                          />
+                                          <div className="absolute left-1/2 -translate-x-1/2 mt-1 w-28 bg-white border border-slate-200 shadow-xl rounded-xl py-1 z-50 text-xs text-left animate-fade-in divide-y divide-slate-100">
+                                            {[
+                                              { label: '🧹 Empty', value: '' },
+                                              { label: '½ Page (Half)', value: 'half' },
+                                              { label: '1 Page', value: '1' },
+                                              { label: '2 Pages', value: '2' },
+                                              { label: '3 Pages', value: '3' },
+                                              { label: '4 Pages', value: '4' },
+                                            ].map((item) => (
+                                              <button
+                                                key={item.value}
+                                                type="button"
+                                                onClick={() => {
+                                                  handleFieldChange(stu.id, 'inteeBog', item.value);
+                                                  setOpenInteeBogStudentId(null);
+                                                }}
+                                                className="w-full text-left px-3 py-1.5 hover:bg-violet-50 text-slate-700 hover:text-violet-900 font-medium transition-colors"
+                                              >
+                                                {item.label}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        </>
+                                      )}
+                                    </div>
+                                  </td>
+
                                   {/* 3d. Note Text */}
                                   <td className="py-2.5 px-4 pl-6">
                                     <input
@@ -2052,6 +2167,9 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                       const currentDhaq = dhaqanRecords[stu.id] || 'Good';
                       const currentNad = nadaafadRecords[stu.id] || 'Good';
                       const currentComm = commentsRecords[stu.id] || '';
+                      const currentSuuradee = suuradeeMarayaRecords[stu.id] || '';
+                      const currentInteeBog = inteeBogRecords[stu.id] || '';
+                      const currentBoggee = boggeeRecords[stu.id] || '';
 
                       const isAbsent = currentAtt === 'Absent';
                       const initialLetter = stu.name.trim() ? stu.name.trim().charAt(0).toUpperCase() : 'S';
@@ -2085,8 +2203,8 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                                   status === 'Present' 
                                     ? (isActive ? 'bg-emerald-600 text-white font-extrabold shadow-sm' : 'text-slate-550 hover:bg-emerald-50/50')
                                     : status === 'Absent'
-                                    ? (isActive ? 'bg-rose-600 text-white font-extrabold shadow-sm' : 'text-slate-550 hover:bg-rose-50/50')
-                                    : (isActive ? 'bg-amber-500 text-white font-extrabold shadow-sm' : 'text-slate-550 hover:bg-amber-50/50');
+                                    ? (isActive ? 'bg-rose-600 text-white font-extrabold shadow-sm' : 'text-slate-555 hover:bg-rose-50/50')
+                                    : (isActive ? 'bg-amber-500 text-white font-extrabold shadow-sm' : 'text-slate-555 hover:bg-amber-50/50');
 
                                 return (
                                   <button
@@ -2118,7 +2236,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                                   currentComm
                                     ? 'bg-amber-50 border-amber-300 text-amber-950 font-bold ring-2 ring-amber-100 shadow-sm'
                                     : 'bg-slate-50 hover:bg-slate-10 border border-slate-200 focus:border-teal-555 focus:bg-white'
-                                }`}
+                                  }`}
                               />
                             </div>
                           ) : (
@@ -2189,18 +2307,112 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                                 </div>
                               </div>
 
+                              {/* Suuradda uu Marayo & Intee Bog Grid in mobile card */}
+                              <div className="grid grid-cols-3 gap-2">
+                                <div className="space-y-1">
+                                  <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wide block pl-0.5">Surada</span>
+                                  <input
+                                    type="text"
+                                    placeholder="Surada..."
+                                    value={currentSuuradee}
+                                    onChange={(e) => handleFieldChange(stu.id, 'suuradeeMaraya', e.target.value)}
+                                    className={`w-full px-2 py-1.5 rounded-lg text-[10px] font-semibold outline-none transition-all placeholder:text-slate-400 border ${
+                                      currentSuuradee
+                                        ? 'bg-indigo-50 border-indigo-300 text-indigo-950 font-bold ring-2 ring-indigo-100 shadow-sm'
+                                        : 'bg-slate-50 hover:bg-slate-10 border border-slate-200 focus:border-indigo-500 focus:bg-white'
+                                    }`}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wide block pl-0.5">Boggee</span>
+                                  <input
+                                    type="text"
+                                    placeholder="Boggee..."
+                                    value={currentBoggee}
+                                    onChange={(e) => handleFieldChange(stu.id, 'boggee', e.target.value)}
+                                    className={`w-full px-2 py-1.5 rounded-lg text-[10px] font-semibold outline-none transition-all placeholder:text-slate-400 border text-center ${
+                                      currentBoggee
+                                        ? 'bg-purple-50 border-purple-300 text-purple-950 font-bold ring-2 ring-purple-100 shadow-sm'
+                                        : 'bg-slate-50 hover:bg-slate-10 border border-slate-200 focus:border-purple-500 focus:bg-white'
+                                    }`}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wide block pl-0.5">Intee Bog</span>
+                                  <div className="relative inline-block w-full text-center">
+                                    <div className="relative flex items-center">
+                                      <input
+                                        type="text"
+                                        placeholder="Intee Bog..."
+                                        value={currentInteeBog}
+                                        onChange={(e) => handleFieldChange(stu.id, 'inteeBog', e.target.value)}
+                                        className={`w-full pl-1.5 pr-6 py-1.5 rounded-lg text-[10px] font-semibold outline-none transition-all placeholder:text-slate-400 border text-center ${
+                                          currentInteeBog
+                                            ? 'bg-violet-50 border-violet-300 text-violet-950 font-bold ring-2 ring-violet-100 shadow-sm'
+                                            : 'bg-slate-50 hover:bg-slate-10 border border-slate-200 focus:border-violet-500 focus:bg-white'
+                                        }`}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => setOpenInteeBogStudentId(openInteeBogStudentId === stu.id ? null : stu.id)}
+                                        className="absolute right-0.5 text-slate-400 hover:text-slate-600 p-0.5 rounded-md transition-colors"
+                                        title="Choose page count"
+                                      >
+                                        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                      </button>
+                                    </div>
+
+                                    {openInteeBogStudentId === stu.id && (
+                                      <>
+                                        <div 
+                                          className="fixed inset-0 z-40" 
+                                          onClick={() => setOpenInteeBogStudentId(null)} 
+                                        />
+                                        <div className="absolute right-0 mt-1 w-28 bg-white border border-slate-200 shadow-xl rounded-xl py-1 z-50 text-[11px] text-left animate-fade-in divide-y divide-slate-100">
+                                          {[
+                                            { label: '🧹 Empty', value: '' },
+                                            { label: '½ Page (Half)', value: 'half' },
+                                            { label: '1 Page', value: '1' },
+                                            { label: '2 Pages', value: '2' },
+                                            { label: '3 Pages', value: '3' },
+                                            { label: '4 Pages', value: '4' },
+                                          ].map((item) => (
+                                            <button
+                                              key={item.value}
+                                              type="button"
+                                              onClick={() => {
+                                                handleFieldChange(stu.id, 'inteeBog', item.value);
+                                                setOpenInteeBogStudentId(null);
+                                              }}
+                                              className="w-full text-left px-3 py-1.5 hover:bg-violet-50 text-slate-700 hover:text-violet-900 font-medium transition-colors"
+                                            >
+                                              {item.label}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
                               {/* Notes/Comments in mobile card */}
-                              <input
-                                type="text"
-                                placeholder="Add custom notes..."
-                                value={currentComm}
-                                onChange={(e) => handleFieldChange(stu.id, 'comment', e.target.value)}
-                                className={`w-full px-3 py-1.5 rounded-lg text-[10px] font-semibold outline-none transition-all placeholder:text-slate-400 border ${
-                                  currentComm
-                                    ? 'bg-amber-50 border-amber-300 text-amber-950 font-bold ring-2 ring-amber-100 shadow-sm'
-                                    : 'bg-slate-50 hover:bg-slate-10 border border-slate-200 focus:border-teal-555 focus:bg-white'
-                                }`}
-                              />
+                              <div className="space-y-1">
+                                <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wide block pl-0.5">Notes / Observations</span>
+                                <input
+                                  type="text"
+                                  placeholder="Add custom notes..."
+                                  value={currentComm}
+                                  onChange={(e) => handleFieldChange(stu.id, 'comment', e.target.value)}
+                                  className={`w-full px-3 py-1.5 rounded-lg text-[10px] font-semibold outline-none transition-all placeholder:text-slate-400 border ${
+                                    currentComm
+                                      ? 'bg-amber-50 border-amber-300 text-amber-950 font-bold ring-2 ring-amber-100 shadow-sm'
+                                      : 'bg-slate-50 hover:bg-slate-10 border border-slate-200 focus:border-teal-555 focus:bg-white'
+                                  }`}
+                                />
+                              </div>
                             </div>
                           )}
                         </div>
@@ -2543,6 +2755,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                                     <div className="flex flex-col items-center gap-1">
                                       <input
                                         type="number"
+                                        step="any"
                                         min="0"
                                         max={maxVal}
                                         placeholder="0"
@@ -3317,6 +3530,27 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                                 </span>
                               </div>
                             </div>
+
+                            {/* Suuraduu Marayo & Intee Bog Badge if present */}
+                            {(log.suuradeeMaraya || log.boggee || (log.inteeBog && log.inteeBog !== 'N/A' && log.inteeBog !== '')) && (
+                              <div className="mb-3.5 bg-indigo-50/50 border border-indigo-105 rounded-xl p-2.5 px-3.5 text-xs flex items-center justify-between shadow-3xs">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm">📖</span>
+                                  <span className="font-extrabold text-slate-800 font-sans">Casharka:</span>
+                                </div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {log.suuradeeMaraya && (
+                                    <span className="font-black text-indigo-700 bg-white px-3 py-1 rounded-lg border border-indigo-100 shadow-3xs">Surada: {log.suuradeeMaraya}</span>
+                                  )}
+                                  {log.boggee && (
+                                    <span className="font-black text-purple-700 bg-purple-50 px-3 py-1 rounded-lg border border-purple-100 shadow-3xs">Boggee: {log.boggee}</span>
+                                  )}
+                                  {log.inteeBog && log.inteeBog !== 'N/A' && log.inteeBog !== '' && (
+                                    <span className="font-black text-violet-700 bg-violet-50/50 px-3 py-1 rounded-lg border border-violet-100 shadow-3xs">Intee Bog: {log.inteeBog}</span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
 
                             {/* Matrix Grid */}
                             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">

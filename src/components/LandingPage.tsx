@@ -212,9 +212,6 @@ export function LandingPage({ database, onEnterLogin, onSaveDatabase }: LandingP
         <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
           
           <div className="flex items-center gap-2.5">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-md overflow-hidden shrink-0 border ${isNightMode ? 'bg-[#0c101f] border-[#21543d]/30' : 'bg-white border-[#21543d]/10'}`}>
-              <DugsigaSubucLogo className="w-9 h-9" />
-            </div>
             <div className="flex flex-col">
               <span className={`font-extrabold text-sm sm:text-base tracking-tight leading-none transition-colors ${titleClass}`} style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                 {settings.schoolName}
@@ -487,6 +484,13 @@ export function LandingPage({ database, onEnterLogin, onSaveDatabase }: LandingP
                 <p>
                   {settings.aboutText}
                 </p>
+                
+                <div className={`p-4 rounded-2xl border-l-4 border-[#ca9258] bg-[#21543d]/5 text-xs ${isNightMode ? 'bg-[#21543d]/5 border-[#ca9258]' : 'bg-[#21543d]/5'}`}>
+                  <span className="block font-black uppercase text-[#ca9258] tracking-wider mb-1 px-1 font-mono text-[9px]">Sifaadka Guud & Diinta</span>
+                  <p className="leading-relaxed px-1">
+                    <strong>Dugsiga Subuc</strong> oo ku yaal magaalada <strong>Garowe, Puntland, Somalia</strong> waa akadeemiyada ugu tayada sarreysa ee bixisa <strong>Xifdinta Qur'aanka Kariimka ah</strong> iyo barashada <strong>Higaadda Carabiga</strong>. Waxaan mar walba ku khidmaynaa halheyska ah: <strong className="text-[#ca9258] italic font-serif">"Xaraf Saxan iyo Xifdi Sugan"</strong>.
+                  </p>
+                </div>
               </div>
               
               <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -909,9 +913,6 @@ export function LandingPage({ database, onEnterLogin, onSaveDatabase }: LandingP
       <footer className={`py-10 border-t transition-all duration-300 ${isNightMode ? "bg-[#020617] text-slate-500 border-[#21543d]/10" : "bg-[#dfd9ce] text-[#21543d] border-slate-300"}`} id="landing-footer">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-[#122e21] border border-[#21543d]/40 rounded-xl flex items-center justify-center overflow-hidden shrink-0">
-              <DugsigaSubucLogo className="w-8 h-8" />
-            </div>
             <div className="flex flex-col">
               <span className={`font-extrabold text-xs tracking-tight ${isNightMode ? 'text-white' : 'text-[#21543d]'}`} style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                 {settings.schoolName}

@@ -29,6 +29,31 @@ export default function App() {
   const [sessionExpiredMsg, setSessionExpiredMsg] = useState<string | null>(null);
   const lastSaveTimeRef = useRef<number>(0);
 
+  // Dynamic SEO & Document Title updates based on user role and view
+  useEffect(() => {
+    let title = "Dugsiga Subuc | Xaraf Saxan iyo Xifdi Sugan";
+    let desc = "Dugsiga Subuc waa dugsi ku yaal Garowe oo bixiya xifdinta Qur'aanka Kariimka ah, higaadda Carabiga, iyo waxbarasho tayo leh.";
+
+    if (showLogin) {
+      title = "Gala Portal-ka Dugsiga Subuc | Login";
+      desc = "Maamul aqoonsigaaga fasalka, dhibcaha ardayda, iyo biilasha. Gala portal-ka rasmiga ah ee Dugsiga Subuc.";
+    } else if (userRole === 'admin') {
+      title = "Dashboard-ka Maamulka | Dugsiga Subuc";
+      desc = "Maamul nidaamka guud ee Dugsiga Subuc - Maamulayaasha, ardayda, lacag-bixinta, iyo warbixinnada.";
+    } else if (userRole === 'teacher') {
+      title = "Dashboard-ka Macallinka | Dugsiga Subuc";
+      desc = "Nidaamka diiwaangelinta horumarka ardayda Dugsiga Subuc ee maalinlaha ah.";
+    }
+
+    document.title = title;
+
+    // Update meta description dynamically in DOM for best-practice SPA transitions
+    const metaDescription = document.querySelector('meta[name="description"]');
+    if (metaDescription) {
+      metaDescription.setAttribute('content', desc);
+    }
+  }, [showLogin, userRole]);
+
   // Synchronize logged-in teacher state with latest server/cached database changes
   useEffect(() => {
     if (userRole === 'teacher' && loggedTeacher && database) {

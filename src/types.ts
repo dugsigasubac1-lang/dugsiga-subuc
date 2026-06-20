@@ -29,6 +29,7 @@ export interface Student {
   active: boolean; // Is active student
   session?: 'Morning' | 'Afternoon' | 'Both';
   imageUrl?: string; // profile picture Base64/url
+  busFee?: number; // monthly bus fare (optional, e.g. $15, $20)
 }
 
 export type AttendanceType = 'Present' | 'Absent' | 'Late';
@@ -51,6 +52,9 @@ export interface DailyProgress {
   nadaafad: GradeType; // Hygiene / cleanliness
   faahfaahin: string; // Extra information / comments
   session?: 'Morning' | 'Afternoon';
+  suuradeeMaraya?: string; // Current Surah the student is reading / at
+  inteeBog?: string; // How many pages completed (half, 1, 2, 3, 4)
+  boggee?: string; // Specific page number
 }
 
 export interface BillingRecord {
@@ -66,6 +70,8 @@ export interface BillingRecord {
   amountDue?: number;
   debtAmount?: number;
   notes?: string;
+  busFeeDue?: number; // bus fee due for this month (from student profile at creation/payment time)
+  busFeePaid?: number; // bus fee paid for this month
 }
 
 export interface AppNotification {
@@ -194,6 +200,34 @@ export interface ContactMessage {
   read: boolean;
 }
 
+export interface InvoiceItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+}
+
+export interface Invoice {
+  id: string;
+  invoiceNo: string; // BJ-INV-1001, etc.
+  recipientType: 'parent' | 'business';
+  recipientName: string;
+  recipientPhone: string;
+  recipientEmail?: string;
+  studentId?: string; // Optional if parent
+  studentName?: string; // Optional if parent
+  date: string; // YYYY-MM-DD
+  dueDate: string; // YYYY-MM-DD
+  items: InvoiceItem[];
+  totalAmount: number;
+  amountPaid: number;
+  status: 'Paid' | 'Unpaid' | 'Partial';
+  notes?: string;
+  createdBy: string;
+  createdAt: string; // ISO string
+}
+
 export interface DatabaseState {
   teachers: Teacher[];
   students: Student[];
@@ -209,6 +243,7 @@ export interface DatabaseState {
   landingPageSettings?: LandingPageSettings;
   contactMessages?: ContactMessage[];
   adminSessionId?: string; // Active session tracking for concurrent device login control
+  invoices?: Invoice[];
 }
 
 export interface ExamScore {

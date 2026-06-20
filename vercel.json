@@ -16,24 +16,15 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "server.ts",
-      "headers": {
-        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
-      }
+      "dest": "server.ts"
     },
     {
       "src": "/assets/(.*)",
-      "dest": "/dist/assets/$1",
-      "headers": {
-        "Cache-Control": "public, max-age=31536000, immutable"
-      }
+      "dest": "/assets/$1"
     },
     {
       "src": "/(.*)",
-      "dest": "/dist/$1",
-      "headers": {
-        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
-      }
+      "dest": "/$1"
     }
   ]
 }

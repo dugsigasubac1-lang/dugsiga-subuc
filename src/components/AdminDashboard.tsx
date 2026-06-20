@@ -53,7 +53,9 @@ import {
   Inbox,
   Globe,
   Plus,
-  Edit2
+  Edit2,
+  Building2,
+  Bus
 } from 'lucide-react';
 import { 
   DatabaseState, 
@@ -66,7 +68,9 @@ import {
   AppNotification,
   MoneyTransferRecord,
   Exam,
-  TeacherSubmission
+  TeacherSubmission,
+  Invoice,
+  InvoiceItem
 } from '../types';
 import { MoneyTransferTab } from './MoneyTransferTab';
 import { LandingControlTab } from './LandingControlTab';
@@ -266,24 +270,23 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       author: 'Banuu Jalaal School'
     });
 
-    // Draw Seal Crest
-    drawPdfLogoCrest(doc, 30, 25, 12);
-
     // Header Title
-    doc.setTextColor(15, 23, 42); // slate-900
+    doc.setTextColor(33, 84, 61); // deep green (#21543d)
     doc.setFont("Helvetica", "bold");
-    doc.setFontSize(20);
-    doc.text("BANUU JALAAL SCHOOL", 50, 22);
+    doc.setFontSize(22);
+    doc.text("DUGSIGA SUBUC", 15, 24);
 
-    doc.setFontSize(8);
-    doc.setFont("Helvetica", "bold");
-    doc.setTextColor(30, 94, 230); // Blue banner
-    doc.text("GEOLOCATION ATTENDANCE REPORT  |  Xafiiska Maamulka Garowe", 50, 27);
-
+    // Green subtitle
     doc.setFontSize(9);
+    doc.setFont("Helvetica", "bold");
+    doc.setTextColor(43, 92, 67); // Green info
+    doc.text("GEOLOCATION ATTENDANCE REPORT  |  Xafiiska Maamulka Garowe", 15, 30);
+
+    // Subtitle
     doc.setFont("Helvetica", "normal");
+    doc.setFontSize(9);
     doc.setTextColor(100, 116, 139); // slate-500
-    doc.text("Official Coordinate & Distance Verified Staff Logging", 50, 32);
+    doc.text("Official Coordinate & Distance Verified Staff Logging", 15, 35);
 
     // Divider
     doc.setDrawColor(203, 213, 225);
@@ -427,6 +430,20 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     });
   };
 
+  // Prune notifications older than 24 hours automatically on mount or update
+  useEffect(() => {
+    if (database.notifications && database.notifications.length > 0) {
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const freshNotifs = database.notifications.filter(n => n.timestamp >= oneDayAgo);
+      if (freshNotifs.length !== database.notifications.length) {
+        onSaveDatabase({
+          ...database,
+          notifications: freshNotifs
+        });
+      }
+    }
+  }, [database.notifications, onSaveDatabase]);
+
   // Auto-mark notifications as read when relevant tabs are active
   useEffect(() => {
     if ((activeTab === 'submissions' || activeTab === 'reports') && attendanceUnreadCount > 0) {
@@ -529,6 +546,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [showPayModal, setShowPayModal] = useState<Student | null>(null);
   const [payAmountDue, setPayAmountDue] = useState<number>(35);
   const [payAmountPaid, setPayAmountPaid] = useState<number>(35);
+  const [payBusFeeDue, setPayBusFeeDue] = useState<number>(0);
+  const [payBusFeePaid, setPayBusFeePaid] = useState<number>(0);
   const [payNotes, setPayNotes] = useState<string>('');
 
   // -------------------------------------------------------------
@@ -554,8 +573,41 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     };
   });
 
-  // Calculate Monthly billing statistics for current month (May 2026)
-  const currentMonthFilter = '2026-05';
+  const monthNamesSomali = [
+    "Janaayo", "Febraayo", "Maarso", "Abriil", "May", "Juun",
+    "Luulyo", "Ogosto", "Sebteembar", "Oktoobar", "Nofeembar", "Diseembar"
+  ];
+
+  // Calculate Monthly billing statistics dynamically for the matching active collection month
+  const todayDate = new Date();
+  const calendarMonth = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}`;
+  
+  const getMostActiveBillingMonth = () => {
+    if (database.billing && database.billing.length > 0) {
+      const months = Array.from(new Set(database.billing.map(b => b.month)));
+      months.sort().reverse();
+      const currentHasPayments = database.billing.some(b => b.month === calendarMonth && b.amountPaid > 0);
+      if (currentHasPayments) return calendarMonth;
+      const monthWithPayments = months.find(m => database.billing.some(b => b.month === m && b.amountPaid > 0));
+      if (monthWithPayments) return monthWithPayments;
+      return months[0] || calendarMonth;
+    }
+    return calendarMonth;
+  };
+
+  const currentMonthFilter = getMostActiveBillingMonth();
+  
+  const getFriendlyMonthName = (monthStr: string) => {
+    const parts = monthStr.split('-');
+    if (parts.length === 2) {
+      const mIdx = parseInt(parts[1], 10) - 1;
+      if (mIdx >= 0 && mIdx < 12) {
+        return monthNamesSomali[mIdx] + " " + parts[0];
+      }
+    }
+    return monthStr;
+  };
+
   const currentMonthInvoiced = database.students.filter(s => s.active).reduce((sum, s) => sum + s.monthlyFee, 0);
   const currentMonthPaidRecords = database.billing.filter(b => b.month === currentMonthFilter && (b.status === 'Paid' || b.status === 'Partial'));
   const currentMonthPaidAmount = currentMonthPaidRecords.reduce((sum, r) => sum + r.amountPaid, 0);
@@ -565,6 +617,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     { name: 'Collected Fees', value: currentMonthPaidAmount, color: '#0d9488' }, // Teal 600
     { name: 'Pending Fees', value: currentMonthUnpaidAmount, color: '#cbd5e1' }  // Slate 300
   ];
+  
+  const currentMonthName = getFriendlyMonthName(currentMonthFilter);
 
   // -------------------------------------------------------------
   // TAB 2: STUDENT MANAGEMENT DATASTORE
@@ -580,6 +634,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [newStudentPhone, setNewStudentPhone] = useState('');
   const [newStudentClass, setNewStudentClass] = useState('Al-Baqarah Memorization');
   const [newStudentFee, setNewStudentFee] = useState(35);
+  const [newStudentBusFee, setNewStudentBusFee] = useState<number>(0);
   const [newStudentTeacher, setNewStudentTeacher] = useState('T-01');
   const [newStudentSession, setNewStudentSession] = useState<'Morning' | 'Afternoon' | 'Both'>('Both');
   const [newStudentImage, setNewStudentImage] = useState<string>('');
@@ -660,6 +715,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     setNewStudentPhone(student.parentPhone);
     setNewStudentClass(student.className);
     setNewStudentFee(student.monthlyFee);
+    setNewStudentBusFee(student.busFee || 0);
     setNewStudentTeacher(student.teacherId || 'T-01');
     setNewStudentSession(student.session || 'Both');
     setNewStudentImage(student.imageUrl || '');
@@ -672,6 +728,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     setNewStudentPhone('');
     setNewStudentClass('Al-Baqarah Memorization');
     setNewStudentFee(35);
+    setNewStudentBusFee(0);
     setNewStudentTeacher('T-01');
     setNewStudentSession('Both');
     setNewStudentImage('');
@@ -746,6 +803,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
             teacherId: newStudentTeacher,
             className: newStudentClass,
             monthlyFee: Number(newStudentFee),
+            busFee: Number(newStudentBusFee),
             session: newStudentSession,
             imageUrl: newStudentImage
           };
@@ -777,12 +835,13 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       handleCancelEditStudent();
       setTimeout(() => setFeedbackMsg(''), 4000);
     } else {
-      // Auto generate ID e.g. BJ-1011
+      // Auto generate ID e.g. DS001
       const currentMaxIdNum = database.students.reduce((max, s) => {
-        const parsed = parseInt(s.id.split('-')[1]);
-        return parsed > max ? parsed : max;
-      }, 1000);
-      const nextId = `BJ-${currentMaxIdNum + 1}`;
+        const digits = (s.id || '').replace(/^\D+/g, ''); // Extract all trailing digits
+        const parsed = parseInt(digits, 10);
+        return !isNaN(parsed) && parsed > max ? parsed : max;
+      }, 0);
+      const nextId = `DS${String(currentMaxIdNum + 1).padStart(3, '0')}`;
 
       const newStudent: Student = {
         id: nextId,
@@ -792,6 +851,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         teacherId: newStudentTeacher,
         className: newStudentClass,
         monthlyFee: Number(newStudentFee),
+        busFee: Number(newStudentBusFee),
         registrationDate: new Date().toISOString().split('T')[0],
         active: true,
         session: newStudentSession,
@@ -1358,50 +1418,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
 
   // Reusable function to draw a clean vector crest in jsPDF
   const drawPdfLogoCrest = (doc: any, cx: number, cy: number, radius: number = 10) => {
-    try {
-      // Save current status
-      doc.saveState();
-      
-      // Outer green badge circles
-      doc.setDrawColor(43, 92, 67); // #2b5c43 (Dugsiga Subuc green)
-      doc.setLineWidth(0.6);
-      doc.circle(cx, cy, radius, "S");
-      doc.setLineWidth(0.2);
-      doc.circle(cx, cy, radius - 1, "S");
-      
-      // Center wooden shield/tablet
-      doc.setFillColor(192, 137, 78); // #c0894e
-      doc.setDrawColor(64, 38, 19); // dark brown
-      doc.setLineWidth(0.4);
-      const tw = radius * 0.8;
-      const th = radius * 1.3;
-      // draw rounded rect for wooden loox
-      doc.roundedRect(cx - tw/2, cy - th/2, tw, th, 1.5, 1.5, "FD");
-      
-      // Top handle hole/knob
-      doc.setFillColor(64, 38, 19); 
-      doc.circle(cx, cy - th/2, 1.2, "F");
-
-      // Deep brown circular seal
-      doc.setFillColor(48, 24, 10); 
-      doc.circle(cx, cy + 1, radius * 0.35, "F");
-      
-      // Calligraphy simulation lines
-      doc.setDrawColor(236, 213, 179); 
-      doc.setLineWidth(0.15);
-      doc.circle(cx, cy + 1, radius * 0.28, "S");
-      doc.line(cx - 1.5, cy + 1, cx + 1.5, cy + 1);
-      doc.line(cx - 1, cy - 0.5, cx + 1, cy + 2);
-      
-      // Quill feather indicator at bottom
-      doc.setFillColor(29, 66, 75); // teal #1d424b
-      doc.circle(cx + 2, cy + th/2 - 2, 1.2, "F");
-      
-      // Restore states
-      doc.restoreState();
-    } catch (err) {
-      console.warn("Logo rendering bypass: ", err);
-    }
+    // Disabled as requested.
   };
 
   const getMonthsInRange = (start: string, end: string) => {
@@ -2173,24 +2190,21 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       keywords: 'warbixinta, biilka, deynta, dugsiga subuc'
     });
     
-    // Draw Seal Crest at top-left
-    drawPdfLogoCrest(doc, 30, 25, 12);
-    
     // Header Title
-    doc.setTextColor(15, 23, 42); // slate-900
+    doc.setTextColor(33, 84, 61); // deep green (#21543d)
     doc.setFont("Helvetica", "bold");
-    doc.setFontSize(20);
-    doc.text("DUGSIGA SUBUC", 50, 22);
+    doc.setFontSize(22);
+    doc.text("DUGSIGA SUBUC", 15, 24);
     
-    doc.setFontSize(8);
+    doc.setFontSize(9);
     doc.setFont("Helvetica", "bold");
     doc.setTextColor(43, 92, 67); // Green motto
-    doc.text("XARAF SAXAN IYO XIFDI SUGAN  |  Dugsiga Subuc", 50, 27);
+    doc.text("XARAF SAXAN IYO XIFDI SUGAN  |  Dugsiga Subuc", 15, 30);
     
     doc.setFontSize(9);
     doc.setFont("Helvetica", "normal");
     doc.setTextColor(100, 116, 139); // slate-500
-    doc.text("Diiwaanka Rasmiga ah ee Khidmadda Ardayga ee Muddada la doortay", 50, 32);
+    doc.text("Diiwaanka Rasmiga ah ee Khidmadda Ardayga ee Muddada la doortay", 15, 35);
     
     // Divider line
     doc.setDrawColor(203, 213, 225); // slate-300
@@ -2210,7 +2224,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     
     doc.setFontSize(10);
     doc.setTextColor(30, 41, 59);
-    doc.text(`${student.name} (${student.id})`, 20, 56);
+    doc.text(student.name, 20, 56);
     doc.text(`${start} ilaa ${end}`, 110, 56);
     doc.text(new Date().toLocaleDateString(), 155, 56);
     
@@ -2373,6 +2387,446 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   };
 
   // -------------------------------------------------------------
+  // CUSTOM INVOICE CENTER & RECIPIENT BILLING (PARENTS & BUSINESSES)
+  // -------------------------------------------------------------
+  const [billingSubTab, setBillingSubTab] = useState<'fees' | 'custom_invoices'>('fees');
+  const [showInvoiceModal, setShowInvoiceModal] = useState<boolean>(false);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [showInvoiceReceipt, setShowInvoiceReceipt] = useState<Invoice | null>(null);
+  const [invoiceSearch, setInvoiceSearch] = useState<string>('');
+  const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<'all' | 'parent' | 'business'>('all');
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<'all' | 'Paid' | 'Unpaid' | 'Partial'>('all');
+
+  // Interactive Form States
+  const [invFormRecipientType, setInvFormRecipientType] = useState<'parent' | 'business'>('parent');
+  const [invFormRecipientName, setInvFormRecipientName] = useState<string>('');
+  const [invFormRecipientPhone, setInvFormRecipientPhone] = useState<string>('');
+  const [invFormRecipientEmail, setInvFormRecipientEmail] = useState<string>('');
+  const [invFormStudentId, setInvFormStudentId] = useState<string>('');
+  const [invFormStudentIds, setInvFormStudentIds] = useState<string[]>([]);
+  const [invStudentSearchTerm, setInvStudentSearchTerm] = useState<string>('');
+  const [invFormDate, setInvFormDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [invFormDueDate, setInvFormDueDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().split('T')[0];
+  });
+  const [invFormItems, setInvFormItems] = useState<{ id: string; description: string; quantity: number; unitPrice: number }[]>([
+    { id: '1', description: '', quantity: 1, unitPrice: 0 }
+  ]);
+  const [invFormNotes, setInvFormNotes] = useState<string>('');
+  const [invFormStatus, setInvFormStatus] = useState<'Paid' | 'Unpaid' | 'Partial'>('Unpaid');
+  const [invFormAmountPaid, setInvFormAmountPaid] = useState<number>(0);
+
+  const handleOpenCreateInvoice = () => {
+    setEditingInvoice(null);
+    setInvFormRecipientType('parent');
+    setInvFormRecipientName('');
+    setInvFormRecipientPhone('');
+    setInvFormRecipientEmail('');
+    setInvFormStudentId('');
+    setInvFormStudentIds([]);
+    setInvStudentSearchTerm('');
+    setInvFormDate(new Date().toISOString().split('T')[0]);
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    setInvFormDueDate(d.toISOString().split('T')[0]);
+    setInvFormItems([{ id: '1', description: '', quantity: 1, unitPrice: 0 }]);
+    setInvFormNotes('');
+    setInvFormStatus('Unpaid');
+    setInvFormAmountPaid(0);
+    setShowInvoiceModal(true);
+  };
+
+  const handleOpenEditInvoice = (invoice: Invoice) => {
+    setEditingInvoice(invoice);
+    setInvFormRecipientType(invoice.recipientType);
+    setInvFormRecipientName(invoice.recipientName);
+    setInvFormRecipientPhone(invoice.recipientPhone);
+    setInvFormRecipientEmail(invoice.recipientEmail || '');
+    setInvFormStudentId(invoice.studentId || '');
+    // Parse multiple values if comma-separated
+    const ids = invoice.studentId ? invoice.studentId.split(', ').map(s => s.trim()).filter(Boolean) : [];
+    setInvFormStudentIds(ids);
+    setInvStudentSearchTerm('');
+    setInvFormDate(invoice.date);
+    setInvFormDueDate(invoice.dueDate);
+    setInvFormItems(invoice.items.map(item => ({
+      id: item.id,
+      description: item.description,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice
+    })));
+    setInvFormNotes(invoice.notes || '');
+    setInvFormStatus(invoice.status);
+    setInvFormAmountPaid(invoice.amountPaid);
+    setShowInvoiceModal(true);
+  };
+
+  const handleSaveInvoice = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (invFormRecipientType === 'parent' && invFormStudentIds.length === 0) {
+      setFeedbackMsg("Fadlan dooro ugu yaraan hal arday! (Please select at least one student)");
+      setTimeout(() => setFeedbackMsg(''), 4050);
+      return;
+    }
+    
+    // Ensure accurate totals
+    const totalAmount = invFormItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+    
+    // Auto-resolve status based on paid amount
+    let status: 'Paid' | 'Unpaid' | 'Partial' = invFormStatus;
+    if (invFormAmountPaid === 0) {
+      status = 'Unpaid';
+    } else if (invFormAmountPaid >= totalAmount) {
+      status = 'Paid';
+    } else {
+      status = 'Partial';
+    }
+
+    // Resolve student info if recipient is parent
+    let mappedStudentName = '';
+    let mappedStudentId = '';
+    if (invFormRecipientType === 'parent' && invFormStudentIds.length > 0) {
+      const selectedStuds = database.students.filter(s => invFormStudentIds.includes(s.id));
+      mappedStudentName = selectedStuds.map(s => s.name).join(', ');
+      mappedStudentId = selectedStuds.map(s => s.id).join(', ');
+    }
+
+    const itemsWithTotals = invFormItems.map(item => ({
+      ...item,
+      total: item.quantity * item.unitPrice
+    }));
+
+    if (editingInvoice) {
+      // Editing
+      const idx = (database.invoices || []).findIndex(inv => inv.id === editingInvoice.id);
+      const updatedInv: Invoice = {
+        ...editingInvoice,
+        recipientType: invFormRecipientType,
+        recipientName: invFormRecipientName,
+        recipientPhone: invFormRecipientPhone,
+        recipientEmail: invFormRecipientEmail || undefined,
+        studentId: invFormRecipientType === 'parent' ? (mappedStudentId || undefined) : undefined,
+        studentName: invFormRecipientType === 'parent' ? (mappedStudentName || undefined) : undefined,
+        date: invFormDate,
+        dueDate: invFormDueDate,
+        items: itemsWithTotals,
+        totalAmount,
+        amountPaid: invFormAmountPaid,
+        status,
+        notes: invFormNotes || undefined,
+        createdAt: editingInvoice.createdAt || new Date().toISOString()
+      };
+      
+      const newInvoices = [...(database.invoices || [])];
+      if (idx !== -1) {
+        newInvoices[idx] = updatedInv;
+      } else {
+        newInvoices.push(updatedInv);
+      }
+
+      onSaveDatabase({
+        ...database,
+        invoices: newInvoices
+      });
+
+      setFeedbackMsg(`Biilka ${updatedInv.invoiceNo} waa la cusboonaysiiyay!`);
+    } else {
+      // Creating
+      const ticketNum = (database.invoices?.length || 0) + 1001;
+      const invoiceNo = `BJ-INV-${ticketNum}`;
+      const newInv: Invoice = {
+        id: `INV-${Date.now()}`,
+        invoiceNo,
+        recipientType: invFormRecipientType,
+        recipientName: invFormRecipientName,
+        recipientPhone: invFormRecipientPhone,
+        recipientEmail: invFormRecipientEmail || undefined,
+        studentId: invFormRecipientType === 'parent' ? (mappedStudentId || undefined) : undefined,
+        studentName: invFormRecipientType === 'parent' ? (mappedStudentName || undefined) : undefined,
+        date: invFormDate,
+        dueDate: invFormDueDate,
+        items: itemsWithTotals,
+        totalAmount,
+        amountPaid: invFormAmountPaid,
+        status,
+        notes: invFormNotes || undefined,
+        createdBy: "yaxyecabdisalanmohamed1234@gmail.com",
+        createdAt: new Date().toISOString()
+      };
+
+      onSaveDatabase({
+        ...database,
+        invoices: [...(database.invoices || []), newInv]
+      });
+
+      setFeedbackMsg(`Biilka ${invoiceNo} waa la soo saaray!`);
+    }
+
+    setTimeout(() => setFeedbackMsg(''), 4050);
+    setShowInvoiceModal(false);
+    setEditingInvoice(null);
+  };
+
+  const handleDeleteInvoice = (id: string, invoiceNo: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Ma hubaal baa?",
+      message: `Ma hubaal baa inaad kobta ka tirtirto biilka/invoice-ka ${invoiceNo}? Kulankan laguma soo celin karo dib!`,
+      accentColor: 'rose',
+      onConfirm: () => {
+        const updated = (database.invoices || []).filter(inv => inv.id !== id);
+        onSaveDatabase({
+          ...database,
+          invoices: updated
+        });
+        setConfirmModal(null);
+        setFeedbackMsg(`Biilka ${invoiceNo} si guul ah ayaa loo tirtiray.`);
+        setTimeout(() => setFeedbackMsg(''), 4050);
+      }
+    });
+  };
+
+  const getFirstNamesOnly = (namesString?: string) => {
+    if (!namesString) return '';
+    return namesString.split(',').map(name => {
+      const trimmed = name.trim();
+      return trimmed.split(/\s+/)[0] || trimmed;
+    }).join(', ');
+  };
+
+  const handleDownloadInvoiceText = (invoice: Invoice) => {
+    const lines = [
+      "==================================================",
+      "                 DUGSIGA SUBUC                    ",
+      "             INVOICE / BIIL RASMI AH              ",
+      "==================================================",
+      `Tirada Invoice-ka:   ${invoice.invoiceNo}`,
+      `Taariikhda la soo:  ${invoice.date}`,
+      `Nooca Macmiilka:    ${invoice.recipientType === 'parent' ? 'WAALIDKA' : 'SHIRKAD/GANACSI'}`,
+      "--------------------------------------------------",
+      `Macmiilka:          ${invoice.recipientName}`,
+      `Telefoonka:         ${invoice.recipientPhone}`,
+      invoice.recipientEmail ? `Email-ka:           ${invoice.recipientEmail}` : '',
+      invoice.studentName ? `Ardayga:            ${getFirstNamesOnly(invoice.studentName)}` : '',
+      "--------------------------------------------------",
+      "WAXAA LAYGU LEEYAHAY:",
+      ...invoice.items.map((it, idx) => 
+        `${idx + 1}. ${it.description.padEnd(20)} | Tiro: ${it.quantity} | Qiimaha: $${it.unitPrice} | Isu-geyn: $${it.total}`
+      ),
+      "--------------------------------------------------",
+      `Lacagta Guud:       $${invoice.totalAmount}.00`,
+      `Lacagta la bixiyay: $${invoice.amountPaid}.00`,
+      `Deynta Hartay:      $${invoice.totalAmount - invoice.amountPaid}.00`,
+      `Heerka Invoice-ka:   ${invoice.status === 'Paid' ? 'WAA LA BIXIYAY' : invoice.status === 'Partial' ? 'QEYB BAA LA BIXIYAY' : 'LAMA BIXIN'}`,
+      "--------------------------------------------------",
+      invoice.notes ? `Faallooyinka:       ${invoice.notes}` : '',
+      "==================================================",
+      "Waxaa soo saaray Xafiiska Maamulka Dugsiga Subuc.",
+      "Waad ku mahadsan tahay wada-shaqeynta rasmiga ah.",
+      "=================================================="
+    ].filter(Boolean).join('\n');
+
+    const cleanName = invoice.recipientName.replace(/\s+/g, '_');
+    const filename = `subuc_invoice_${invoice.invoiceNo}_${cleanName}.txt`;
+    triggerFileDownload(filename, lines);
+    
+    setFeedbackMsg(`Biilka waxaa loo soo dajiyay TXT ahaan si guul ah.`);
+    setTimeout(() => setFeedbackMsg(''), 4050);
+  };
+
+  const handleDownloadInvoicePDF = (invoice: Invoice) => {
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    doc.setProperties({
+      title: `Invoice Dugsiga Subuc - ${invoice.recipientName} - ${invoice.invoiceNo}`,
+      subject: 'Custom Invoice',
+      author: 'Dugsiga Subuc',
+    });
+
+    // Header Title
+    doc.setTextColor(33, 84, 61); // deep green (#21543d)
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(22);
+    doc.text("DUGSIGA SUBUC", 20, 24);
+
+    // Green subtitle
+    doc.setFontSize(9);
+    doc.setFont("Helvetica", "bold");
+    doc.setTextColor(43, 92, 67); // Green
+    doc.text("Xafiiska Maamulka Garowe", 20, 30);
+
+    // Subtitle
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139); // slate-500
+    doc.text("INVOICE / BIIL RASMI AH OO QAAS AH", 20, 35);
+
+    // Elegant divider line
+    doc.setDrawColor(203, 213, 225); // slate-300
+    doc.setLineWidth(0.5);
+    doc.line(20, 42, 190, 42);
+
+    // Metadata labels
+    doc.setFontSize(9);
+    doc.setFont("Helvetica", "bold");
+    doc.setTextColor(100, 116, 139); // slate-500
+    doc.text("TIRADA INVOICE-KA", 20, 52);
+    doc.text("TAARIIKHDA LA SOO SAARAY", 100, 52);
+
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(30, 41, 59); // slate-800
+    doc.text(invoice.invoiceNo, 20, 58);
+    doc.text(invoice.date, 100, 58);
+
+    // Second level metadata (Recipient info)
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.text("MAGACA MACMIILKA", 20, 68);
+    doc.text("TELEFOONKA", 100, 68);
+    doc.text("NOOCA MACMIILKA", 190, 68, { align: "right" });
+
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(30, 41, 59);
+    doc.text(invoice.recipientName, 20, 74);
+    doc.text(invoice.recipientPhone, 100, 74);
+    doc.text(invoice.recipientType === 'parent' ? "WAALIDKA" : "SHIRKAD/HERO", 190, 74, { align: "right" });
+
+    // Parent details if applicable
+    if (invoice.studentName) {
+      doc.setFont("Helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Ardayga: ${getFirstNamesOnly(invoice.studentName)}`, 20, 80);
+    }
+
+    // Divider
+    doc.setDrawColor(241, 245, 249);
+    doc.line(20, 85, 190, 85);
+
+    // Table Header
+    doc.setFillColor(248, 250, 252); // slate-50
+    doc.rect(20, 88, 170, 8, "F");
+    
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105); // slate-600
+    doc.text("TR", 24, 93);
+    doc.text("FAAHFAAHINTA ADEEGA", 40, 93);
+    doc.text("TIRO", 125, 93, { align: "right" });
+    doc.text("QIIMAHA", 145, 93, { align: "right" });
+    doc.text("ISU-GEYN ($)", 180, 93, { align: "right" });
+
+    let currentY = 101;
+    invoice.items.forEach((item, index) => {
+      // Draw background stripe alternatively
+      if (index % 2 === 1) {
+        doc.setFillColor(252, 252, 252);
+        doc.rect(20, currentY - 4, 170, 7, "F");
+      }
+
+      doc.setFont("Helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(30, 41, 59);
+      
+      doc.text(String(index + 1), 24, currentY);
+      doc.text(item.description, 40, currentY);
+      doc.text(String(item.quantity), 125, currentY, { align: "right" });
+      doc.text(`$${item.unitPrice}.00`, 145, currentY, { align: "right" });
+      doc.text(`$${item.total}.00`, 180, currentY, { align: "right" });
+
+      currentY += 7;
+    });
+
+    // Subtotal section
+    currentY += 5;
+    doc.setDrawColor(226, 232, 240); // slate-200
+    doc.line(20, currentY, 190, currentY);
+
+    currentY += 7;
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.text("LACAGTA GUUD:", 130, currentY);
+    doc.setFont("Helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text(`$${invoice.totalAmount}.00`, 190, currentY, { align: "right" });
+
+    currentY += 6;
+    doc.setFont("Helvetica", "normal");
+    doc.setTextColor(100, 116, 139);
+    doc.text("LA BIXIYAY:", 130, currentY);
+    doc.setFont("Helvetica", "bold");
+    doc.setTextColor(16, 122, 87); // green-700
+    doc.text(`$${invoice.amountPaid}.00`, 190, currentY, { align: "right" });
+
+    currentY += 6;
+    doc.setFont("Helvetica", "normal");
+    doc.setTextColor(100, 116, 139);
+    doc.text("DEYNTA HARTAY:", 130, currentY);
+    doc.setFont("Helvetica", "bold");
+    doc.setTextColor(185, 28, 28); // red-700
+    const balance = invoice.totalAmount - invoice.amountPaid;
+    doc.text(`$${balance}.00`, 190, currentY, { align: "right" });
+
+    // Status stamp box
+    currentY += 15;
+    doc.setDrawColor(148, 163, 184); // slate-400
+    doc.setFillColor(255, 255, 255);
+    doc.setLineWidth(0.4);
+    doc.rect(20, currentY, 40, 15);
+    
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text("HEERKA BIILKA", 23, currentY + 4);
+    
+    doc.setFontSize(9);
+    if (invoice.status === 'Paid') {
+      doc.setTextColor(16, 122, 87); // Green
+      doc.text("WAA LA BIXIYAY", 23, currentY + 10);
+    } else if (invoice.status === 'Partial') {
+      doc.setTextColor(194, 120, 3); // Amber
+      doc.text("QEYB BAA LA BIXIYAY", 23, currentY + 10);
+    } else {
+      doc.setTextColor(185, 28, 28); // Red
+      doc.text("LAMA BIXIN", 23, currentY + 10);
+    }
+
+    if (invoice.notes) {
+      doc.setFont("Helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Faallo: ${invoice.notes}`, 70, currentY + 5, { maxWidth: 110 });
+    }
+
+    // Footer
+    doc.setDrawColor(241, 245, 249);
+    doc.line(20, 268, 190, 268);
+    
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text("Waxaa soo saaray Xafiiska Maamulka ee Dugsiga Subuc & Akadeemiyada Tajweedka.", 20, 274);
+    doc.text(`Kala xiriir: 0904819955 | ${new Date().toLocaleString()}`, 20, 278);
+
+    const cleanName = invoice.recipientName.replace(/\s+/g, '_');
+    doc.save(`subuc_invoice_${invoice.invoiceNo}_${cleanName}.pdf`);
+
+    setFeedbackMsg(`Biilka waxaa loo daabacay PDF ahaan si guul ah.`);
+    setTimeout(() => setFeedbackMsg(''), 4050);
+  };
+
+  // -------------------------------------------------------------
   // TAB 5: BILLING CENTER & PAYMENT VOUCHERS
   // -------------------------------------------------------------
   const [selectedBillingMonth, setSelectedBillingMonth] = useState(() => {
@@ -2397,7 +2851,9 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       amountPaid: 0,
       amountDue: student.monthlyFee,
       debtAmount: student.monthlyFee,
-      status: 'Unpaid'
+      status: 'Unpaid',
+      busFeeDue: student.busFee || 0,
+      busFeePaid: 0
     };
   };
 
@@ -2406,6 +2862,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     setShowPayModal(student);
     setPayAmountDue(record.amountDue ?? student.monthlyFee);
     setPayAmountPaid(record.status === 'Unpaid' ? (record.amountDue ?? student.monthlyFee) : record.amountPaid);
+    setPayBusFeeDue(record.busFeeDue ?? (student.busFee || 0));
+    setPayBusFeePaid(record.status === 'Unpaid' ? (record.busFeeDue ?? (student.busFee || 0)) : (record.busFeePaid ?? 0));
     setPayNotes(record.notes ?? '');
   };
 
@@ -2416,16 +2874,24 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     const student = showPayModal;
     const recordId = `B-${selectedBillingMonth}-${student.id}`;
     const dateToday = new Date().toISOString().split('T')[0];
-    const serial = `REC-${selectedBillingMonth.replace('-', '')}-${student.id.replace('BJ-', '')}`;
+    const serial = `REC-${selectedBillingMonth.replace('-', '')}-${student.id.replace('BJ-', '').replace('DS', '')}`;
 
     const parsedDue = Number(payAmountDue);
     const parsedPaid = Number(payAmountPaid);
-    const remainingDebt = Math.max(0, parsedDue - parsedPaid);
+    const parsedBusDue = Number(payBusFeeDue);
+    const parsedBusPaid = Number(payBusFeePaid);
+
+    const tuitionDebt = Math.max(0, parsedDue - parsedPaid);
+    const busDebt = Math.max(0, parsedBusDue - parsedBusPaid);
+    const remainingDebt = tuitionDebt + busDebt;
+
+    const totalDue = parsedDue + parsedBusDue;
+    const totalPaid = parsedPaid + parsedBusPaid;
 
     let statusVal: 'Paid' | 'Unpaid' | 'Partial' = 'Unpaid';
-    if (parsedPaid >= parsedDue && parsedDue > 0) {
+    if (totalPaid >= totalDue && totalDue > 0) {
       statusVal = 'Paid';
-    } else if (parsedPaid > 0) {
+    } else if (totalPaid > 0) {
       statusVal = 'Partial';
     }
 
@@ -2438,8 +2904,10 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       amountDue: parsedDue,
       amountPaid: parsedPaid,
       debtAmount: remainingDebt,
-      paymentDate: parsedPaid > 0 ? dateToday : undefined,
-      receiptNo: parsedPaid > 0 ? serial : undefined,
+      busFeeDue: parsedBusDue,
+      busFeePaid: parsedBusPaid,
+      paymentDate: totalPaid > 0 ? dateToday : undefined,
+      receiptNo: totalPaid > 0 ? serial : undefined,
       status: statusVal,
       notes: payNotes.trim()
     };
@@ -2546,26 +3014,23 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       keywords: 'receipt, payment, dugsiga subuc'
     });
 
-    // Draw Logo Crest
-    drawPdfLogoCrest(doc, 30, 24, 11);
-
     // Header Title
-    doc.setTextColor(15, 23, 42); // slate-900
+    doc.setTextColor(33, 84, 61); // deep green (#21543d)
     doc.setFont("Helvetica", "bold");
-    doc.setFontSize(20);
-    doc.text("DUGSIGA SUBUC", 48, 22);
+    doc.setFontSize(22);
+    doc.text("DUGSIGA SUBUC", 20, 24);
 
     // Arabic and tagline
-    doc.setFontSize(8);
+    doc.setFontSize(9);
     doc.setFont("Helvetica", "bold");
     doc.setTextColor(43, 92, 67); // Green motto
-    doc.text("Xafiiska Maamulka Garowe", 48, 27);
+    doc.text("Xafiiska Maamulka Garowe", 20, 30);
 
     // Subtitle
     doc.setFont("Helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(100, 116, 139); // slate-500
-    doc.text("RASIIDKA RASMIGA AH EE LACAG-BIXINTA ARDAYGA", 48, 32);
+    doc.text("RASIIDKA RASMIGA AH EE LACAG-BIXINTA ARDAYGA", 20, 35);
     doc.text("Xafiiska Maamulka Garowe", 190, 32, { align: "right" });
 
     // Elegant divider line
@@ -2596,7 +3061,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     doc.setFont("Helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(30, 41, 59); // slate-800
-    doc.text(`${record.studentName} (${record.studentId})`, 20, 76);
+    doc.text(record.studentName, 20, 76);
     doc.text(record.className, 190, 76, { align: "right" });
 
     // Grey background box for billing details
@@ -2717,9 +3182,6 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       subject: 'Weekly Graded Performance Report Card',
       author: 'Dugsiga Subuc'
     });
-
-    // Draw Logo Crest Centered
-    drawPdfLogoCrest(doc, 105, 20, 10);
 
     // Title
     doc.setTextColor(15, 23, 42); // slate-900
@@ -2877,9 +3339,6 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       subject: 'Qiimaynta Toddobaadlaha ah',
       author: 'Dugsiga Subuc'
     });
-
-    // Draw Seal Crest Centered
-    drawPdfLogoCrest(doc, 105, 20, 10);
 
     // Headings
     doc.setTextColor(15, 23, 42); // slate-900
@@ -3074,9 +3533,6 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
 
     const centerX = mode === 'whole' ? 148.5 : 105;
     
-    // Draw Logo Crest Centered
-    drawPdfLogoCrest(doc, centerX, 16, 8);
-
     // Headings
     doc.setTextColor(15, 23, 42); // slate-900
     doc.setFont("Helvetica", "bold");
@@ -3321,6 +3777,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         const noteText = lg.faahfaahin || '';
         const noteLines: string[] = noteText ? doc.splitTextToSize(noteText, 168) : [];
         const hasComment = noteLines.length > 0;
+        const hasSuuradee = !!lg.suuradeeMaraya || !!lg.boggee || (lg.inteeBog && lg.inteeBog !== 'N/A' && lg.inteeBog !== '');
+        const suuradeeHeight = hasSuuradee ? 6 : 0;
         
         // Base Card Height calculation:
         // - Header: 7.5mm
@@ -3328,7 +3786,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         // - If comment exists: header label & line (5mm) + (noteLines.length * 3.8) + padding (3.5mm), else 5mm (subtle empty comment label placeholder)
         // - spacing buffer: 4mm
         const commentHeight = hasComment ? (5 + (noteLines.length * 3.8) + 3.5) : 5;
-        const cardHeight = 7.5 + 10 + commentHeight + 4;
+        const cardHeight = 7.5 + 10 + commentHeight + suuradeeHeight + 4;
 
         // Dynamic page break check using calculated height
         if (rowY + cardHeight > 275) {
@@ -3413,9 +3871,27 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
           doc.text(m.val, mX + 2, gridY + 6.2);
         });
 
-        // 4. Comments area (roomy and beautifully isolated)
+        // 4. Suuraduu Marayo & Intee Bog (if exists)
+        let suuradeeOffsetY = 0;
+        if (hasSuuradee) {
+          const sY = rowY + 18.5;
+          doc.setFillColor(245, 247, 255); // indigo tinted bg
+          doc.setDrawColor(220, 225, 254); // indigo border
+          doc.roundedRect(17, sY, 176, 5, 1, 1, "FD");
+
+          doc.setFontSize(6.5);
+          doc.setFont("Helvetica", "bold");
+          doc.setTextColor(67, 56, 202); // indigo-700
+          const surahText = lg.suuradeeMaraya ? lg.suuradeeMaraya.toUpperCase() : "N/A";
+          const boggeeText = lg.boggee ? ` | BOGGEE: ${lg.boggee.toUpperCase()}` : "";
+          const bogText = (lg.inteeBog && lg.inteeBog !== 'N/A' && lg.inteeBog !== '') ? ` | INTEE BOG: ${lg.inteeBog.toUpperCase()}` : "";
+          doc.text(`SUURADUU MARAYO (CURRENT SURAH):  ${surahText}${boggeeText}${bogText}`, 21, sY + 3.5);
+          suuradeeOffsetY = 6;
+        }
+
+        // 5. Comments area (roomy and beautifully isolated)
         if (hasComment) {
-          const comY = rowY + 18.5;
+          const comY = rowY + 18.5 + suuradeeOffsetY;
           doc.setFillColor(254, 251, 243); // warm amber backdrop
           doc.setDrawColor(253, 244, 215); // amber border
           doc.roundedRect(17, comY, 176, commentHeight - 3, 1.5, 1.5, "FD");
@@ -3436,7 +3912,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
           });
         } else {
           // If no comment, draw a subtle modern placeholder
-          const emptyY = rowY + 18.5;
+          const emptyY = rowY + 18.5 + suuradeeOffsetY;
           doc.setFillColor(250, 250, 250);
           doc.setDrawColor(240, 240, 240);
           doc.roundedRect(17, emptyY, 176, 5, 1, 1, "FD");
@@ -3566,6 +4042,15 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   width: 288px !important;
                   height: 410px !important;
                   margin: 20px auto !important;
+                  display: block !important;
+                  background: white !important;
+                }
+                #printable-invoice-receipt {
+                  box-shadow: none !important;
+                  border: none !important;
+                  max-width: 600px !important;
+                  margin: 0 auto !important;
+                  padding: 10px !important;
                   display: block !important;
                   background: white !important;
                 }
@@ -3873,8 +4358,21 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         {
           label: 'Lacag-bixinta',
           icon: CircleDollarSign,
-          checkActive: () => activeTab === 'billing',
-          onClick: () => setActiveTab('billing')
+          checkActive: () => activeTab === 'billing' && billingSubTab === 'fees',
+          onClick: () => {
+            setActiveTab('billing');
+            setBillingSubTab('fees');
+          }
+        },
+        {
+          label: 'Samee Invoice / Biil',
+          icon: Receipt,
+          checkActive: () => activeTab === 'billing' && billingSubTab === 'custom_invoices',
+          onClick: () => {
+            setActiveTab('billing');
+            setBillingSubTab('custom_invoices');
+            handleOpenCreateInvoice();
+          }
         },
         {
           label: 'Xawaaladda',
@@ -3905,9 +4403,6 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         {/* Brand Row */}
         <div className="flex items-center justify-between pb-6 border-b border-slate-900/60 mb-6 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-lg overflow-hidden shrink-0">
-              <DugsigaSubucLogo className="w-11 h-11" />
-            </div>
             <div className="flex flex-col">
               <span className="font-extrabold text-white text-base tracking-tight leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Dugsiga Subuc</span>
               <span className="text-[10px] font-medium text-emerald-400 mt-1.5 leading-none font-mono">مدرسة السبع</span>
@@ -4016,9 +4511,6 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
           </button>
           
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-md overflow-hidden shrink-0">
-              <DugsigaSubucLogo className="w-7 h-7" />
-            </div>
             <span className="font-extrabold text-sm text-white tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Dugsiga Subuc</span>
           </div>
         </div>
@@ -4148,17 +4640,37 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                           <Inbox className="w-4 h-4 text-slate-500" />
                           <span className="font-extrabold text-xs text-slate-700 tracking-wide uppercase">Real-time Notifications</span>
                         </div>
-                        {totalUnreadCount > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              handleMarkAllNotificationsRead();
-                            }}
-                            className="text-[10px] font-extrabold text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 border border-blue-100 rounded-lg px-2 py-1 cursor-pointer hover:bg-blue-100"
-                          >
-                            Mark all read
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {totalUnreadCount > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMarkAllNotificationsRead();
+                              }}
+                              className="text-[10px] font-extrabold text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 border border-blue-100 rounded-lg px-2 py-1 cursor-pointer hover:bg-blue-100"
+                            >
+                              Mark read
+                            </button>
+                          )}
+                          {systemNotifications.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (window.confirm("Ma hubtaa inaad tirtirto dhammaan ogeysiisyada? / Delete all notifications?")) {
+                                  onSaveDatabase({
+                                    ...database,
+                                    notifications: []
+                                  });
+                                }
+                              }}
+                              className="text-[10px] font-extrabold text-rose-600 hover:text-rose-850 transition-colors bg-rose-50 border border-rose-100 rounded-lg px-2 py-1 cursor-pointer hover:bg-rose-100"
+                            >
+                              Clear all
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       {/* Notification list */}
@@ -4323,7 +4835,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
 
               <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between" id="overview-revenue-paid">
                 <div>
-                  <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Collected Fees (May)</p>
+                  <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Collected Fees ({currentMonthName})</p>
                   <p className="text-3xl font-extrabold text-teal-700 mt-2">${currentMonthPaidAmount}</p>
                 </div>
                 <div className="p-3.5 bg-teal-50 text-teal-600 rounded-2xl">
@@ -4400,7 +4912,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   
                   {/* Absolute Center Metric */}
                   <div className="absolute text-center">
-                    <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">May Paid %</p>
+                    <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">{currentMonthName} Paid %</p>
                     <p className="text-2xl font-extrabold text-teal-800">
                       {currentMonthInvoiced > 0 
                         ? Math.round((currentMonthPaidAmount / currentMonthInvoiced) * 100) 
@@ -4610,9 +5122,10 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-0.5">Monthly Tuition *</label>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-0.5">Monthly Tuition ($) *</label>
                       <input
                         type="number"
+                        step="any"
                         required
                         value={newStudentFee}
                         onChange={(e) => setNewStudentFee(Number(e.target.value))}
@@ -4620,22 +5133,35 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-0.5 font-medium">Assigned Space *</label>
-                      <select
-                        value={newStudentClass}
-                        onChange={(e) => {
-                          setNewStudentClass(e.target.value);
-                          // Auto match teacher depending on selected class seed
-                          const matchT = database.teachers.find(t => t.classAssigned === e.target.value);
-                          if (matchT) setNewStudentTeacher(matchT.id);
-                        }}
-                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white outline-none cursor-pointer"
-                      >
-                        {classSelectionList.map(cls => (
-                          <option key={cls} value={cls}>{cls}</option>
-                        ))}
-                      </select>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-0.5">Monthly Bus Fare ($) *</label>
+                      <input
+                        type="number"
+                        step="any"
+                        required
+                        value={newStudentBusFee}
+                        onChange={(e) => setNewStudentBusFee(Number(e.target.value))}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none"
+                        placeholder="0"
+                      />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-0.5 font-medium">Assigned Space *</label>
+                    <select
+                      value={newStudentClass}
+                      onChange={(e) => {
+                        setNewStudentClass(e.target.value);
+                        // Auto match teacher depending on selected class seed
+                        const matchT = database.teachers.find(t => t.classAssigned === e.target.value);
+                        if (matchT) setNewStudentTeacher(matchT.id);
+                      }}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white outline-none cursor-pointer"
+                    >
+                      {classSelectionList.map(cls => (
+                        <option key={cls} value={cls}>{cls}</option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>
@@ -4874,7 +5400,14 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                   );
                                 })()}
                               </td>
-                              <td className="py-3.5 px-4 text-teal-700 font-extrabold">${student.monthlyFee}</td>
+                              <td className="py-3.5 px-4 text-teal-700 font-extrabold">
+                                <div>${student.monthlyFee}</div>
+                                {student.busFee ? (
+                                  <div className="text-[9px] text-indigo-700 font-bold bg-indigo-50 border border-indigo-150 rounded px-1 mt-0.5 inline-block whitespace-nowrap">
+                                    + ${student.busFee} Bus 🚌
+                                  </div>
+                                ) : null}
+                              </td>
                               <td className="py-3.5 px-4 text-center">
                                 <div className="flex items-center justify-center gap-1.5">
                                   <button
@@ -7090,6 +7623,27 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                   </div>
                                 </div>
 
+                                {/* Suuraduu marayo Badge if present */}
+                                {(log.suuradeeMaraya || log.boggee || (log.inteeBog && log.inteeBog !== 'N/A' && log.inteeBog !== '')) && (
+                                  <div className="mb-3 bg-indigo-50/50 border border-indigo-105 rounded-xl p-2.5 px-3.5 text-xs flex items-center justify-between shadow-3xs">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm">📖</span>
+                                      <span className="font-extrabold text-slate-800">Casharka:</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      {log.suuradeeMaraya && (
+                                        <span className="font-black text-indigo-700 bg-white px-3 py-1 rounded-lg border border-indigo-100 shadow-3xs">Surada: {log.suuradeeMaraya}</span>
+                                      )}
+                                      {log.boggee && (
+                                        <span className="font-black text-purple-700 bg-purple-50 px-3 py-1 rounded-lg border border-purple-100 shadow-3xs">Boggee: {log.boggee}</span>
+                                      )}
+                                      {log.inteeBog && log.inteeBog !== 'N/A' && log.inteeBog !== '' && (
+                                        <span className="font-black text-violet-700 bg-violet-50/50 px-3 py-1 rounded-lg border border-violet-100 shadow-3xs">Intee Bog: {log.inteeBog}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
                                 {/* Matrix grid */}
                                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                                   <div className="bg-white p-2.5 rounded-xl border border-slate-100 flex flex-col justify-center shadow-3xs">
@@ -7176,7 +7730,6 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                       {/* Brand Label block with crest logo */}
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-100">
                         <div className="flex items-center gap-3">
-                          <DugsigaSubucLogo className="w-12 h-12 text-teal-800" />
                           <div>
                             <h4 className="font-extrabold text-slate-900 text-sm">{s.name} ({s.id})</h4>
                             <p className="text-xs text-slate-400 font-semibold mt-0.5">Tuition Ledger Range Statement ({payReportStartMonth} to {payReportEndMonth})</p>
@@ -7677,6 +8230,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                             <div className="flex items-center justify-center gap-1.5">
                                               <input
                                                 type="number"
+                                                step="any"
                                                 disabled={assessmentType === 'monthly'}
                                                 min={0}
                                                 max={maxMarksVal}
@@ -8899,7 +9453,35 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         {/* --- BILLING TAB --- */}
         {activeTab === 'billing' && (
           <div className="space-y-8 animate-fade-in" id="portal-billing">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            
+            {/* Elegant Sub-tab navigation inside Billing Tab */}
+            <div className="flex border-b border-slate-200 shrink-0 select-none overflow-x-auto scrollbar-none pointer-print-none" id="billing-sub-tab-nav">
+              <button
+                type="button"
+                onClick={() => setBillingSubTab('fees')}
+                className={`py-3.5 px-6 font-extrabold text-xs tracking-wider uppercase border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                  billingSubTab === 'fees'
+                    ? 'border-emerald-600 text-emerald-700'
+                    : 'border-transparent text-slate-400 hover:text-slate-800'
+                }`}
+              >
+                Kharashrada Ardayda (Student Tuition Fees)
+              </button>
+              <button
+                type="button"
+                onClick={() => setBillingSubTab('custom_invoices')}
+                className={`py-3.5 px-6 font-extrabold text-xs tracking-wider uppercase border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                  billingSubTab === 'custom_invoices'
+                    ? 'border-emerald-600 text-emerald-700'
+                    : 'border-transparent text-slate-400 hover:text-slate-800'
+                }`}
+              >
+                Invoices-ka Gaarka ah (Parent & Business Invoices)
+              </button>
+            </div>
+
+            {billingSubTab === 'fees' && (
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               
               {/* Filter inputs header */}
               <div className="lg:col-span-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
@@ -9130,6 +9712,246 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
               </div>
 
             </div>
+          )}
+
+          {/* Custom Invoices View */}
+          {billingSubTab === 'custom_invoices' && (
+            <div className="space-y-6 animate-fade-in" id="custom-invoices-pane">
+              {/* Metrics Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Total Invoiced */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-5">
+                  <span className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl"><CircleDollarSign className="w-6 h-6" /></span>
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Guud ahaan Invoices-ka (Total Issued)</p>
+                    <p className="text-2xl font-black text-slate-900">
+                      ${(database.invoices || []).reduce((sum, inv) => sum + inv.totalAmount, 0).toLocaleString()}.00
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">Total Custom Invoices Issued</p>
+                  </div>
+                </div>
+
+                {/* Total Amount Collected */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-5">
+                  <span className="p-4 bg-teal-50 text-teal-600 rounded-2xl"><Check className="w-6 h-6 animate-pulse" /></span>
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Lacagta la Qabtay (Total Collected)</p>
+                    <p className="text-2xl font-black text-emerald-700">
+                      ${(database.invoices || []).reduce((sum, inv) => sum + inv.amountPaid, 0).toLocaleString()}.00
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">Total Payments Collected</p>
+                  </div>
+                </div>
+
+                {/* Outstanding Balance Due */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-5">
+                  <span className="p-4 bg-rose-50 text-rose-600 rounded-2xl"><AlertCircle className="w-6 h-6" /></span>
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Deynta ka maqan (Total Outstanding)</p>
+                    <p className="text-2xl font-black text-rose-600">
+                      ${(database.invoices || []).reduce((sum, inv) => sum + (inv.totalAmount - inv.amountPaid), 0).toLocaleString()}.00
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">Total Outstanding Balance Due</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Filter and Quick Actions Header bar */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full xl:w-auto flex-1">
+                  {/* Search Field */}
+                  <div className="relative">
+                    <Search className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 w-4 h-4 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Raadi magac, telefoon..."
+                      value={invoiceSearch}
+                      onChange={(e) => setInvoiceSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:bg-white transition-all"
+                    />
+                  </div>
+
+                  {/* Filter Type */}
+                  <select
+                    value={invoiceTypeFilter}
+                    onChange={(e) => setInvoiceTypeFilter(e.target.value as any)}
+                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:bg-white"
+                  >
+                    <option value="all">Nooca: Dhammaan Macmiisha (All Recipients)</option>
+                    <option value="parent">Nooca: Waalidiinta (Parents only)</option>
+                    <option value="business">Nooca: Shirkadaha (Businesses only)</option>
+                  </select>
+
+                  {/* Filter Status */}
+                  <select
+                    value={invoiceStatusFilter}
+                    onChange={(e) => setInvoiceStatusFilter(e.target.value as any)}
+                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-705 outline-none cursor-pointer focus:bg-white"
+                  >
+                    <option value="all">Heerka: Dhammaan (All Statuses)</option>
+                    <option value="Paid">Heerka: Waa la bixiyay (Paid)</option>
+                    <option value="Partial">Heerka: Qeyb baa la bixiyay (Partial)</option>
+                    <option value="Unpaid">Heerka: Lama bixin (Unpaid)</option>
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleOpenCreateInvoice}
+                  className="py-2.5 px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl inline-flex items-center gap-2 cursor-pointer transition-all shrink-0 self-start xl:self-auto shadow-md shadow-emerald-600/10"
+                >
+                  <Plus className="w-4 h-4" />
+                  Biil Cusub (Create custom invoice)
+                </button>
+              </div>
+
+              {/* Ledger Invoices listing */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
+                <div className="overflow-x-auto scrollbar-thin">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-100 text-[10px] font-extrabold tracking-widest text-slate-400 uppercase">
+                        <th className="pb-4 pt-1 pl-4">Invoice No</th>
+                        <th className="pb-4 pt-1">Macmiilka (Recipient Name)</th>
+                        <th className="pb-4 pt-1">Nooca</th>
+                        <th className="pb-4 pt-1">Diiwaanka Ardayda</th>
+                        <th className="pb-4 pt-1">Muddada</th>
+                        <th className="pb-4 pt-1 text-right">Lacagta (Total)</th>
+                        <th className="pb-4 pt-1 text-right">La bixiyay (Paid)</th>
+                        <th className="pb-4 pt-1 text-right">Deynta (Balance)</th>
+                        <th className="pb-4 pt-1 text-center">Status</th>
+                        <th className="pb-4 pt-1 pr-4 text-center">Tallaabooyin (Actions)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {(() => {
+                        const list = database.invoices || [];
+                        const filtered = list.filter(inv => {
+                          const term = invoiceSearch.toLowerCase();
+                          const matchSearch = 
+                            inv.invoiceNo.toLowerCase().includes(term) ||
+                            inv.recipientName.toLowerCase().includes(term) ||
+                            inv.recipientPhone.toLowerCase().includes(term) ||
+                            (inv.recipientEmail && inv.recipientEmail.toLowerCase().includes(term)) ||
+                            (inv.studentName && inv.studentName.toLowerCase().includes(term));
+                          
+                          const matchType = invoiceTypeFilter === 'all' || inv.recipientType === invoiceTypeFilter;
+                          const matchStatus = invoiceStatusFilter === 'all' || inv.status === invoiceStatusFilter;
+
+                          return matchSearch && matchType && matchStatus;
+                        });
+
+                        if (filtered.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan={10} className="py-12 text-center text-xs text-slate-400 font-semibold italic">
+                                Ma jiraan biili weheliya shuruudahan la baaray.
+                              </td>
+                            </tr>
+                          );
+                        }
+
+                        return filtered.map(invoice => {
+                          const balanceDue = invoice.totalAmount - invoice.amountPaid;
+                          return (
+                            <tr key={invoice.id} className="hover:bg-slate-50/50 transition-colors text-xs text-slate-800">
+                              <td className="py-4 pl-4 font-mono font-extrabold text-slate-600">{invoice.invoiceNo}</td>
+                              <td className="py-4">
+                                <div className="font-extrabold text-slate-900">{invoice.recipientName}</div>
+                                <div className="font-mono text-[10px] text-slate-400 mt-0.5">{invoice.recipientPhone}</div>
+                              </td>
+                              <td className="py-4">
+                                <span className={`px-2 py-0.5 text-[9px] font-black uppercase rounded ${
+                                  invoice.recipientType === 'parent' 
+                                    ? 'bg-indigo-50 text-indigo-700' 
+                                    : 'bg-sky-50 text-sky-750'
+                                }`}>
+                                  {invoice.recipientType === 'parent' ? 'Waalid' : 'Business'}
+                                </span>
+                              </td>
+                              <td className="py-4 font-semibold text-[11px] text-slate-500">
+                                {invoice.studentName ? (
+                                  <span>
+                                    Aabbe/Hoyo: <span className="font-bold text-slate-700">{invoice.studentName}</span>
+                                    <br/><span className="text-[9px] font-mono">ID: {invoice.studentId}</span>
+                                  </span>
+                                ) : (
+                                  <span className="italic text-slate-300">-</span>
+                                )}
+                              </td>
+                              <td className="py-4">
+                                <div className="text-[10px] text-slate-400">Issue: <span className="font-mono font-bold text-slate-600">{invoice.date}</span></div>
+                                <div className="text-[10px] text-slate-400 mt-0.5">Due: <span className="font-mono font-bold text-slate-600">{invoice.dueDate}</span></div>
+                              </td>
+                              <td className="py-4 text-right font-black text-slate-900">${invoice.totalAmount}.00</td>
+                              <td className="py-4 text-right font-black text-emerald-700">${invoice.amountPaid}.00</td>
+                              <td className="py-4 text-right font-black text-rose-600">${balanceDue}.00</td>
+                              <td className="py-4 text-center">
+                                <span className={`px-2.5 py-1 text-[9px] font-black tracking-wider uppercase rounded-xl inline-block ${
+                                  invoice.status === 'Paid'
+                                    ? 'bg-emerald-50 text-emerald-700'
+                                    : invoice.status === 'Partial'
+                                    ? 'bg-amber-50 text-amber-700'
+                                    : 'bg-rose-50 text-rose-700'
+                                }`}>
+                                  {invoice.status === 'Paid' ? 'Paid' : invoice.status === 'Partial' ? 'Partial' : 'Unpaid'}
+                                </span>
+                              </td>
+                              <td className="py-4 text-center pr-4">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  {/* Edit Button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditInvoice(invoice)}
+                                    className="p-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 cursor-pointer transition-colors"
+                                    title="Edit details"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  {/* Print/View Voucher Receipt Button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowInvoiceReceipt(invoice)}
+                                    className="p-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-150 cursor-pointer transition-colors"
+                                    title="View / Print Invoice"
+                                  >
+                                    <Receipt className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  {/* Download PDF Quick Action */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownloadInvoicePDF(invoice)}
+                                    className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100/80 text-rose-700 border border-rose-150 cursor-pointer transition-colors"
+                                    title="Download PDF"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  {/* Delete Button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteInvoice(invoice.id, invoice.invoiceNo)}
+                                    className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-600/10 text-rose-600 border border-rose-100 cursor-pointer transition-colors"
+                                    title="Delete custom invoice"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          )}
+
           </div>
         )}
 
@@ -9988,6 +10810,33 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                           </div>
                         </div>
 
+                        {/* Suuraduu marayo Section */}
+                        {(selectedAttendanceDetail.suuradeeMaraya || selectedAttendanceDetail.boggee || (selectedAttendanceDetail.inteeBog && selectedAttendanceDetail.inteeBog !== 'N/A' && selectedAttendanceDetail.inteeBog !== '')) && (
+                          <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 flex items-center justify-between">
+                            <div>
+                              <span className="block text-[9px] uppercase font-extrabold text-indigo-400 tracking-wider">Surada</span>
+                              <span className="block text-xs font-black text-slate-800">Current Surah & Pages</span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap justify-end">
+                              {selectedAttendanceDetail.suuradeeMaraya && (
+                                <span className="text-xs font-black text-indigo-700 bg-white border border-indigo-100 px-3 py-1 rounded-xl shadow-md">
+                                  Surada: {selectedAttendanceDetail.suuradeeMaraya}
+                                </span>
+                              )}
+                              {selectedAttendanceDetail.boggee && (
+                                <span className="text-xs font-black text-purple-700 bg-purple-50 border border-purple-100 px-3 py-1 rounded-xl shadow-md">
+                                  Boggee: {selectedAttendanceDetail.boggee}
+                                </span>
+                              )}
+                              {selectedAttendanceDetail.inteeBog && selectedAttendanceDetail.inteeBog !== 'N/A' && selectedAttendanceDetail.inteeBog !== '' && (
+                                <span className="text-xs font-black text-violet-700 bg-violet-50 border border-violet-100 px-3 py-1 rounded-xl shadow-md">
+                                  Intee Bog: {selectedAttendanceDetail.inteeBog}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Core Note Section */}
                         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-150 space-y-1.5 shadow-inner">
                           <span className="block text-[9px] uppercase font-extrabold text-slate-500 tracking-wider pl-0.5 font-sans">Diiwaanka faahfaahinta / Remarks & Notes</span>
@@ -10397,6 +11246,661 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       )}
 
       {/* -------------------------------------------------------------
+          MODAL 1C: CREATE OR EDIT CUSTOM INVOICE (PARENTS & OTHER BUSINESSES)
+          ------------------------------------------------------------- */}
+      {showInvoiceModal && (
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 animate-fade-in pointer-print-none overflow-y-auto" id="invoice-modal-bg">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="w-full max-w-3xl bg-white rounded-3xl shadow-2xl relative overflow-hidden flex flex-col max-h-[92vh] my-auto"
+          >
+            {/* Header */}
+            <div className="p-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
+              <span className="font-extrabold text-xs uppercase tracking-widest text-emerald-400 flex items-center gap-2">
+                <CircleDollarSign className="w-4 h-4 text-emerald-500" />
+                {editingInvoice ? `Wax ka bedel Biilka: ${editingInvoice.invoiceNo}` : 'Soo saar Biil / Invoice Cusub'}
+              </span>
+              <button
+                type="button"
+                onClick={() => { setShowInvoiceModal(false); setEditingInvoice(null); }}
+                className="py-1 px-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg cursor-pointer transition-colors"
+              >
+                Gadaal (Cancel)
+              </button>
+            </div>
+
+            {/* Scrollable form */}
+            <form onSubmit={handleSaveInvoice} className="flex flex-col overflow-hidden max-h-full">
+              <div className="p-6 overflow-y-auto space-y-6 scrollbar-thin flex-1 max-h-[75vh]">
+                
+                {/* Recipient Type Switcher */}
+                <div className="grid grid-cols-2 gap-4 bg-slate-50 p-2.5 rounded-2xl border border-slate-150">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInvFormRecipientType('parent');
+                      setInvFormRecipientName('');
+                      setInvFormRecipientPhone('');
+                      setInvFormStudentId('');
+                    }}
+                    className={`py-2 px-3 text-xs font-black uppercase rounded-xl transition-all cursor-pointer ${
+                      invFormRecipientType === 'parent'
+                        ? 'bg-emerald-600 text-white'
+                        : 'text-slate-500 hover:bg-slate-100'
+                    }`}
+                  >
+                    Waalid Arday (Parent of Student)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInvFormRecipientType('business');
+                      setInvFormRecipientName('');
+                      setInvFormRecipientPhone('');
+                      setInvFormStudentId('');
+                    }}
+                    className={`py-2 px-3 text-xs font-black uppercase rounded-xl transition-all cursor-pointer ${
+                      invFormRecipientType === 'business'
+                        ? 'bg-emerald-600 text-white'
+                        : 'text-slate-500 hover:bg-slate-100'
+                    }`}
+                  >
+                    Ganacsi / Shirkad (Other Business)
+                  </button>
+                </div>
+
+                {/* Parent Auto-Matcher Selection */}
+                {invFormRecipientType === 'parent' && (
+                  <div className="bg-slate-50/70 p-5 rounded-2xl border border-dashed border-emerald-250 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <div>
+                        <label className="block text-[11px] font-black text-emerald-800 uppercase tracking-widest pl-0.5">
+                          Dooro Ardayda Waalidka u Diwaan-gashan (Select Parent's Student/s) *
+                        </label>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          Waalidka wuxuu yeelan karaa hal ama arday ka badan. Dooro dhamaan ardayda biilka loo soo saarayo.
+                        </p>
+                      </div>
+                      
+                      {/* Active count indicator */}
+                      <span className="text-[10px] bg-emerald-100 text-emerald-700 font-extrabold px-2 py-1 rounded-lg self-start">
+                        {invFormStudentIds.length} la doortay
+                      </span>
+                    </div>
+
+                    {/* Selected Student Pills display */}
+                    {invFormStudentIds.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5 p-2.5 bg-white border border-slate-150 rounded-xl">
+                        {invFormStudentIds.map(sid => {
+                          const student = database.students.find(s => s.id === sid);
+                          return student ? (
+                            <div 
+                              key={sid} 
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold rounded-lg"
+                            >
+                              <span>{student.name} ({student.className})</span>
+                              <button
+                                type="button"
+                                onClick={() => setInvFormStudentIds(prev => prev.filter(id => id !== sid))}
+                                className="w-3.5 h-3.5 rounded-full hover:bg-emerald-200 text-emerald-600 flex items-center justify-center font-black cursor-pointer text-[10px]"
+                                title="Remove"
+                              >
+                                &times;
+                              </button>
+                            </div>
+                          ) : null;
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-center py-2 text-[11px] font-bold text-amber-600 bg-amber-50 rounded-xl border border-amber-100">
+                        ⚠️ Fadlan dooro ugu yaraan hal arday hoos ku qoran!
+                      </div>
+                    )}
+
+                    {/* Live Search bar inside selection container */}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Ku baar magaca ardayga, fasalka, ama waalidka..."
+                        value={invStudentSearchTerm}
+                        onChange={(e) => setInvStudentSearchTerm(e.target.value)}
+                        className="w-full pl-9 pr-3.5 py-2 bg-white border border-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-xl text-xs font-semibold text-slate-800 outline-none transition-all"
+                      />
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                      {invStudentSearchTerm && (
+                        <button
+                          type="button"
+                          onClick={() => setInvStudentSearchTerm('')}
+                          className="absolute right-3 top-2 text-[11px] font-bold text-slate-400 hover:text-slate-600"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+
+                    {/* List of active students */}
+                    <div className="max-h-52 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-white scrollbar-thin">
+                      {(() => {
+                        const filtered = activeStudents.filter(s => {
+                          const term = invStudentSearchTerm.toLowerCase().trim();
+                          if (!term) return true;
+                          return (s.name || '').toLowerCase().includes(term) ||
+                                 (s.parentName || '').toLowerCase().includes(term) ||
+                                 (s.className || '').toLowerCase().includes(term);
+                        });
+
+                        if (filtered.length === 0) {
+                          return (
+                            <div className="p-4 text-center text-xs text-slate-400 font-semibold italic">
+                              Arday dhoos ku qoran laguma helin baadigaas. (No matching active students)
+                            </div>
+                          );
+                        }
+
+                        return filtered.map(student => {
+                          const isSelected = invFormStudentIds.includes(student.id);
+                          return (
+                            <div 
+                              key={student.id} 
+                              className={`p-2.5 flex items-center justify-between gap-3 text-xs transition-colors hover:bg-slate-50 ${
+                                isSelected ? 'bg-emerald-50/20' : ''
+                              }`}
+                            >
+                              <label className="flex items-center gap-2.5 cursor-pointer flex-1 select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => {
+                                    if (isSelected) {
+                                      setInvFormStudentIds(prev => prev.filter(id => id !== student.id));
+                                    } else {
+                                      setInvFormStudentIds(prev => [...prev, student.id]);
+                                      // If parent info isn't set, auto fill it or help user
+                                      if (!invFormRecipientName) {
+                                        setInvFormRecipientName(student.parentName || '');
+                                      }
+                                      if (!invFormRecipientPhone) {
+                                        setInvFormRecipientPhone(student.parentPhone || '');
+                                      }
+                                    }
+                                  }}
+                                  className="w-3.5 h-3.5 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer"
+                                />
+                                <div>
+                                  <span className="font-extrabold text-slate-900 block">{student.name}</span>
+                                  <span className="text-[10px] text-slate-500 font-bold">
+                                    Fasalka: {student.className} | Waalidka: {student.parentName || 'ma jiro'}
+                                  </span>
+                                </div>
+                              </label>
+
+                              {/* Quick Auto-fill button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setInvFormRecipientName(student.parentName || '');
+                                  setInvFormRecipientPhone(student.parentPhone || '');
+                                }}
+                                className="px-2 py-1 bg-slate-100 hover:bg-emerald-100 border border-slate-200 hover:border-emerald-250 text-[10px] font-bold rounded-lg text-slate-600 hover:text-emerald-700 transition-all shrink-0 cursor-pointer"
+                                title="Auto-fill with parent details"
+                              >
+                                🔗 Copy Parent Info
+                              </button>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {/* Basic Details Fields */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Recipient Name */}
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">
+                      Magaca Macmiilka (Recipient Name) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Geli magaca..."
+                      value={invFormRecipientName}
+                      onChange={(e) => setInvFormRecipientName(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
+                    />
+                  </div>
+
+                  {/* Recipient Phone */}
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">
+                      Telefoonka (Phone) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Geli taleefoonka..."
+                      value={invFormRecipientPhone}
+                      onChange={(e) => setInvFormRecipientPhone(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
+                    />
+                  </div>
+
+                  {/* Recipient Email */}
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">
+                      Email-ka (Email - Optional)
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="customer@example.com"
+                      value={invFormRecipientEmail}
+                      onChange={(e) => setInvFormRecipientEmail(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Dates Configuration */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">
+                      Taariikhda la soo saaray (Invoice Date) *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={invFormDate}
+                      onChange={(e) => setInvFormDate(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">
+                      Taariikhda ugu dambaysa ee bixinta (Due Date) *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={invFormDueDate}
+                      onChange={(e) => setInvFormDueDate(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Line Items Box */}
+                <div className="p-5 border border-slate-150 rounded-2xl space-y-4 bg-slate-50/20">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Adeegyada & Baayacmushtarka (Invoice Line Items)</h4>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase">Ku dar shey ku jiri doona biilka</span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {invFormItems.map((item, index) => (
+                      <div key={item.id} className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
+                        {/* Description */}
+                        <div className="flex-1 w-full">
+                          {index === 0 && (
+                            <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Faahfaahinta Adeega (Description) *</label>
+                          )}
+                          <input
+                            type="text"
+                            required
+                            placeholder="t.g. Buugaagta fasalka, Adeeg dheeraad ah..."
+                            value={item.description}
+                            onChange={(e) => {
+                              const updated = [...invFormItems];
+                              updated[index].description = e.target.value;
+                              setInvFormItems(updated);
+                            }}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
+                          />
+                        </div>
+
+                        {/* Quantity */}
+                        <div className="w-24 shrink-0">
+                          {index === 0 && (
+                            <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Qty *</label>
+                          )}
+                          <input
+                            type="number"
+                            required
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => {
+                              const updated = [...invFormItems];
+                              updated[index].quantity = Math.max(1, Number(e.target.value));
+                              setInvFormItems(updated);
+                            }}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none transition-all text-center"
+                          />
+                        </div>
+
+                        {/* Unit Price */}
+                        <div className="w-28 shrink-0">
+                          {index === 0 && (
+                            <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Qiimaha ($) *</label>
+                          )}
+                          <input
+                            type="number"
+                            required
+                            min="0"
+                            placeholder="Price ($)"
+                            value={item.unitPrice}
+                            onChange={(e) => {
+                              const updated = [...invFormItems];
+                              updated[index].unitPrice = Math.max(0, Number(e.target.value));
+                              setInvFormItems(updated);
+                            }}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none transition-all text-right"
+                          />
+                        </div>
+
+                        {/* Row Total display */}
+                        <div className="w-20 text-right pr-2">
+                          {index === 0 && (
+                            <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Guud</label>
+                          )}
+                          <span className="text-xs font-black text-slate-600 block py-2">${item.quantity * item.unitPrice}.00</span>
+                        </div>
+
+                        {/* Trash Button for extra items */}
+                        {invFormItems.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = invFormItems.filter((_, idx) => idx !== index);
+                              setInvFormItems(updated);
+                            }}
+                            className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-all cursor-pointer self-center"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Add Row Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInvFormItems([
+                        ...invFormItems,
+                        { id: String(Date.now()), description: '', quantity: 1, unitPrice: 0 }
+                      ]);
+                    }}
+                    className="py-1.5 px-3 border border-dashed border-emerald-500 hover:bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-wider rounded-xl inline-flex items-center gap-1.5 cursor-pointer transition-all mt-2"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Shey Dheeraad ah (Add service row)
+                  </button>
+                </div>
+
+                {/* Live math summary and Payment Collector */}
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-150 grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Notes / Instructions */}
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">
+                      Faallo iyo Farriimo (Invoice Notes)
+                    </label>
+                    <textarea
+                      rows={4}
+                      placeholder="Qiimo dhimis, ama dardaaran kale..."
+                      value={invFormNotes}
+                      onChange={(e) => setInvFormNotes(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-xs font-semibold text-slate-700 outline-none transition-all resize-none"
+                    />
+                  </div>
+
+                  {/* Payment registration & Summary Maths */}
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-200">
+                      <span className="font-bold text-slate-500 uppercase tracking-wider">Lacagta guud ee biilka (Total Invoiced):</span>
+                      <span className="text-sm font-black text-slate-900">${invFormItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0)}.00 USD</span>
+                    </div>
+
+                    {/* Registrate quick collected payment */}
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">
+                        Lacagta Hadda la qabtay / la bixiyay (Amount Paid so far) *
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max={invFormItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0)}
+                        required
+                        value={invFormAmountPaid}
+                        onChange={(e) => setInvFormAmountPaid(Math.max(0, Number(e.target.value)))}
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-sm font-black text-slate-900 outline-none transition-all text-right"
+                      />
+                    </div>
+
+                    <div className="flex justify-between items-center text-xs pt-1">
+                      <span className="font-bold text-slate-500 uppercase">Deynta Hartay (Remaining Due Balance):</span>
+                      <span className="text-sm font-black text-rose-600">
+                        ${Math.max(0, invFormItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0) - invFormAmountPaid)}.00 USD
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center text-xs pt-1">
+                      <span className="font-bold text-slate-500 uppercase">Heerka Biilka (Automated Status):</span>
+                      {(() => {
+                        const total = invFormItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+                        const paid = invFormAmountPaid;
+                        let labelStr = 'LAMA BIXIN (UNPAID)';
+                        let colorStr = 'bg-rose-50 text-rose-700 border border-rose-100';
+                        if (paid >= total && total > 0) {
+                          labelStr = 'WAA LA BIXIYAY (PAID)';
+                          colorStr = 'bg-emerald-50 text-emerald-700 border border-emerald-100';
+                        } else if (paid > 0) {
+                          labelStr = 'QEYB BAA LA BIXIYAY (PARTIAL)';
+                          colorStr = 'bg-amber-50 text-amber-700 border border-amber-100';
+                        }
+                        return (
+                          <span className={`px-3 py-1 font-black text-[9px] uppercase tracking-wider rounded-xl ${colorStr}`}>{labelStr}</span>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 bg-slate-50 border-t border-slate-150 flex items-center justify-end gap-3 shrink-0 pointer-print-none">
+                <button
+                  type="button"
+                  onClick={() => { setShowInvoiceModal(false); setEditingInvoice(null); }}
+                  className="py-2.5 px-5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-extrabold text-xs rounded-xl cursor-pointer transition-colors"
+                >
+                  Gadaal (Cancel)
+                </button>
+                <button
+                  type="submit"
+                  className="py-2.5 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl inline-flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-600/10 transition-colors"
+                >
+                  <Save className="w-4 h-4" />
+                  {editingInvoice ? 'Cusboonaysii (Update)' : 'Kaydi & Soo Saar (Issue Invoice)'}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* -------------------------------------------------------------
+          MODAL 1D: PRINT OR PREVIEW CUSTOM CUSTOM INVOICE
+          ------------------------------------------------------------- */}
+      {showInvoiceReceipt && (
+        <div 
+          className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto pointer-print-none" 
+          id="invoice-receipt-bg"
+          onClick={(e) => {
+            if ((e.target as HTMLElement).id === 'invoice-receipt-bg') {
+              setShowInvoiceReceipt(null);
+            }
+          }}
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="w-full max-w-lg bg-white rounded-3xl shadow-2xl relative overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh] my-auto"
+            id="invoice-print-wrapper"
+          >
+            {/* Header / Actions toolbar inside overlay */}
+            <div className="p-4 bg-slate-900 text-white flex items-center justify-between pointer-print-none flex-wrap gap-2">
+              <span className="font-bold text-xs uppercase tracking-widest text-slate-400 font-bold">Xafiiska Daabacaada</span>
+              <div className="flex gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setShowInvoiceReceipt(null)}
+                  className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg cursor-pointer inline-flex items-center gap-1 transition-colors border border-slate-700 font-bold"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  Gadaal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadInvoicePDF(showInvoiceReceipt)}
+                  className="py-1.5 px-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg inline-flex items-center gap-1 transition-all cursor-pointer font-bold"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  La soo deg PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadInvoiceText(showInvoiceReceipt)}
+                  className="py-1.5 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg inline-flex items-center gap-1 transition-all cursor-pointer font-bold"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  La soo deg TXT
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePrintElement('printable-invoice-receipt')}
+                  className="py-1.5 px-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg inline-flex items-center gap-1 transition-all cursor-pointer font-bold"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  Daabac Biilka
+                </button>
+              </div>
+            </div>
+
+            {/* Print paper layout preview */}
+            <div id="printable-invoice-receipt" className="p-8 overflow-y-auto space-y-6 scrollbar-thin bg-white flex-1 text-slate-800 printable-canvas font-sans select-text">
+              
+              {/* Crest logo & Title head */}
+              <div className="flex items-center gap-4 border-b border-slate-100 pb-5">
+                <div>
+                  <h3 className="text-xl font-black text-[#21543d] font-lutfey uppercase tracking-wider">Dugsiga Subuc</h3>
+                  <p className="text-[9px] font-black text-[#21543d] uppercase tracking-wider mt-1">Xafiiska Garowe & Akadeemiyada Tajwiidka</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Invoice / Biil Rasmi Ah oo Gaar ah</p>
+                </div>
+              </div>
+
+              {/* Metadata block */}
+              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-150 text-[11px] leading-relaxed">
+                <div>
+                  <span className="block text-[8px] text-slate-400 uppercase font-black">Loo soo saaray:</span>
+                  <span className="text-xs font-black text-slate-950">{showInvoiceReceipt.recipientName}</span>
+                  <span className="block font-mono text-[10px] text-slate-500 mt-0.5">{showInvoiceReceipt.recipientPhone}</span>
+                  {showInvoiceReceipt.studentName && (
+                    <span className="block text-[9px] text-indigo-700 font-bold mt-1">
+                      Ardayga: {getFirstNamesOnly(showInvoiceReceipt.studentName)}
+                    </span>
+                  )}
+                </div>
+                <div className="text-right">
+                  <span className="block text-[8px] text-slate-400 uppercase font-black">Invoice No:</span>
+                  <span className="text-xs font-mono font-black text-slate-950">{showInvoiceReceipt.invoiceNo}</span>
+                  <span className="block text-[10px] text-slate-500 font-mono mt-1">
+                    Taariikhda: <span className="font-bold">{showInvoiceReceipt.date}</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Items tabular grid */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-150 text-[9px] font-black text-slate-500 uppercase">
+                      <th className="py-2 pl-3">Tr</th>
+                      <th className="py-2">Faahfaahinta Adeega</th>
+                      <th className="py-2 text-center">Tiro</th>
+                      <th className="py-2 text-right">Qiimaha</th>
+                      <th className="py-2 text-right pr-3">Isu-geyn</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {showInvoiceReceipt.items.map((item, idx) => (
+                      <tr key={item.id || idx} className="text-slate-800 font-medium">
+                        <td className="py-2.5 pl-3 font-mono font-bold text-slate-400">{idx + 1}</td>
+                        <td className="py-2.5 font-semibold text-slate-900">{item.description}</td>
+                        <td className="py-2.5 text-center font-bold text-slate-600">{item.quantity}</td>
+                        <td className="py-2.5 text-right font-semibold text-slate-600">${item.unitPrice}.00</td>
+                        <td className="py-2.5 text-right font-extrabold text-slate-950 pr-3">${item.quantity * item.unitPrice}.00</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Math summaries list */}
+              <div className="border-t border-dashed border-slate-250 pt-4 space-y-2 text-xs">
+                <div className="flex justify-between items-center text-slate-500 font-semibold">
+                  <span>LACAGTA GUUD:</span>
+                  <span className="font-black text-slate-950">${showInvoiceReceipt.totalAmount}.00</span>
+                </div>
+                <div className="flex justify-between items-center text-emerald-600 font-bold">
+                  <span>LA BIXIYAY:</span>
+                  <span className="font-black text-emerald-700">${showInvoiceReceipt.amountPaid}.00</span>
+                </div>
+                <div className="flex justify-between items-center border-t border-slate-100 pt-2 text-slate-800 font-black">
+                  <span>DEYNTA HARTAY:</span>
+                  <span className={`text-sm font-extrabold ${showInvoiceReceipt.totalAmount - showInvoiceReceipt.amountPaid > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+                    ${showInvoiceReceipt.totalAmount - showInvoiceReceipt.amountPaid}.00
+                  </span>
+                </div>
+              </div>
+
+              {/* Status stamp badge */}
+              <div className="flex items-center justify-between gap-4 pt-2">
+                <div className="px-3.5 py-1.5 rounded-xl border border-dashed border-slate-350 text-center inline-block">
+                  <span className="block text-[8px] text-slate-400 font-black uppercase mb-0.5">HEERKA BIILKA</span>
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${
+                    showInvoiceReceipt.status === 'Paid'
+                      ? 'text-emerald-700'
+                      : showInvoiceReceipt.status === 'Partial'
+                      ? 'text-amber-700'
+                      : 'text-rose-700'
+                  }`}>
+                    {showInvoiceReceipt.status === 'Paid' ? 'Waa la bixiyey' : showInvoiceReceipt.status === 'Partial' ? 'Qeyb baa la bixiyey' : 'Lama bixin'}
+                  </span>
+                </div>
+
+                {showInvoiceReceipt.notes && (
+                  <div className="text-right max-w-[60%]">
+                    <span className="block text-[8px] text-slate-400 font-black uppercase mb-0.5">Faallo:</span>
+                    <p className="text-[10px] text-slate-500 font-semibold leading-relaxed italic">{showInvoiceReceipt.notes}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* print layout footer citation */}
+              <div className="text-center pt-4 border-t border-dashed border-slate-300 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                Waad ku mahadsan tahay wada-shaqeynta rasmiga ah
+              </div>
+            </div>
+
+          </motion.div>
+        </div>
+      )}
+
+      {/* -------------------------------------------------------------
           MODAL 1B: SECURE BILLING & DEBT MANAGEMENT COLLECTOR
           ------------------------------------------------------------- */}
       {showPayModal && (
@@ -10438,39 +11942,98 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Monthly Tuition</h4>
                   <p className="text-slate-900 font-extrabold mt-0.5">${showPayModal.monthlyFee}</p>
                 </div>
+                {showPayModal.busFee ? (
+                  <div>
+                    <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Monthly Bus Fare</h4>
+                    <p className="text-indigo-850 font-extrabold mt-0.5">${showPayModal.busFee}</p>
+                  </div>
+                ) : null}
               </div>
 
               {/* Collector Form and Live Math */}
               <form onSubmit={handleSavePaymentDetails} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-0.5">Fees Expected / Due ($) *</label>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      value={payAmountDue}
-                      onChange={(e) => setPayAmountDue(Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
-                    />
+                {/* Tuition Section */}
+                <div className="bg-slate-50/55 p-4 rounded-2xl border border-slate-150 space-y-3">
+                  <div className="text-xs font-black text-teal-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <BookOpen className="w-3.5 h-3.5" />
+                    1. Lacagta Waxbarashada (Tuition Fee)
                   </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5 pl-0.5">Fees Expected / Due ($) *</label>
+                      <input
+                        type="number"
+                        step="any"
+                        required
+                        min="0"
+                        value={payAmountDue}
+                        onChange={(e) => setPayAmountDue(Number(e.target.value))}
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
+                      />
+                    </div>
 
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-0.5">Amount Deposited ($) *</label>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      value={payAmountPaid}
-                      onChange={(e) => setPayAmountPaid(Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
-                    />
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5 pl-0.5">Amount Deposited ($) *</label>
+                      <input
+                        type="number"
+                        step="any"
+                        required
+                        min="0"
+                        value={payAmountPaid}
+                        onChange={(e) => setPayAmountPaid(Number(e.target.value))}
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bus Section */}
+                <div className="bg-indigo-50/30 p-4 rounded-2xl border border-indigo-150/40 space-y-3">
+                  <div className="text-xs font-black text-indigo-800 uppercase tracking-wider flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Bus className="w-3.5 h-3.5 text-indigo-600" />
+                      2. Lacagta Gaadiidka / Baska (Bus Fare)
+                    </span>
+                    {showPayModal.busFee ? (
+                      <span className="text-[9px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-black uppercase tracking-wider">Ardayga Baskuu Raacaa</span>
+                    ) : (
+                      <span className="text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-black uppercase tracking-wider">Ardaygu Baska kuma qorna</span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5 pl-0.5">Bus Fare Due ($) *</label>
+                      <input
+                        type="number"
+                        step="any"
+                        required
+                        min="0"
+                        value={payBusFeeDue}
+                        onChange={(e) => setPayBusFeeDue(Number(e.target.value))}
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5 pl-0.5">Bus Fare Paid ($) *</label>
+                      <input
+                        type="number"
+                        step="any"
+                        required
+                        min="0"
+                        value={payBusFeePaid}
+                        onChange={(e) => setPayBusFeePaid(Number(e.target.value))}
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
+                      />
+                    </div>
                   </div>
                 </div>
 
                 {/* Live Debt Feedback Panel */}
                 {(() => {
-                  const calculatedDebt = Math.max(0, payAmountDue - payAmountPaid);
+                  const tuitionDebt = Math.max(0, payAmountDue - payAmountPaid);
+                  const busDebt = Math.max(0, payBusFeeDue - payBusFeePaid);
+                  const calculatedDebt = tuitionDebt + busDebt;
                   return (
                     <div className={`p-4 rounded-xl border flex items-start gap-3 text-xs relative overflow-hidden ${
                       calculatedDebt > 0 
@@ -10480,12 +12043,12 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                       <AlertCircle className={`w-4 h-4 mt-0.5 shrink-0 ${calculatedDebt > 0 ? 'text-amber-500' : 'text-emerald-500'}`} />
                       <div>
                         <span className="font-extrabold block">
-                          {calculatedDebt > 0 ? `Underpayment Flagged ($${calculatedDebt} remaining debt)` : 'Fully Paid Settlement'}
+                          {calculatedDebt > 0 ? `Deyn hadhay oo dhiman oo lagu leeyahay ($${calculatedDebt} remaining)` : 'Dhamaan Lacagtii waa la bixiyay (Fully Paid Settlement)'}
                         </span>
-                        <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
+                        <p className="text-[11px] text-slate-550 leading-relaxed mt-0.5 font-semibold text-slate-600">
                           {calculatedDebt > 0 
-                            ? `Student is paying partially. The database will track $${calculatedDebt} as carry-over debt. This debt amount will be showcased on next monthly payment iterations.`
-                            : 'Perfect matching. The student owes nothing further for the current invoicing month.'}
+                            ? `Tuition Debt: $${tuitionDebt} | Bus Fare Debt: $${busDebt}. The database is actively managing these balances.`
+                            : 'Perfect matching! Standard tuition and transportation subscription are fully paid for the current month.'}
                         </p>
                       </div>
                     </div>
@@ -10901,6 +12464,27 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                 </div>
                               </div>
 
+                              {/* Suuraduu marayo Badge if present */}
+                              {(lg.suuradeeMaraya || lg.boggee || (lg.inteeBog && lg.inteeBog !== 'N/A' && lg.inteeBog !== '')) && (
+                                <div className="mb-3.5 bg-indigo-50/50 border border-indigo-105 rounded-xl p-2.5 px-3.5 text-xs flex items-center justify-between shadow-3xs">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm">📖</span>
+                                    <span className="font-extrabold text-slate-800 font-sans">Casharka:</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {lg.suuradeeMaraya && (
+                                      <span className="font-black text-indigo-700 bg-white px-3 py-1 rounded-lg border border-indigo-100 shadow-3xs">Surada: {lg.suuradeeMaraya}</span>
+                                    )}
+                                    {lg.boggee && (
+                                      <span className="font-black text-purple-700 bg-purple-50 px-3 py-1 rounded-lg border border-purple-100 shadow-3xs">Boggee: {lg.boggee}</span>
+                                    )}
+                                    {lg.inteeBog && lg.inteeBog !== 'N/A' && lg.inteeBog !== '' && (
+                                      <span className="font-black text-violet-700 bg-violet-50/50 px-3 py-1 rounded-lg border border-violet-100 shadow-3xs">Intee Bog: {lg.inteeBog}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
                               {/* Progress metrics grid layout */}
                               <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-slate-700">
                                 <div className="bg-white p-3 rounded-xl border border-slate-150 flex flex-col justify-center shadow-3xs">
@@ -11048,7 +12632,6 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 {/* Header background decoration */}
                 <div className="bg-emerald-800 text-white p-3 text-center border-b-[3px] border-amber-500 relative">
                   <div className="flex items-center justify-center gap-1.5">
-                    <DugsigaSubucLogo className="w-6 h-6 text-white" />
                     <div className="text-left">
                       <h2 className="text-xs font-black tracking-widest leading-none font-lutfey">DUGSIGA SUBUC</h2>
                       <p className="text-[7.5px] uppercase font-bold tracking-wider text-amber-300 mt-0.5">Quran memorization academy</p>
