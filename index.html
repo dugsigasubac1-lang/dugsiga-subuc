@@ -4,6 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
+    <!-- Force Custom Domain Redirect (Hide ugly .netlify.app URL) -->
+    <script>
+      (function() {
+        var host = window.location.hostname;
+        // Avoid redirecting when developing locally or running in the AI Studio preview environment
+        if (host.indexOf('localhost') === -1 && 
+            host.indexOf('127.0.0.1') === -1 && 
+            host.indexOf('ais-dev-') === -1 && 
+            host.indexOf('ais-pre-') === -1) {
+          if (host.endsWith('netlify.app')) {
+            window.location.replace('https://dugsigasubuc.com' + window.location.pathname + window.location.search);
+          }
+        }
+      })();
+    </script>
+
     <!-- Primary SEO Meta Tags -->
     <title>Dugsiga Subuc | Xaraf Saxan iyo Xifdi Sugan</title>
     <meta name="description" content="Dugsiga Subuc waa dugsi ku yaal Garowe oo bixiya xifdinta Qur'aanka Kariimka ah, higaadda Carabiga, iyo waxbarasho tayo leh." />

@@ -3,6 +3,12 @@
   publish = "dist"
 
 [[redirects]]
+  from = "https://sweet-fenglisu-050871.netlify.app/*"
+  to = "https://dugsigasubuc.com/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
   from = "/api/*"
   to = "https://ais-pre-62d2s5mys67lzy355x45ja-697605956028.europe-west2.run.app/api/:splat"
   status = 200
