@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldAlert, GraduationCap, ArrowRight, Lock, User, AlertTriangle, X } from 'lucide-react';
+import { ShieldAlert, GraduationCap, ArrowRight, Lock, User, AlertTriangle, X, Eye, EyeOff } from 'lucide-react';
 import { DatabaseState, Teacher } from '../types';
 import { DugsigaSubucFullLogo } from './Logo';
 
@@ -51,9 +51,10 @@ export function LoginScreen({
   sessionExpiredMsg,
   onClearExpiredMsg
 }: LoginScreenProps) {
-  const [activeTab, setActiveTab] = useState<'admin' | 'teacher'>('admin');
+  const [activeTab, setActiveTab ] = useState<'admin' | 'teacher'>('admin');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   
   const handleSubmit = (e: React.FormEvent) => {
@@ -198,6 +199,7 @@ export function LoginScreen({
                 setActiveTab('admin');
                 setUsername('');
                 setPassword('');
+                setShowPassword(false);
                 setError('');
                 onClearExpiredMsg();
               }}
@@ -216,6 +218,7 @@ export function LoginScreen({
                 setActiveTab('teacher');
                 setUsername('');
                 setPassword('');
+                setShowPassword(false);
                 setError('');
                 onClearExpiredMsg();
               }}
@@ -272,14 +275,27 @@ export function LoginScreen({
                   <Lock className="w-5 h-5" />
                 </div>
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-100 rounded-2xl text-slate-900 transition-all text-sm outline-none font-medium"
+                  className="w-full pl-11 pr-12 py-3 bg-slate-50 border border-slate-200 focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-100 rounded-2xl text-slate-900 transition-all text-sm outline-none font-medium"
                   id="password-input"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 outline-none transition-colors"
+                  aria-label={showPassword ? "Qari erayga sirta ah" : "Muuji erayga sirta ah"}
+                  id="toggle-password-btn"
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
+                </button>
               </div>
             </div>
 

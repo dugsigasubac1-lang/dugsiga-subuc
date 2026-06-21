@@ -613,6 +613,18 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const currentMonthPaidAmount = currentMonthPaidRecords.reduce((sum, r) => sum + r.amountPaid, 0);
   const currentMonthUnpaidAmount = Math.max(0, currentMonthInvoiced - currentMonthPaidAmount);
 
+  // Bus Fare Statistics Calculations
+  const busRiders = database.students.filter(s => s.active && s.busFee && Number(s.busFee) > 0);
+  const totalBusRidersCount = busRiders.length;
+  const currentMonthBusInvoiced = busRiders.reduce((sum, s) => sum + Number(s.busFee || 0), 0);
+  const currentMonthBusPaidRecords = database.billing.filter(b => b.month === currentMonthFilter);
+  const currentMonthBusCollected = currentMonthBusPaidRecords.reduce((sum, r) => sum + Number(r.busFeePaid || 0), 0);
+  const currentMonthBusPending = Math.max(0, currentMonthBusInvoiced - currentMonthBusCollected);
+
+  const allTimeBusInvoiced = database.billing.reduce((sum, r) => sum + Number(r.busFeeDue || 0), 0);
+  const allTimeBusCollected = database.billing.reduce((sum, r) => sum + Number(r.busFeePaid || 0), 0);
+  const allTimeBusOutstanding = Math.max(0, allTimeBusInvoiced - allTimeBusCollected);
+
   const billingOverviewData = [
     { name: 'Collected Fees', value: currentMonthPaidAmount, color: '#0d9488' }, // Teal 600
     { name: 'Pending Fees', value: currentMonthUnpaidAmount, color: '#cbd5e1' }  // Slate 300
@@ -2250,7 +2262,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     doc.text("BIILKA GUUD", 19, 89);
     doc.setFontSize(12);
     doc.setTextColor(30, 41, 59);
-    doc.text(`$${totalDue}.00`, 19, 95);
+    doc.text(`$${Number(totalDue).toFixed(2)}`, 19, 95);
     
     // Deposited Box
     doc.setFillColor(209, 250, 229); // light green
@@ -2261,7 +2273,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     doc.text("GUUD LA BIXIYAY", 81, 89);
     doc.setFontSize(12);
     doc.setTextColor(5, 150, 105);
-    doc.text(`$${totalPaid}.00`, 81, 95);
+    doc.text(`$${Number(totalPaid).toFixed(2)}`, 81, 95);
     
     // Remaining Debt Box
     doc.setFillColor(254, 226, 226); // light red
@@ -2272,7 +2284,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     doc.text("DEYNTA HASHAY", 143, 89);
     doc.setFontSize(12);
     doc.setTextColor(220, 38, 38);
-    doc.text(`$${totalDebt}.00`, 143, 95);
+    doc.text(`$${Number(totalDebt).toFixed(2)}`, 143, 95);
     
     // Detailed Table Title
     doc.setFont("Helvetica", "bold");
@@ -2317,11 +2329,11 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       doc.setFont("Helvetica", "bold");
       doc.text(r.month, 19, rowY + 5);
       doc.setFont("Helvetica", "normal");
-      doc.text(`$${due}.00`, 55, rowY + 5);
+      doc.text(`$${Number(due).toFixed(2)}`, 55, rowY + 5);
       doc.setTextColor(4, 120, 87);
-      doc.text(`$${r.amountPaid}.00`, 85, rowY + 5);
+      doc.text(`$${Number(r.amountPaid).toFixed(2)}`, 85, rowY + 5);
       doc.setTextColor(debt > 0 ? 185 : 15, debt > 0 ? 28 : 23, debt > 0 ? 28 : 42);
-      doc.text(`$${debt}.00`, 115, rowY + 5);
+      doc.text(`$${Number(debt).toFixed(2)}`, 115, rowY + 5);
       
       // Status Pill
       doc.setFont("Helvetica", "bold");
@@ -2614,12 +2626,12 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       "--------------------------------------------------",
       "WAXAA LAYGU LEEYAHAY:",
       ...invoice.items.map((it, idx) => 
-        `${idx + 1}. ${it.description.padEnd(20)} | Tiro: ${it.quantity} | Qiimaha: $${it.unitPrice} | Isu-geyn: $${it.total}`
+        `${idx + 1}. ${it.description.padEnd(20)} | Tiro: ${it.quantity} | Qiimaha: $${it.unitPrice.toFixed(2)} | Isu-geyn: $${it.total.toFixed(2)}`
       ),
       "--------------------------------------------------",
-      `Lacagta Guud:       $${invoice.totalAmount}.00`,
-      `Lacagta la bixiyay: $${invoice.amountPaid}.00`,
-      `Deynta Hartay:      $${invoice.totalAmount - invoice.amountPaid}.00`,
+      `Lacagta Guud:       $${invoice.totalAmount.toFixed(2)}`,
+      `Lacagta la bixiyay: $${invoice.amountPaid.toFixed(2)}`,
+      `Deynta Hartay:      $${(invoice.totalAmount - invoice.amountPaid).toFixed(2)}`,
       `Heerka Invoice-ka:   ${invoice.status === 'Paid' ? 'WAA LA BIXIYAY' : invoice.status === 'Partial' ? 'QEYB BAA LA BIXIYAY' : 'LAMA BIXIN'}`,
       "--------------------------------------------------",
       invoice.notes ? `Faallooyinka:       ${invoice.notes}` : '',
@@ -2741,8 +2753,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       doc.text(String(index + 1), 24, currentY);
       doc.text(item.description, 40, currentY);
       doc.text(String(item.quantity), 125, currentY, { align: "right" });
-      doc.text(`$${item.unitPrice}.00`, 145, currentY, { align: "right" });
-      doc.text(`$${item.total}.00`, 180, currentY, { align: "right" });
+      doc.text(`$${item.unitPrice.toFixed(2)}`, 145, currentY, { align: "right" });
+      doc.text(`$${item.total.toFixed(2)}`, 180, currentY, { align: "right" });
 
       currentY += 7;
     });
@@ -2759,7 +2771,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     doc.text("LACAGTA GUUD:", 130, currentY);
     doc.setFont("Helvetica", "bold");
     doc.setTextColor(15, 23, 42);
-    doc.text(`$${invoice.totalAmount}.00`, 190, currentY, { align: "right" });
+    doc.text(`$${invoice.totalAmount.toFixed(2)}`, 190, currentY, { align: "right" });
 
     currentY += 6;
     doc.setFont("Helvetica", "normal");
@@ -2767,7 +2779,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     doc.text("LA BIXIYAY:", 130, currentY);
     doc.setFont("Helvetica", "bold");
     doc.setTextColor(16, 122, 87); // green-700
-    doc.text(`$${invoice.amountPaid}.00`, 190, currentY, { align: "right" });
+    doc.text(`$${invoice.amountPaid.toFixed(2)}`, 190, currentY, { align: "right" });
 
     currentY += 6;
     doc.setFont("Helvetica", "normal");
@@ -2776,7 +2788,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     doc.setFont("Helvetica", "bold");
     doc.setTextColor(185, 28, 28); // red-700
     const balance = invoice.totalAmount - invoice.amountPaid;
-    doc.text(`$${balance}.00`, 190, currentY, { align: "right" });
+    doc.text(`$${balance.toFixed(2)}`, 190, currentY, { align: "right" });
 
     // Status stamp box
     currentY += 15;
@@ -2976,9 +2988,9 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       `ID-ga Ardayga:      ${record.studentId}`,
       `Fasalka:            ${record.className}`,
       "--------------------------------------------------",
-      `Lacagta Laga Rabo:  $${amountDue}.00 USD`,
-      `Lacagta La Bixiyay:  $${record.amountPaid}.00 USD`,
-      `Deynta Kugu Hartay:   $${debtAmount}.00 USD`,
+      `Lacagta Laga Rabo:  $${Number(amountDue).toFixed(2)} USD`,
+      `Lacagta La Bixiyay:  $${Number(record.amountPaid).toFixed(2)} USD`,
+      `Deynta Kugu Hartay:   $${Number(debtAmount).toFixed(2)} USD`,
       `Heerka Rasiidka:    ${record.status === 'Paid' ? 'WAA LA BIXIYAY' : record.status === 'Partial' ? 'QEYB BAA LA BIXIYAY' : 'LAMA BIXIN'}`,
       "--------------------------------------------------",
       `Faallooyinka Maamulka: ${record.notes || 'Ma jiraan'}`,
@@ -3097,11 +3109,11 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     }
 
     doc.setTextColor(15, 23, 42); // slate-900
-    doc.text(`$${amountDue}.00 USD`, 190, 114, { align: "right" });
+    doc.text(`$${Number(amountDue).toFixed(2)} USD`, 190, 114, { align: "right" });
     doc.setTextColor(4, 120, 87); // emerald-700
-    doc.text(`$${record.amountPaid}.00 USD`, 190, 122, { align: "right" });
+    doc.text(`$${Number(record.amountPaid).toFixed(2)} USD`, 190, 122, { align: "right" });
     doc.setTextColor((record.debtAmount || 0) > 0 ? 180 : 15, (record.debtAmount || 0) > 0 ? 83 : 23, (record.debtAmount || 0) > 0 ? 9 : 42);
-    doc.text(`$${debtAmount}.00 USD`, 190, 130, { align: "right" });
+    doc.text(`$${Number(debtAmount).toFixed(2)} USD`, 190, 130, { align: "right" });
 
     // Notes/Remarks if any
     if (record.notes) {
@@ -3143,7 +3155,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     doc.setFont("Helvetica", "bold");
     doc.setFontSize(13);
     doc.setTextColor(255, 255, 255); // white
-    doc.text(`$${record.amountPaid}.00 USD`, 155, sigY + 14, { align: "center" });
+    doc.text(`$${Number(record.amountPaid).toFixed(2)} USD`, 155, sigY + 14, { align: "center" });
 
     // Footer divider dashed
     const footerY = sigY + 38;
@@ -4853,6 +4865,89 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 </div>
               </div>
 
+            </div>
+
+            {/* Bus Fare Statistics Deck */}
+            <div className="bg-gradient-to-r from-indigo-50/40 to-purple-50/40 p-6 rounded-3xl border border-indigo-100 shadow-sm space-y-5" id="bus-fare-statistics-deck">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-100/60 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-indigo-600 text-white rounded-xl">
+                    <Bus className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-slate-900 text-base">Adeegga Gaadiidka & Baska (Bus Fare Services)</h3>
+                    <p className="text-slate-500 text-xs mt-0.5">Statistical insights for school bus transportation and monthly fare collection</p>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-black text-indigo-700 bg-white border border-indigo-100 px-3 py-1 rounded-full">{currentMonthName}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                  <div>
+                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Active Riders (Baska)</p>
+                    <p className="text-2xl font-black text-slate-900 mt-1">{totalBusRidersCount}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Students registered for transit</p>
+                  </div>
+                  <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                    <Users className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                  <div>
+                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Bus Invoiced ({currentMonthName})</p>
+                    <p className="text-2xl font-black text-slate-900 mt-1">${Number(currentMonthBusInvoiced).toFixed(2)}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Total expected baska dues</p>
+                  </div>
+                  <div className="p-3 bg-sky-50 text-sky-600 rounded-xl">
+                    <Calculator className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                  <div>
+                    <p className="text-teal-605 text-[10px] font-bold uppercase tracking-wider">Bus Collected ({currentMonthName})</p>
+                    <p className="text-2xl font-black text-teal-700 mt-1">${Number(currentMonthBusCollected).toFixed(2)}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Successfully received payments</p>
+                  </div>
+                  <div className="p-3 bg-teal-50 text-teal-600 rounded-xl">
+                    <CircleDollarSign className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                  <div>
+                    <p className="text-rose-605 text-[10px] font-bold uppercase tracking-wider">Pending Bus Balance</p>
+                    <p className="text-2xl font-black text-rose-600 mt-1">${Number(currentMonthBusPending).toFixed(2)}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Outstanding bus fees remaining</p>
+                  </div>
+                  <div className="p-3 bg-rose-50 text-rose-600 rounded-xl">
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Progress and lifetime insights */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/70 p-4 rounded-2xl border border-indigo-100/30 text-xs">
+                <div className="space-y-1">
+                  <span className="font-extrabold text-slate-700 block text-xs">Heerka Realization-ka ee Baska (Bus Collection Efficiency State):</span>
+                  <p className="text-slate-500 text-[10.5px]">
+                    Current month realization rate is <span className="font-extrabold text-indigo-700">{currentMonthBusInvoiced > 0 ? Math.round((currentMonthBusCollected / currentMonthBusInvoiced) * 100) : 0}%</span>. 
+                    All-time invoiced bus fare is <span className="font-semibold text-slate-800">${Number(allTimeBusInvoiced).toFixed(2)}</span> with <span className="font-semibold text-teal-700">${Number(allTimeBusCollected).toFixed(2)}</span> in total deposits.
+                  </p>
+                </div>
+                <div className="w-full sm:w-48 bg-slate-100 rounded-full h-2 overflow-hidden shrink-0">
+                  <div 
+                    className="bg-indigo-650 h-full rounded-full transition-all duration-500" 
+                    style={{ width: `${currentMonthBusInvoiced > 0 ? Math.round((currentMonthBusCollected / currentMonthBusInvoiced) * 100) : 0}%` }}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Graphics Stats Row */}
@@ -7747,18 +7842,18 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
                           <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Total Tuition Invoiced</span>
-                          <span className="block text-2xl font-black text-slate-800">${totalDue}.00</span>
+                          <span className="block text-2xl font-black text-slate-800">${Number(totalDue).toFixed(2)}</span>
                         </div>
                         <div className="bg-emerald-50 text-emerald-700 p-4 rounded-2xl border border-emerald-100">
                           <span className="text-[10px] uppercase font-bold block mb-1">Total Tuition Deposited</span>
-                          <span className="block text-2xl font-black text-emerald-800">${totalPaid}.00</span>
+                          <span className="block text-2xl font-black text-emerald-800">${Number(totalPaid).toFixed(2)}</span>
                         </div>
                         <div className="bg-rose-50 text-rose-700 p-4 rounded-2xl border border-rose-100">
                           <span className="text-[10px] uppercase font-bold block mb-1">Outstanding Balance Debt</span>
-                          <span className="block text-2xl font-black text-rose-800">${totalDebt}.00</span>
+                          <span className="block text-2xl font-black text-rose-800">${Number(totalDebt).toFixed(2)}</span>
                         </div>
                       </div>
-
+                      
                       {/* Detail transactions list */}
                       <div>
                         <h4 className="font-extrabold text-xs uppercase text-slate-500 mb-4 tracking-wider">Tuition Journal Invoice Records</h4>
@@ -7788,9 +7883,9 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                   return (
                                     <tr key={r.month} className="hover:bg-slate-50/50 transition-colors">
                                       <td className="py-3.5 px-4 font-bold text-slate-900">{r.month}</td>
-                                      <td className="py-3.5 px-4">${feeAmt}.00</td>
-                                      <td className="py-3.5 px-4 text-emerald-700">${r.amountPaid}.00</td>
-                                      <td className="py-3.5 px-4 text-rose-700">${curDebt}.00</td>
+                                      <td className="py-3.5 px-4">${Number(feeAmt).toFixed(2)}</td>
+                                      <td className="py-3.5 px-4 text-emerald-700">${Number(r.amountPaid).toFixed(2)}</td>
+                                      <td className="py-3.5 px-4 text-rose-700">${Number(curDebt).toFixed(2)}</td>
                                       <td className="py-3.5 px-4 text-center">
                                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
                                           r.status === 'Paid' ? 'bg-emerald-50 text-emerald-800 border border-emerald-100' :
@@ -9725,7 +9820,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   <div>
                     <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Guud ahaan Invoices-ka (Total Issued)</p>
                     <p className="text-2xl font-black text-slate-900">
-                      ${(database.invoices || []).reduce((sum, inv) => sum + inv.totalAmount, 0).toLocaleString()}.00
+                      ${(database.invoices || []).reduce((sum, inv) => sum + inv.totalAmount, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                     <p className="text-xs text-slate-400 mt-0.5">Total Custom Invoices Issued</p>
                   </div>
@@ -9737,7 +9832,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   <div>
                     <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Lacagta la Qabtay (Total Collected)</p>
                     <p className="text-2xl font-black text-emerald-700">
-                      ${(database.invoices || []).reduce((sum, inv) => sum + inv.amountPaid, 0).toLocaleString()}.00
+                      ${(database.invoices || []).reduce((sum, inv) => sum + inv.amountPaid, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                     <p className="text-xs text-slate-400 mt-0.5">Total Payments Collected</p>
                   </div>
@@ -9749,7 +9844,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   <div>
                     <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Deynta ka maqan (Total Outstanding)</p>
                     <p className="text-2xl font-black text-rose-600">
-                      ${(database.invoices || []).reduce((sum, inv) => sum + (inv.totalAmount - inv.amountPaid), 0).toLocaleString()}.00
+                      ${(database.invoices || []).reduce((sum, inv) => sum + (inv.totalAmount - inv.amountPaid), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                     <p className="text-xs text-slate-400 mt-0.5">Total Outstanding Balance Due</p>
                   </div>
@@ -9883,9 +9978,9 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                 <div className="text-[10px] text-slate-400">Issue: <span className="font-mono font-bold text-slate-600">{invoice.date}</span></div>
                                 <div className="text-[10px] text-slate-400 mt-0.5">Due: <span className="font-mono font-bold text-slate-600">{invoice.dueDate}</span></div>
                               </td>
-                              <td className="py-4 text-right font-black text-slate-900">${invoice.totalAmount}.00</td>
-                              <td className="py-4 text-right font-black text-emerald-700">${invoice.amountPaid}.00</td>
-                              <td className="py-4 text-right font-black text-rose-600">${balanceDue}.00</td>
+                              <td className="py-4 text-right font-black text-slate-900">${invoice.totalAmount.toFixed(2)}</td>
+                              <td className="py-4 text-right font-black text-emerald-700">${invoice.amountPaid.toFixed(2)}</td>
+                              <td className="py-4 text-right font-black text-rose-600">${balanceDue.toFixed(2)}</td>
                               <td className="py-4 text-center">
                                 <span className={`px-2.5 py-1 text-[9px] font-black tracking-wider uppercase rounded-xl inline-block ${
                                   invoice.status === 'Paid'
@@ -11202,16 +11297,16 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
 
                   <div className="flex justify-between text-xs font-semibold text-slate-600 pt-1">
                     <span>Lacagta Biilka ee Laga Rabo:</span>
-                    <span className="text-slate-900">${showReceiptModal.amountDue !== undefined ? showReceiptModal.amountDue : showReceiptModal.amountPaid}.00</span>
+                    <span className="text-slate-900">${Number(showReceiptModal.amountDue !== undefined ? showReceiptModal.amountDue : showReceiptModal.amountPaid).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-xs font-semibold text-slate-600">
                     <span>Lacagta Dhabta ee La Bixiyay:</span>
-                    <span className="text-emerald-700 font-extrabold">${showReceiptModal.amountPaid}.00</span>
+                    <span className="text-emerald-700 font-extrabold">${Number(showReceiptModal.amountPaid).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-xs font-semibold text-slate-600">
                     <span>Haraaga Deynta ee Kugu Haray:</span>
                     <span className={`${(showReceiptModal.debtAmount || 0) > 0 ? 'text-amber-600 font-extrabold' : 'text-slate-900'}`}>
-                      ${showReceiptModal.debtAmount !== undefined ? showReceiptModal.debtAmount : 0}.00
+                      ${Number(showReceiptModal.debtAmount !== undefined ? showReceiptModal.debtAmount : 0).toFixed(2)}
                     </span>
                   </div>
                 </div>
@@ -11230,7 +11325,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   </div>
                   <div className="text-right">
                     <span className="block text-[10px] text-slate-400 uppercase font-black">Xaddiga la Qabtay</span>
-                    <span className="text-xl font-extrabold text-slate-950">${showReceiptModal.amountPaid}.00 USD</span>
+                    <span className="text-xl font-extrabold text-slate-950">${Number(showReceiptModal.amountPaid).toFixed(2)} USD</span>
                   </div>
                 </div>
               </div>
@@ -11569,6 +11664,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                             type="number"
                             required
                             min="1"
+                            step="any"
                             value={item.quantity}
                             onChange={(e) => {
                               const updated = [...invFormItems];
@@ -11588,6 +11684,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                             type="number"
                             required
                             min="0"
+                            step="0.01"
                             placeholder="Price ($)"
                             value={item.unitPrice}
                             onChange={(e) => {
@@ -11604,7 +11701,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                           {index === 0 && (
                             <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Guud</label>
                           )}
-                          <span className="text-xs font-black text-slate-600 block py-2">${item.quantity * item.unitPrice}.00</span>
+                          <span className="text-xs font-black text-slate-600 block py-2">${(item.quantity * item.unitPrice).toFixed(2)}</span>
                         </div>
 
                         {/* Trash Button for extra items */}
@@ -11660,7 +11757,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   <div className="space-y-4">
                     <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-200">
                       <span className="font-bold text-slate-500 uppercase tracking-wider">Lacagta guud ee biilka (Total Invoiced):</span>
-                      <span className="text-sm font-black text-slate-900">${invFormItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0)}.00 USD</span>
+                      <span className="text-sm font-black text-slate-900">${invFormItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0).toFixed(2)} USD</span>
                     </div>
 
                     {/* Registrate quick collected payment */}
@@ -11671,6 +11768,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                       <input
                         type="number"
                         min="0"
+                        step="0.01"
                         max={invFormItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0)}
                         required
                         value={invFormAmountPaid}
@@ -11682,7 +11780,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                     <div className="flex justify-between items-center text-xs pt-1">
                       <span className="font-bold text-slate-500 uppercase">Deynta Hartay (Remaining Due Balance):</span>
                       <span className="text-sm font-black text-rose-600">
-                        ${Math.max(0, invFormItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0) - invFormAmountPaid)}.00 USD
+                        ${Math.max(0, invFormItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0) - invFormAmountPaid).toFixed(2)} USD
                       </span>
                     </div>
 
@@ -11841,8 +11939,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                         <td className="py-2.5 pl-3 font-mono font-bold text-slate-400">{idx + 1}</td>
                         <td className="py-2.5 font-semibold text-slate-900">{item.description}</td>
                         <td className="py-2.5 text-center font-bold text-slate-600">{item.quantity}</td>
-                        <td className="py-2.5 text-right font-semibold text-slate-600">${item.unitPrice}.00</td>
-                        <td className="py-2.5 text-right font-extrabold text-slate-950 pr-3">${item.quantity * item.unitPrice}.00</td>
+                        <td className="py-2.5 text-right font-semibold text-slate-600">${item.unitPrice.toFixed(2)}</td>
+                        <td className="py-2.5 text-right font-extrabold text-slate-950 pr-3">${(item.quantity * item.unitPrice).toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -11853,16 +11951,16 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
               <div className="border-t border-dashed border-slate-250 pt-4 space-y-2 text-xs">
                 <div className="flex justify-between items-center text-slate-500 font-semibold">
                   <span>LACAGTA GUUD:</span>
-                  <span className="font-black text-slate-950">${showInvoiceReceipt.totalAmount}.00</span>
+                  <span className="font-black text-slate-950">${showInvoiceReceipt.totalAmount.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center text-emerald-600 font-bold">
                   <span>LA BIXIYAY:</span>
-                  <span className="font-black text-emerald-700">${showInvoiceReceipt.amountPaid}.00</span>
+                  <span className="font-black text-emerald-700">${showInvoiceReceipt.amountPaid.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center border-t border-slate-100 pt-2 text-slate-800 font-black">
                   <span>DEYNTA HARTAY:</span>
                   <span className={`text-sm font-extrabold ${showInvoiceReceipt.totalAmount - showInvoiceReceipt.amountPaid > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
-                    ${showInvoiceReceipt.totalAmount - showInvoiceReceipt.amountPaid}.00
+                    ${(showInvoiceReceipt.totalAmount - showInvoiceReceipt.amountPaid).toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -12323,7 +12421,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                           <div className="text-right">
                             <span className="text-[10px] text-slate-400 block font-black uppercase">Khidmadda Bisha ee Diiwaangashan</span>
                             <span className="text-xs font-black text-slate-900 bg-slate-200/50 border border-slate-300 px-2 py-0.5 rounded">
-                              ${student.monthlyFee}.00
+                              ${Number(student.monthlyFee).toFixed(2)}
                             </span>
                           </div>
                         </div>
@@ -12332,15 +12430,15 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                         <div className="grid grid-cols-3 gap-4">
                           <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-left">
                             <span className="text-[9px] text-slate-500 uppercase font-bold block mb-0.5">Biilka Guud</span>
-                            <span className="text-lg font-black text-slate-800">${totalDue}.00</span>
+                            <span className="text-lg font-black text-slate-800">${Number(totalDue).toFixed(2)}</span>
                           </div>
                           <div className="bg-emerald-50/70 p-3 rounded-xl border border-emerald-100/70 text-left">
                             <span className="text-[9px] text-emerald-600 uppercase font-bold block mb-0.5">Wixii La Bixiyay</span>
-                            <span className="text-lg font-black text-emerald-800">${totalPaid}.00</span>
+                            <span className="text-lg font-black text-emerald-800">${Number(totalPaid).toFixed(2)}</span>
                           </div>
                           <div className="bg-rose-50/70 p-3 rounded-xl border border-rose-100/70 text-left">
                             <span className="text-[9px] text-rose-600 uppercase font-bold block mb-0.5 font-bold font-semibold text-rose-800">Deynta Lagu Leeyahay</span>
-                            <span className="text-lg font-black text-rose-800">${totalDebt}.00</span>
+                            <span className="text-lg font-black text-rose-800">${Number(totalDebt).toFixed(2)}</span>
                           </div>
                         </div>
 
@@ -12359,14 +12457,14 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                           </thead>
                           <tbody>
                             {records.map(r => {
-                              const feeAmt = r.amountDue ?? student.monthlyFee;
-                              const curDebt = r.debtAmount ?? Math.max(0, feeAmt - r.amountPaid);
-                              return (
-                                <tr key={r.month} className="border-b border-slate-200 text-[10.5px] font-medium text-slate-700">
-                                  <td className="p-2 border border-slate-200 font-bold text-slate-900">{r.month}</td>
-                                  <td className="p-2 border border-slate-200">${feeAmt}.00</td>
-                                  <td className="p-2 border border-slate-200 text-emerald-700 font-bold">${r.amountPaid}.00</td>
-                                  <td className="p-2 border border-slate-200 text-rose-700 font-bold">${curDebt}.00</td>
+                                const feeAmt = r.amountDue ?? student.monthlyFee;
+                                const curDebt = r.debtAmount ?? Math.max(0, feeAmt - r.amountPaid);
+                                return (
+                                  <tr key={r.month} className="border-b border-slate-200 text-[10.5px] font-medium text-slate-700">
+                                    <td className="p-2 border border-slate-200 font-bold text-slate-900">{r.month}</td>
+                                    <td className="p-2 border border-slate-200">${Number(feeAmt).toFixed(2)}</td>
+                                    <td className="p-2 border border-slate-200 text-emerald-700 font-bold">${Number(r.amountPaid).toFixed(2)}</td>
+                                    <td className="p-2 border border-slate-200 text-rose-700 font-bold">${Number(curDebt).toFixed(2)}</td>
                                   <td className="p-2 border border-slate-200 text-center text-xs font-black">
                                     <span className="text-[10px] font-black uppercase">
                                       {r.status === 'Paid' ? 'LA BIXIYAY' : r.status === 'Partial' ? 'DAHOOD' : 'LAMA BIXIN'}
