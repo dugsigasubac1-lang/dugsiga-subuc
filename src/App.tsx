@@ -11,6 +11,10 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { TeacherDashboard } from './components/TeacherDashboard';
 import { LandingPage } from './components/LandingPage';
 
+const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname.includes('run.app') || window.location.hostname.includes('aistudio'))
+  ? ''
+  : 'https://ais-pre-62d2s5mys67lzy355x45ja-697605956028.europe-west2.run.app';
+
 export default function App() {
   const [database, setDatabase] = useState<DatabaseState | null>(null);
   const [showLogin, setShowLogin] = useState<boolean>(false);
@@ -92,7 +96,7 @@ export default function App() {
 
     async function initDb() {
       try {
-        const res = await fetch(`/api/database?_t=${Date.now()}`);
+        const res = await fetch(`${API_BASE}/api/database?_t=${Date.now()}`);
         const serverResult = await res.json();
         
         if (active) {
@@ -102,7 +106,7 @@ export default function App() {
             // Store locally in localStorage as a backup Cache
             saveDatabase(updated);
             if (changed) {
-              fetch('/api/database', {
+              fetch(`${API_BASE}/api/database`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updated)
@@ -112,7 +116,7 @@ export default function App() {
             // Server database is empty or not created yet: seed with local storage / seed defaults
             const clientDb = getDatabase();
             setDatabase(clientDb);
-            await fetch('/api/database', {
+            await fetch(`${API_BASE}/api/database`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(clientDb)
@@ -144,7 +148,7 @@ export default function App() {
         return;
       }
       try {
-        const res = await fetch(`/api/database?_t=${Date.now()}`);
+        const res = await fetch(`${API_BASE}/api/database?_t=${Date.now()}`);
         const serverResult = await res.json();
         
         if (active && serverResult && serverResult.initialized && serverResult.data) {
@@ -188,7 +192,7 @@ export default function App() {
     // 4. Send update to server in background
     try {
       const currentDeviceSessionId = localStorage.getItem('dugsi_session_id') || '';
-      const response = await fetch('/api/database', {
+      const response = await fetch(`${API_BASE}/api/database`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

@@ -228,6 +228,24 @@ async function startServer() {
   // Use JSON middleware with high limit for larger database payloads
   app.use(express.json({ limit: '50mb' }));
 
+  // Enable CORS middleware for direct cross-origin client syncs (e.g., from Netlify dugsigasubuc.com)
+  app.use((req, res, next) => {
+    const origin = req.get('origin');
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+    res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Authorization, X-User-Role, X-Teacher-Id, X-Session-Id');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(204);
+    }
+    next();
+  });
+
   // SEO Middleware: Prevent duplicate indexing of temporary run.app and dev URLs by adding X-Robots-Tag
   app.use((req, res, next) => {
     const host = req.get('host') || '';
