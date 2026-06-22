@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ShieldAlert, GraduationCap, ArrowRight, Lock, User, AlertTriangle, X, Eye, EyeOff, Wrench, Activity, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 import { DatabaseState, Teacher } from '../types';
 import { DugsigaSubucFullLogo } from './Logo';
+import { API_BASE } from '../config';
 
 function getDeviceInfo(): string {
   const ua = navigator.userAgent;
@@ -67,7 +68,7 @@ export function LoginScreen({
     setDiagnosticLoading(true);
     setDiagnosticError(null);
     try {
-      const res = await fetch('/api/diagnostics');
+      const res = await fetch(`${API_BASE}/api/diagnostics`);
       if (!res.ok) {
         throw new Error(`Server returned status ${res.status}`);
       }

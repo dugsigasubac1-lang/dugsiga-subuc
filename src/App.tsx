@@ -10,8 +10,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { AdminDashboard } from './components/AdminDashboard';
 import { TeacherDashboard } from './components/TeacherDashboard';
 import { LandingPage } from './components/LandingPage';
-
-const API_BASE = '';
+import { API_BASE } from './config';
 
 export default function App() {
   const [database, setDatabase] = useState<DatabaseState | null>(null);
