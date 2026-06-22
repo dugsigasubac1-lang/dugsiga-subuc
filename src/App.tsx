@@ -11,6 +11,12 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { TeacherDashboard } from './components/TeacherDashboard';
 import { LandingPage } from './components/LandingPage';
 import { API_BASE } from './config';
+import { 
+  isDirectFirebasePreferred, 
+  fetchRemoteDatabaseState, 
+  saveRemoteDatabaseState, 
+  subscribeToRemoteDatabaseState 
+} from './firebase-client';
 
 export default function App() {
   const [database, setDatabase] = useState<DatabaseState | null>(null);
@@ -87,11 +93,60 @@ export default function App() {
     }
   }, [database, userRole, loggedTeacher]);
 
-  // Initialize Database from LocalStorage/Defaults on Mount and synchronize with the backend
+  // Initialize Database on Mount and synchronize
   useEffect(() => {
     let active = true;
+    let unsubscribe: (() => void) | null = null;
 
     async function initDb() {
+      if (isDirectFirebasePreferred()) {
+        console.info('[Dugsiga Subuc] Prefers direct client-side Firestore connection.');
+        try {
+          const directData = await fetchRemoteDatabaseState();
+          if (active) {
+            if (directData) {
+              const { updated, changed } = mergeSeedRemittances(directData);
+              setDatabase(updated);
+              saveDatabase(updated);
+              if (changed) {
+                await saveRemoteDatabaseState(updated);
+              }
+            } else {
+              const clientDb = getDatabase();
+              setDatabase(clientDb);
+              await saveRemoteDatabaseState(clientDb);
+            }
+          }
+        } catch (err) {
+          console.warn('[Dugsiga Subuc] Direct Firebase fetch failed. Using local cache.', err);
+          if (active) {
+            setDatabase(getDatabase());
+          }
+        }
+
+        // Setup real-time listener
+        if (active) {
+          unsubscribe = subscribeToRemoteDatabaseState((remoteDb) => {
+            if (Date.now() - lastSaveTimeRef.current < 4000) {
+              return;
+            }
+            if (active && remoteDb) {
+              const remoteStateStr = JSON.stringify(remoteDb);
+              setDatabase(currentDb => {
+                if (!currentDb) return remoteDb;
+                if (JSON.stringify(currentDb) !== remoteStateStr) {
+                  saveDatabase(remoteDb);
+                  return remoteDb;
+                }
+                return currentDb;
+              });
+            }
+          });
+        }
+        return;
+      }
+
+      // Backend API Route Flow
       try {
         const res = await fetch(`${API_BASE}/api/database?_t=${Date.now()}`);
         const serverResult = await res.json();
@@ -100,7 +155,6 @@ export default function App() {
           if (serverResult && serverResult.initialized && serverResult.data) {
             const { updated, changed } = mergeSeedRemittances(serverResult.data);
             setDatabase(updated);
-            // Store locally in localStorage as a backup Cache
             saveDatabase(updated);
             if (changed) {
               fetch(`${API_BASE}/api/database`, {
@@ -110,7 +164,6 @@ export default function App() {
               }).catch(e => console.warn("Failed back-sync of merged seeds", e));
             }
           } else {
-            // Server database is empty or not created yet: seed with local storage / seed defaults
             const clientDb = getDatabase();
             setDatabase(clientDb);
             await fetch(`${API_BASE}/api/database`, {
@@ -121,8 +174,35 @@ export default function App() {
           }
         }
       } catch (error) {
-        console.warn("Failed to connect to backend API on initialization. Falling back to local storage cache.", error);
+        console.warn("Failed to connect to backend API on initialization. Checking Direct Firebase fallback...", error);
+        
         if (active) {
+          try {
+            const directData = await fetchRemoteDatabaseState();
+            if (active && directData) {
+              setDatabase(directData);
+              saveDatabase(directData);
+              
+              // Subscribe as fallback
+              unsubscribe = subscribeToRemoteDatabaseState((remoteDb) => {
+                if (Date.now() - lastSaveTimeRef.current < 4000) return;
+                if (active && remoteDb) {
+                  const remoteStateStr = JSON.stringify(remoteDb);
+                  setDatabase(currentDb => {
+                    if (!currentDb) return remoteDb;
+                    if (JSON.stringify(currentDb) !== remoteStateStr) {
+                      saveDatabase(remoteDb);
+                      return remoteDb;
+                    }
+                    return currentDb;
+                  });
+                }
+              });
+              return;
+            }
+          } catch (fbErr) {
+            console.warn("Direct Firebase fetch fallback failed too. Using local cache.", fbErr);
+          }
           const clientDb = getDatabase();
           setDatabase(clientDb);
         }
@@ -130,17 +210,21 @@ export default function App() {
     }
 
     initDb();
+    
     return () => {
       active = false;
+      if (unsubscribe) unsubscribe();
     };
   }, []);
 
   // Poll the database server every 2 seconds for real-time multi-device sync
   useEffect(() => {
+    if (isDirectFirebasePreferred()) {
+      return; // Handled dynamically via live Firestore observer
+    }
     let active = true;
 
     const intervalId = setInterval(async () => {
-      // If we recently saved (within 4 seconds), ignore server-side poll updates to prevent race condition
       if (Date.now() - lastSaveTimeRef.current < 4000) {
         return;
       }
@@ -149,7 +233,6 @@ export default function App() {
         const serverResult = await res.json();
         
         if (active && serverResult && serverResult.initialized && serverResult.data) {
-          // Double check the lock before processing to be safe
           if (Date.now() - lastSaveTimeRef.current < 4000) {
             return;
           }
@@ -159,7 +242,6 @@ export default function App() {
             if (!currentDb) return serverResult.data;
             const currentDbStr = JSON.stringify(currentDb);
             if (currentDbStr !== serverStateStr) {
-              // Sync backup local storage
               saveDatabase(serverResult.data);
               return serverResult.data;
             }
@@ -167,7 +249,7 @@ export default function App() {
           });
         }
       } catch (error) {
-        // Connection glitches are handled silently to preserve the offline-first experience
+        // Handled silently
       }
     }, 2000);
 
@@ -187,6 +269,16 @@ export default function App() {
     saveDatabase(updatedDb);
 
     // 4. Send update to server in background
+    if (isDirectFirebasePreferred()) {
+      try {
+        await saveRemoteDatabaseState(updatedDb);
+        lastSaveTimeRef.current = Date.now();
+      } catch (error) {
+        console.error("Failed to save state to Firebase Firestore.", error);
+      }
+      return;
+    }
+
     try {
       const currentDeviceSessionId = localStorage.getItem('dugsi_session_id') || '';
       const response = await fetch(`${API_BASE}/api/database`, {
@@ -213,7 +305,12 @@ export default function App() {
       // Extend lock for a bit to allow server response stream to stabilize
       lastSaveTimeRef.current = Date.now();
     } catch (error) {
-      console.error("Failed to synchronize state update with background database server.", error);
+      console.error("Failed to synchronize state update with background database server. Retrying Direct Firebase save...", error);
+      try {
+        await saveRemoteDatabaseState(updatedDb);
+      } catch (fbErr) {
+        console.error("Fallback Direct Firebase save failed too.", fbErr);
+      }
     }
   };
 
