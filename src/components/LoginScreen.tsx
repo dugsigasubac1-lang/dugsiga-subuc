@@ -351,7 +351,7 @@ export function LoginScreen({
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-200/65 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-full text-[11px] font-bold transition-all cursor-pointer shadow-xs border border-slate-300/40"
           >
             <Wrench className="w-3.5 h-3.5" />
-            Spot-Check Database & Connection (Tijaabada)
+            Spot-Check Database & Connection
           </button>
         </div>
 
@@ -381,7 +381,7 @@ export function LoginScreen({
 
                 {diagnosticLoading && (
                   <div className="py-4 text-center text-slate-400 font-medium font-sans">
-                    Insha'Allah, we are currently testing server responses...
+                    Testing server responses, please wait...
                   </div>
                 )}
 
@@ -390,22 +390,22 @@ export function LoginScreen({
                     <div className="flex items-start gap-2">
                       <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
                       <div>
-                        <p className="font-bold text-rose-900">Ma xiriiri karo server-ka (Failed to Connect):</p>
+                        <p className="font-bold text-rose-900">Failed to Connect to server:</p>
                         <p className="text-[11px] mt-0.5 font-mono text-rose-800">{diagnosticError}</p>
                       </div>
                     </div>
 
                     <div className="bg-white/80 rounded-lg p-2.5 border border-rose-150 text-[10.5px] text-slate-700 space-y-1.5 leading-normal">
-                      <span className="font-bold text-rose-900 block">💡 SABABTA & FURIDDA (Why this happens):</span>
+                      <span className="font-bold text-rose-900 block">💡 WHY THIS HAPPENS & HOW TO FIX:</span>
                       <p>
-                        Haddii aad ku jirto website-ka rasmiga ah ee <strong>dugsigasubuc.com</strong> (Netlify), nidaamka amniga ee <strong>Google AI Studio</strong> ayaa xannibaya xiriirka tooska ah sababtoo ah mashiinka kumeel-gaarka ah waa <em>Sandbox Private</em>.
+                        If you are browsing on the public domain or a static host (like Netlify), browser security policies prevent direct web requests to the private sandboxed backend environment.
                       </p>
                       <p className="font-bold text-teal-900 mt-1">
-                        Sida aad u xallin karto si aad u tijaabiso (How to view):
+                        How to test and preview successfully:
                       </p>
                       <ul className="list-disc pl-3.5 space-y-1 text-slate-600">
                         <li>
-                          Ku tijaabi adoo isticmaalaya link-ga kumeel-gaarka ah ee AI Studio ee hoose (kaas oo ku xiran Firestore oo leh amniga cookie-ga):<br />
+                          Open and test the official preview link below (fully authorized with Firestore and cookie session sharing):<br />
                           <a 
                             href="https://ais-pre-62d2s5mys67lzy355x45ja-697605956028.europe-west2.run.app" 
                             target="_blank" 
@@ -416,7 +416,7 @@ export function LoginScreen({
                           </a>
                         </li>
                         <li>
-                          Haddii aad rabto in <strong>dugsigasubuc.com</strong> uu si toos ah ula shaqeeyo diiwaanka isaga oo aan soo marin AI Studio, waxaan beddeli karnaa nidaamka si uu toos ugu xirmo Firestore-kaaga (Client-side connection) isagoo aan soo marin server-ka dhexe.
+                          Note: For standalone static deployments, we can adapt all dashboard operations to integrate directly with Firebase Firestore on the client side, bypassing sandbox proxy backends cleanly.
                         </li>
                       </ul>
                     </div>
@@ -436,7 +436,7 @@ export function LoginScreen({
                         <div>
                           <p className="font-bold text-slate-800">Firestore Cloud</p>
                           <p className="text-[9px] text-slate-400">
-                            {diagnosticData.firestoreStatus?.connected ? 'Ku xiran' : 'Ma xirna'}
+                            {diagnosticData.firestoreStatus?.connected ? 'Connected' : 'Disconnected'}
                           </p>
                         </div>
                       </div>
@@ -453,16 +453,16 @@ export function LoginScreen({
                     {/* Teacher credentials table with quick auto-fill buttons */}
                     <div className="space-y-1.5">
                       <p className="font-extrabold text-slate-600 text-[10px] uppercase tracking-wider">
-                        Macallimiinta Diiwangelan ({diagnosticData.databaseState?.teachersCount || 0})
+                        Registered Teachers ({diagnosticData.databaseState?.teachersCount || 0})
                       </p>
                       
                       {(!diagnosticData.databaseState?.teachersList || diagnosticData.databaseState.teachersList.length === 0) ? (
                         <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-amber-800 leading-normal text-[11px]">
-                          ⚠️ <span className="font-bold text-amber-950">Ma jiro wax macallin ah oo weli diiwaangashan!</span>
-                          <p className="mt-1 text-slate-600 text-[10px]">Fadlan marka hore u gal sidii <strong>Maamule</strong> (admin) adoo isticmaalaya email-kaaga gaarka ah, ka dibna ku dar macallin tab-ka "Macallimiinta" si aad u abuurto macallin.</p>
+                          ⚠️ <span className="font-bold text-amber-950">No teachers are registered in the system yet!</span>
+                          <p className="mt-1 text-slate-600 text-[10px]">Please log in first as an <strong>Administrator</strong> using your secure email address, then navigate to the "Teachers" section to register custom instructor profiles.</p>
                         </div>
                       ) : (
-                        <div className="divide-y divide-slate-100 max-h-40 overflow-y-auto pr-1 bg-slate-50 border border-slate-200 rounded-xl">
+                        <div className="divide-y divide-slate-150 max-h-40 overflow-y-auto pr-1 bg-slate-50 border border-slate-200 rounded-xl">
                           {diagnosticData.databaseState.teachersList.map((t: any) => (
                             <div key={t.id} className="p-2 flex items-center justify-between gap-2 text-[11px]">
                               <div>
