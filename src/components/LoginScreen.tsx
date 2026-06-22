@@ -386,11 +386,39 @@ export function LoginScreen({
                 )}
 
                 {diagnosticError && (
-                  <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-rose-700 flex items-start gap-2 leading-relaxed font-sans">
-                    <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-bold text-rose-900">Ma xiriiri karo server-ka:</p>
-                      <p className="text-[11px] mt-0.5 font-mono text-rose-800">{diagnosticError}</p>
+                  <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-rose-700 space-y-2 leading-relaxed font-sans">
+                    <div className="flex items-start gap-2">
+                      <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold text-rose-900">Ma xiriiri karo server-ka (Failed to Connect):</p>
+                        <p className="text-[11px] mt-0.5 font-mono text-rose-800">{diagnosticError}</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-white/80 rounded-lg p-2.5 border border-rose-150 text-[10.5px] text-slate-700 space-y-1.5 leading-normal">
+                      <span className="font-bold text-rose-900 block">💡 SABABTA & FURIDDA (Why this happens):</span>
+                      <p>
+                        Haddii aad ku jirto website-ka rasmiga ah ee <strong>dugsigasubuc.com</strong> (Netlify), nidaamka amniga ee <strong>Google AI Studio</strong> ayaa xannibaya xiriirka tooska ah sababtoo ah mashiinka kumeel-gaarka ah waa <em>Sandbox Private</em>.
+                      </p>
+                      <p className="font-bold text-teal-900 mt-1">
+                        Sida aad u xallin karto si aad u tijaabiso (How to view):
+                      </p>
+                      <ul className="list-disc pl-3.5 space-y-1 text-slate-600">
+                        <li>
+                          Ku tijaabi adoo isticmaalaya link-ga kumeel-gaarka ah ee AI Studio ee hoose (kaas oo ku xiran Firestore oo leh amniga cookie-ga):<br />
+                          <a 
+                            href="https://ais-pre-62d2s5mys67lzy355x45ja-697605956028.europe-west2.run.app" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-teal-600 hover:underline font-mono font-bold text-[9px] break-all"
+                          >
+                            https://ais-pre-62d2s5mys67lzy355x45ja-697605956028.europe-west2.run.app
+                          </a>
+                        </li>
+                        <li>
+                          Haddii aad rabto in <strong>dugsigasubuc.com</strong> uu si toos ah ula shaqeeyo diiwaanka isaga oo aan soo marin AI Studio, waxaan beddeli karnaa nidaamka si uu toos ugu xirmo Firestore-kaaga (Client-side connection) isagoo aan soo marin server-ka dhexe.
+                        </li>
+                      </ul>
                     </div>
                   </div>
                 )}
