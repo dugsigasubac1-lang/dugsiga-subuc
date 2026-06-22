@@ -11,9 +11,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { TeacherDashboard } from './components/TeacherDashboard';
 import { LandingPage } from './components/LandingPage';
 
-const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname.includes('run.app') || window.location.hostname.includes('aistudio'))
-  ? ''
-  : 'https://ais-pre-62d2s5mys67lzy355x45ja-697605956028.europe-west2.run.app';
+const API_BASE = '';
 
 export default function App() {
   const [database, setDatabase] = useState<DatabaseState | null>(null);
