@@ -73,7 +73,7 @@ export function LoginScreen({
     })();
 
     if (activeTab === 'admin') {
-      if (username.trim() === 'yaxyecabdisalanmohamed1234@gmail.com' && password === 'yaxye6189600') {
+      if (username.trim() === 'yaxyecabdisalanmohamed1234@gmail.com' && password.trim() === 'yaxye6189600') {
         // Admins are allowed to bypass the concurrent session kicked out rule and can login freely across devices
         onLoginSuccess('admin');
       } else {
@@ -82,7 +82,7 @@ export function LoginScreen({
     } else {
       // Find teacher
       const currTeacher = (database.teachers || []).find(
-        (t) => t.username.toLowerCase() === username.trim().toLowerCase() && t.passwordHash === password
+        (t) => t.username.toLowerCase() === username.trim().toLowerCase() && t.passwordHash === password.trim()
       );
 
       if (currTeacher) {

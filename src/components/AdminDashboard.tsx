@@ -1100,7 +1100,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       className: newTeacherClass.trim(), // backwards compatibility
       classAssigned: newTeacherClass.trim(),
       username: newTeacherUser.trim(),
-      passwordHash: newTeacherPassword,
+      passwordHash: newTeacherPassword.trim(),
       requiredCheckInTime: newTeacherTime || '07:30',
       imageUrl: newTeacherImage
     };

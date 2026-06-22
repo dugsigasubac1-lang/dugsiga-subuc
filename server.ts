@@ -400,13 +400,7 @@ async function startServer() {
   // API Route: Get Database State
   app.get('/api/database', async (req, res) => {
     try {
-      // 1. Try to serve from the hot in-memory synced state from Firestore (extremely fast, 0ms)
-      if (currentDatabaseState) {
-        currentDatabaseState = sanitizeDatabaseState(currentDatabaseState);
-        return res.json({ initialized: true, data: currentDatabaseState });
-      }
-
-      // 2. Fallback to direct Firestore getDoc (if listener hasn't fired or during quick bootup)
+      // 1. Always prioritize fetching the freshest direct document from Cloud Firestore to guarantee absolute real-time sync across devices
       if (stateDocRef) {
         try {
           const docSnap = await getDoc(stateDocRef);
@@ -420,8 +414,14 @@ async function startServer() {
             }
           }
         } catch (fbError) {
-          console.error('Failed to fetch from Firestore directly, falling back to local file:', fbError);
+          console.error('[Server API] Failed to fetch from Firestore directly, falling back to cached state:', fbError);
         }
+      }
+
+      // 2. Secondary Fallback: Serve from hot in-memory synced state
+      if (currentDatabaseState) {
+        currentDatabaseState = sanitizeDatabaseState(currentDatabaseState);
+        return res.json({ initialized: true, data: currentDatabaseState });
       }
 
       // 3. Ultimate structural fallback: local database.json file
@@ -429,11 +429,12 @@ async function startServer() {
         const fileContent = fs.readFileSync(DB_FILE, 'utf-8');
         let dbState = JSON.parse(fileContent);
         dbState = sanitizeDatabaseState(dbState);
+        currentDatabaseState = dbState;
+        
         // Seed to Firestore to auto-initialize the cloud db
         if (stateDocRef && db) {
           try {
             await setDoc(stateDocRef, { state: dbState });
-            currentDatabaseState = dbState;
             console.log('Seeded Cloud Firestore with initial local dataset.');
           } catch (seedErr) {
             console.error('Failed to seed local database to Firestore:', seedErr);
