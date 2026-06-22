@@ -9,6 +9,7 @@ import { ShieldAlert, GraduationCap, ArrowRight, Lock, User, AlertTriangle, X, E
 import { DatabaseState, Teacher } from '../types';
 import { DugsigaSubucFullLogo } from './Logo';
 import { API_BASE } from '../config';
+import { isDirectFirebasePreferred, fetchRemoteDatabaseState } from '../firebase-client';
 
 function getDeviceInfo(): string {
   const ua = navigator.userAgent;
@@ -68,6 +69,37 @@ export function LoginScreen({
     setDiagnosticLoading(true);
     setDiagnosticError(null);
     try {
+      if (isDirectFirebasePreferred()) {
+        const directData = await fetchRemoteDatabaseState();
+        if (directData) {
+          setDiagnosticData({
+            status: 'active',
+            timestamp: new Date().toISOString(),
+            environment: {
+              nodeEnv: 'production (direct-firebase)',
+              port: 3000,
+              firebaseConfigExists: true,
+              localDbFileExists: true
+            },
+            firestoreStatus: {
+              initialized: true,
+              connected: true,
+              hasStateDoc: true,
+              error: null
+            },
+            databaseState: {
+              teachersCount: directData.teachers?.length || 0,
+              teachersList: directData.teachers || [],
+              studentsCount: directData.students?.length || 0,
+              moneyTransfersCount: directData.moneyTransfers?.length || 0
+            }
+          });
+        } else {
+          throw new Error("Connected to Firestore but system state document is empty or uninitialized.");
+        }
+        return;
+      }
+
       const res = await fetch(`${API_BASE}/api/diagnostics`);
       if (!res.ok) {
         throw new Error(`Server returned status ${res.status}`);
