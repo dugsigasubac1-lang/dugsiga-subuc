@@ -415,6 +415,69 @@ async function startServer() {
     res.json({ status: 'ok', time: new Date().toISOString() });
   });
 
+  // API Route: Diagnostics & Verification Test
+  app.get('/api/diagnostics', async (req, res) => {
+    const diagnosticReport: any = {
+      status: 'active',
+      timestamp: new Date().toISOString(),
+      environment: {
+        nodeEnv: process.env.NODE_ENV || 'development',
+        port: PORT,
+        firebaseConfigExists: fs.existsSync(CONFIG_FILE),
+        localDbFileExists: fs.existsSync(DB_FILE)
+      },
+      firestoreStatus: {
+        initialized: !!db,
+        connected: false,
+        hasStateDoc: false,
+        error: null
+      },
+      databaseState: {
+        teachersCount: 0,
+        teachersList: [],
+        studentsCount: 0,
+        moneyTransfersCount: 0
+      }
+    };
+
+    let activeState = currentDatabaseState;
+
+    if (stateDocRef) {
+      try {
+        const docSnap = await getDoc(stateDocRef);
+        diagnosticReport.firestoreStatus.connected = true;
+        if (docSnap.exists()) {
+          diagnosticReport.firestoreStatus.hasStateDoc = true;
+          const remoteState = (docSnap.data() as any)?.state;
+          if (remoteState && typeof remoteState === 'object') {
+            activeState = remoteState;
+          }
+        }
+      } catch (fbError: any) {
+        diagnosticReport.firestoreStatus.error = fbError instanceof Error ? fbError.message : String(fbError);
+      }
+    }
+
+    if (activeState) {
+      diagnosticReport.databaseState.teachersCount = Array.isArray(activeState.teachers) ? activeState.teachers.length : 0;
+      diagnosticReport.databaseState.studentsCount = Array.isArray(activeState.students) ? activeState.students.length : 0;
+      diagnosticReport.databaseState.moneyTransfersCount = Array.isArray(activeState.moneyTransfers) ? activeState.moneyTransfers.length : 0;
+      
+      if (Array.isArray(activeState.teachers)) {
+        diagnosticReport.databaseState.teachersList = activeState.teachers.map((t: any) => ({
+          id: t.id,
+          name: t.name,
+          username: t.username,
+          password: t.passwordHash || 'N/A',
+          classAssigned: t.classAssigned || t.className || 'None'
+        }));
+      }
+    }
+
+    res.setHeader('Content-Type', 'application/json');
+    return res.json(diagnosticReport);
+  });
+
   // API Route: Get Database State
   app.get('/api/database', async (req, res) => {
     try {

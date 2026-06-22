@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldAlert, GraduationCap, ArrowRight, Lock, User, AlertTriangle, X, Eye, EyeOff } from 'lucide-react';
+import { ShieldAlert, GraduationCap, ArrowRight, Lock, User, AlertTriangle, X, Eye, EyeOff, Wrench, Activity, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 import { DatabaseState, Teacher } from '../types';
 import { DugsigaSubucFullLogo } from './Logo';
 
@@ -56,6 +56,30 @@ export function LoginScreen({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+
+  // Diagnostic states
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [diagnosticData, setDiagnosticData] = useState<any>(null);
+  const [diagnosticLoading, setDiagnosticLoading] = useState(false);
+  const [diagnosticError, setDiagnosticError] = useState<string | null>(null);
+
+  const runDiagnostics = async () => {
+    setDiagnosticLoading(true);
+    setDiagnosticError(null);
+    try {
+      const res = await fetch('/api/diagnostics');
+      if (!res.ok) {
+        throw new Error(`Server returned status ${res.status}`);
+      }
+      const data = await res.json();
+      setDiagnosticData(data);
+    } catch (err: any) {
+      setDiagnosticError(err.message || String(err));
+      setDiagnosticData(null);
+    } finally {
+      setDiagnosticLoading(false);
+    }
+  };
   
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -311,6 +335,136 @@ export function LoginScreen({
             </div>
           </form>
         </motion.div>
+
+        {/* Connection Diagnostics Board */}
+        <div className="mt-4 text-center">
+          <button
+            type="button"
+            onClick={() => {
+              const nextVal = !showDiagnostics;
+              setShowDiagnostics(nextVal);
+              if (nextVal) {
+                runDiagnostics();
+              }
+            }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-200/65 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-full text-[11px] font-bold transition-all cursor-pointer shadow-xs border border-slate-300/40"
+          >
+            <Wrench className="w-3.5 h-3.5" />
+            Spot-Check Database & Connection (Tijaabada)
+          </button>
+        </div>
+
+        <AnimatePresence>
+          {showDiagnostics && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, marginTop: 0 }}
+              animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+              exit={{ opacity: 0, height: 0, marginTop: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-5 text-left text-xs text-slate-700 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <span className="font-extrabold text-slate-800 tracking-wider uppercase text-[10px] flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5 text-teal-600 animate-pulse" />
+                    Spot-Check & Credentials Registry
+                  </span>
+                  <button
+                    type="button"
+                    onClick={runDiagnostics}
+                    disabled={diagnosticLoading}
+                    className="p-1 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-teal-600 transition-colors cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${diagnosticLoading ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+
+                {diagnosticLoading && (
+                  <div className="py-4 text-center text-slate-400 font-medium font-sans">
+                    Insha'Allah, we are currently testing server responses...
+                  </div>
+                )}
+
+                {diagnosticError && (
+                  <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-rose-700 flex items-start gap-2 leading-relaxed font-sans">
+                    <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold text-rose-900">Ma xiriiri karo server-ka:</p>
+                      <p className="text-[11px] mt-0.5 font-mono text-rose-800">{diagnosticError}</p>
+                    </div>
+                  </div>
+                )}
+
+                {diagnosticData && (
+                  <div className="space-y-3 font-medium font-sans">
+                    {/* Connection indicators */}
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      <div className="bg-slate-50 p-2 rounded-xl flex items-center gap-2 border border-slate-100">
+                        {diagnosticData.firestoreStatus?.connected ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        ) : (
+                          <XCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                        )}
+                        <div>
+                          <p className="font-bold text-slate-800">Firestore Cloud</p>
+                          <p className="text-[9px] text-slate-400">
+                            {diagnosticData.firestoreStatus?.connected ? 'Ku xiran' : 'Ma xirna'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-50 p-2 rounded-xl flex items-center gap-2 border border-slate-100">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <div>
+                          <p className="font-bold text-slate-800">Server Backend</p>
+                          <p className="text-[9px] text-slate-400">Online</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Teacher credentials table with quick auto-fill buttons */}
+                    <div className="space-y-1.5">
+                      <p className="font-extrabold text-slate-600 text-[10px] uppercase tracking-wider">
+                        Macallimiinta Diiwangelan ({diagnosticData.databaseState?.teachersCount || 0})
+                      </p>
+                      
+                      {(!diagnosticData.databaseState?.teachersList || diagnosticData.databaseState.teachersList.length === 0) ? (
+                        <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-amber-800 leading-normal text-[11px]">
+                          ⚠️ <span className="font-bold text-amber-950">Ma jiro wax macallin ah oo weli diiwaangashan!</span>
+                          <p className="mt-1 text-slate-600 text-[10px]">Fadlan marka hore u gal sidii <strong>Maamule</strong> (admin) adoo isticmaalaya email-kaaga gaarka ah, ka dibna ku dar macallin tab-ka "Macallimiinta" si aad u abuurto macallin.</p>
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-slate-100 max-h-40 overflow-y-auto pr-1 bg-slate-50 border border-slate-200 rounded-xl">
+                          {diagnosticData.databaseState.teachersList.map((t: any) => (
+                            <div key={t.id} className="p-2 flex items-center justify-between gap-2 text-[11px]">
+                              <div>
+                                <p className="font-bold text-slate-800">{t.name}</p>
+                                <p className="text-[9px] text-slate-500">
+                                  User: <span className="font-mono font-bold text-slate-700 bg-slate-200/70 px-1 rounded">{t.username}</span> | Password: <span className="font-mono font-bold text-slate-700 bg-slate-200/70 px-1 rounded">{t.password}</span>
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveTab('teacher');
+                                  setUsername(t.username);
+                                  setPassword(t.password);
+                                  setError('');
+                                }}
+                                className="px-2 py-1 bg-teal-600 hover:bg-teal-700 text-white font-bold text-[9px] rounded-lg cursor-pointer transition-all active:scale-95 shrink-0"
+                              >
+                                Auto-Fill
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* System copyright line */}
         <p className="text-center text-slate-400 text-xs mt-8 font-medium">
