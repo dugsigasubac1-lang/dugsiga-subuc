@@ -570,15 +570,28 @@ export function sanitizeLocalDatabase(parsed: DatabaseState): DatabaseState {
   if (parsed && parsed.teachers && Array.isArray(parsed.teachers)) {
     let corrected = false;
     parsed.teachers = parsed.teachers.map((t: any) => {
-      if (t && t.username === 'caac' && t.id === 'T-08') {
-        corrected = true;
-        return { ...t, id: 'T-10' };
+      if (t) {
+        if (!t.registrationDate) {
+          t.registrationDate = '2026-05-15';
+        }
+        if (t.username === 'caac' && t.id === 'T-08') {
+          corrected = true;
+          return { ...t, id: 'T-10' };
+        }
       }
       return t;
     });
     if (corrected) {
       console.log('[Local Sanitizer] Corrected teacher "caac" duplicate ID from T-08 to T-10 in client.');
     }
+  }
+
+  if (parsed && parsed.students && Array.isArray(parsed.students)) {
+    parsed.students.forEach((s: any) => {
+      if (s && !s.registrationDate) {
+        s.registrationDate = '2026-05-15';
+      }
+    });
   }
 
   // Auto-prune system notifications older than 24 hours (86,400,000 ms) to keep the db clean every day

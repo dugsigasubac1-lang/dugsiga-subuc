@@ -74,6 +74,7 @@ import {
 } from '../types';
 import { MoneyTransferTab } from './MoneyTransferTab';
 import { LandingControlTab } from './LandingControlTab';
+import StudentMediaModal from './StudentMediaModal';
 import { DugsigaSubucLogo } from './Logo';
 import { 
   generateDailyTextReport, 
@@ -505,6 +506,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     imageUrl: string;
   } | null>(null);
 
+  const [mediaStudentTarget, setMediaStudentTarget] = useState<Student | null>(null);
+
   const [showPrintExamModal, setShowPrintExamModal] = useState<Exam | null>(null);
   const [showExamTimeframePrintModal, setShowExamTimeframePrintModal] = useState<boolean>(false);
   
@@ -650,6 +653,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [newStudentTeacher, setNewStudentTeacher] = useState('T-01');
   const [newStudentSession, setNewStudentSession] = useState<'Morning' | 'Afternoon' | 'Both'>('Both');
   const [newStudentImage, setNewStudentImage] = useState<string>('');
+  const [newStudentRegDate, setNewStudentRegDate] = useState<string>('');
 
   // Student-Teacher Assignment Management State
   const [assignSelectedStudentId, setAssignSelectedStudentId] = useState('');
@@ -731,6 +735,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     setNewStudentTeacher(student.teacherId || 'T-01');
     setNewStudentSession(student.session || 'Both');
     setNewStudentImage(student.imageUrl || '');
+    setNewStudentRegDate(student.registrationDate || '');
   };
 
   const handleCancelEditStudent = () => {
@@ -744,6 +749,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     setNewStudentTeacher('T-01');
     setNewStudentSession('Both');
     setNewStudentImage('');
+    setNewStudentRegDate('');
   };
 
   const handleResizeAndCompressImage = (file: File, callback: (base64: string) => void) => {
@@ -817,7 +823,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
             monthlyFee: Number(newStudentFee),
             busFee: Number(newStudentBusFee),
             session: newStudentSession,
-            imageUrl: newStudentImage
+            imageUrl: newStudentImage,
+            registrationDate: newStudentRegDate || s.registrationDate || new Date().toISOString().split('T')[0]
           };
         }
         return s;
@@ -864,7 +871,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         className: newStudentClass,
         monthlyFee: Number(newStudentFee),
         busFee: Number(newStudentBusFee),
-        registrationDate: new Date().toISOString().split('T')[0],
+        registrationDate: newStudentRegDate || new Date().toISOString().split('T')[0],
         active: true,
         session: newStudentSession,
         imageUrl: newStudentImage
@@ -944,6 +951,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [newTeacherPassword, setNewTeacherPassword] = useState('');
   const [newTeacherTime, setNewTeacherTime] = useState('07:30');
   const [newTeacherImage, setNewTeacherImage] = useState<string>('');
+  const [newTeacherRegDate, setNewTeacherRegDate] = useState<string>('');
 
   const [newClassNameInput, setNewClassNameInput] = useState('');
 
@@ -954,6 +962,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [editTeacherUser, setEditTeacherUser] = useState('');
   const [editTeacherPassword, setEditTeacherPassword] = useState('');
   const [editTeacherTime, setEditTeacherTime] = useState('07:30');
+  const [editTeacherRegDate, setEditTeacherRegDate] = useState<string>('');
 
   // Edit Class State
   const [editingClass, setEditingClass] = useState<string | null>(null);
@@ -1102,7 +1111,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       username: newTeacherUser.trim(),
       passwordHash: newTeacherPassword.trim(),
       requiredCheckInTime: newTeacherTime || '07:30',
-      imageUrl: newTeacherImage
+      imageUrl: newTeacherImage,
+      registrationDate: newTeacherRegDate || new Date().toISOString().split('T')[0]
     };
 
     onSaveDatabase({
@@ -1116,6 +1126,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     setNewTeacherPassword('');
     setNewTeacherTime('07:30');
     setNewTeacherImage('');
+    setNewTeacherRegDate('');
     setFeedbackMsg(`Teacher ${newTeacher.name} successfully certified for class ${newTeacher.classAssigned}!`);
     setTimeout(() => setFeedbackMsg(''), 4000);
   };
@@ -1128,6 +1139,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     setEditTeacherPassword(teacher.passwordHash || '');
     setEditTeacherTime(teacher.requiredCheckInTime || '07:30');
     setNewTeacherImage(teacher.imageUrl || '');
+    setEditTeacherRegDate(teacher.registrationDate || '');
     
     // Smoothly scroll to the edit form container so the user sees the filled-in details instantly
     setTimeout(() => {
@@ -1161,7 +1173,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
           username: editTeacherUser.trim(),
           passwordHash: editTeacherPassword.trim(),
           requiredCheckInTime: editTeacherTime || '07:30',
-          imageUrl: newTeacherImage
+          imageUrl: newTeacherImage,
+          registrationDate: editTeacherRegDate || t.registrationDate || new Date().toISOString().split('T')[0]
         };
       }
       return t;
@@ -1174,6 +1187,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
 
     setEditingTeacher(null);
     setNewTeacherImage('');
+    setEditTeacherRegDate('');
     setFeedbackMsg(`Successfully updated credentials for Sh. ${editTeacherName}`);
     setTimeout(() => setFeedbackMsg(''), 4000);
   };
@@ -1324,7 +1338,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   // -------------------------------------------------------------
   // TAB 4: COMPREHENSIVE ATTENDANCE HUB
   // -------------------------------------------------------------
-  const [reportViewMode, setReportViewMode] = useState<'whole' | 'student' | 'payments_range'>('whole');
+  const [reportViewMode, setReportViewMode] = useState<'whole' | 'student' | 'payments_range' | 'registration_dates'>('whole');
   const [reportStartDate, setReportStartDate] = useState(() => {
     // default to first day of current month (e.g. 2026-05-01)
     const today = new Date();
@@ -5285,6 +5299,17 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                     </select>
                   </div>
 
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-0.5">Registration Date / Taariikhda Diiwangelinta</label>
+                    <input
+                      type="date"
+                      value={newStudentRegDate}
+                      onChange={(e) => setNewStudentRegDate(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white outline-none cursor-pointer"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">Leave empty to auto-use today's date.</p>
+                  </div>
+
                   {/* Photo Upload Zone */}
                   <div>
                     <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-0.5">Student Profile Photo</label>
@@ -5443,7 +5468,10 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                       </div>
                                     )}
                                   </div>
-                                  <span className="font-extrabold text-slate-905">{student.name}</span>
+                                  <div className="flex flex-col">
+                                    <span className="font-extrabold text-slate-905">{student.name}</span>
+                                    <span className="text-[10px] text-slate-400 font-medium">Reg: {student.registrationDate || '2026-05-15'}</span>
+                                  </div>
                                 </div>
                               </td>
                               <td className="py-3.5 px-4">
@@ -5505,6 +5533,14 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                               </td>
                               <td className="py-3.5 px-4 text-center">
                                 <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setMediaStudentTarget(student)}
+                                    className="px-2 py-1.5 rounded-xl text-[10px] bg-rose-50 border border-rose-150 text-rose-700 hover:bg-rose-100 font-extrabold cursor-pointer transition-all shrink-0 flex items-center gap-1"
+                                    title="Student Media Hub: Record voice, video or update picture files"
+                                  >
+                                    Media 🎥
+                                  </button>
                                   <button
                                     type="button"
                                     onClick={() => setShowPrintIDBadge({
@@ -5653,6 +5689,16 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                       />
                     </div>
 
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-0.5 font-bold">Registration Date / Diiwangelinta</label>
+                      <input
+                        type="date"
+                        value={editTeacherRegDate}
+                        onChange={(e) => setEditTeacherRegDate(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-semibold text-slate-800 outline-none cursor-pointer"
+                      />
+                    </div>
+
                     {/* Teacher Photo Upload Zone */}
                     <div>
                       <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-0.5">Teacher Profile Photo</label>
@@ -5776,6 +5822,17 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                         onChange={(e) => setNewTeacherTime(e.target.value)}
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-semibold text-slate-800 outline-none"
                       />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-0.5">Registration Date / Taariikhda Diiwangelinta</label>
+                      <input
+                        type="date"
+                        value={newTeacherRegDate}
+                        onChange={(e) => setNewTeacherRegDate(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-semibold text-slate-800 outline-none cursor-pointer"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-1">Leave empty to auto-use today's date.</p>
                     </div>
 
                     {/* Teacher Photo Upload Zone */}
@@ -5904,6 +5961,10 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                             <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
                               <Clock className="w-3.5 h-3.5 text-slate-450 shrink-0" />
                               <span className="truncate">Expected Check-in: <span className="font-mono font-bold text-teal-600">{teacher.requiredCheckInTime || '07:30'}</span></span>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                              <CalendarRange className="w-3.5 h-3.5 text-slate-450 shrink-0" />
+                              <span className="truncate">Certified/Reg: <span className="font-bold text-slate-800">{teacher.registrationDate || '2026-05-15'}</span></span>
                             </div>
                             <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
                               <span className="flex items-center gap-1.5 min-w-0">
@@ -7033,6 +7094,19 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   >
                     Student Payment Range
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReportViewMode('registration_dates');
+                    }}
+                    className={`py-1.5 px-3.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                      reportViewMode === 'registration_dates'
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Registration Log / Diiwangelinta
+                  </button>
                 </div>
               </div>
 
@@ -7802,7 +7876,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   );
                 })()}
               </div>
-            ) : (
+            ) : reportViewMode === 'payments_range' ? (
               <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6 animate-fade-in">
                 {/* Single Student Tuition range history statements */}
                 {(() => {
@@ -7904,6 +7978,99 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                             </table>
                           </div>
                         )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            ) : (
+              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6 animate-fade-in">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                  <div>
+                    <h3 className="font-extrabold text-slate-900 text-lg">Registration Log & Chronicle / Diiwaanka Diiwangelinta</h3>
+                    <p className="text-slate-400 text-xs mt-0.5">Chronological audit list of all registered teachers, instructors, and students in the academy.</p>
+                  </div>
+                </div>
+
+                {(() => {
+                  const studentLogItems = database.students.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    role: 'Student',
+                    details: `${s.className} (${s.session || 'Both'} Session)`,
+                    registrationDate: s.registrationDate || '2026-05-15',
+                    active: s.active
+                  }));
+
+                  const teacherLogItems = database.teachers.map(t => ({
+                    id: t.id,
+                    name: t.name,
+                    role: 'Teacher/Staff',
+                    details: `Assigned Division: ${t.classAssigned || t.className || 'General'}`,
+                    registrationDate: t.registrationDate || '2026-05-15',
+                    active: true
+                  }));
+
+                  const combinedChronicle = [...studentLogItems, ...teacherLogItems].sort((a, b) => b.registrationDate.localeCompare(a.registrationDate));
+
+                  return (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                          <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Total Students Registered</span>
+                          <span className="block text-2xl font-black text-indigo-700">{studentLogItems.length}</span>
+                        </div>
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                          <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Total Staff Certified</span>
+                          <span className="block text-2xl font-black text-teal-700">{teacherLogItems.length}</span>
+                        </div>
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                          <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Combined Registrations</span>
+                          <span className="block text-2xl font-black text-slate-800">{combinedChronicle.length}</span>
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto rounded-2xl border border-slate-150 bg-white shadow-3xs">
+                        <table className="w-full text-xs text-left border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-150 font-black text-slate-500 font-mono tracking-wide text-[10px] uppercase">
+                              <th className="py-3.5 px-4">Registration Date</th>
+                              <th className="py-3.5 px-4">ID</th>
+                              <th className="py-3.5 px-4">Name / Member</th>
+                              <th className="py-3.5 px-4 text-center">Role</th>
+                              <th className="py-3.5 px-4">Class Assignment / Details</th>
+                              <th className="py-3.5 px-4 text-center">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                            {combinedChronicle.map((item, index) => (
+                              <tr key={`${item.id}-${index}`} className="hover:bg-slate-50/50 transition-colors">
+                                <td className="py-4 px-4 font-mono font-bold text-indigo-600 shrink-0">{item.registrationDate}</td>
+                                <td className="py-4 px-4 font-bold text-slate-500">{item.id}</td>
+                                <td className="py-4 px-4 font-extrabold text-[#111827]">{item.name}</td>
+                                <td className="py-4 px-4 text-center">
+                                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${
+                                    item.role === 'Student' 
+                                      ? 'bg-blue-50 text-blue-700 border-blue-100' 
+                                      : 'bg-teal-50 text-teal-700 border-teal-100'
+                                  }`}>
+                                    {item.role}
+                                  </span>
+                                </td>
+                                <td className="py-4 px-4 text-slate-500">{item.details}</td>
+                                <td className="py-4 px-4 text-center">
+                                  <span className={`px-2 py-0.5 rounded text-[9px] font-black ${
+                                    item.active 
+                                      ? 'bg-emerald-50 text-emerald-700' 
+                                      : 'bg-slate-50 text-slate-450'
+                                  }`}>
+                                    {item.active ? 'Active' : 'Inactive'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   );
@@ -12672,6 +12839,21 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
             </div>
           </motion.div>
         </div>
+      )}
+
+      {mediaStudentTarget && (
+        <StudentMediaModal
+          student={mediaStudentTarget}
+          onClose={() => setMediaStudentTarget(null)}
+          onSave={(updatedStudent) => {
+            const updatedStudents = database.students.map(s => 
+              s.id === updatedStudent.id ? updatedStudent : s
+            );
+            const updatedDb = { ...database, students: updatedStudents };
+            onSaveDatabase(updatedDb);
+            setMediaStudentTarget(updatedStudent);
+          }}
+        />
       )}
 
       {showPrintIDBadge && (

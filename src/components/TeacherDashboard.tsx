@@ -49,6 +49,7 @@ import {
 } from 'lucide-react';
 import { DatabaseState, Teacher, Student, DailyProgress, AttendanceType, LessonStatusType, TaskStatusType, GradeType, Exam, ExamScore, AppNotification, TeacherSubmission, TeacherAttendanceRecord } from '../types';
 import { DugsigaSubucLogo } from './Logo';
+import StudentMediaModal from './StudentMediaModal';
 
 interface TeacherDashboardProps {
   teacher: Teacher;
@@ -77,6 +78,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
   const [showNotifPopup, setShowNotifPopup] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedHistoryStudentId, setSelectedHistoryStudentId] = useState<string | null>(null);
+  const [mediaStudentTarget, setMediaStudentTarget] = useState<Student | null>(null);
   const [historySearchQuery, setHistorySearchQuery] = useState('');
 
   // Custom confirmation modal state to bypass iframe modal blockages
@@ -1895,9 +1897,19 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                                     <h4 className={`font-black text-xs truncate leading-snug tracking-tight ${isAbsent ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
                                       {stu.name}
                                     </h4>
-                                    <span className="text-[8px] font-mono font-bold text-slate-400 tracking-wider">
-                                      ID: {stu.id.replace('BJ-', '')}
-                                    </span>
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                      <span className="text-[8px] font-mono font-bold text-slate-400 tracking-wider">
+                                        ID: {stu.id.replace('BJ-', '')}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setMediaStudentTarget(stu)}
+                                        className="text-[8px] font-black text-rose-600 bg-rose-50 hover:bg-rose-100 hover:text-rose-700 px-1 py-0.5 rounded border border-rose-100 cursor-pointer transition-all shrink-0 inline-flex items-center gap-0.5"
+                                        title="Student Media: Record voice recitation, video, or capture picture files"
+                                      >
+                                        Media 🎥
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
                               </td>
@@ -2191,7 +2203,17 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                                 <h4 className={`font-extrabold text-slate-900 text-xs truncate leading-tight ${isAbsent ? 'text-slate-400 line-through' : ''}`}>
                                   {stu.name}
                                 </h4>
-                                <p className="text-[9px] text-slate-400 font-bold">ID: {stu.id.replace('BJ-', '')}</p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <p className="text-[9px] text-slate-400 font-bold">ID: {stu.id.replace('BJ-', '')}</p>
+                                  <button
+                                    type="button"
+                                    onClick={() => setMediaStudentTarget(stu)}
+                                    className="text-[8.5px] font-black text-rose-605 bg-rose-50 hover:bg-rose-100 hover:text-rose-750 px-1 py-0.5 rounded border border-rose-100 cursor-pointer transition-all shrink-0 inline-flex items-center gap-0.5"
+                                    title="Student Media: Record voice recitation, video, or capture picture files"
+                                  >
+                                    Media 🎥
+                                  </button>
+                                </div>
                               </div>
                             </div>
 
@@ -4201,6 +4223,21 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
             </div>
           </motion.div>
         </div>
+      )}
+
+      {mediaStudentTarget && (
+        <StudentMediaModal
+          student={mediaStudentTarget}
+          onClose={() => setMediaStudentTarget(null)}
+          onSave={(updatedStudent) => {
+            const updatedStudents = database.students.map(s => 
+              s.id === updatedStudent.id ? updatedStudent : s
+            );
+            const updatedDb = { ...database, students: updatedStudents };
+            onSaveDatabase(updatedDb);
+            setMediaStudentTarget(updatedStudent);
+          }}
+        />
       )}
 
     </div>

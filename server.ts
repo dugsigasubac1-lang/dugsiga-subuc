@@ -228,6 +228,23 @@ async function startServer() {
   // Use JSON middleware with high limit for larger database payloads
   app.use(express.json({ limit: '50mb' }));
 
+  const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
+  if (!fs.existsSync(UPLOADS_DIR)) {
+    try {
+      fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+    } catch (err) {
+      console.error('Failed to create uploads directory:', err);
+    }
+  }
+  app.use('/uploads', express.static(UPLOADS_DIR, {
+    setHeaders: (res) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', '*');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+    }
+  }));
+
   // Enable CORS middleware for direct cross-origin client syncs (e.g., from Netlify dugsigasubuc.com)
   app.use((req, res, next) => {
     const origin = req.get('origin');
@@ -576,6 +593,32 @@ async function startServer() {
     } catch (error) {
       console.error('Error persisting database state changes:', error);
       return res.status(500).json({ error: 'Failed to persist database changes.' });
+    }
+  });
+
+  // API Route: Handle Student and general Media upload files (Compressed images, voice audio recordings, and videos)
+  app.post('/api/upload', async (req, res) => {
+    try {
+      const { filename, fileType, fileData } = req.body;
+      if (!filename || !fileData) {
+        return res.status(400).json({ error: 'Sida saxda ah u soo dir file-ka (Missing filename or fileData).' });
+      }
+
+      // Extract raw base64 data, ignoring any data url scheme descriptor
+      const base64Data = fileData.replace(/^data:[^;]+;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+      
+      const filePath = path.join(UPLOADS_DIR, filename);
+      fs.writeFileSync(filePath, buffer);
+      
+      console.log(`[Storage/Upload] Successfully wrote ${filename} to server local uploads: ${buffer.length} bytes`);
+      
+      // Use relative path which works across localhost, proxy, and custom domains
+      const fileUrl = `/uploads/${filename}`;
+      return res.json({ success: true, url: fileUrl });
+    } catch (err: any) {
+      console.error('[Storage/Upload] Failure writing upload:', err);
+      return res.status(500).json({ error: 'Ma calaqan karo file-ka (Failed to write upload to server filesystem).' });
     }
   });
 

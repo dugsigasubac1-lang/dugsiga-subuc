@@ -7,15 +7,20 @@
     <!-- Force Custom Domain Redirect (Hide ugly .netlify.app URL) -->
     <script>
       (function() {
-        var host = window.location.hostname;
-        // Avoid redirecting when developing locally or running in the AI Studio preview environment
-        if (host.indexOf('localhost') === -1 && 
-            host.indexOf('127.0.0.1') === -1 && 
-            host.indexOf('ais-dev-') === -1 && 
-            host.indexOf('ais-pre-') === -1) {
-          if (host.endsWith('netlify.app')) {
-            window.location.replace('https://dugsigasubuc.com' + window.location.pathname + window.location.search);
+        try {
+          var host = window.location.hostname;
+          // Avoid redirecting when developing locally or running in the AI Studio preview environment
+          if (host && 
+              host.indexOf('localhost') === -1 && 
+              host.indexOf('127.0.0.1') === -1 && 
+              host.indexOf('ais-dev-') === -1 && 
+              host.indexOf('ais-pre-') === -1) {
+            if (host.endsWith('netlify.app')) {
+              window.location.replace('https://dugsigasubuc.com' + window.location.pathname + window.location.search);
+            }
           }
+        } catch (e) {
+          console.warn('[Redirect] Sandboxed iframe blocked location redirection:', e);
         }
       })();
     </script>

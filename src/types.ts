@@ -15,6 +15,7 @@ export interface Teacher {
   currentSessionId?: string; // Active session tracking for concurrent device login control
   sessionDeviceInfo?: string; // Information about the client device
   sessionLoginTime?: string; // Timestamp of when the session logged in
+  registrationDate?: string; // YYYY-MM-DD when teacher was registered
 }
 
 export interface Student {
@@ -25,11 +26,19 @@ export interface Student {
   teacherId: string; // The teacher assigned to them
   className: string; // Stored here for easier filtering
   monthlyFee: number; // e.g. $50
+  busFee?: number; // monthly bus fare (optional, e.g. $15, $20)
   registrationDate: string; // YYYY-MM-DD
   active: boolean; // Is active student
   session?: 'Morning' | 'Afternoon' | 'Both';
+  voiceUrl?: string; // URL/Base64 of recorded recitation voice
+  voiceDate?: string; // Date (YYYY-MM-DD) recorded voice recitation was captured
+  videoUrl?: string; // URL/Base64 of recorded profile/behavior video
+  videoDate?: string; // Date (YYYY-MM-DD) recorded media video was captured
   imageUrl?: string; // profile picture Base64/url
-  busFee?: number; // monthly bus fare (optional, e.g. $15, $20)
+  photoDate?: string; // Date (YYYY-MM-DD) primary profile photo was captured
+  photos?: string[]; // Array of extra captured/uploaded photos
+  voices?: { url: string; date: string; label?: string }[]; // Historical recorded voices
+  videos?: { url: string; date: string; label?: string }[]; // Historical recorded videos
 }
 
 export type AttendanceType = 'Present' | 'Absent' | 'Late';
