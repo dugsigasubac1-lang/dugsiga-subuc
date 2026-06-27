@@ -4658,12 +4658,6 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
           onClick: () => setActiveTab('teachers')
         },
         {
-          label: 'Joogitaanka Macallimiinta',
-          icon: Clock,
-          checkActive: () => activeTab === 'teacherAttendance',
-          onClick: () => setActiveTab('teacherAttendance')
-        },
-        {
           label: 'Xogta Macallimiinta',
           icon: Activity,
           checkActive: () => activeTab === 'submissions',
@@ -6358,7 +6352,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         )}
 
         {/* --- TEACHER GEOLOCATION ATTENDANCE WORKSPACE --- */}
-        {activeTab === 'teacherAttendance' && (() => {
+        {activeTab === 'teacherAttendance' && null}
+        {false && (() => {
           const todayLogs = (database.teacherAttendance || []).filter(a => a.date === todayDateStr);
           const presentTodayCount = todayLogs.filter(a => a.status === 'Present').length;
           const lateTodayCount = todayLogs.filter(a => a.status === 'Late').length;

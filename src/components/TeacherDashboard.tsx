@@ -1338,16 +1338,6 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
           icon: History,
         }
       ]
-    },
-    {
-      title: 'Macallinka',
-      items: [
-        {
-          id: 'myAttendance' as const,
-          label: 'Imaanshahayga (Check-In)',
-          icon: MapPin,
-        }
-      ]
     }
   ];
 
@@ -1604,7 +1594,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
 
         {/* Dynamic Workspace Switcher Main Panel */}
         <main className="flex-1 p-4 md:p-8" id="teacher-workspace-inner">
-          {(!myCheckedInLog && (activeWorkspace === 'attendance' || activeWorkspace === 'exams' || activeWorkspace === 'studentHistory')) ? (
+          {false ? (
             <div className="bg-white max-w-2xl mx-auto p-12 rounded-3xl border border-slate-150 shadow-md text-center space-y-6 my-12" id="attendance-locked-panel">
               <div className="w-20 h-20 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto text-amber-600 animate-pulse">
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
