@@ -79,6 +79,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedHistoryStudentId, setSelectedHistoryStudentId] = useState<string | null>(null);
   const [mediaStudentTarget, setMediaStudentTarget] = useState<Student | null>(null);
+  const [showStudentDetailModal, setShowStudentDetailModal] = useState<Student | null>(null);
   const [historySearchQuery, setHistorySearchQuery] = useState('');
 
   // Custom confirmation modal state to bypass iframe modal blockages
@@ -1903,6 +1904,14 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                                       </span>
                                       <button
                                         type="button"
+                                        onClick={() => setShowStudentDetailModal(stu)}
+                                        className="text-[8px] font-black text-sky-600 bg-sky-50 hover:bg-sky-100 hover:text-sky-700 px-1 py-0.5 rounded border border-sky-100 cursor-pointer transition-all shrink-0 inline-flex items-center gap-0.5"
+                                        title="View Student Full Profile Information"
+                                      >
+                                        Info ℹ️
+                                      </button>
+                                      <button
+                                        type="button"
                                         onClick={() => setMediaStudentTarget(stu)}
                                         className="text-[8px] font-black text-rose-600 bg-rose-50 hover:bg-rose-100 hover:text-rose-700 px-1 py-0.5 rounded border border-rose-100 cursor-pointer transition-all shrink-0 inline-flex items-center gap-0.5"
                                         title="Student Media: Record voice recitation, video, or capture picture files"
@@ -2207,8 +2216,16 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                                   <p className="text-[9px] text-slate-400 font-bold">ID: {stu.id.replace('BJ-', '')}</p>
                                   <button
                                     type="button"
+                                    onClick={() => setShowStudentDetailModal(stu)}
+                                    className="text-[8.5px] font-black text-sky-600 bg-sky-50 hover:bg-sky-100 hover:text-sky-750 px-1 py-0.5 rounded border border-sky-100 cursor-pointer transition-all shrink-0 inline-flex items-center gap-0.5"
+                                    title="View Student Full Profile Information"
+                                  >
+                                    Info ℹ️
+                                  </button>
+                                  <button
+                                    type="button"
                                     onClick={() => setMediaStudentTarget(stu)}
-                                    className="text-[8.5px] font-black text-rose-605 bg-rose-50 hover:bg-rose-100 hover:text-rose-750 px-1 py-0.5 rounded border border-rose-100 cursor-pointer transition-all shrink-0 inline-flex items-center gap-0.5"
+                                    className="text-[8.5px] font-black text-rose-650 bg-rose-50 hover:bg-rose-100 hover:text-rose-750 px-1 py-0.5 rounded border border-rose-100 cursor-pointer transition-all shrink-0 inline-flex items-center gap-0.5"
                                     title="Student Media: Record voice recitation, video, or capture picture files"
                                   >
                                     Media 🎥
@@ -4220,6 +4237,241 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                   Confirm & Action
                 </button>
               </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* -------------------------------------------------------------
+          MODAL: STUDENT FULL INFORMATION PROFILE
+          ------------------------------------------------------------- */}
+      {showStudentDetailModal && (
+        <div 
+          className="fixed inset-0 bg-slate-900/65 flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto" 
+          id="student-detail-modal-bg"
+          onClick={(e) => {
+            if ((e.target as HTMLElement).id === 'student-detail-modal-bg') {
+              setShowStudentDetailModal(null);
+            }
+          }}
+        >
+          <motion.div
+            initial={{ scale: 0.96, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]"
+            id="student-detail-modal-wrapper"
+          >
+            {/* Header */}
+            <div className="p-6 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 bg-indigo-500/20 text-indigo-300 rounded-xl inline-flex">
+                  <Users className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="font-extrabold text-base tracking-tight text-white">Student Profile Information</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Macluumaadka Guud ee Ardayga</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowStudentDetailModal(null)}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center cursor-pointer transition-all"
+                title="Close modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="p-6 sm:p-8 overflow-y-auto space-y-6">
+              {/* Profile Top Row */}
+              <div className="flex flex-col sm:flex-row items-center gap-5 pb-5 border-b border-slate-100">
+                <div className="w-24 h-24 rounded-2xl overflow-hidden shrink-0 bg-slate-50 border-2 border-slate-200 flex items-center justify-center shadow-inner relative">
+                  {showStudentDetailModal.imageUrl ? (
+                    <img referrerPolicy="no-referrer" src={showStudentDetailModal.imageUrl} alt={showStudentDetailModal.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="text-xl text-indigo-600 font-black tracking-wider">
+                      {showStudentDetailModal.name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() || 'ST'}
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-center sm:text-left space-y-1.5 flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-none truncate">
+                      {showStudentDetailModal.name}
+                    </h2>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border uppercase tracking-wider ${
+                      showStudentDetailModal.active
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                        : 'bg-rose-50 text-rose-700 border-rose-100'
+                    }`}>
+                      {showStudentDetailModal.active ? 'Active / Firfircoon' : 'Suspended / Hakad'}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-500 font-bold flex items-center justify-center sm:justify-start gap-1">
+                    <span className="text-slate-400 font-semibold">Student Identifier:</span> 
+                    <span className="font-mono text-slate-700 font-extrabold bg-slate-100 px-1.5 py-0.5 rounded">{showStudentDetailModal.id}</span>
+                  </p>
+
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-xs text-slate-450 font-bold pt-1">
+                    <span className="bg-slate-50 border border-slate-150 px-2 py-1 rounded-lg">
+                      🗓️ Registered: <span className="text-slate-700 font-extrabold">{showStudentDetailModal.registrationDate || '2026-05-15'}</span>
+                    </span>
+                    <span className="bg-indigo-50 text-indigo-750 border border-indigo-100 px-2 py-1 rounded-lg">
+                      ⏱️ Shift: <span className="font-extrabold uppercase">{showStudentDetailModal.session || 'Both'}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid: Personal & Academic Metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3.5">
+                  <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-200/50 pb-1.5">
+                    Academic & Standing Details
+                  </h4>
+                  <div className="space-y-2.5 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-semibold">Age / Da'da:</span>
+                      <span className="text-slate-800 font-extrabold bg-white px-2 py-0.5 rounded border border-slate-200 shadow-3xs">
+                        {showStudentDetailModal.age !== undefined ? `${showStudentDetailModal.age} Sannadood` : 'Unspecified'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-semibold">Assigned Class / Fasalka:</span>
+                      <span className="text-slate-800 font-black truncate max-w-[150px]">{showStudentDetailModal.className}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-semibold">Instructor / Macallinka:</span>
+                      <span className="text-slate-800 font-extrabold">
+                        {(() => {
+                          const teach = database.teachers.find(t => t.id === showStudentDetailModal.teacherId);
+                          return teach ? teach.name : 'Unassigned';
+                        })()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3.5">
+                  <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-200/50 pb-1.5">
+                    Ranking & Outlook Trend
+                  </h4>
+                  <div className="space-y-2.5 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-semibold">Standing Group:</span>
+                      {(() => {
+                        const compGroup = getStudentCompetitionGroup(showStudentDetailModal.id, database.exams || []);
+                        return (
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black border uppercase tracking-wider ${
+                            compGroup.group.includes('Group A') ? 'bg-emerald-50 text-emerald-800 border-emerald-100' :
+                            compGroup.group.includes('Group B') ? 'bg-teal-50 text-teal-800 border-teal-100' :
+                            compGroup.group.includes('Group C') ? 'bg-indigo-50 text-indigo-850 border-indigo-100' :
+                            compGroup.group.includes('Group D') ? 'bg-amber-50 text-amber-800 border-amber-100' :
+                            compGroup.group.includes('Group E') ? 'bg-rose-50 text-rose-800 border-rose-100' :
+                            'bg-slate-100 text-slate-500 border-slate-200'
+                          }`}>
+                            {compGroup.group}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-semibold">Progress Trend:</span>
+                      {(() => {
+                        const trend = getStudentProgressTrend(showStudentDetailModal.id, database.exams || []);
+                        return (
+                          <span className="font-extrabold text-slate-700 flex items-center gap-1">
+                            {trend.icon} {trend.trend}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Parental details */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
+                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-200/50 pb-1.5">
+                  Parent / Guardian Information (Waalidka)
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <span className="text-slate-400 block font-semibold">Magaca Waalidka / Name:</span>
+                    <span className="text-slate-800 font-extrabold text-sm">{showStudentDetailModal.parentName}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block font-semibold">Taleefanka Waalidka / Contact Phone:</span>
+                    <a 
+                      href={`tel:${showStudentDetailModal.parentPhone}`}
+                      className="text-indigo-600 hover:text-indigo-800 font-mono font-extrabold text-sm hover:underline flex items-center gap-1"
+                    >
+                      📞 {showStudentDetailModal.parentPhone}
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              {/* Financials */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
+                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-200/50 pb-1.5">
+                  Financial Terms (Lacagaha)
+                </h4>
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div className="p-3 bg-white border border-slate-200/60 rounded-xl">
+                    <span className="text-slate-455 block font-bold text-[10px] uppercase">Tuition Fee Due / Lacagta Bisha</span>
+                    <span className="text-teal-700 font-black text-lg block mt-0.5">${showStudentDetailModal.monthlyFee} USD</span>
+                  </div>
+                  <div className="p-3 bg-white border border-slate-200/60 rounded-xl">
+                    <span className="text-slate-455 block font-bold text-[10px] uppercase">Bus Fare Due / Lacagta Baska</span>
+                    <span className="text-indigo-700 font-black text-lg block mt-0.5">
+                      {showStudentDetailModal.busFee ? `$${showStudentDetailModal.busFee} USD` : '$0.00 (N/A)'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Media status summary */}
+              <div className="bg-indigo-50/40 p-4 rounded-2xl border border-indigo-100/50 space-y-3">
+                <h4 className="text-[11px] font-black text-indigo-700 uppercase tracking-wider border-b border-indigo-100/60 pb-1.5">
+                  MediaRecitations & Capture Highlights
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="flex items-center gap-2 bg-white/60 p-2.5 rounded-xl border border-indigo-100/30">
+                    <span className="text-base">🎙️</span>
+                    <div>
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase leading-none">Last Audio Recorded</span>
+                      <span className="text-slate-700 font-extrabold mt-0.5 block">
+                        {showStudentDetailModal.voiceUrl ? `Captured (${showStudentDetailModal.voiceDate || 'Recently'})` : 'No audio recitations on file'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 bg-white/60 p-2.5 rounded-xl border border-indigo-100/30">
+                    <span className="text-base">📹</span>
+                    <div>
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase leading-none">Last Behavior Video</span>
+                      <span className="text-slate-700 font-extrabold mt-0.5 block">
+                        {showStudentDetailModal.videoUrl ? `Captured (${showStudentDetailModal.videoDate || 'Recently'})` : 'No videos on file'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowStudentDetailModal(null)}
+                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
+              >
+                Close Profile
+              </button>
             </div>
           </motion.div>
         </div>

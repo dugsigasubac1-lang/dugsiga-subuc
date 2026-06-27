@@ -30,6 +30,7 @@ export interface Student {
   registrationDate: string; // YYYY-MM-DD
   active: boolean; // Is active student
   session?: 'Morning' | 'Afternoon' | 'Both';
+  age?: number; // Student age (optional)
   voiceUrl?: string; // URL/Base64 of recorded recitation voice
   voiceDate?: string; // Date (YYYY-MM-DD) recorded voice recitation was captured
   videoUrl?: string; // URL/Base64 of recorded profile/behavior video

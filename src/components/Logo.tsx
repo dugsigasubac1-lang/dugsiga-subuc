@@ -1,4 +1,5 @@
 import React from 'react';
+import logoImg from '../assets/images/logo.png';
 
 interface LogoProps {
   className?: string;
@@ -6,7 +7,15 @@ interface LogoProps {
 }
 
 export function DugsigaSubucLogo({ className = "", size }: LogoProps) {
-  return null;
+  return (
+    <img 
+      src={logoImg} 
+      alt="Dugsiga Subuc Logo" 
+      className={`object-contain ${className}`}
+      style={size ? { width: size, height: size } : undefined}
+      referrerPolicy="no-referrer"
+    />
+  );
 }
 
 export function DugsigaSubucFullLogo({ className = "" }: LogoProps) {

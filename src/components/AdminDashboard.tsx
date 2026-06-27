@@ -476,6 +476,32 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     }
   }, [activeTab, examsUnreadCount]);
 
+  // Auto-sync existing parent invoices with student billing on mount
+  useEffect(() => {
+    if (database.invoices && database.invoices.length > 0) {
+      let updatedBilling = [...database.billing];
+      let changed = false;
+      
+      for (const inv of database.invoices) {
+        if (inv.recipientType === 'parent' && inv.studentId) {
+          const synced = syncInvoiceToBilling(inv, updatedBilling, database.students);
+          if (JSON.stringify(synced) !== JSON.stringify(updatedBilling)) {
+            updatedBilling = synced;
+            changed = true;
+          }
+        }
+      }
+      
+      if (changed) {
+        console.log("Auto-syncing pre-existing invoices to billing on mount...");
+        onSaveDatabase({
+          ...database,
+          billing: updatedBilling
+        });
+      }
+    }
+  }, []);
+
   const navigationTabs = [
     { id: 'overview', label: 'Muuqaalka Guud', icon: LayoutGrid },
     { id: 'students', label: 'Ardayda', icon: Users },
@@ -488,6 +514,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   ] as const;
   
   // Dynamic State Modals
+  const [showCollectedFeesBreakdownMonth, setShowCollectedFeesBreakdownMonth] = useState<string | null>(null);
+  const [showBusCollectedBreakdownMonth, setShowBusCollectedBreakdownMonth] = useState<string | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState<BillingRecord | null>(null);
   const [showPrintReportModal, setShowPrintReportModal] = useState<{ 
     mode: 'whole' | 'student' | 'payments_range'; 
@@ -598,6 +626,193 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     return calendarMonth;
   };
 
+  const getInvoicePaymentsForMonth = (month: string) => {
+    if (!database.invoices) return { registration: 0, files: 0, total: 0 };
+    let regTotal = 0;
+    let filesTotal = 0;
+    
+    const monthInvoices = database.invoices.filter(inv => {
+      if (!inv.date) return false;
+      return inv.date.startsWith(month);
+    });
+    
+    for (const inv of monthInvoices) {
+      if (inv.totalAmount <= 0 || inv.amountPaid <= 0) continue;
+      const paidFraction = inv.amountPaid / inv.totalAmount;
+      
+      for (const item of inv.items) {
+        const desc = item.description.toLowerCase();
+        const isReg = desc.includes('diiwan') || desc.includes('regis');
+        const isFile = desc.includes('fayl') || desc.includes('file');
+        
+        const itemTotal = item.quantity * item.unitPrice;
+        const itemPaid = itemTotal * paidFraction;
+        
+        if (isReg) {
+          regTotal += itemPaid;
+        } else if (isFile) {
+          filesTotal += itemPaid;
+        }
+      }
+    }
+    
+    return {
+      registration: Number(regTotal.toFixed(2)),
+      files: Number(filesTotal.toFixed(2)),
+      total: Number((regTotal + filesTotal).toFixed(2))
+    };
+  };
+
+  const getInvoiceInvoicedForMonth = (month: string) => {
+    if (!database.invoices) return { registration: 0, files: 0, total: 0 };
+    let regTotal = 0;
+    let filesTotal = 0;
+    
+    const monthInvoices = database.invoices.filter(inv => {
+      if (!inv.date) return false;
+      return inv.date.startsWith(month);
+    });
+    
+    for (const inv of monthInvoices) {
+      for (const item of inv.items) {
+        const desc = item.description.toLowerCase();
+        const isReg = desc.includes('diiwan') || desc.includes('regis');
+        const isFile = desc.includes('fayl') || desc.includes('file');
+        
+        const itemTotal = item.quantity * item.unitPrice;
+        
+        if (isReg) {
+          regTotal += itemTotal;
+        } else if (isFile) {
+          filesTotal += itemTotal;
+        }
+      }
+    }
+    
+    return {
+      registration: Number(regTotal.toFixed(2)),
+      files: Number(filesTotal.toFixed(2)),
+      total: Number((regTotal + filesTotal).toFixed(2))
+    };
+  };
+
+  const syncInvoiceToBilling = (inv: Invoice, currentBilling: BillingRecord[], students: Student[]): BillingRecord[] => {
+    if (inv.recipientType !== 'parent' || !inv.studentId) return currentBilling;
+    
+    const studentIds = inv.studentId.split(',').map(id => id.trim()).filter(Boolean);
+    if (studentIds.length === 0) return currentBilling;
+    
+    const invoiceMonth = inv.date ? inv.date.slice(0, 7) : new Date().toISOString().slice(0, 7);
+    const paidFraction = inv.totalAmount > 0 ? (inv.amountPaid / inv.totalAmount) : 0;
+    
+    const tuitionItems = inv.items.filter(item => {
+      const desc = item.description.toLowerCase();
+      const isReg = desc.includes('diiwan') || desc.includes('regis');
+      const isFile = desc.includes('fayl') || desc.includes('file');
+      const isTuition = desc.includes('bisha') || desc.includes('monthly') || desc.includes('tuition') || desc.includes('fee');
+      return isTuition && !isReg && !isFile;
+    });
+    
+    let updatedBilling = [...currentBilling];
+    
+    for (const sId of studentIds) {
+      const student = students.find(s => s.id === sId);
+      if (!student) continue;
+      
+      const studentNameLower = student.name.toLowerCase();
+      const studentFirstWord = studentNameLower.split(' ')[0] || '';
+      
+      let matchedItem = tuitionItems.find(item => {
+        const desc = item.description.toLowerCase();
+        return desc.includes(studentFirstWord) && studentFirstWord.length > 2;
+      });
+      
+      if (!matchedItem && tuitionItems.length > 0) {
+        matchedItem = tuitionItems[0];
+      }
+      
+      let itemUnitPrice = student.monthlyFee;
+      let itemQuantity = 1;
+      
+      if (matchedItem) {
+        itemUnitPrice = matchedItem.unitPrice;
+        itemQuantity = 1; 
+      }
+      
+      const amountDue = itemUnitPrice * itemQuantity;
+      const amountPaid = amountDue * paidFraction;
+      const debtAmount = Math.max(0, amountDue - amountPaid);
+      
+      let statusVal: 'Paid' | 'Unpaid' | 'Partial' = 'Unpaid';
+      if (amountPaid >= amountDue && amountDue > 0) {
+        statusVal = 'Paid';
+      } else if (amountPaid > 0) {
+        statusVal = 'Partial';
+      }
+      
+      const recordId = `B-${invoiceMonth}-${sId}`;
+      const existingIdx = updatedBilling.findIndex(b => b.id === recordId || (b.studentId === sId && b.month === invoiceMonth));
+      
+      if (existingIdx !== -1) {
+        const existing = updatedBilling[existingIdx];
+        const busDue = existing.busFeeDue ?? Number(student.busFee || 0);
+        const busPaid = existing.busFeePaid ?? (busDue * paidFraction);
+        const totalPaidMerged = amountPaid + busPaid;
+        const totalDueMerged = amountDue + busDue;
+        
+        let mergedStatus: 'Paid' | 'Unpaid' | 'Partial' = 'Unpaid';
+        if (totalPaidMerged >= totalDueMerged && totalDueMerged > 0) {
+          mergedStatus = 'Paid';
+        } else if (totalPaidMerged > 0) {
+          mergedStatus = 'Partial';
+        }
+        
+        updatedBilling[existingIdx] = {
+          ...existing,
+          amountDue: amountDue,
+          amountPaid: Number(amountPaid.toFixed(2)),
+          debtAmount: Number(Math.max(0, totalDueMerged - totalPaidMerged).toFixed(2)),
+          status: mergedStatus,
+          paymentDate: inv.amountPaid > 0 ? inv.date : existing.paymentDate,
+          receiptNo: inv.amountPaid > 0 ? `REC-${invoiceMonth.replace('-', '')}-${sId.replace('BJ-', '').replace('DS', '')}` : existing.receiptNo,
+          notes: `Synced from invoice ${inv.invoiceNo}. ` + (existing.notes || '')
+        };
+      } else {
+        const busDue = Number(student.busFee || 0);
+        const busPaid = busDue * paidFraction;
+        const totalPaidMerged = amountPaid + busPaid;
+        const totalDueMerged = amountDue + busDue;
+        
+        let mergedStatus: 'Paid' | 'Unpaid' | 'Partial' = 'Unpaid';
+        if (totalPaidMerged >= totalDueMerged && totalDueMerged > 0) {
+          mergedStatus = 'Paid';
+        } else if (totalPaidMerged > 0) {
+          mergedStatus = 'Partial';
+        }
+
+        const newRecord: BillingRecord = {
+          id: recordId,
+          studentId: sId,
+          studentName: student.name,
+          className: student.className,
+          month: invoiceMonth,
+          amountDue: amountDue,
+          amountPaid: Number(amountPaid.toFixed(2)),
+          debtAmount: Number(Math.max(0, totalDueMerged - totalPaidMerged).toFixed(2)),
+          status: mergedStatus,
+          busFeeDue: busDue,
+          busFeePaid: Number(busPaid.toFixed(2)),
+          paymentDate: inv.amountPaid > 0 ? inv.date : undefined,
+          receiptNo: inv.amountPaid > 0 ? `REC-${invoiceMonth.replace('-', '')}-${sId.replace('BJ-', '').replace('DS', '')}` : undefined,
+          notes: `Synced from invoice ${inv.invoiceNo}.`
+        };
+        updatedBilling.push(newRecord);
+      }
+    }
+    
+    return updatedBilling;
+  };
+
   const currentMonthFilter = getMostActiveBillingMonth();
   
   const getFriendlyMonthName = (monthStr: string) => {
@@ -611,9 +826,9 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     return monthStr;
   };
 
-  const currentMonthInvoiced = database.students.filter(s => s.active).reduce((sum, s) => sum + s.monthlyFee, 0);
+  const currentMonthInvoiced = database.students.filter(s => s.active).reduce((sum, s) => sum + s.monthlyFee, 0) + getInvoiceInvoicedForMonth(currentMonthFilter).total;
   const currentMonthPaidRecords = database.billing.filter(b => b.month === currentMonthFilter && (b.status === 'Paid' || b.status === 'Partial'));
-  const currentMonthPaidAmount = currentMonthPaidRecords.reduce((sum, r) => sum + r.amountPaid, 0);
+  const currentMonthPaidAmount = currentMonthPaidRecords.reduce((sum, r) => sum + r.amountPaid, 0) + getInvoicePaymentsForMonth(currentMonthFilter).total;
   const currentMonthUnpaidAmount = Math.max(0, currentMonthInvoiced - currentMonthPaidAmount);
 
   // Bus Fare Statistics Calculations
@@ -654,6 +869,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [newStudentSession, setNewStudentSession] = useState<'Morning' | 'Afternoon' | 'Both'>('Both');
   const [newStudentImage, setNewStudentImage] = useState<string>('');
   const [newStudentRegDate, setNewStudentRegDate] = useState<string>('');
+  const [newStudentAge, setNewStudentAge] = useState<number | ''>('');
+  const [showStudentDetailModal, setShowStudentDetailModal] = useState<Student | null>(null);
 
   // Student-Teacher Assignment Management State
   const [assignSelectedStudentId, setAssignSelectedStudentId] = useState('');
@@ -736,6 +953,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     setNewStudentSession(student.session || 'Both');
     setNewStudentImage(student.imageUrl || '');
     setNewStudentRegDate(student.registrationDate || '');
+    setNewStudentAge(student.age ?? '');
   };
 
   const handleCancelEditStudent = () => {
@@ -750,6 +968,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     setNewStudentSession('Both');
     setNewStudentImage('');
     setNewStudentRegDate('');
+    setNewStudentAge('');
   };
 
   const handleResizeAndCompressImage = (file: File, callback: (base64: string) => void) => {
@@ -824,7 +1043,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
             busFee: Number(newStudentBusFee),
             session: newStudentSession,
             imageUrl: newStudentImage,
-            registrationDate: newStudentRegDate || s.registrationDate || new Date().toISOString().split('T')[0]
+            registrationDate: newStudentRegDate || s.registrationDate || new Date().toISOString().split('T')[0],
+            age: newStudentAge === '' ? undefined : Number(newStudentAge)
           };
         }
         return s;
@@ -874,7 +1094,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         registrationDate: newStudentRegDate || new Date().toISOString().split('T')[0],
         active: true,
         session: newStudentSession,
-        imageUrl: newStudentImage
+        imageUrl: newStudentImage,
+        age: newStudentAge === '' ? undefined : Number(newStudentAge)
       };
 
       const updatedStudents = [...database.students, newStudent];
@@ -2553,8 +2774,10 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         newInvoices.push(updatedInv);
       }
 
+      const syncedBilling = syncInvoiceToBilling(updatedInv, [...database.billing], database.students);
       onSaveDatabase({
         ...database,
+        billing: syncedBilling,
         invoices: newInvoices
       });
 
@@ -2583,8 +2806,10 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         createdAt: new Date().toISOString()
       };
 
+      const syncedBilling = syncInvoiceToBilling(newInv, [...database.billing], database.students);
       onSaveDatabase({
         ...database,
+        billing: syncedBilling,
         invoices: [...(database.invoices || []), newInv]
       });
 
@@ -2604,8 +2829,12 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       accentColor: 'rose',
       onConfirm: () => {
         const updated = (database.invoices || []).filter(inv => inv.id !== id);
+        const updatedBilling = database.billing.filter(b => {
+          return !(b.notes && b.notes.includes(`Synced from invoice ${invoiceNo}`));
+        });
         onSaveDatabase({
           ...database,
+          billing: updatedBilling,
           invoices: updated
         });
         setConfirmModal(null);
@@ -2988,6 +3217,21 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     const student = database.students.find(s => s.id === record.studentId);
     const amountDue = record.amountDue ?? (student?.monthlyFee ?? 35);
     const debtAmount = record.debtAmount ?? Math.max(0, amountDue - record.amountPaid);
+    const hasBusFee = (Number(record.busFeeDue || 0) > 0 || Number(record.busFeePaid || 0) > 0);
+    const totalPaid = Number(record.amountPaid) + Number(record.busFeePaid || 0);
+
+    const invoiceLines = [
+      `Lacagta bisha ee laga rabo (Tuition Due):  $${Number(amountDue).toFixed(2)} USD`,
+      `Lacagta bisha ee la bixiyay (Tuition Paid): $${Number(record.amountPaid).toFixed(2)} USD`
+    ];
+
+    if (hasBusFee) {
+      invoiceLines.push(`Lacagta baska ee laga rabo (Bus Due):      $${Number(record.busFeeDue || 0).toFixed(2)} USD`);
+      invoiceLines.push(`Lacagta baska ee la bixiyay (Bus Paid):     $${Number(record.busFeePaid || 0).toFixed(2)} USD`);
+    }
+
+    invoiceLines.push(`Total Amount Paid (Guud ahaan):        $${Number(totalPaid).toFixed(2)} USD`);
+    invoiceLines.push(`Remaining Debt (Haraaga Deynta):       $${Number(debtAmount).toFixed(2)} USD`);
     
     const lines = [
       "==================================================",
@@ -3002,9 +3246,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       `ID-ga Ardayga:      ${record.studentId}`,
       `Fasalka:            ${record.className}`,
       "--------------------------------------------------",
-      `Lacagta Laga Rabo:  $${Number(amountDue).toFixed(2)} USD`,
-      `Lacagta La Bixiyay:  $${Number(record.amountPaid).toFixed(2)} USD`,
-      `Deynta Kugu Hartay:   $${Number(debtAmount).toFixed(2)} USD`,
+      ...invoiceLines,
       `Heerka Rasiidka:    ${record.status === 'Paid' ? 'WAA LA BIXIYAY' : record.status === 'Partial' ? 'QEYB BAA LA BIXIYAY' : 'LAMA BIXIN'}`,
       "--------------------------------------------------",
       `Faallooyinka Maamulka: ${record.notes || 'Ma jiraan'}`,
@@ -3032,6 +3274,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     const student = database.students.find(s => s.id === record.studentId);
     const amountDue = record.amountDue ?? (student?.monthlyFee ?? 35);
     const debtAmount = record.debtAmount ?? Math.max(0, amountDue - record.amountPaid);
+    const hasBusFee = (Number(record.busFeeDue || 0) > 0 || Number(record.busFeePaid || 0) > 0);
+    const totalCollected = Number(record.amountPaid) + Number(record.busFeePaid || 0);
 
     doc.setProperties({
       title: `Dugsiga Subuc Receipt - ${record.studentName} - ${record.month}`,
@@ -3091,66 +3335,122 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     doc.text(record.className, 190, 76, { align: "right" });
 
     // Grey background box for billing details
+    const boxHeight = hasBusFee ? 74 : 54;
     doc.setFillColor(248, 250, 252); // slate-50
-    doc.roundedRect(20, 86, 170, 54, 3, 3, "F");
+    doc.roundedRect(20, 86, 170, boxHeight, 3, 3, "F");
     doc.setDrawColor(241, 245, 249); // slate-100
-    doc.roundedRect(20, 86, 170, 54, 3, 3, "S");
+    doc.roundedRect(20, 86, 170, boxHeight, 3, 3, "S");
 
-    // Inner details of box
+    let currentY = 94;
+    const lineGap = 6.8;
+
+    // Line 1: Muddada Biilka
     doc.setFont("Helvetica", "normal");
-    doc.setFontSize(10);
+    doc.setFontSize(9.5);
     doc.setTextColor(71, 85, 105); // slate-600
-    doc.text("Muddada Biilka:", 25, 96);
-    doc.text("Heerka Rasiidka:", 25, 104);
-    doc.text("Lacagta Biilka ee Laga Rabo:", 25, 114);
-    doc.text("Lacagta Dhabta ee La Bixiyay:", 25, 122);
-    doc.text("Haraaga Deynta ee Kugu Haray:", 25, 130);
-
+    doc.text("Muddada Biilka (Billing Period):", 25, currentY);
     doc.setFont("Helvetica", "bold");
     doc.setTextColor(15, 23, 42); // slate-900
-    doc.text(`Khidmadda ${record.month}`, 190, 96, { align: "right" });
-    
-    // Status check
+    doc.text(`Khidmadda ${record.month}`, 190, currentY, { align: "right" });
+    currentY += lineGap;
+
+    // Line 2: Heerka Rasiidka
+    doc.setFont("Helvetica", "normal");
+    doc.setTextColor(71, 85, 105); // slate-600
+    doc.text("Heerka Rasiidka (Receipt Status):", 25, currentY);
+    doc.setFont("Helvetica", "bold");
     if (record.status === 'Paid') {
       doc.setTextColor(4, 120, 87); // emerald-700
-      doc.text("WAA LA BIXIYAY", 190, 104, { align: "right" });
+      doc.text("WAA LA BIXIYAY (PAID)", 190, currentY, { align: "right" });
     } else if (record.status === 'Partial') {
       doc.setTextColor(180, 83, 9); // amber-700
-      doc.text("QEYB BAA LA BIXIYAY", 190, 104, { align: "right" });
+      doc.text("QEYB BAA LA BIXIYAY (PARTIAL)", 190, currentY, { align: "right" });
     } else {
       doc.setTextColor(185, 28, 28); // rose-700
-      doc.text("LAMA BIXIN", 190, 104, { align: "right" });
+      doc.text("LAMA BIXIN (UNPAID)", 190, currentY, { align: "right" });
+    }
+    currentY += lineGap;
+
+    // Line 3: Tuition Due
+    doc.setFont("Helvetica", "normal");
+    doc.setTextColor(71, 85, 105);
+    doc.text("Lacagta bisha ee laga rabo (Tuition Due):", 25, currentY);
+    doc.setFont("Helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text(`$${Number(amountDue).toFixed(2)} USD`, 190, currentY, { align: "right" });
+    currentY += lineGap;
+
+    // Line 4: Tuition Paid
+    doc.setFont("Helvetica", "normal");
+    doc.setTextColor(71, 85, 105);
+    doc.text("Lacagta bisha ee la bixiyay (Tuition Paid):", 25, currentY);
+    doc.setFont("Helvetica", "bold");
+    doc.setTextColor(4, 120, 87);
+    doc.text(`$${Number(record.amountPaid).toFixed(2)} USD`, 190, currentY, { align: "right" });
+    currentY += lineGap;
+
+    // Conditionals for Bus Fee
+    if (hasBusFee) {
+      // Line 5: Bus Fee Due
+      doc.setFont("Helvetica", "normal");
+      doc.setTextColor(71, 85, 105);
+      doc.text("Lacagta baska ee laga rabo (Bus Due):", 25, currentY);
+      doc.setFont("Helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      doc.text(`$${Number(record.busFeeDue || 0).toFixed(2)} USD`, 190, currentY, { align: "right" });
+      currentY += lineGap;
+
+      // Line 6: Bus Fee Paid
+      doc.setFont("Helvetica", "normal");
+      doc.setTextColor(71, 85, 105);
+      doc.text("Lacagta baska ee la bixiyay (Bus Paid):", 25, currentY);
+      doc.setFont("Helvetica", "bold");
+      doc.setTextColor(4, 120, 87);
+      doc.text(`$${Number(record.busFeePaid || 0).toFixed(2)} USD`, 190, currentY, { align: "right" });
+      currentY += lineGap;
     }
 
-    doc.setTextColor(15, 23, 42); // slate-900
-    doc.text(`$${Number(amountDue).toFixed(2)} USD`, 190, 114, { align: "right" });
+    // Line 7: Total Paid
+    doc.setFont("Helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text("Wadar Lacagta La Bixiyay (Total Paid):", 25, currentY);
     doc.setTextColor(4, 120, 87); // emerald-700
-    doc.text(`$${Number(record.amountPaid).toFixed(2)} USD`, 190, 122, { align: "right" });
+    doc.text(`$${Number(totalCollected).toFixed(2)} USD`, 190, currentY, { align: "right" });
+    currentY += lineGap;
+
+    // Line 8: Debt amount remaining
+    doc.setFont("Helvetica", "bold");
+    doc.setTextColor(71, 85, 105);
+    doc.text("Haraaga Deynta ee Kugu Haray (Debt):", 25, currentY);
     doc.setTextColor((record.debtAmount || 0) > 0 ? 180 : 15, (record.debtAmount || 0) > 0 ? 83 : 23, (record.debtAmount || 0) > 0 ? 9 : 42);
-    doc.text(`$${Number(debtAmount).toFixed(2)} USD`, 190, 130, { align: "right" });
+    doc.text(`$${Number(debtAmount).toFixed(2)} USD`, 190, currentY, { align: "right" });
 
     // Notes/Remarks if any
+    const notesY = 86 + boxHeight + 6;
+    let nextBlockY = notesY;
     if (record.notes) {
       doc.setFillColor(254, 252, 232); // amber-50
       doc.setDrawColor(254, 243, 199); // amber-200
-      doc.roundedRect(20, 146, 170, 18, 2, 2, "FD");
+      doc.roundedRect(20, notesY, 170, 18, 2, 2, "FD");
       
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(8);
       doc.setTextColor(146, 64, 14); // amber-800
-      doc.text("FAALLOOYINKA MAAMULKA & QORAALADA DEYNTA:", 24, 151);
+      doc.text("FAALLOOYINKA MAAMULKA & QORAALADA DEYNTA:", 24, notesY + 5);
 
       doc.setFont("Helvetica", "italic");
       doc.setFontSize(9);
       doc.setTextColor(30, 41, 59); // slate-800
       
       const textLines = doc.splitTextToSize(record.notes, 160);
-      doc.text(textLines, 24, 157);
+      doc.text(textLines, 24, notesY + 11);
+      nextBlockY = notesY + 18 + 6;
     }
 
-    // Signature Block
-    const sigY = record.notes ? 180 : 165;
+    // Signature Block & Bold Amount Box
+    const sigY = nextBlockY + 2;
     doc.setDrawColor(203, 213, 225); // slate-300
+    doc.setLineWidth(0.5);
     doc.line(20, sigY + 15, 75, sigY + 15);
     doc.setFont("Helvetica", "normal");
     doc.setFontSize(9);
@@ -3169,7 +3469,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     doc.setFont("Helvetica", "bold");
     doc.setFontSize(13);
     doc.setTextColor(255, 255, 255); // white
-    doc.text(`$${Number(record.amountPaid).toFixed(2)} USD`, 155, sigY + 14, { align: "center" });
+    doc.text(`$${Number(totalCollected).toFixed(2)} USD`, 155, sigY + 14, { align: "center" });
 
     // Footer divider dashed
     const footerY = sigY + 38;
@@ -4859,12 +5159,21 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between" id="overview-revenue-paid">
+              <div 
+                onClick={() => setShowCollectedFeesBreakdownMonth(currentMonthFilter)}
+                className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-teal-200 transition-all active:scale-[0.99] group" 
+                id="overview-revenue-paid"
+                title="Guji si aad u aragto halka ay lacagtu ka timid (Click to view breakdown)"
+              >
                 <div>
-                  <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Collected Fees ({currentMonthName})</p>
-                  <p className="text-3xl font-extrabold text-teal-700 mt-2">${currentMonthPaidAmount}</p>
+                  <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                    Collected Fees ({currentMonthName})
+                    <span className="text-[10px] text-teal-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-teal-50 px-1.5 py-0.5 rounded-md">View details 🔍</span>
+                  </p>
+                  <p className="text-3xl font-extrabold text-teal-700 mt-2">${Number(currentMonthPaidAmount).toFixed(2)}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Click to see detail transaction breakdown</p>
                 </div>
-                <div className="p-3.5 bg-teal-50 text-teal-600 rounded-2xl">
+                <div className="p-3.5 bg-teal-50 text-teal-600 rounded-2xl group-hover:bg-teal-600 group-hover:text-white transition-colors">
                   <CircleDollarSign className="w-6 h-6" />
                 </div>
               </div>
@@ -4872,7 +5181,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
               <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between" id="overview-revenue-unpaid">
                 <div>
                   <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Pending Balance</p>
-                  <p className="text-2xl font-extrabold text-slate-500 mt-2">${currentMonthUnpaidAmount}</p>
+                  <p className="text-2xl font-extrabold text-slate-500 mt-2">${Number(currentMonthUnpaidAmount).toFixed(2)}</p>
                 </div>
                 <div className="p-3.5 bg-slate-100 text-slate-600 rounded-2xl">
                   <Calculator className="w-6 h-6" />
@@ -4922,13 +5231,20 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                <div 
+                  onClick={() => setShowBusCollectedBreakdownMonth(currentMonthFilter)}
+                  className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-teal-200 transition-all active:scale-[0.99] group"
+                  title="Guji si aad u aragto faahfaahinta lacagta baska (Click to view breakdown)"
+                >
                   <div>
-                    <p className="text-teal-605 text-[10px] font-bold uppercase tracking-wider">Bus Collected ({currentMonthName})</p>
+                    <p className="text-teal-605 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                      Bus Collected ({currentMonthName})
+                      <span className="text-[9px] text-teal-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-teal-50 px-1 rounded-sm">View details 🔍</span>
+                    </p>
                     <p className="text-2xl font-black text-teal-700 mt-1">${Number(currentMonthBusCollected).toFixed(2)}</p>
-                    <p className="text-[10px] text-slate-400 mt-1">Successfully received payments</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Click to see detail transaction breakdown</p>
                   </div>
-                  <div className="p-3 bg-teal-50 text-teal-600 rounded-xl">
+                  <div className="p-3 bg-teal-50 text-teal-600 rounded-xl group-hover:bg-teal-600 group-hover:text-white transition-colors">
                     <CircleDollarSign className="w-5 h-5" />
                   </div>
                 </div>
@@ -5036,14 +5352,14 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                       <span className="w-2.5 h-2.5 rounded-full bg-teal-600 inline-block" />
                       Collected Fees
                     </span>
-                    <span className="font-extrabold text-slate-800">${currentMonthPaidAmount}</span>
+                    <span className="font-extrabold text-slate-800">${Number(currentMonthPaidAmount).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs">
                     <span className="flex items-center gap-2 font-semibold text-slate-600">
                       <span className="w-2.5 h-2.5 rounded-full bg-slate-300 inline-block" />
                       Unpaid Balances
                     </span>
-                    <span className="font-extrabold text-slate-800">${currentMonthUnpaidAmount}</span>
+                    <span className="font-extrabold text-slate-800">${Number(currentMonthUnpaidAmount).toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -5217,16 +5533,28 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-0.5">Parent Contact Phone *</label>
-                    <input
-                      type="text"
-                      required
-                      value={newStudentPhone}
-                      onChange={(e) => setNewStudentPhone(e.target.value)}
-                      placeholder="e.g. +252 61 555 1200"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-semibold text-slate-800 outline-none"
-                    />
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="col-span-2">
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-0.5">Parent Contact Phone *</label>
+                      <input
+                        type="text"
+                        required
+                        value={newStudentPhone}
+                        onChange={(e) => setNewStudentPhone(e.target.value)}
+                        placeholder="e.g. +252 61 555 1200"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-semibold text-slate-800 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-0.5">Age / Da'da</label>
+                      <input
+                        type="number"
+                        value={newStudentAge}
+                        onChange={(e) => setNewStudentAge(e.target.value === '' ? '' : Number(e.target.value))}
+                        placeholder="e.g. 10"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none"
+                      />
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -5535,6 +5863,14 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                 <div className="flex items-center justify-center gap-1.5">
                                   <button
                                     type="button"
+                                    onClick={() => setShowStudentDetailModal(student)}
+                                    className="px-2 py-1.5 rounded-xl text-[10px] bg-sky-50 border border-sky-150 text-sky-700 hover:bg-sky-100 font-extrabold cursor-pointer transition-all shrink-0 flex items-center gap-1"
+                                    title="View Student Full Profile Information"
+                                  >
+                                    Info ℹ️
+                                  </button>
+                                  <button
+                                    type="button"
                                     onClick={() => setMediaStudentTarget(student)}
                                     className="px-2 py-1.5 rounded-xl text-[10px] bg-rose-50 border border-rose-150 text-rose-700 hover:bg-rose-100 font-extrabold cursor-pointer transition-all shrink-0 flex items-center gap-1"
                                     title="Student Media Hub: Record voice, video or update picture files"
@@ -5596,7 +5932,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
 
                 <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 font-semibold" id="student-catalogue-pager">
                   <span>Showing {filteredStudents.length} of {database.students.length} Total records</span>
-                  <span>Active Registered Balance: ${activeStudents.reduce((sum, s) => sum + s.monthlyFee, 0)}/mo</span>
+                  <span>Active Registered Balance: ${activeStudents.reduce((sum, s) => sum + s.monthlyFee, 0).toFixed(2)}/mo</span>
                 </div>
               </div>
 
@@ -9811,13 +10147,15 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 <div className="flex items-center gap-6" id="billing-summary-block">
                   <div className="text-right">
                     <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Month Total Billings</p>
-                    <p className="text-sm font-extrabold text-slate-900">${activeStudents.reduce((sum, s) => sum + s.monthlyFee, 0)}</p>
+                    <p className="text-sm font-extrabold text-slate-900">
+                      ${(activeStudents.reduce((sum, s) => sum + s.monthlyFee, 0) + getInvoiceInvoicedForMonth(selectedBillingMonth).total).toFixed(2)}
+                    </p>
                   </div>
                   <div className="w-px h-10 bg-slate-200" />
                   <div className="text-right">
                     <p className="text-[10px] text-emerald-600 uppercase font-bold tracking-wider">Deposited Fees</p>
                     <p className="text-sm font-extrabold text-emerald-700">
-                      ${database.billing.filter(b => b.month === selectedBillingMonth && (b.status === 'Paid' || b.status === 'Partial')).reduce((sum, b) => sum + b.amountPaid, 0)}
+                      ${(database.billing.filter(b => b.month === selectedBillingMonth && (b.status === 'Paid' || b.status === 'Partial')).reduce((sum, b) => sum + b.amountPaid, 0) + getInvoicePaymentsForMonth(selectedBillingMonth).total).toFixed(2)}
                     </p>
                   </div>
                 </div>
@@ -11354,6 +11692,605 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       </main>
 
       {/* -------------------------------------------------------------
+          MODAL: STUDENT FULL INFORMATION PROFILE
+          ------------------------------------------------------------- */}
+      {showStudentDetailModal && (
+        <div 
+          className="fixed inset-0 bg-slate-900/65 flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto" 
+          id="student-detail-modal-bg"
+          onClick={(e) => {
+            if ((e.target as HTMLElement).id === 'student-detail-modal-bg') {
+              setShowStudentDetailModal(null);
+            }
+          }}
+        >
+          <motion.div
+            initial={{ scale: 0.96, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]"
+            id="student-detail-modal-wrapper"
+          >
+            {/* Header */}
+            <div className="p-6 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 bg-indigo-500/20 text-indigo-300 rounded-xl inline-flex">
+                  <Users className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="font-extrabold text-base tracking-tight text-white">Student Profile Information</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Macluumaadka Guud ee Ardayga</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowStudentDetailModal(null)}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center cursor-pointer transition-all"
+                title="Close modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="p-6 sm:p-8 overflow-y-auto space-y-6">
+              {/* Profile Top Row */}
+              <div className="flex flex-col sm:flex-row items-center gap-5 pb-5 border-b border-slate-100">
+                <div className="w-24 h-24 rounded-2xl overflow-hidden shrink-0 bg-slate-50 border-2 border-slate-200 flex items-center justify-center shadow-inner relative">
+                  {showStudentDetailModal.imageUrl ? (
+                    <img referrerPolicy="no-referrer" src={showStudentDetailModal.imageUrl} alt={showStudentDetailModal.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="text-xl text-indigo-600 font-black tracking-wider">
+                      {showStudentDetailModal.name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() || 'ST'}
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-center sm:text-left space-y-1.5 flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-none truncate">
+                      {showStudentDetailModal.name}
+                    </h2>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border uppercase tracking-wider ${
+                      showStudentDetailModal.active
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                        : 'bg-rose-50 text-rose-700 border-rose-100'
+                    }`}>
+                      {showStudentDetailModal.active ? 'Active / Firfircoon' : 'Suspended / Hakad'}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-500 font-bold flex items-center justify-center sm:justify-start gap-1">
+                    <span className="text-slate-400 font-semibold">Student Identifier:</span> 
+                    <span className="font-mono text-slate-700 font-extrabold bg-slate-100 px-1.5 py-0.5 rounded">{showStudentDetailModal.id}</span>
+                  </p>
+
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-xs text-slate-450 font-bold pt-1">
+                    <span className="bg-slate-50 border border-slate-150 px-2 py-1 rounded-lg">
+                      🗓️ Registered: <span className="text-slate-700 font-extrabold">{showStudentDetailModal.registrationDate || '2026-05-15'}</span>
+                    </span>
+                    <span className="bg-indigo-50 text-indigo-750 border border-indigo-100 px-2 py-1 rounded-lg">
+                      ⏱️ Shift: <span className="font-extrabold uppercase">{showStudentDetailModal.session || 'Both'}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid: Personal & Academic Metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3.5">
+                  <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-200/50 pb-1.5">
+                    Academic & Standing Details
+                  </h4>
+                  <div className="space-y-2.5 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-semibold">Age / Da'da:</span>
+                      <span className="text-slate-800 font-extrabold bg-white px-2 py-0.5 rounded border border-slate-200 shadow-3xs">
+                        {showStudentDetailModal.age !== undefined ? `${showStudentDetailModal.age} Sannadood` : 'Unspecified'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-semibold">Assigned Class / Fasalka:</span>
+                      <span className="text-slate-800 font-black truncate max-w-[150px]">{showStudentDetailModal.className}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-semibold">Instructor / Macallinka:</span>
+                      <span className="text-slate-800 font-extrabold">
+                        {(() => {
+                          const teach = database.teachers.find(t => t.id === showStudentDetailModal.teacherId);
+                          return teach ? teach.name : 'Unassigned';
+                        })()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3.5">
+                  <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-200/50 pb-1.5">
+                    Ranking & Outlook Trend
+                  </h4>
+                  <div className="space-y-2.5 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-semibold">Standing Group:</span>
+                      {(() => {
+                        const compGroup = getStudentCompetitionGroup(showStudentDetailModal.id);
+                        return (
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black border uppercase tracking-wider ${
+                            compGroup.group.includes('Group A') ? 'bg-emerald-50 text-emerald-800 border-emerald-100' :
+                            compGroup.group.includes('Group B') ? 'bg-teal-50 text-teal-800 border-teal-100' :
+                            compGroup.group.includes('Group C') ? 'bg-indigo-50 text-indigo-850 border-indigo-100' :
+                            compGroup.group.includes('Group D') ? 'bg-amber-50 text-amber-800 border-amber-100' :
+                            compGroup.group.includes('Group E') ? 'bg-rose-50 text-rose-800 border-rose-100' :
+                            'bg-slate-100 text-slate-500 border-slate-200'
+                          }`}>
+                            {compGroup.group}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-semibold">Progress Trend:</span>
+                      {(() => {
+                        const trend = getStudentProgressTrend(showStudentDetailModal.id);
+                        return (
+                          <span className="font-extrabold text-slate-700 flex items-center gap-1">
+                            {trend.icon} {trend.trend}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Parental details */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
+                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-200/50 pb-1.5">
+                  Parent / Guardian Information (Waalidka)
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <span className="text-slate-400 block font-semibold">Magaca Waalidka / Name:</span>
+                    <span className="text-slate-800 font-extrabold text-sm">{showStudentDetailModal.parentName}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block font-semibold">Taleefanka Waalidka / Contact Phone:</span>
+                    <a 
+                      href={`tel:${showStudentDetailModal.parentPhone}`}
+                      className="text-indigo-600 hover:text-indigo-800 font-mono font-extrabold text-sm hover:underline flex items-center gap-1"
+                    >
+                      📞 {showStudentDetailModal.parentPhone}
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              {/* Financials */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
+                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-200/50 pb-1.5">
+                  Financial Terms (Lacagaha)
+                </h4>
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div className="p-3 bg-white border border-slate-200/60 rounded-xl">
+                    <span className="text-slate-450 block font-bold text-[10px] uppercase">Tuition Fee Due / Lacagta Bisha</span>
+                    <span className="text-teal-700 font-black text-lg block mt-0.5">${showStudentDetailModal.monthlyFee} USD</span>
+                  </div>
+                  <div className="p-3 bg-white border border-slate-200/60 rounded-xl">
+                    <span className="text-slate-450 block font-bold text-[10px] uppercase">Bus Fare Due / Lacagta Baska</span>
+                    <span className="text-indigo-700 font-black text-lg block mt-0.5">
+                      {showStudentDetailModal.busFee ? `$${showStudentDetailModal.busFee} USD` : '$0.00 (N/A)'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Media status summary */}
+              <div className="bg-indigo-50/40 p-4 rounded-2xl border border-indigo-100/50 space-y-3">
+                <h4 className="text-[11px] font-black text-indigo-700 uppercase tracking-wider border-b border-indigo-100/60 pb-1.5">
+                  MediaRecitations & Capture Highlights
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="flex items-center gap-2 bg-white/60 p-2.5 rounded-xl border border-indigo-100/30">
+                    <span className="text-base">🎙️</span>
+                    <div>
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase leading-none">Last Audio Recorded</span>
+                      <span className="text-slate-700 font-extrabold mt-0.5 block">
+                        {showStudentDetailModal.voiceUrl ? `Captured (${showStudentDetailModal.voiceDate || 'Recently'})` : 'No audio recitations on file'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 bg-white/60 p-2.5 rounded-xl border border-indigo-100/30">
+                    <span className="text-base">📹</span>
+                    <div>
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase leading-none">Last Behavior Video</span>
+                      <span className="text-slate-700 font-extrabold mt-0.5 block">
+                        {showStudentDetailModal.videoUrl ? `Captured (${showStudentDetailModal.videoDate || 'Recently'})` : 'No videos on file'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowStudentDetailModal(null)}
+                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
+              >
+                Close Profile
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* -------------------------------------------------------------
+          MODAL: COLLECTED FEES DETAILED BREAKDOWN
+          ------------------------------------------------------------- */}
+      {showCollectedFeesBreakdownMonth && (() => {
+        const month = showCollectedFeesBreakdownMonth;
+        const monthName = getFriendlyMonthName(month);
+        
+        // Find all regular billing records for this month that are Paid or Partial
+        const monthBillingPayments = database.billing.filter(b => b.month === month && (b.status === 'Paid' || b.status === 'Partial'));
+        
+        // Find all registration and file fees from invoices for this month
+        const monthInvoices = (database.invoices || []).filter(inv => inv.date && inv.date.startsWith(month));
+        
+        const invoicePayments: Array<{
+          invoiceNo: string;
+          recipientName: string;
+          description: string;
+          quantity: number;
+          unitPrice: number;
+          total: number;
+          paidAmount: number;
+          date: string;
+        }> = [];
+        
+        for (const inv of monthInvoices) {
+          if (inv.totalAmount <= 0 || inv.amountPaid <= 0) continue;
+          const paidFraction = inv.amountPaid / inv.totalAmount;
+          
+          for (const item of inv.items) {
+            const desc = item.description.toLowerCase();
+            const isReg = desc.includes('diiwan') || desc.includes('regis');
+            const isFile = desc.includes('fayl') || desc.includes('file');
+            
+            if (isReg || isFile) {
+              const itemTotal = item.quantity * item.unitPrice;
+              const itemPaid = itemTotal * paidFraction;
+              invoicePayments.push({
+                invoiceNo: inv.invoiceNo,
+                recipientName: inv.recipientName || inv.studentName || 'N/A',
+                description: item.description,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                total: itemTotal,
+                paidAmount: Number(itemPaid.toFixed(2)),
+                date: inv.date
+              });
+            }
+          }
+        }
+        
+        const totalTuitionPaid = monthBillingPayments.reduce((sum, r) => sum + r.amountPaid, 0);
+        const totalRegFilesPaid = invoicePayments.reduce((sum, item) => sum + item.paidAmount, 0);
+        const grandTotal = totalTuitionPaid + totalRegFilesPaid;
+
+        return (
+          <div 
+            className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-55 animate-fade-in overflow-y-auto pointer-print-none" 
+            id="collected-fees-modal-bg"
+            onClick={(e) => {
+              if ((e.target as HTMLElement).id === 'collected-fees-modal-bg') {
+                setShowCollectedFeesBreakdownMonth(null);
+              }
+            }}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-3xl shadow-xl border border-slate-100 max-w-3xl w-full overflow-hidden flex flex-col max-h-[85vh]"
+            >
+              {/* Modal Header */}
+              <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                    <CircleDollarSign className="w-5 h-5 text-teal-600" />
+                    Lacagaha la Ururiyay (Collected Fees Breakdown)
+                  </h3>
+                  <p className="text-xs text-slate-500 font-semibold mt-1">Detailed list of payments received in {monthName}</p>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setShowCollectedFeesBreakdownMonth(null)}
+                  className="p-1 px-2 text-xs font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
+                >
+                  Xir (Close)
+                </button>
+              </div>
+
+              {/* Scrollable Body */}
+              <div className="p-6 overflow-y-auto space-y-6 flex-1 scrollbar-thin">
+                
+                {/* Visual Summary Widget */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100/60">
+                    <span className="text-[10px] text-emerald-800 uppercase font-bold block mb-1">Tuition Fees Collected</span>
+                    <span className="block text-2xl font-extrabold text-emerald-900">${totalTuitionPaid.toFixed(2)}</span>
+                    <p className="text-[10px] text-emerald-600/80 mt-1 font-semibold">{monthBillingPayments.length} student payments</p>
+                  </div>
+                  
+                  <div className="bg-teal-50/50 p-4 rounded-2xl border border-teal-100/60">
+                    <span className="text-[10px] text-teal-800 uppercase font-bold block mb-1">Registration & Files</span>
+                    <span className="block text-2xl font-extrabold text-teal-900">${totalRegFilesPaid.toFixed(2)}</span>
+                    <p className="text-[10px] text-teal-600/80 mt-1 font-semibold">{invoicePayments.length} registration / file entries</p>
+                  </div>
+
+                  <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/60">
+                    <span className="text-[10px] text-indigo-800 uppercase font-bold block mb-1">Total Month Revenue</span>
+                    <span className="block text-2xl font-black text-indigo-950">${grandTotal.toFixed(2)}</span>
+                    <p className="text-[10px] text-indigo-600 mt-1 font-semibold">Matched to active dashboard sum</p>
+                  </div>
+                </div>
+
+                {/* Section 1: Monthly Tuition Fees */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                      1. Khidmadaha Bisha ee Ardayda (Monthly Tuition & Class Fees)
+                    </h4>
+                    <span className="text-xs font-extrabold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg">
+                      ${totalTuitionPaid.toFixed(2)}
+                    </span>
+                  </div>
+
+                  {monthBillingPayments.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 rounded-2xl border border-dashed border-slate-150">
+                      No tuition payments logged for this month.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto rounded-2xl border border-slate-100">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider">
+                            <th className="py-2.5 px-3">Student Name (Ardayga)</th>
+                            <th className="py-2.5 px-3">Class (Fasalka)</th>
+                            <th className="py-2.5 px-3">Date (Taariikh)</th>
+                            <th className="py-2.5 px-3">Receipt / Ref</th>
+                            <th className="py-2.5 px-3 text-right">Amount (Lacagta)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {monthBillingPayments.map((p, idx) => (
+                            <tr key={p.id || idx} className="hover:bg-slate-50/40">
+                              <td className="py-2 px-3 font-bold text-slate-800">
+                                {p.studentName}
+                                <span className="block text-[10px] text-slate-400 font-medium">ID: {p.studentId}</span>
+                              </td>
+                              <td className="py-2 px-3 font-semibold text-slate-600">{p.className}</td>
+                              <td className="py-2 px-3 text-slate-500">{p.paymentDate || 'N/A'}</td>
+                              <td className="py-2 px-3 font-mono text-[10px] text-slate-500">
+                                {p.receiptNo || (p.notes && p.notes.includes('Synced from') ? p.notes.split('Synced from')[1].trim() : 'Manual Direct')}
+                              </td>
+                              <td className="py-2 px-3 text-right font-black text-teal-700">${p.amountPaid.toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Section 2: Registration and Files Fees from parent invoices */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-teal-500 inline-block" />
+                      2. Lacagaha Diiwaangelinta & Faylasha (Registration & File Fees)
+                    </h4>
+                    <span className="text-xs font-extrabold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg">
+                      ${totalRegFilesPaid.toFixed(2)}
+                    </span>
+                  </div>
+
+                  {invoicePayments.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 rounded-2xl border border-dashed border-slate-150">
+                      No registration or file payments logged for this month.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto rounded-2xl border border-slate-100">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider">
+                            <th className="py-2.5 px-3">Parent Name (Waalidka)</th>
+                            <th className="py-2.5 px-3">Description (Faahfaahin)</th>
+                            <th className="py-2.5 px-3">Date (Taariikh)</th>
+                            <th className="py-2.5 px-3">Invoice No</th>
+                            <th className="py-2.5 px-3 text-right">Amount (Lacagta)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {invoicePayments.map((item, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50/40">
+                              <td className="py-2 px-3 font-bold text-slate-800">{item.recipientName}</td>
+                              <td className="py-2 px-3 font-semibold text-slate-600">{item.description}</td>
+                              <td className="py-2 px-3 text-slate-500">{item.date || 'N/A'}</td>
+                              <td className="py-2 px-3 font-mono text-[10px] text-slate-500">{item.invoiceNo}</td>
+                              <td className="py-2 px-3 text-right font-black text-teal-700">${item.paidAmount.toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-[10px] text-slate-450 text-center italic mt-4">
+                  * Note: School bus transportation fares (Totaling ${Number(currentMonthBusCollected).toFixed(2)} in {monthName}) are tracked separately in the Bus Fare Statistics deck.
+                </p>
+
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 pointer-print-none">
+                <button
+                  type="button"
+                  onClick={() => setShowCollectedFeesBreakdownMonth(null)}
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
+                >
+                  Xir (Close)
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        );
+      })()}
+
+      {/* -------------------------------------------------------------
+          MODAL: BUS COLLECTED FEES DETAILED BREAKDOWN
+          ------------------------------------------------------------- */}
+      {showBusCollectedBreakdownMonth && (() => {
+        const month = showBusCollectedBreakdownMonth;
+        const monthName = getFriendlyMonthName(month);
+        
+        // Find all billing records for this month with bus fee paid > 0
+        const monthBusPayments = database.billing.filter(b => b.month === month && Number(b.busFeePaid || 0) > 0);
+        
+        const totalBusCollected = monthBusPayments.reduce((sum, r) => sum + Number(r.busFeePaid || 0), 0);
+        const totalBusInvoiced = database.students.filter(s => s.active && s.busFee && Number(s.busFee) > 0).reduce((sum, s) => sum + Number(s.busFee || 0), 0);
+        const totalBusPending = Math.max(0, totalBusInvoiced - totalBusCollected);
+
+        return (
+          <div 
+            className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-55 animate-fade-in overflow-y-auto pointer-print-none" 
+            id="bus-collected-fees-modal-bg"
+            onClick={(e) => {
+              if ((e.target as HTMLElement).id === 'bus-collected-fees-modal-bg') {
+                setShowBusCollectedBreakdownMonth(null);
+              }
+            }}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-3xl shadow-xl border border-slate-100 max-w-3xl w-full overflow-hidden flex flex-col max-h-[85vh]"
+            >
+              {/* Modal Header */}
+              <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                    <CircleDollarSign className="w-5 h-5 text-teal-600" />
+                    Faahfaahinta Lacagta Baska (Bus Fare Collected Breakdown)
+                  </h3>
+                  <p className="text-xs text-slate-500 font-semibold mt-1">Detailed list of bus transit payments received in {monthName}</p>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setShowBusCollectedBreakdownMonth(null)}
+                  className="p-1 px-2 text-xs font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
+                >
+                  Xir (Close)
+                </button>
+              </div>
+
+              {/* Scrollable Body */}
+              <div className="p-6 overflow-y-auto space-y-6 flex-1 scrollbar-thin">
+                
+                {/* Visual Summary Widget */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/60">
+                    <span className="text-[10px] text-indigo-800 uppercase font-bold block mb-1">Expected Bus Fare</span>
+                    <span className="block text-2xl font-extrabold text-indigo-900">${totalBusInvoiced.toFixed(2)}</span>
+                    <p className="text-[10px] text-indigo-600/80 mt-1 font-semibold">Active registered riders dues</p>
+                  </div>
+                  
+                  <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100/60">
+                    <span className="text-[10px] text-emerald-800 uppercase font-bold block mb-1">Bus Collected</span>
+                    <span className="block text-2xl font-extrabold text-emerald-900">${totalBusCollected.toFixed(2)}</span>
+                    <p className="text-[10px] text-emerald-600/80 mt-1 font-semibold">{monthBusPayments.length} riders paid</p>
+                  </div>
+
+                  <div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-100/60">
+                    <span className="text-[10px] text-amber-800 uppercase font-bold block mb-1">Pending Bus Fare</span>
+                    <span className="block text-2xl font-black text-amber-950">${totalBusPending.toFixed(2)}</span>
+                    <p className="text-[10px] text-amber-600 mt-1 font-semibold">Outstanding transit dues</p>
+                  </div>
+                </div>
+
+                {/* Section: Bus Transit Payments */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-indigo-500 inline-block" />
+                      Liiska Bixiyayaasha (Transit Rider Payments Ledger)
+                    </h4>
+                    <span className="text-xs font-extrabold text-indigo-900 bg-indigo-50 px-2.5 py-1 rounded-lg">
+                      ${totalBusCollected.toFixed(2)} USD
+                    </span>
+                  </div>
+
+                  {monthBusPayments.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic text-center py-6 bg-slate-50 rounded-2xl border border-dashed border-slate-150">
+                      No school bus transit payments logged for this month yet.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto rounded-2xl border border-slate-100">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider">
+                            <th className="py-2.5 px-3">Student Name (Ardayga)</th>
+                            <th className="py-2.5 px-3">Class (Fasalka)</th>
+                            <th className="py-2.5 px-3">Date (Taariikh)</th>
+                            <th className="py-2.5 px-3">Receipt / Ref</th>
+                            <th className="py-2.5 px-3 text-right">Bus Fee Due</th>
+                            <th className="py-2.5 px-3 text-right">Bus Fee Paid</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {monthBusPayments.map((p, idx) => (
+                            <tr key={p.id || idx} className="hover:bg-slate-50/40">
+                              <td className="py-2 px-3 font-bold text-slate-800">
+                                {p.studentName}
+                                <span className="block text-[10px] text-slate-400 font-medium">ID: {p.studentId}</span>
+                              </td>
+                              <td className="py-2 px-3 font-semibold text-slate-600">{p.className}</td>
+                              <td className="py-2 px-3 text-slate-500">{p.paymentDate || 'N/A'}</td>
+                              <td className="py-2 px-3 font-mono text-[10px] text-slate-500">
+                                {p.receiptNo || (p.notes && p.notes.includes('Synced from') ? p.notes.split('Synced from')[1].trim() : 'Manual Direct')}
+                              </td>
+                              <td className="py-2 px-3 text-right text-slate-600 font-medium">${Number(p.busFeeDue || 0).toFixed(2)}</td>
+                              <td className="py-2 px-3 text-right font-black text-indigo-700">${Number(p.busFeePaid || 0).toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 pointer-print-none">
+                <button
+                  type="button"
+                  onClick={() => setShowBusCollectedBreakdownMonth(null)}
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
+                >
+                  Xir (Close)
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        );
+      })()}
+
+      {/* -------------------------------------------------------------
           MODAL 1: PRINT STUDENT PAYMENT RECEIPT VOUCHER
           ------------------------------------------------------------- */}
       {showReceiptModal && (
@@ -11463,15 +12400,34 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   </div>
 
                   <div className="flex justify-between text-xs font-semibold text-slate-600 pt-1">
-                    <span>Lacagta Biilka ee Laga Rabo:</span>
+                    <span>Lacagta bisha ee laga rabo (Tuition Due):</span>
                     <span className="text-slate-900">${Number(showReceiptModal.amountDue !== undefined ? showReceiptModal.amountDue : showReceiptModal.amountPaid).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-xs font-semibold text-slate-600">
-                    <span>Lacagta Dhabta ee La Bixiyay:</span>
-                    <span className="text-emerald-700 font-extrabold">${Number(showReceiptModal.amountPaid).toFixed(2)}</span>
+                    <span>Lacagta bisha ee la bixiyay (Tuition Paid):</span>
+                    <span className="text-emerald-700 font-semibold">${Number(showReceiptModal.amountPaid).toFixed(2)}</span>
                   </div>
+
+                  {(Number(showReceiptModal.busFeeDue || 0) > 0 || Number(showReceiptModal.busFeePaid || 0) > 0) && (
+                    <>
+                      <div className="flex justify-between text-xs font-semibold text-slate-600 pt-1.5 border-t border-slate-200/40">
+                        <span>Lacagta baska ee laga rabo (Bus Due):</span>
+                        <span className="text-slate-900">${Number(showReceiptModal.busFeeDue || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs font-semibold text-slate-600">
+                        <span>Lacagta baska ee la bixiyay (Bus Paid):</span>
+                        <span className="text-emerald-750 font-semibold">${Number(showReceiptModal.busFeePaid || 0).toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="flex justify-between text-xs font-extrabold text-slate-900 pt-1.5 border-t border-slate-300 mt-1">
+                    <span>Total Paid (Guud ahaan La Bixiyay):</span>
+                    <span className="text-emerald-800">${Number(Number(showReceiptModal.amountPaid) + Number(showReceiptModal.busFeePaid || 0)).toFixed(2)}</span>
+                  </div>
+
                   <div className="flex justify-between text-xs font-semibold text-slate-600">
-                    <span>Haraaga Deynta ee Kugu Haray:</span>
+                    <span>Remaining Debt (Haraaga Deynta):</span>
                     <span className={`${(showReceiptModal.debtAmount || 0) > 0 ? 'text-amber-600 font-extrabold' : 'text-slate-900'}`}>
                       ${Number(showReceiptModal.debtAmount !== undefined ? showReceiptModal.debtAmount : 0).toFixed(2)}
                     </span>
@@ -11491,8 +12447,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                     <div className="w-24 h-px bg-slate-300 mt-8" />
                   </div>
                   <div className="text-right">
-                    <span className="block text-[10px] text-slate-400 uppercase font-black">Xaddiga la Qabtay</span>
-                    <span className="text-xl font-extrabold text-slate-950">${Number(showReceiptModal.amountPaid).toFixed(2)} USD</span>
+                    <span className="block text-[10px] text-slate-400 uppercase font-black">Xaddiga la Qabtay (Total Collected)</span>
+                    <span className="text-xl font-extrabold text-slate-950">${Number(Number(showReceiptModal.amountPaid) + Number(showReceiptModal.busFeePaid || 0)).toFixed(2)} USD</span>
                   </div>
                 </div>
               </div>
