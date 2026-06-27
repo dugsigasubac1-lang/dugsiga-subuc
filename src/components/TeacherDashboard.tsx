@@ -326,119 +326,61 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
     setGpsError(null);
     setCheckInSuccess(null);
 
-    const checkInWithCoordinates = (lat: number, lon: number) => {
-      const distance = getDistanceMeters(lat, lon, schoolLoc.latitude, schoolLoc.longitude);
-      
-      if (distance > schoolLoc.radiusMeters) {
-        setGpsError(`Outside Geofence Bounds: You are calculated to be ${Math.round(distance)} meters away from the registered school coordinates. Authorized radius is ${schoolLoc.radiusMeters} meters. Please move closer to the Dugsi to check-in.`);
-        setCheckInLoading(false);
-        return;
+    // Direct check-in without geolocation / GPS check
+    const now = new Date();
+    let currentHH = now.getHours();
+    let currentMM = now.getMinutes();
+    let timeStr = now.toTimeString().split(' ')[0]; // HH:MM:SS
+
+    // Parse custom threshold or default to 07:30 AM
+    let targetHH = 7;
+    let targetMM = 30;
+    if (teacher.requiredCheckInTime) {
+      const parts = teacher.requiredCheckInTime.split(':');
+      if (parts.length === 2) {
+        targetHH = parseInt(parts[0], 10);
+        targetMM = parseInt(parts[1], 10);
       }
+    }
 
-      // Check-in succeeds!
-      const now = new Date();
-      let currentHH = now.getHours();
-      let currentMM = now.getMinutes();
-      let timeStr = now.toTimeString().split(' ')[0]; // HH:MM:SS
+    const isLate = (currentHH > targetHH || (currentHH === targetHH && currentMM > targetMM));
+    const status: 'Present' | 'Late' = isLate ? 'Late' : 'Present';
 
-      if (useSimulation && schoolLoc.allowSimulation && simulatedTime) {
-        const parts = simulatedTime.split(':');
-        if (parts.length >= 2) {
-          currentHH = parseInt(parts[0], 10);
-          currentMM = parseInt(parts[1], 10);
-          timeStr = `${simulatedTime.padStart(5, '0')}:00`;
-        }
-      }
-      
-      // Parse custom threshold or default to 07:30 AM
-      let targetHH = 7;
-      let targetMM = 30;
-      if (teacher.requiredCheckInTime) {
-        const parts = teacher.requiredCheckInTime.split(':');
-        if (parts.length === 2) {
-          targetHH = parseInt(parts[0], 10);
-          targetMM = parseInt(parts[1], 10);
-        }
-      }
+    const newLog: TeacherAttendanceRecord = {
+      id: `TAR-${Date.now()}`,
+      teacherId: teacher.id,
+      teacherName: teacher.name,
+      date: todayDateStr,
+      time: timeStr,
+      latitude: schoolLoc.latitude,
+      longitude: schoolLoc.longitude,
+      distanceFromSchool: 0,
+      status: status
+    };
 
-      const isLate = (currentHH > targetHH || (currentHH === targetHH && currentMM > targetMM));
-      const status: 'Present' | 'Late' = isLate ? 'Late' : 'Present';
+    const systemNotifs = database.notifications || [];
+    const newNotif = {
+      id: `N-TAR-${Date.now()}`,
+      type: 'attendance' as const,
+      senderId: teacher.id,
+      senderName: teacher.name,
+      senderRole: 'teacher' as const,
+      message: `Arrival Logged: Teacher ${teacher.name} has checked-in successfully at ${timeStr} (status: ${status}, location check: bypassed).`,
+      timestamp: new Date().toISOString(),
+      readBy: []
+    };
 
-      const newLog: TeacherAttendanceRecord = {
-        id: `TAR-${Date.now()}`,
-        teacherId: teacher.id,
-        teacherName: teacher.name,
-        date: todayDateStr,
-        time: timeStr,
-        latitude: lat,
-        longitude: lon,
-        distanceFromSchool: distance,
-        status: status
-      };
+    const updatedDb: DatabaseState = {
+      ...database,
+      teacherAttendance: [newLog, ...(database.teacherAttendance || [])],
+      notifications: [newNotif, ...systemNotifs]
+    };
 
-      const systemNotifs = database.notifications || [];
-      const newNotif = {
-        id: `N-TAR-${Date.now()}`,
-        type: 'attendance' as const,
-        senderId: teacher.id,
-        senderName: teacher.name,
-        senderRole: 'teacher' as const,
-        message: `Arrival Logged: Teacher ${teacher.name} has checked-in successfully on-site at ${timeStr} with geofencing verification (distance: ${Math.round(distance)}m, status: ${status}).`,
-        timestamp: new Date().toISOString(),
-        readBy: []
-      };
-
-      const updatedDb: DatabaseState = {
-        ...database,
-        teacherAttendance: [newLog, ...(database.teacherAttendance || [])],
-        notifications: [newNotif, ...systemNotifs]
-      };
-
+    setTimeout(() => {
       onSaveDatabase(updatedDb);
       setCheckInSuccess(`Check-in complete! You have been logged successfully as "${status}" at ${timeStr}.`);
       setCheckInLoading(false);
-    };
-
-    if (useSimulation && schoolLoc.allowSimulation) {
-      setTimeout(() => {
-        if (simulatedLocation === 'school') {
-          // preseed some tiny random offset so it feels dynamic but inside geofence
-          const offsetLat = schoolLoc.latitude + (Math.random() - 0.5) * 0.0003;
-          const offsetLon = schoolLoc.longitude + (Math.random() - 0.5) * 0.0003;
-          checkInWithCoordinates(offsetLat, offsetLon);
-        } else {
-          // Off-site simulated location
-          const offsetLat = schoolLoc.latitude + 0.0354;
-          const offsetLon = schoolLoc.longitude - 0.0412;
-          checkInWithCoordinates(offsetLat, offsetLon);
-        }
-      }, 700);
-    } else {
-      if (!navigator.geolocation) {
-        setGpsError("Browser GPS location is not natively supported in this sandbox client. Please activate simulation testing.");
-        setCheckInLoading(false);
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          checkInWithCoordinates(
-            position.coords.latitude,
-            position.coords.longitude
-          );
-        },
-        (error) => {
-          let errorMessage = "Could not locate device coordinates. ";
-          if (error.code === error.PERMISSION_DENIED) {
-            errorMessage += "Permission was denied. Please allow location access in your browser, or switch to simulated testing.";
-          } else {
-            errorMessage += error.message;
-          }
-          setGpsError(errorMessage);
-          setCheckInLoading(false);
-        },
-        { enableHighAccuracy: true, timeout: 8000 }
-      );
-    }
+    }, 600);
   };
 
 
@@ -3937,13 +3879,13 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                     </div>
                     <div className="text-[10px] text-slate-450 font-semibold leading-relaxed" id="attendance-logged-stats">
                       Logged today at <span className="font-bold text-slate-700">{myCheckedInLog.time}</span><br />
-                      Calculated campus proximity: <span className="font-bold text-slate-700">{Math.round(myCheckedInLog.distanceFromSchool)}m</span><br />
+                      Location verification: <span className="font-bold text-slate-700">Bypassed/Direct</span><br />
                       Arrival check-in status: <span className="font-extrabold text-emerald-600 uppercase tracking-wide">{myCheckedInLog.status}</span>
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-4 w-full" id="unlocked-and-unregistered-state">
-                    {schoolLoc.allowSimulation ? (
+                    {false ? (
                       /* Simulator Controls for Sandbox */
                       <div className="p-3 bg-white rounded-2xl border border-slate-200/60 shadow-xs space-y-2 text-left" id="sandbox-debugger-geoloc">
                         <div className="flex items-center justify-between" id="simulate-toggle-row">
@@ -4007,10 +3949,10 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
                           </span>
-                          Physical GPS Lock Active
+                          Direct Check-In Active
                         </div>
                         <p className="text-[10px] text-slate-450 font-bold mt-1.5 leading-relaxed">
-                          Simulation testing is disabled by school administration. You must physically stand within the authorized {schoolLoc.radiusMeters}m geofence radius to record attendance check-in.
+                          Location checking has been disabled. You can log your arrival directly from anywhere with one click.
                         </p>
                       </div>
                     )}
@@ -4027,7 +3969,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                       ) : (
                         <Navigation className="w-3.5 h-3.5 animate-pulse" />
                       )}
-                      {checkInLoading ? 'Verifying Coordinates...' : 'Check In Arrival Now'}
+                      {checkInLoading ? 'Logging Arrival...' : 'Check In Arrival Now'}
                     </button>
                   </div>
                 )}
