@@ -431,6 +431,66 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
     });
   };
 
+  // Auto check-in teacher on entering system for the day
+  const autoCheckInDoneRef = React.useRef(false);
+  useEffect(() => {
+    if (autoCheckInDoneRef.current) return;
+    const today = new Date().toISOString().split('T')[0];
+    const loggedToday = (database.teacherAttendance || []).some(
+      a => a.teacherId === teacher.id && a.date === today
+    );
+    if (!loggedToday) {
+      autoCheckInDoneRef.current = true;
+      const now = new Date();
+      let currentHH = now.getHours();
+      let currentMM = now.getMinutes();
+      let timeStr = now.toTimeString().split(' ')[0]; // HH:MM:SS
+
+      let targetHH = 7;
+      let targetMM = 30;
+      if (teacher.requiredCheckInTime) {
+        const parts = teacher.requiredCheckInTime.split(':');
+        if (parts.length === 2) {
+          targetHH = parseInt(parts[0], 10);
+          targetMM = parseInt(parts[1], 10);
+        }
+      }
+
+      const isLate = (currentHH > targetHH || (currentHH === targetHH && currentMM > targetMM));
+      const status: 'Present' | 'Late' = isLate ? 'Late' : 'Present';
+
+      const newLog: TeacherAttendanceRecord = {
+        id: `TAR-${Date.now()}`,
+        teacherId: teacher.id,
+        teacherName: teacher.name,
+        date: today,
+        time: timeStr,
+        latitude: schoolLoc.latitude,
+        longitude: schoolLoc.longitude,
+        distanceFromSchool: 0,
+        status: status
+      };
+
+      const systemNotifs = database.notifications || [];
+      const newNotif = {
+        id: `N-TAR-${Date.now()}`,
+        type: 'attendance' as const,
+        senderId: teacher.id,
+        senderName: teacher.name,
+        senderRole: 'teacher' as const,
+        message: `Arrival Logged: Teacher ${teacher.name} checked-in automatically upon entering system at ${timeStr} (status: ${status}).`,
+        timestamp: new Date().toISOString(),
+        readBy: []
+      };
+
+      onSaveDatabase({
+        ...database,
+        teacherAttendance: [newLog, ...(database.teacherAttendance || [])],
+        notifications: [newNotif, ...systemNotifs]
+      });
+    }
+  }, [teacher.id]);
+
   // Auto-mark notifications as read when relevant workspace is active
   useEffect(() => {
     if (activeWorkspace === 'attendance' && attendanceTabUnreadCount > 0) {
@@ -1336,6 +1396,16 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
           id: 'studentHistory' as const,
           label: 'Taariikhda Ardayda & Horumarka',
           icon: History,
+        }
+      ]
+    },
+    {
+      title: 'Macallinka',
+      items: [
+        {
+          id: 'myAttendance' as const,
+          label: 'Imaanshahayga (Arrival Log)',
+          icon: MapPin,
         }
       ]
     }
@@ -3816,35 +3886,35 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
             {/* Main Arrival Registry Card */}
             <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-150 shadow-sm flex flex-col md:flex-row gap-8 items-center justify-between" id="self-attendance-main-card">
               <div className="flex-1 space-y-4 text-center md:text-left">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 border border-indigo-100 rounded-full text-indigo-700 text-[10px] font-extrabold uppercase tracking-wider" id="geofence-radar-badge">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 border border-emerald-100 rounded-full text-emerald-700 text-[10px] font-extrabold uppercase tracking-wider" id="geofence-radar-badge">
                   <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-600"></span>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
                   </span>
-                  Geofencing Verified Registry
+                  Nidaamka Diiwaangelinta Tooska Ah (Automatic Registry)
                 </div>
                 
                 <h3 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight leading-none" id="attendance-welcome-title">
-                  Daily School Entry Desk
+                  Diiwaanka Imaanshaha Maalinlaha Ah
                 </h3>
                 <p className="text-xs text-slate-500 font-medium max-w-lg leading-relaxed" id="attendance-welcome-desc">
-                  Self-attendance registry uses device GPS coordinates to verify physical arrival at <strong className="text-slate-700">{schoolLoc.name}</strong>. Attendance is locked to school premises.
+                  Nidaamka wuxuu si toos ah u diiwaangeliyaa wakhtiga aad soo gasho nidaamka maanta. Looma baahna inaad gacanta ku calaamadayso!
                 </p>
 
                 {/* Location Settings & Proximity Box */}
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col gap-2.5 text-xs text-slate-650 font-bold" id="geofencing-coords-comparison">
                   <div className="flex justify-between items-center" id="school-coords-row">
-                    <span className="text-slate-400 font-semibold flex items-center gap-1.5"><Target className="w-3.5 h-3.5 text-slate-400" /> Campus Location:</span>
-                    <span className="text-slate-700 font-mono text-[11px]">{schoolLoc.latitude.toFixed(5)}, {schoolLoc.longitude.toFixed(5)} ({schoolLoc.radiusMeters}m geofence)</span>
+                    <span className="text-slate-400 font-semibold flex items-center gap-1.5"><Target className="w-3.5 h-3.5 text-slate-400" /> Macluumaadka Dugsiga:</span>
+                    <span className="text-slate-700 font-bold text-[11px]">{schoolLoc.name}</span>
                   </div>
                   <div className="w-full h-px bg-slate-100"></div>
                   <div className="flex justify-between items-center" id="required-check-in-row">
-                    <span className="text-slate-400 font-semibold flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-teal-600" /> Expected Arrival:</span>
-                    <span className="text-teal-700 font-bold text-[11px] bg-teal-50 px-2 py-0.5 rounded-md border border-teal-100/55">Before {teacher.requiredCheckInTime || '07:30'} AM</span>
+                    <span className="text-slate-400 font-semibold flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-teal-600" /> Wakhtiga Laga Rabo:</span>
+                    <span className="text-teal-700 font-bold text-[11px] bg-teal-50 px-2 py-0.5 rounded-md border border-teal-100/55">Kahor {teacher.requiredCheckInTime || '07:30'} Subaxnimo</span>
                   </div>
                   <div className="w-full h-px bg-slate-100"></div>
                   <div className="flex justify-between items-center" id="teacher-status-row">
-                    <span className="text-slate-400 font-semibold flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-slate-400" /> My ID Code:</span>
+                    <span className="text-slate-400 font-semibold flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-slate-400" /> Aqoonsiga Macallinka:</span>
                     <span className="text-slate-700 font-mono text-[11px]">{teacher.id} ({teacher.classAssigned})</span>
                   </div>
                 </div>
@@ -3852,8 +3922,8 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
 
               {/* Dynamic Action Panel */}
               <div className="w-full md:w-80 shrink-0 bg-slate-50/60 p-6 rounded-3xl border border-slate-100/80 flex flex-col items-center justify-center text-center space-y-4" id="attendance-action-panel">
-                <div className="w-16 h-16 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0" id="att-badge-icon-holder animate-pulse">
-                  <Clock className="w-8 h-8 text-[#1e5ee6]" />
+                <div className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0" id="att-badge-icon-holder">
+                  <Check className="w-8 h-8 text-emerald-600" />
                 </div>
 
                 <div id="date-time-display-box">
@@ -3865,101 +3935,29 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                   <div className="space-y-2 w-full" id="already-checked-in-state-display">
                     <div className="py-2.5 px-4 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-100 text-xs font-black flex items-center justify-center gap-2" id="success-checked-badge">
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      Arrived & Verified
+                      Waa la diiwaangeliyay
                     </div>
                     <div className="text-[10px] text-slate-450 font-semibold leading-relaxed" id="attendance-logged-stats">
-                      Logged today at <span className="font-bold text-slate-700">{myCheckedInLog.time}</span><br />
-                      Location verification: <span className="font-bold text-slate-700">Bypassed/Direct</span><br />
-                      Arrival check-in status: <span className="font-extrabold text-emerald-600 uppercase tracking-wide">{myCheckedInLog.status}</span>
+                      Soodulqaad: <span className="font-bold text-slate-700">{myCheckedInLog.time}</span><br />
+                      Diiwaangelinta: <span className="font-bold text-slate-700">Toos ah (Automatic)</span><br />
+                      Xaaladda: <span className={`font-extrabold uppercase tracking-wide ${myCheckedInLog.status === 'Present' ? 'text-emerald-600' : 'text-amber-600'}`}>{myCheckedInLog.status === 'Present' ? 'Present (Jooga)' : 'Late (Daahay)'}</span>
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-4 w-full" id="unlocked-and-unregistered-state">
-                    {false ? (
-                      /* Simulator Controls for Sandbox */
-                      <div className="p-3 bg-white rounded-2xl border border-slate-200/60 shadow-xs space-y-2 text-left" id="sandbox-debugger-geoloc">
-                        <div className="flex items-center justify-between" id="simulate-toggle-row">
-                          <span className="text-[10px] font-black text-slate-700 flex items-center gap-1.5">
-                            <Compass className="w-3.5 h-3.5 text-slate-450" /> Simulate Geolocation
-                          </span>
-                          <input
-                            type="checkbox"
-                            checked={useSimulation}
-                            onChange={(e) => setUseSimulation(e.target.checked)}
-                            className="w-3.5 h-3.5 accent-[#1e5ee6] cursor-pointer"
-                          />
-                        </div>
-                        
-                        {useSimulation && (
-                          <div className="space-y-2 mt-2" id="simulation-controls-block">
-                            <div className="grid grid-cols-2 gap-1.5" id="simulation-radio-boxes">
-                              <button
-                                type="button"
-                                onClick={() => setSimulatedLocation('school')}
-                                className={`py-1.5 px-2 border rounded-lg text-[9px] font-mono font-bold uppercase transition-all ${
-                                  simulatedLocation === 'school'
-                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-extrabold'
-                                    : 'bg-slate-50 border-slate-100 text-slate-400 hover:bg-slate-100/50'
-                                }`}
-                              >
-                                At Campus
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setSimulatedLocation('home')}
-                                className={`py-1.5 px-2 border rounded-lg text-[9px] font-mono font-bold uppercase transition-all ${
-                                  simulatedLocation === 'home'
-                                    ? 'bg-rose-50 border-rose-200 text-rose-700 font-extrabold'
-                                    : 'bg-slate-50 border-slate-100 text-slate-400 hover:bg-slate-100/50'
-                                }`}
-                              >
-                                At Home
-                              </button>
-                            </div>
-
-                            <div className="pt-2 border-t border-slate-100/75">
-                              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-wider mb-1">
-                                Simulating Check-In Time
-                              </label>
-                              <input
-                                type="time"
-                                value={simulatedTime}
-                                onChange={(e) => setSimulatedTime(e.target.value)}
-                                className="w-full px-2.5 py-1 text-[11px] font-semibold text-slate-700 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-lg outline-none"
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      /* Simulation Off State */
-                      <div className="p-3 bg-white border border-slate-150 rounded-2xl text-left" id="geolocation-only-active-notice">
-                        <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-700">
-                          <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
-                          </span>
-                          Direct Check-In Active
-                        </div>
-                        <p className="text-[10px] text-slate-450 font-bold mt-1.5 leading-relaxed">
-                          Location checking has been disabled. You can log your arrival directly from anywhere with one click.
-                        </p>
-                      </div>
-                    )}
-
                     <button
                       type="button"
                       disabled={checkInLoading}
                       onClick={handleVerifyAndCheckIn}
-                      className="w-full py-3 px-4 bg-[#1e5ee6] hover:bg-blue-700 active:bg-blue-800 text-white font-black text-xs uppercase tracking-wide rounded-2xl shadow-md cursor-pointer select-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      className="w-full py-3 px-4 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white font-black text-xs uppercase tracking-wide rounded-2xl shadow-md cursor-pointer select-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       id="check-in-verified-btn"
                     >
                       {checkInLoading ? (
                         <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
                       ) : (
-                        <Navigation className="w-3.5 h-3.5 animate-pulse" />
+                        <Check className="w-3.5 h-3.5" />
                       )}
-                      {checkInLoading ? 'Logging Arrival...' : 'Check In Arrival Now'}
+                      {checkInLoading ? 'Diiwaangelinaya...' : 'Diiwaangeli Gacanta (Check In)'}
                     </button>
                   </div>
                 )}

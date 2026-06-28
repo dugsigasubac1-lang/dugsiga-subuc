@@ -130,29 +130,16 @@ export function LoginScreen({
       <div className="w-full max-w-md" id="login-box">
         {/* Logo and branding */}
         <div className="text-center mb-6" id="login-header">
-          <motion.div 
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.6 }}
-            className="inline-block"
-          >
+          <div className="inline-block">
             <DugsigaSubucFullLogo className="w-56 h-auto" />
-          </motion.div>
-          <motion.p 
-            initial={{ y: -5, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="text-slate-400 text-xs mt-3 font-semibold tracking-wider uppercase"
-          >
+          </div>
+          <p className="text-slate-400 text-xs mt-3 font-semibold tracking-wider uppercase">
             Nidaamka Cadaynta & Maamulka Dugsiga
-          </motion.p>
+          </p>
         </div>
 
         {/* Login form container */}
-        <motion.div 
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
+        <div 
           className="bg-white rounded-3xl shadow-xl border border-slate-100 p-8 relative overflow-hidden"
           id="login-card"
         >
@@ -311,7 +298,7 @@ export function LoginScreen({
               </button>
             </div>
           </form>
-        </motion.div>
+        </div>
 
         {/* System copyright line */}
         <p className="text-center text-slate-400 text-xs mt-8 font-medium">

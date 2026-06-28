@@ -3213,6 +3213,42 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     });
   };
 
+  const handleDeleteAllInvoices = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Ma hubaal baa inaad tirtirto dhammaan Invoices-ka?",
+      message: "Ma hubtaa inaad rabto inaad tirtirto dhammaan biilasha/invoices-ka gaarka ah? Tallaabadan dib looma soo celin karo!",
+      accentColor: 'rose',
+      onConfirm: () => {
+        onSaveDatabase({
+          ...database,
+          invoices: []
+        });
+        setConfirmModal(null);
+        setFeedbackMsg("Dhammaan invoices-ka si guul ah ayaa loo tirtiray.");
+        setTimeout(() => setFeedbackMsg(''), 4050);
+      }
+    });
+  };
+
+  const handleDeleteAllBilling = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Ma hubaal baa inaad tirtirto dhammaan Lacag-bixinta?",
+      message: "Ma hubtaa inaad rabto inaad tirtirto dhammaan diiwaanka lacag-bixinta ardayda (Student Tuition Billing)? Tallaabadan dib looma soo celin karo!",
+      accentColor: 'rose',
+      onConfirm: () => {
+        onSaveDatabase({
+          ...database,
+          billing: []
+        });
+        setConfirmModal(null);
+        setFeedbackMsg("Dhammaan diiwaanka lacag-bixinta ardayda si guul ah ayaa loo tirtiray.");
+        setTimeout(() => setFeedbackMsg(''), 4050);
+      }
+    });
+  };
+
   const handleDownloadReceiptText = (record: BillingRecord) => {
     const student = database.students.find(s => s.id === record.studentId);
     const amountDue = record.amountDue ?? (student?.monthlyFee ?? 35);
@@ -10158,8 +10194,21 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
 
               {/* Billing ledger listing */}
               <div className="lg:col-span-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                <div className="flex items-center justify-between mb-5 border-b border-slate-50 pb-3" id="ledger-headline">
-                  <h3 className="font-extrabold text-slate-900 text-lg">Billing Statement Ledger</h3>
+                <div className="flex flex-wrap items-center justify-between mb-5 border-b border-slate-50 pb-3 gap-2.5" id="ledger-headline">
+                  <div className="flex items-center gap-3">
+                    <h3 className="font-extrabold text-slate-900 text-lg">Billing Statement Ledger</h3>
+                    {database.billing.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleDeleteAllBilling}
+                        className="py-1.5 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-[10px] uppercase tracking-wider rounded-lg inline-flex items-center gap-1.5 cursor-pointer transition-all border border-rose-200/50 shadow-sm"
+                        id="btn-delete-all-billing"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                        Futa Dhammaan (Delete All)
+                      </button>
+                    )}
+                  </div>
                   <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">{selectedBillingMonth} invoice collection cycle</span>
                 </div>
 
@@ -10390,14 +10439,26 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   </select>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleOpenCreateInvoice}
-                  className="py-2.5 px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl inline-flex items-center gap-2 cursor-pointer transition-all shrink-0 self-start xl:self-auto shadow-md shadow-emerald-600/10"
-                >
-                  <Plus className="w-4 h-4" />
-                  Biil Cusub (Create custom invoice)
-                </button>
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-start xl:self-auto">
+                  {(database.invoices || []).length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleDeleteAllInvoices}
+                      className="py-2.5 px-4 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs uppercase tracking-wider rounded-xl inline-flex items-center gap-2 cursor-pointer transition-all border border-rose-200/50 shadow-sm"
+                    >
+                      <Trash2 className="w-4 h-4 text-rose-600" />
+                      Futa Dhammaan (Delete All)
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleOpenCreateInvoice}
+                    className="py-2.5 px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl inline-flex items-center gap-2 cursor-pointer transition-all shadow-md shadow-emerald-600/10"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Biil Cusub (Create custom invoice)
+                  </button>
+                </div>
               </div>
 
               {/* Ledger Invoices listing */}

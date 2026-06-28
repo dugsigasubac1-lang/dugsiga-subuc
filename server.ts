@@ -1,12 +1,73 @@
+import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { initializeApp } from 'firebase/app';
 import { initializeFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { S3Client, PutObjectCommand, GetObjectCommand, CreateBucketCommand, ListBucketsCommand } from "@aws-sdk/client-s3";
+
 
 const DB_FILE = path.join(process.cwd(), 'database.json');
 const CONFIG_FILE = path.join(process.cwd(), 'firebase-applet-config.json');
+
+let s3Client: S3Client | null = null;
+let bucketInitialized = false;
+
+function getR2Client(): S3Client | null {
+  if (s3Client) return s3Client;
+
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+  const endpoint = process.env.R2_ENDPOINT;
+
+  if (!accessKeyId || !secretAccessKey || !endpoint) {
+    console.log("[R2] Cloudflare R2 environment variables are missing. Falling back to local storage only.");
+    return null;
+  }
+
+  try {
+    s3Client = new S3Client({
+      region: 'auto',
+      endpoint: endpoint,
+      credentials: {
+        accessKeyId: accessKeyId,
+        secretAccessKey: secretAccessKey,
+      },
+    });
+    console.log("[R2] Cloudflare R2 S3 Client initialized successfully.");
+    return s3Client;
+  } catch (err) {
+    console.error("[R2] Failed to initialize Cloudflare R2 S3 Client:", err);
+    return null;
+  }
+}
+
+async function ensureBucketExists(client: S3Client, bucketName: string): Promise<boolean> {
+  if (bucketInitialized) return true;
+  try {
+    const listResponse = await client.send(new ListBucketsCommand({}));
+    const buckets = listResponse.Buckets || [];
+    const exists = buckets.some(b => b.Name === bucketName);
+    
+    if (!exists) {
+      console.log(`[R2] Bucket "${bucketName}" not found. Creating bucket...`);
+      await client.send(new CreateBucketCommand({ Bucket: bucketName }));
+      console.log(`[R2] Bucket "${bucketName}" created successfully.`);
+    }
+    bucketInitialized = true;
+    return true;
+  } catch (err: any) {
+    if (err.name === 'BucketAlreadyOwnedByYou' || err.name === 'BucketAlreadyExists') {
+      bucketInitialized = true;
+      return true;
+    }
+    console.warn(`[R2] Warning or error checking bucket "${bucketName}":`, err.message || err);
+    bucketInitialized = true;
+    return true;
+  }
+}
+
 
 function sanitizeDatabaseState(state: any): any {
   if (state && typeof state === 'object' && Array.isArray(state.teachers)) {
@@ -236,6 +297,45 @@ async function startServer() {
       console.error('Failed to create uploads directory:', err);
     }
   }
+
+  // Intercept uploads requested from the client. Retrieve from Cloudflare R2 if possible, or fallback to local files
+  app.get('/uploads/:filename', async (req, res, next) => {
+    const filename = req.params.filename;
+    const r2 = getR2Client();
+    if (r2) {
+      const bucketName = process.env.R2_BUCKET_NAME || 'dugsiga-subuc-storage';
+      try {
+        const command = new GetObjectCommand({
+          Bucket: bucketName,
+          Key: filename,
+        });
+        const r2Object = await r2.send(command);
+        
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', '*');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        
+        if (r2Object.ContentType) {
+          res.setHeader('Content-Type', r2Object.ContentType);
+        }
+        if (r2Object.ContentLength) {
+          res.setHeader('Content-Length', r2Object.ContentLength);
+        }
+        
+        if (r2Object.Body) {
+          const stream = r2Object.Body as any;
+          stream.pipe(res);
+          return;
+        }
+      } catch (r2Err: any) {
+        // Fall through to local static folder if file is not in R2 or bucket error occurs
+        console.log(`[R2/Serve] File "${filename}" not retrieved from R2, falling back to local filesystem:`, r2Err.message || r2Err);
+      }
+    }
+    next();
+  });
+
   app.use('/uploads', express.static(UPLOADS_DIR, {
     setHeaders: (res) => {
       res.setHeader('Access-Control-Allow-Origin', '*');
@@ -613,6 +713,26 @@ async function startServer() {
       
       console.log(`[Storage/Upload] Successfully wrote ${filename} to server local uploads: ${buffer.length} bytes`);
       
+      // Attempt uploading to Cloudflare R2 if configured
+      const r2 = getR2Client();
+      if (r2) {
+        const bucketName = process.env.R2_BUCKET_NAME || 'dugsiga-subuc-storage';
+        try {
+          await ensureBucketExists(r2, bucketName);
+          await r2.send(new PutObjectCommand({
+            Bucket: bucketName,
+            Key: filename,
+            Body: buffer,
+            ContentType: fileType || 'application/octet-stream',
+          }));
+          console.log(`[R2/Upload] Successfully uploaded ${filename} to Cloudflare R2 bucket: ${bucketName}`);
+        } catch (r2Err: any) {
+          console.error(`[R2/Upload] Failed to upload to Cloudflare R2, falling back to local only:`, r2Err.message || r2Err);
+        }
+      } else {
+        console.log(`[Storage/Upload] Cloudflare R2 not configured. Saving locally only.`);
+      }
+
       // Use relative path which works across localhost, proxy, and custom domains
       const fileUrl = `/uploads/${filename}`;
       return res.json({ success: true, url: fileUrl });

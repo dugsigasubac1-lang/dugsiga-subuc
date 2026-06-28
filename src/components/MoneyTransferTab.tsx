@@ -361,6 +361,23 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
     });
   };
 
+  const handleDeleteAllTransfers = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Ma hubtaa inaad tirtirto dhammaan xawaaladaha?",
+      message: "Tallaabadan dib looma soo celin karo! Dhammaan xogta xawaaladaha (remittances) waa la masixi doonaa. Ma hubtaa?",
+      accentColor: 'rose',
+      onConfirm: () => {
+        onSaveDatabase({
+          ...database,
+          moneyTransfers: []
+        });
+        triggerFeedback("Dhammaan diiwaanka xawaaladaha si buuxda ayaa loo tirtiray.");
+        setConfirmModal(null);
+      }
+    });
+  };
+
   // Reset Filters
   const resetFilters = () => {
     setSearchTerm('');
@@ -765,6 +782,18 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
             <Notebook className="w-4 h-4 text-[#1e5ee6]" />
             <span>Generate Ledger Reports</span>
           </button>
+
+          {records.length > 0 && (
+            <button
+              type="button"
+              onClick={handleDeleteAllTransfers}
+              className="py-2.5 px-4 text-xs font-extrabold uppercase tracking-wider bg-rose-50 hover:bg-rose-100 text-rose-700 transition-all rounded-xl border border-rose-200 flex items-center gap-2 cursor-pointer shadow-sm shadow-rose-100"
+              id="btn-delete-all-transfers"
+            >
+              <Trash2 className="w-4 h-4 text-rose-600" />
+              <span>Futa Dhammaan (Delete All)</span>
+            </button>
+          )}
           
           <button
             type="button"
@@ -1049,7 +1078,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
               ))}
               {filteredRecords.length === 0 && (
                 <tr>
-                  <td colspan="7" className="px-6 py-12 text-center text-slate-400 text-xs font-bold uppercase tracking-wider">
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400 text-xs font-bold uppercase tracking-wider">
                     Empty Boundary! No matching money transfer records found.
                   </td>
                 </tr>
