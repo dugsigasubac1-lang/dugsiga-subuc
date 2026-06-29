@@ -627,9 +627,10 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   };
 
   const getInvoicePaymentsForMonth = (month: string) => {
-    if (!database.invoices) return { registration: 0, files: 0, total: 0 };
+    if (!database.invoices) return { registration: 0, files: 0, other: 0, total: 0 };
     let regTotal = 0;
     let filesTotal = 0;
+    let otherTotal = 0;
     
     const monthInvoices = database.invoices.filter(inv => {
       if (!inv.date) return false;
@@ -639,11 +640,14 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     for (const inv of monthInvoices) {
       if (inv.totalAmount <= 0 || inv.amountPaid <= 0) continue;
       const paidFraction = inv.amountPaid / inv.totalAmount;
+      const isParent = inv.recipientType === 'parent';
       
       for (const item of inv.items) {
         const desc = item.description.toLowerCase();
         const isReg = desc.includes('diiwan') || desc.includes('regis');
         const isFile = desc.includes('fayl') || desc.includes('file');
+        const isTuition = desc.includes('bisha') || desc.includes('monthly') || desc.includes('tuition') || desc.includes('fee');
+        const isBus = desc.includes('baska') || desc.includes('bus');
         
         const itemTotal = item.quantity * item.unitPrice;
         const itemPaid = itemTotal * paidFraction;
@@ -652,6 +656,11 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
           regTotal += itemPaid;
         } else if (isFile) {
           filesTotal += itemPaid;
+        } else {
+          if (isParent && (isTuition || isBus)) {
+            continue;
+          }
+          otherTotal += itemPaid;
         }
       }
     }
@@ -659,14 +668,16 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     return {
       registration: Number(regTotal.toFixed(2)),
       files: Number(filesTotal.toFixed(2)),
-      total: Number((regTotal + filesTotal).toFixed(2))
+      other: Number(otherTotal.toFixed(2)),
+      total: Number((regTotal + filesTotal + otherTotal).toFixed(2))
     };
   };
 
   const getInvoiceInvoicedForMonth = (month: string) => {
-    if (!database.invoices) return { registration: 0, files: 0, total: 0 };
+    if (!database.invoices) return { registration: 0, files: 0, other: 0, total: 0 };
     let regTotal = 0;
     let filesTotal = 0;
+    let otherTotal = 0;
     
     const monthInvoices = database.invoices.filter(inv => {
       if (!inv.date) return false;
@@ -674,10 +685,14 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     });
     
     for (const inv of monthInvoices) {
+      const isParent = inv.recipientType === 'parent';
+      
       for (const item of inv.items) {
         const desc = item.description.toLowerCase();
         const isReg = desc.includes('diiwan') || desc.includes('regis');
         const isFile = desc.includes('fayl') || desc.includes('file');
+        const isTuition = desc.includes('bisha') || desc.includes('monthly') || desc.includes('tuition') || desc.includes('fee');
+        const isBus = desc.includes('baska') || desc.includes('bus');
         
         const itemTotal = item.quantity * item.unitPrice;
         
@@ -685,6 +700,11 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
           regTotal += itemTotal;
         } else if (isFile) {
           filesTotal += itemTotal;
+        } else {
+          if (isParent && (isTuition || isBus)) {
+            continue;
+          }
+          otherTotal += itemTotal;
         }
       }
     }
@@ -692,7 +712,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     return {
       registration: Number(regTotal.toFixed(2)),
       files: Number(filesTotal.toFixed(2)),
-      total: Number((regTotal + filesTotal).toFixed(2))
+      other: Number(otherTotal.toFixed(2)),
+      total: Number((regTotal + filesTotal + otherTotal).toFixed(2))
     };
   };
 
@@ -712,6 +733,12 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       const isTuition = desc.includes('bisha') || desc.includes('monthly') || desc.includes('tuition') || desc.includes('fee');
       return isTuition && !isReg && !isFile;
     });
+
+    const busItems = inv.items.filter(item => {
+      const desc = item.description.toLowerCase();
+      const isBus = desc.includes('baska') || desc.includes('bus');
+      return isBus;
+    });
     
     let updatedBilling = [...currentBilling];
     
@@ -722,89 +749,106 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       const studentNameLower = student.name.toLowerCase();
       const studentFirstWord = studentNameLower.split(' ')[0] || '';
       
-      let matchedItem = tuitionItems.find(item => {
-        const desc = item.description.toLowerCase();
-        return desc.includes(studentFirstWord) && studentFirstWord.length > 2;
-      });
-      
-      if (!matchedItem && tuitionItems.length > 0) {
-        matchedItem = tuitionItems[0];
-      }
-      
-      let itemUnitPrice = student.monthlyFee;
-      let itemQuantity = 1;
-      
-      if (matchedItem) {
-        itemUnitPrice = matchedItem.unitPrice;
-        itemQuantity = 1; 
-      }
-      
-      const amountDue = itemUnitPrice * itemQuantity;
-      const amountPaid = amountDue * paidFraction;
-      const debtAmount = Math.max(0, amountDue - amountPaid);
-      
-      let statusVal: 'Paid' | 'Unpaid' | 'Partial' = 'Unpaid';
-      if (amountPaid >= amountDue && amountDue > 0) {
-        statusVal = 'Paid';
-      } else if (amountPaid > 0) {
-        statusVal = 'Partial';
-      }
-      
       const recordId = `B-${invoiceMonth}-${sId}`;
       const existingIdx = updatedBilling.findIndex(b => b.id === recordId || (b.studentId === sId && b.month === invoiceMonth));
+      const existing = existingIdx !== -1 ? updatedBilling[existingIdx] : null;
+
+      // 1. Calculate Tuition amount paid and amount due from this invoice
+      let tuitionDueVal = student.monthlyFee;
+      let tuitionPaidVal = 0;
       
-      if (existingIdx !== -1) {
-        const existing = updatedBilling[existingIdx];
-        const busDue = existing.busFeeDue ?? Number(student.busFee || 0);
-        const busPaid = existing.busFeePaid ?? (busDue * paidFraction);
-        const totalPaidMerged = amountPaid + busPaid;
-        const totalDueMerged = amountDue + busDue;
-        
-        let mergedStatus: 'Paid' | 'Unpaid' | 'Partial' = 'Unpaid';
-        if (totalPaidMerged >= totalDueMerged && totalDueMerged > 0) {
-          mergedStatus = 'Paid';
-        } else if (totalPaidMerged > 0) {
-          mergedStatus = 'Partial';
+      if (tuitionItems.length > 0) {
+        let matchedItem = tuitionItems.find(item => {
+          const desc = item.description.toLowerCase();
+          return desc.includes(studentFirstWord) && studentFirstWord.length > 2;
+        });
+        if (!matchedItem) {
+          matchedItem = tuitionItems[0];
         }
+        tuitionDueVal = matchedItem.unitPrice;
+        tuitionPaidVal = tuitionDueVal * paidFraction;
+      } else {
+        // If this invoice has NO tuition items, but we have an existing billing record, keep its amountPaid!
+        if (existing) {
+          tuitionDueVal = existing.amountDue ?? student.monthlyFee;
+          tuitionPaidVal = existing.amountPaid ?? 0;
+        } else {
+          tuitionDueVal = student.monthlyFee;
+          tuitionPaidVal = 0;
+        }
+      }
+
+      // 2. Calculate Bus amount paid and amount due from this invoice
+      let busDueVal = student.busFee || 0;
+      let busPaidVal = 0;
+
+      if (busItems.length > 0) {
+        let matchedBusItem = busItems.find(item => {
+          const desc = item.description.toLowerCase();
+          return desc.includes(studentFirstWord) && studentFirstWord.length > 2;
+        });
+        if (!matchedBusItem) {
+          matchedBusItem = busItems[0];
+        }
+        busPaidVal = matchedBusItem.unitPrice * paidFraction;
+        // The official bus fee due is still student's registered fee or the matched item price
+        busDueVal = student.busFee || matchedBusItem.unitPrice || 0;
+      } else {
+        // If this invoice has NO bus items, but we have an existing billing record, keep its busFeePaid!
+        if (existing) {
+          busDueVal = existing.busFeeDue ?? (student.busFee || 0);
+          busPaidVal = existing.busFeePaid ?? 0;
+        } else {
+          busDueVal = student.busFee || 0;
+          busPaidVal = 0;
+        }
+      }
+
+      const totalPaidMerged = tuitionPaidVal + busPaidVal;
+      const totalDueMerged = tuitionDueVal + busDueVal;
+      
+      let mergedStatus: 'Paid' | 'Unpaid' | 'Partial' = 'Unpaid';
+      if (totalPaidMerged >= totalDueMerged && totalDueMerged > 0) {
+        mergedStatus = 'Paid';
+      } else if (totalPaidMerged > 0) {
+        mergedStatus = 'Partial';
+      }
+
+      const debtAmount = Math.max(0, totalDueMerged - totalPaidMerged);
+      const noteStr = `Synced from invoice ${inv.invoiceNo}.`;
+      
+      if (existing) {
+        const alreadySynced = existing.notes?.includes(`Synced from invoice ${inv.invoiceNo}`);
+        const finalNotes = alreadySynced ? (existing.notes || '') : (noteStr + ' ' + (existing.notes || ''));
         
         updatedBilling[existingIdx] = {
           ...existing,
-          amountDue: amountDue,
-          amountPaid: Number(amountPaid.toFixed(2)),
-          debtAmount: Number(Math.max(0, totalDueMerged - totalPaidMerged).toFixed(2)),
+          amountDue: Number(tuitionDueVal.toFixed(2)),
+          amountPaid: Number(tuitionPaidVal.toFixed(2)),
+          debtAmount: Number(debtAmount.toFixed(2)),
           status: mergedStatus,
+          busFeeDue: Number(busDueVal.toFixed(2)),
+          busFeePaid: Number(busPaidVal.toFixed(2)),
           paymentDate: inv.amountPaid > 0 ? inv.date : existing.paymentDate,
           receiptNo: inv.amountPaid > 0 ? `REC-${invoiceMonth.replace('-', '')}-${sId.replace('BJ-', '').replace('DS', '')}` : existing.receiptNo,
-          notes: `Synced from invoice ${inv.invoiceNo}. ` + (existing.notes || '')
+          notes: finalNotes
         };
       } else {
-        const busDue = Number(student.busFee || 0);
-        const busPaid = busDue * paidFraction;
-        const totalPaidMerged = amountPaid + busPaid;
-        const totalDueMerged = amountDue + busDue;
-        
-        let mergedStatus: 'Paid' | 'Unpaid' | 'Partial' = 'Unpaid';
-        if (totalPaidMerged >= totalDueMerged && totalDueMerged > 0) {
-          mergedStatus = 'Paid';
-        } else if (totalPaidMerged > 0) {
-          mergedStatus = 'Partial';
-        }
-
         const newRecord: BillingRecord = {
           id: recordId,
           studentId: sId,
           studentName: student.name,
           className: student.className,
           month: invoiceMonth,
-          amountDue: amountDue,
-          amountPaid: Number(amountPaid.toFixed(2)),
-          debtAmount: Number(Math.max(0, totalDueMerged - totalPaidMerged).toFixed(2)),
+          amountDue: Number(tuitionDueVal.toFixed(2)),
+          amountPaid: Number(tuitionPaidVal.toFixed(2)),
+          debtAmount: Number(debtAmount.toFixed(2)),
           status: mergedStatus,
-          busFeeDue: busDue,
-          busFeePaid: Number(busPaid.toFixed(2)),
+          busFeeDue: Number(busDueVal.toFixed(2)),
+          busFeePaid: Number(busPaidVal.toFixed(2)),
           paymentDate: inv.amountPaid > 0 ? inv.date : undefined,
           receiptNo: inv.amountPaid > 0 ? `REC-${invoiceMonth.replace('-', '')}-${sId.replace('BJ-', '').replace('DS', '')}` : undefined,
-          notes: `Synced from invoice ${inv.invoiceNo}.`
+          notes: noteStr
         };
         updatedBilling.push(newRecord);
       }
@@ -12009,15 +12053,33 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         for (const inv of monthInvoices) {
           if (inv.totalAmount <= 0 || inv.amountPaid <= 0) continue;
           const paidFraction = inv.amountPaid / inv.totalAmount;
+          const isParent = inv.recipientType === 'parent';
           
           for (const item of inv.items) {
             const desc = item.description.toLowerCase();
             const isReg = desc.includes('diiwan') || desc.includes('regis');
             const isFile = desc.includes('fayl') || desc.includes('file');
+            const isTuition = desc.includes('bisha') || desc.includes('monthly') || desc.includes('tuition') || desc.includes('fee');
+            const isBus = desc.includes('baska') || desc.includes('bus');
+            
+            const itemTotal = item.quantity * item.unitPrice;
+            const itemPaid = itemTotal * paidFraction;
             
             if (isReg || isFile) {
-              const itemTotal = item.quantity * item.unitPrice;
-              const itemPaid = itemTotal * paidFraction;
+              invoicePayments.push({
+                invoiceNo: inv.invoiceNo,
+                recipientName: inv.recipientName || inv.studentName || 'N/A',
+                description: item.description,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                total: itemTotal,
+                paidAmount: Number(itemPaid.toFixed(2)),
+                date: inv.date
+              });
+            } else {
+              if (isParent && (isTuition || isBus)) {
+                continue;
+              }
               invoicePayments.push({
                 invoiceNo: inv.invoiceNo,
                 recipientName: inv.recipientName || inv.studentName || 'N/A',
@@ -12081,9 +12143,9 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   </div>
                   
                   <div className="bg-teal-50/50 p-4 rounded-2xl border border-teal-100/60">
-                    <span className="text-[10px] text-teal-800 uppercase font-bold block mb-1">Registration & Files</span>
+                    <span className="text-[10px] text-teal-800 uppercase font-bold block mb-1">Invoices Other Fees</span>
                     <span className="block text-2xl font-extrabold text-teal-900">${totalRegFilesPaid.toFixed(2)}</span>
-                    <p className="text-[10px] text-teal-600/80 mt-1 font-semibold">{invoicePayments.length} registration / file entries</p>
+                    <p className="text-[10px] text-teal-600/80 mt-1 font-semibold">{invoicePayments.length} other invoice entries</p>
                   </div>
 
                   <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/60">
@@ -12142,12 +12204,12 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   )}
                 </div>
 
-                {/* Section 2: Registration and Files Fees from parent invoices */}
+                {/* Section 2: Other Custom Invoice Items */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                     <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-teal-500 inline-block" />
-                      2. Lacagaha Diiwaangelinta & Faylasha (Registration & File Fees)
+                      2. Lacagaha kale ee Invoices-ka (Other Custom Invoice Fees)
                     </h4>
                     <span className="text-xs font-extrabold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg">
                       ${totalRegFilesPaid.toFixed(2)}
@@ -12156,7 +12218,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
 
                   {invoicePayments.length === 0 ? (
                     <p className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 rounded-2xl border border-dashed border-slate-150">
-                      No registration or file payments logged for this month.
+                      No other invoice payments logged for this month.
                     </p>
                   ) : (
                     <div className="overflow-x-auto rounded-2xl border border-slate-100">

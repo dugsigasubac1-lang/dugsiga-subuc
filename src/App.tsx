@@ -19,7 +19,14 @@ import {
 } from './firebase-client';
 
 export default function App() {
-  const [database, setDatabase] = useState<DatabaseState | null>(null);
+  const [database, setDatabase] = useState<DatabaseState | null>(() => {
+    try {
+      return getDatabase();
+    } catch (e) {
+      console.warn('[Dugsiga Subuc] Failed to load initial local database:', e);
+      return null;
+    }
+  });
   const [showLogin, setShowLogin] = useState<boolean>(false);
   const [userRole, setUserRole] = useState<'admin' | 'teacher' | null>(() => {
     const savedRole = localStorage.getItem('dugsi_user_role');

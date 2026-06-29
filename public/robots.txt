@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
-Sitemap: https://www.dugsigasubuc.com/sitemap.xml
+Sitemap: https://dugsigasubuc.com/sitemap.xml

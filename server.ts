@@ -387,9 +387,32 @@ async function startServer() {
   let currentDatabaseState: any = null;
 
   try {
-    if (fs.existsSync(CONFIG_FILE)) {
+    let firebaseConfig: any = null;
+    if (process.env.FIREBASE_API_KEY && process.env.FIREBASE_PROJECT_ID) {
+      firebaseConfig = {
+        apiKey: process.env.FIREBASE_API_KEY,
+        authDomain: process.env.FIREBASE_AUTH_DOMAIN || `${process.env.FIREBASE_PROJECT_ID}.firebaseapp.com`,
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${process.env.FIREBASE_PROJECT_ID}.firebasestorage.app`,
+        messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "",
+        appId: process.env.FIREBASE_APP_ID || "",
+        firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || "ai-studio-4ff514b8-ec83-4143-b156-7acce5ac27d5",
+      };
+      console.log('Firebase configured using environment variables.');
+    } else if (process.env.FIREBASE_CONFIG) {
+      try {
+        firebaseConfig = JSON.parse(process.env.FIREBASE_CONFIG);
+        console.log('Firebase configured using FIREBASE_CONFIG JSON environment variable.');
+      } catch (e: any) {
+        console.error('Failed to parse FIREBASE_CONFIG environment variable:', e.message || e);
+      }
+    } else if (fs.existsSync(CONFIG_FILE)) {
       const configContent = fs.readFileSync(CONFIG_FILE, 'utf-8');
-      const firebaseConfig = JSON.parse(configContent);
+      firebaseConfig = JSON.parse(configContent);
+      console.log('Firebase configured using firebase-applet-config.json file.');
+    }
+
+    if (firebaseConfig) {
       const firebaseApp = initializeApp(firebaseConfig);
       db = initializeFirestore(firebaseApp, {
         experimentalForceLongPolling: true
@@ -455,7 +478,7 @@ async function startServer() {
         console.error('Error in Firestore real-time listener:', err);
       });
     } else {
-      console.warn('Firebase configuration file not found. Falling back to simple file-based storage.');
+      console.warn('Firebase configuration (JSON file or environment variables) not found. Falling back to simple file-based storage.');
     }
   } catch (error) {
     console.error('Failed to initialize Firebase database connection:', error);
@@ -466,6 +489,16 @@ async function startServer() {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=86400');
     
+    // Check if the request is on a staging, preview, or dev domain
+    const host = req.get('host') || '';
+    const isProduction = host.includes('dugsigasubuc.com');
+    
+    if (!isProduction) {
+      // Strongly discourage all crawlers on staging/dev environments
+      res.status(200);
+      return res.end(`User-agent: *\nDisallow: /`);
+    }
+    
     const pPath = path.join(process.cwd(), 'public', 'robots.txt');
     const dPath = path.join(process.cwd(), 'dist', 'robots.txt');
     
@@ -475,7 +508,7 @@ async function startServer() {
     } else if (fs.existsSync(dPath)) {
       content = fs.readFileSync(dPath, 'utf-8').trim();
     } else {
-      content = `User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: https://www.dugsigasubuc.com/sitemap.xml`;
+      content = `User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: https://dugsigasubuc.com/sitemap.xml`;
     }
     
     res.status(200);
@@ -484,6 +517,16 @@ async function startServer() {
 
   // SEO Route: sitemap.xml
   app.get('/sitemap.xml', (req, res) => {
+    // Check if the request is on a staging, preview, or dev domain
+    const host = req.get('host') || '';
+    const isProduction = host.includes('dugsigasubuc.com');
+    
+    if (!isProduction) {
+      // Hide sitemap on staging/dev environments to prevent crawlers from indexing
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+      return res.status(404).send('Not Found');
+    }
+
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=86400');
     
@@ -503,19 +546,19 @@ async function startServer() {
       content = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://www.dugsigasubuc.com/</loc>
+    <loc>https://dugsigasubuc.com/</loc>
     <lastmod>${today}</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://www.dugsigasubuc.com/#about</loc>
+    <loc>https://dugsigasubuc.com/#about</loc>
     <lastmod>${today}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.dugsigasubuc.com/#contact</loc>
+    <loc>https://dugsigasubuc.com/#contact</loc>
     <lastmod>${today}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -598,7 +641,14 @@ async function startServer() {
   // API Route: Get Database State
   app.get('/api/database', async (req, res) => {
     try {
-      // 1. Always prioritize fetching the freshest direct document from Cloud Firestore to guarantee absolute real-time sync across devices
+      // 1. Primary path: Serve from hot in-memory synced state (kept up-to-date in real-time by onSnapshot)
+      // This is extremely fast (1-2ms), respects Firebase Quotas, and avoids slow blocking Firestore getDoc calls on every client poll.
+      if (currentDatabaseState) {
+        currentDatabaseState = sanitizeDatabaseState(currentDatabaseState);
+        return res.json({ initialized: true, data: currentDatabaseState });
+      }
+
+      // 2. Secondary Fallback: Fetch direct document from Cloud Firestore if memory state is not populated yet
       if (stateDocRef) {
         try {
           const docSnap = await getDoc(stateDocRef);
@@ -612,14 +662,8 @@ async function startServer() {
             }
           }
         } catch (fbError) {
-          console.error('[Server API] Failed to fetch from Firestore directly, falling back to cached state:', fbError);
+          console.error('[Server API] Failed to fetch from Firestore directly:', fbError);
         }
-      }
-
-      // 2. Secondary Fallback: Serve from hot in-memory synced state
-      if (currentDatabaseState) {
-        currentDatabaseState = sanitizeDatabaseState(currentDatabaseState);
-        return res.json({ initialized: true, data: currentDatabaseState });
       }
 
       // 3. Ultimate structural fallback: local database.json file
@@ -759,6 +803,31 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    
+    // Start self-pinging background service (Keep-Alive Pinger) to prevent Render sleep
+    const externalUrl = process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_URL;
+    if (externalUrl) {
+      console.log(`[Keep-Alive] Initializing self-pinger for public URL: ${externalUrl}`);
+      // Self-ping immediately to confirm initialization
+      const healthUrl = `${externalUrl.replace(/\/$/, '')}/api/health`;
+      fetch(healthUrl)
+        .then(res => res.json())
+        .then(data => console.log('[Keep-Alive] Initial connection verification succeeded:', data))
+        .catch(err => console.warn('[Keep-Alive] Initial self-ping check failed (server may still be starting up):', err.message || err));
+
+      // Schedule subsequent pings every 10 minutes (600,000 ms)
+      setInterval(async () => {
+        try {
+          const response = await fetch(healthUrl);
+          const data = await response.json();
+          console.log(`[Keep-Alive] Successfully self-pinged at ${new Date().toISOString()}:`, data);
+        } catch (pingError: any) {
+          console.error('[Keep-Alive] Self-ping interval failed:', pingError.message || pingError);
+        }
+      }, 10 * 60 * 1000);
+    } else {
+      console.log('[Keep-Alive] RENDER_EXTERNAL_URL or PUBLIC_URL is not set. Self-pinger is disabled.');
+    }
   });
 }
 
