@@ -489,16 +489,6 @@ async function startServer() {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=86400');
     
-    // Check if the request is on a staging, preview, or dev domain
-    const host = req.get('host') || '';
-    const isProduction = host.includes('dugsigasubuc.com');
-    
-    if (!isProduction) {
-      // Strongly discourage all crawlers on staging/dev environments
-      res.status(200);
-      return res.end(`User-agent: *\nDisallow: /`);
-    }
-    
     const pPath = path.join(process.cwd(), 'public', 'robots.txt');
     const dPath = path.join(process.cwd(), 'dist', 'robots.txt');
     
@@ -517,16 +507,6 @@ async function startServer() {
 
   // SEO Route: sitemap.xml
   app.get('/sitemap.xml', (req, res) => {
-    // Check if the request is on a staging, preview, or dev domain
-    const host = req.get('host') || '';
-    const isProduction = host.includes('dugsigasubuc.com');
-    
-    if (!isProduction) {
-      // Hide sitemap on staging/dev environments to prevent crawlers from indexing
-      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-      return res.status(404).send('Not Found');
-    }
-
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=86400');
     
