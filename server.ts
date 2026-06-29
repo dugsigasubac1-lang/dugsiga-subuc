@@ -365,7 +365,7 @@ async function startServer() {
 
   // SEO Middleware: Prevent duplicate indexing of temporary run.app and dev URLs by adding X-Robots-Tag
   app.use((req, res, next) => {
-    const host = req.get('host') || '';
+    const host = (req.get('host') || '').toLowerCase();
     if (host.includes('run.app') || host.includes('aistudio') || !host.includes('dugsigasubuc.com')) {
       res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     }
@@ -487,7 +487,8 @@ async function startServer() {
   // SEO Route: robots.txt
   app.get('/robots.txt', (req, res) => {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+    res.removeHeader('X-Robots-Tag');
     
     const pPath = path.join(process.cwd(), 'public', 'robots.txt');
     const dPath = path.join(process.cwd(), 'dist', 'robots.txt');
@@ -508,7 +509,7 @@ async function startServer() {
   // SEO Route: sitemap.xml
   app.get('/sitemap.xml', (req, res) => {
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
     
     // Explicitly guarantee noindex header is removed for crawling of the sitemap
     res.removeHeader('X-Robots-Tag');
