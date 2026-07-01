@@ -5871,7 +5871,13 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                     )}
                                   </div>
                                   <div className="flex flex-col">
-                                    <span className="font-extrabold text-slate-905">{student.name}</span>
+                                    <span 
+                                      className="font-extrabold text-slate-905 cursor-pointer hover:text-indigo-600 hover:underline select-none"
+                                      onDoubleClick={() => handleSelectEditStudent(student)}
+                                      title="Double-click to edit student details"
+                                    >
+                                      {student.name}
+                                    </span>
                                     <span className="text-[10px] text-slate-400 font-medium">Reg: {student.registrationDate || '2026-05-15'}</span>
                                   </div>
                                 </div>
