@@ -666,14 +666,18 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     for (const inv of monthInvoices) {
       if (inv.totalAmount <= 0 || inv.amountPaid <= 0) continue;
       const paidFraction = inv.amountPaid / inv.totalAmount;
-      const isParent = inv.recipientType === 'parent';
       
       for (const item of inv.items) {
         const desc = item.description.toLowerCase();
-        const isReg = desc.includes('diiwan') || desc.includes('regis');
+        const isTuition = desc.includes('bisha') || desc.includes('bish') || desc.includes('monthly') || desc.includes('tuition') || desc.includes('fee') || desc.includes('quraan') || desc.includes('school') || desc.includes('waxbarasho') || desc.includes('dugsi') || desc.includes('fasal');
+        const isBus = desc.includes('baska') || desc.includes('bus') || desc.includes('gaari') || desc.includes('transport');
+        
+        if (isTuition || isBus) {
+          continue;
+        }
+        
+        const isReg = desc.includes('diiwan') || desc.includes('diwan') || desc.includes('regis');
         const isFile = desc.includes('fayl') || desc.includes('file');
-        const isTuition = desc.includes('bisha') || desc.includes('bish') || desc.includes('monthly') || desc.includes('tuition') || desc.includes('fee') || desc.includes('quraan') || desc.includes('school') || desc.includes('waxbarasho');
-        const isBus = desc.includes('baska') || desc.includes('bus');
         
         const itemTotal = item.quantity * item.unitPrice;
         const itemPaid = itemTotal * paidFraction;
@@ -683,9 +687,6 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         } else if (isFile) {
           filesTotal += itemPaid;
         } else {
-          if (isParent && (isTuition || isBus)) {
-            continue;
-          }
           otherTotal += itemPaid;
         }
       }
@@ -711,14 +712,17 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     });
     
     for (const inv of monthInvoices) {
-      const isParent = inv.recipientType === 'parent';
-      
       for (const item of inv.items) {
         const desc = item.description.toLowerCase();
-        const isReg = desc.includes('diiwan') || desc.includes('regis');
+        const isTuition = desc.includes('bisha') || desc.includes('bish') || desc.includes('monthly') || desc.includes('tuition') || desc.includes('fee') || desc.includes('quraan') || desc.includes('school') || desc.includes('waxbarasho') || desc.includes('dugsi') || desc.includes('fasal');
+        const isBus = desc.includes('baska') || desc.includes('bus') || desc.includes('gaari') || desc.includes('transport');
+        
+        if (isTuition || isBus) {
+          continue;
+        }
+        
+        const isReg = desc.includes('diiwan') || desc.includes('diwan') || desc.includes('regis');
         const isFile = desc.includes('fayl') || desc.includes('file');
-        const isTuition = desc.includes('bisha') || desc.includes('bish') || desc.includes('monthly') || desc.includes('tuition') || desc.includes('fee') || desc.includes('quraan') || desc.includes('school') || desc.includes('waxbarasho');
-        const isBus = desc.includes('baska') || desc.includes('bus');
         
         const itemTotal = item.quantity * item.unitPrice;
         
@@ -727,9 +731,6 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         } else if (isFile) {
           filesTotal += itemTotal;
         } else {
-          if (isParent && (isTuition || isBus)) {
-            continue;
-          }
           otherTotal += itemTotal;
         }
       }
@@ -12486,14 +12487,18 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         for (const inv of monthInvoices) {
           if (inv.totalAmount <= 0 || inv.amountPaid <= 0) continue;
           const paidFraction = inv.amountPaid / inv.totalAmount;
-          const isParent = inv.recipientType === 'parent';
           
           for (const item of inv.items) {
             const desc = item.description.toLowerCase();
-            const isReg = desc.includes('diiwan') || desc.includes('regis');
+            const isTuition = desc.includes('bisha') || desc.includes('bish') || desc.includes('monthly') || desc.includes('tuition') || desc.includes('fee') || desc.includes('quraan') || desc.includes('school') || desc.includes('waxbarasho') || desc.includes('dugsi') || desc.includes('fasal');
+            const isBus = desc.includes('baska') || desc.includes('bus') || desc.includes('gaari') || desc.includes('transport');
+            
+            if (isTuition || isBus) {
+              continue;
+            }
+            
+            const isReg = desc.includes('diiwan') || desc.includes('diwan') || desc.includes('regis');
             const isFile = desc.includes('fayl') || desc.includes('file');
-            const isTuition = desc.includes('bisha') || desc.includes('bish') || desc.includes('monthly') || desc.includes('tuition') || desc.includes('fee') || desc.includes('quraan') || desc.includes('school') || desc.includes('waxbarasho');
-            const isBus = desc.includes('baska') || desc.includes('bus');
             
             const itemTotal = item.quantity * item.unitPrice;
             const itemPaid = itemTotal * paidFraction;
@@ -12510,9 +12515,6 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 date: inv.date
               });
             } else {
-              if (isParent && (isTuition || isBus)) {
-                continue;
-              }
               invoicePayments.push({
                 invoiceNo: inv.invoiceNo,
                 recipientName: inv.recipientName || inv.studentName || 'N/A',
