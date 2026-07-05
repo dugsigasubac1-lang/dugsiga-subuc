@@ -105,7 +105,7 @@ interface AdminDashboardProps {
 }
 
 export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDashboardProps) {
-  const [activeTab, setActiveTab ] = useState<'overview' | 'students' | 'teachers' | 'classes' | 'reports' | 'billing' | 'backup' | 'exams' | 'moneyTransfers' | 'submissions' | 'teacherAttendance' | 'landing' | 'studentAttendance'>('overview');
+  const [activeTab, setActiveTab ] = useState<'overview' | 'students' | 'teachers' | 'classes' | 'reports' | 'billing' | 'backup' | 'exams' | 'moneyTransfers' | 'submissions' | 'teacherAttendance' | 'landing' | 'studentAttendance' | 'receiptsHistory'>('overview');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showNotifPopup, setShowNotifPopup] = useState(false);
   
@@ -517,6 +517,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [showCollectedFeesBreakdownMonth, setShowCollectedFeesBreakdownMonth] = useState<string | null>(null);
   const [showBusCollectedBreakdownMonth, setShowBusCollectedBreakdownMonth] = useState<string | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState<BillingRecord | null>(null);
+  const [selectedReceiptsMonth, setSelectedReceiptsMonth] = useState<string>('2026-06');
+  const [receiptsSearch, setReceiptsSearch] = useState<string>('');
   const [showPrintReportModal, setShowPrintReportModal] = useState<{ 
     mode: 'whole' | 'student' | 'payments_range'; 
     startDate: string; 
@@ -609,6 +611,30 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     "Luulyo", "Ogosto", "Sebteembar", "Oktoobar", "Nofeembar", "Diseembar"
   ];
 
+  const getBillingStatusForStudent = (student: Student, monthString: string): BillingRecord => {
+    // 1. First, check if there is a manual payment in database.billing
+    const keyId = `B-${monthString}-${student.id}`;
+    const manualRecord = database.billing.find(b => b.id === keyId || (b.studentId === student.id && b.month === monthString));
+    if (manualRecord) {
+      return manualRecord;
+    }
+
+    // 2. Default Unpaid Record Object
+    return {
+      id: `B-${monthString}-${student.id}`,
+      studentId: student.id,
+      studentName: student.name,
+      className: student.className,
+      month: monthString,
+      amountPaid: 0,
+      amountDue: student.monthlyFee,
+      debtAmount: student.monthlyFee,
+      status: 'Unpaid',
+      busFeeDue: student.busFee || 0,
+      busFeePaid: 0
+    };
+  };
+
   // Calculate Monthly billing statistics dynamically for the matching active collection month
   const todayDate = new Date();
   const calendarMonth = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}`;
@@ -633,8 +659,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     let otherTotal = 0;
     
     const monthInvoices = database.invoices.filter(inv => {
-      if (!inv.date) return false;
-      return inv.date.startsWith(month);
+      const invMonth = inv.date ? inv.date.slice(0, 7) : (inv.createdAt ? inv.createdAt.slice(0, 7) : '');
+      return invMonth === month;
     });
     
     for (const inv of monthInvoices) {
@@ -646,7 +672,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         const desc = item.description.toLowerCase();
         const isReg = desc.includes('diiwan') || desc.includes('regis');
         const isFile = desc.includes('fayl') || desc.includes('file');
-        const isTuition = desc.includes('bisha') || desc.includes('monthly') || desc.includes('tuition') || desc.includes('fee');
+        const isTuition = desc.includes('bisha') || desc.includes('bish') || desc.includes('monthly') || desc.includes('tuition') || desc.includes('fee') || desc.includes('quraan') || desc.includes('school') || desc.includes('waxbarasho');
         const isBus = desc.includes('baska') || desc.includes('bus');
         
         const itemTotal = item.quantity * item.unitPrice;
@@ -680,8 +706,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     let otherTotal = 0;
     
     const monthInvoices = database.invoices.filter(inv => {
-      if (!inv.date) return false;
-      return inv.date.startsWith(month);
+      const invMonth = inv.date ? inv.date.slice(0, 7) : (inv.createdAt ? inv.createdAt.slice(0, 7) : '');
+      return invMonth === month;
     });
     
     for (const inv of monthInvoices) {
@@ -691,7 +717,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         const desc = item.description.toLowerCase();
         const isReg = desc.includes('diiwan') || desc.includes('regis');
         const isFile = desc.includes('fayl') || desc.includes('file');
-        const isTuition = desc.includes('bisha') || desc.includes('monthly') || desc.includes('tuition') || desc.includes('fee');
+        const isTuition = desc.includes('bisha') || desc.includes('bish') || desc.includes('monthly') || desc.includes('tuition') || desc.includes('fee') || desc.includes('quraan') || desc.includes('school') || desc.includes('waxbarasho');
         const isBus = desc.includes('baska') || desc.includes('bus');
         
         const itemTotal = item.quantity * item.unitPrice;
@@ -718,146 +744,17 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   };
 
   const syncInvoiceToBilling = (inv: Invoice, currentBilling: BillingRecord[], students: Student[]): BillingRecord[] => {
-    if (inv.recipientType !== 'parent' || !inv.studentId) return currentBilling;
-    
-    const studentIds = inv.studentId.split(',').map(id => id.trim()).filter(Boolean);
-    if (studentIds.length === 0) return currentBilling;
-    
-    const invoiceMonth = inv.date ? inv.date.slice(0, 7) : new Date().toISOString().slice(0, 7);
-    const paidFraction = inv.totalAmount > 0 ? (inv.amountPaid / inv.totalAmount) : 0;
-    
-    const tuitionItems = inv.items.filter(item => {
-      const desc = item.description.toLowerCase();
-      const isReg = desc.includes('diiwan') || desc.includes('regis');
-      const isFile = desc.includes('fayl') || desc.includes('file');
-      const isTuition = desc.includes('bisha') || desc.includes('monthly') || desc.includes('tuition') || desc.includes('fee');
-      return isTuition && !isReg && !isFile;
-    });
-
-    const busItems = inv.items.filter(item => {
-      const desc = item.description.toLowerCase();
-      const isBus = desc.includes('baska') || desc.includes('bus');
-      return isBus;
-    });
-    
-    let updatedBilling = [...currentBilling];
-    
-    for (const sId of studentIds) {
-      const student = students.find(s => s.id === sId);
-      if (!student) continue;
-      
-      const studentNameLower = student.name.toLowerCase();
-      const studentFirstWord = studentNameLower.split(' ')[0] || '';
-      
-      const recordId = `B-${invoiceMonth}-${sId}`;
-      const existingIdx = updatedBilling.findIndex(b => b.id === recordId || (b.studentId === sId && b.month === invoiceMonth));
-      const existing = existingIdx !== -1 ? updatedBilling[existingIdx] : null;
-
-      // 1. Calculate Tuition amount paid and amount due from this invoice
-      let tuitionDueVal = student.monthlyFee;
-      let tuitionPaidVal = 0;
-      
-      if (tuitionItems.length > 0) {
-        let matchedItem = tuitionItems.find(item => {
-          const desc = item.description.toLowerCase();
-          return desc.includes(studentFirstWord) && studentFirstWord.length > 2;
-        });
-        if (!matchedItem) {
-          matchedItem = tuitionItems[0];
-        }
-        tuitionDueVal = matchedItem.unitPrice;
-        tuitionPaidVal = tuitionDueVal * paidFraction;
-      } else {
-        // If this invoice has NO tuition items, but we have an existing billing record, keep its amountPaid!
-        if (existing) {
-          tuitionDueVal = existing.amountDue ?? student.monthlyFee;
-          tuitionPaidVal = existing.amountPaid ?? 0;
-        } else {
-          tuitionDueVal = student.monthlyFee;
-          tuitionPaidVal = 0;
-        }
-      }
-
-      // 2. Calculate Bus amount paid and amount due from this invoice
-      let busDueVal = student.busFee || 0;
-      let busPaidVal = 0;
-
-      if (busItems.length > 0) {
-        let matchedBusItem = busItems.find(item => {
-          const desc = item.description.toLowerCase();
-          return desc.includes(studentFirstWord) && studentFirstWord.length > 2;
-        });
-        if (!matchedBusItem) {
-          matchedBusItem = busItems[0];
-        }
-        busPaidVal = matchedBusItem.unitPrice * paidFraction;
-        // The official bus fee due is still student's registered fee or the matched item price
-        busDueVal = student.busFee || matchedBusItem.unitPrice || 0;
-      } else {
-        // If this invoice has NO bus items, but we have an existing billing record, keep its busFeePaid!
-        if (existing) {
-          busDueVal = existing.busFeeDue ?? (student.busFee || 0);
-          busPaidVal = existing.busFeePaid ?? 0;
-        } else {
-          busDueVal = student.busFee || 0;
-          busPaidVal = 0;
-        }
-      }
-
-      const totalPaidMerged = tuitionPaidVal + busPaidVal;
-      const totalDueMerged = tuitionDueVal + busDueVal;
-      
-      let mergedStatus: 'Paid' | 'Unpaid' | 'Partial' = 'Unpaid';
-      if (totalPaidMerged >= totalDueMerged && totalDueMerged > 0) {
-        mergedStatus = 'Paid';
-      } else if (totalPaidMerged > 0) {
-        mergedStatus = 'Partial';
-      }
-
-      const debtAmount = Math.max(0, totalDueMerged - totalPaidMerged);
-      const noteStr = `Synced from invoice ${inv.invoiceNo}.`;
-      
-      if (existing) {
-        const alreadySynced = existing.notes?.includes(`Synced from invoice ${inv.invoiceNo}`);
-        const finalNotes = alreadySynced ? (existing.notes || '') : (noteStr + ' ' + (existing.notes || ''));
-        
-        updatedBilling[existingIdx] = {
-          ...existing,
-          amountDue: Number(tuitionDueVal.toFixed(2)),
-          amountPaid: Number(tuitionPaidVal.toFixed(2)),
-          debtAmount: Number(debtAmount.toFixed(2)),
-          status: mergedStatus,
-          busFeeDue: Number(busDueVal.toFixed(2)),
-          busFeePaid: Number(busPaidVal.toFixed(2)),
-          paymentDate: inv.amountPaid > 0 ? inv.date : existing.paymentDate,
-          receiptNo: inv.amountPaid > 0 ? `REC-${invoiceMonth.replace('-', '')}-${sId.replace('BJ-', '').replace('DS', '')}` : existing.receiptNo,
-          notes: finalNotes
-        };
-      } else {
-        const newRecord: BillingRecord = {
-          id: recordId,
-          studentId: sId,
-          studentName: student.name,
-          className: student.className,
-          month: invoiceMonth,
-          amountDue: Number(tuitionDueVal.toFixed(2)),
-          amountPaid: Number(tuitionPaidVal.toFixed(2)),
-          debtAmount: Number(debtAmount.toFixed(2)),
-          status: mergedStatus,
-          busFeeDue: Number(busDueVal.toFixed(2)),
-          busFeePaid: Number(busPaidVal.toFixed(2)),
-          paymentDate: inv.amountPaid > 0 ? inv.date : undefined,
-          receiptNo: inv.amountPaid > 0 ? `REC-${invoiceMonth.replace('-', '')}-${sId.replace('BJ-', '').replace('DS', '')}` : undefined,
-          notes: noteStr
-        };
-        updatedBilling.push(newRecord);
-      }
+    // We do not sync parent invoices to tuition/bus billing records as tuition is paid separately and has its own receipt.
+    // We only consider the registration fee and other balances on invoices for general reporting.
+    if (inv && students) {
+      return currentBilling;
     }
-    
-    return updatedBilling;
+    return currentBilling;
   };
 
-  const currentMonthFilter = getMostActiveBillingMonth();
+  const [currentMonthFilter, setCurrentMonthFilter] = useState(() => {
+    return calendarMonth;
+  });
   
   const getFriendlyMonthName = (monthStr: string) => {
     const parts = monthStr.split('-');
@@ -870,17 +767,47 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     return monthStr;
   };
 
+  const getDashboardAvailableMonths = () => {
+    const monthsSet = new Set<string>();
+    
+    // Add current calendar month
+    const now = new Date();
+    const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    monthsSet.add(currentMonthStr);
+    
+    // Add other months of the current year so they can select any month of this year
+    for (let m = 1; m <= 12; m++) {
+      monthsSet.add(`${now.getFullYear()}-${String(m).padStart(2, '0')}`);
+    }
+    
+    // Also add months from billing records
+    if (database.billing) {
+      database.billing.forEach(b => {
+        if (b.month) monthsSet.add(b.month);
+      });
+    }
+    
+    // Also add months from invoices
+    if (database.invoices) {
+      database.invoices.forEach(inv => {
+        const invMonth = inv.date ? inv.date.slice(0, 7) : (inv.createdAt ? inv.createdAt.slice(0, 7) : '');
+        if (invMonth) monthsSet.add(invMonth);
+      });
+    }
+    
+    return Array.from(monthsSet).sort((a, b) => b.localeCompare(a)); // Sort descending (newest first)
+  };
+
   const currentMonthInvoiced = database.students.filter(s => s.active).reduce((sum, s) => sum + s.monthlyFee, 0) + getInvoiceInvoicedForMonth(currentMonthFilter).total;
-  const currentMonthPaidRecords = database.billing.filter(b => b.month === currentMonthFilter && (b.status === 'Paid' || b.status === 'Partial'));
-  const currentMonthPaidAmount = currentMonthPaidRecords.reduce((sum, r) => sum + r.amountPaid, 0) + getInvoicePaymentsForMonth(currentMonthFilter).total;
+  const currentMonthResolvedRecords = (database.students || []).map(s => getBillingStatusForStudent(s, currentMonthFilter));
+  const currentMonthPaidAmount = currentMonthResolvedRecords.reduce((sum, r) => sum + Number(r.amountPaid || 0), 0) + getInvoicePaymentsForMonth(currentMonthFilter).total;
   const currentMonthUnpaidAmount = Math.max(0, currentMonthInvoiced - currentMonthPaidAmount);
 
   // Bus Fare Statistics Calculations
   const busRiders = database.students.filter(s => s.active && s.busFee && Number(s.busFee) > 0);
   const totalBusRidersCount = busRiders.length;
   const currentMonthBusInvoiced = busRiders.reduce((sum, s) => sum + Number(s.busFee || 0), 0);
-  const currentMonthBusPaidRecords = database.billing.filter(b => b.month === currentMonthFilter);
-  const currentMonthBusCollected = currentMonthBusPaidRecords.reduce((sum, r) => sum + Number(r.busFeePaid || 0), 0);
+  const currentMonthBusCollected = currentMonthResolvedRecords.reduce((sum, r) => sum + Number(r.busFeePaid || 0), 0);
   const currentMonthBusPending = Math.max(0, currentMonthBusInvoiced - currentMonthBusCollected);
 
   const allTimeBusInvoiced = database.billing.reduce((sum, r) => sum + Number(r.busFeeDue || 0), 0);
@@ -1185,10 +1112,12 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   };
 
   const handleDeleteStudent = (studentId: string) => {
+    const student = database.students.find(s => s.id === studentId);
+    const studentName = student ? student.name : studentId;
     setConfirmModal({
       isOpen: true,
-      title: "Delete Student Record?",
-      message: "Are you absolutely sure you want to permanently delete this student record? This will delete all their details, attendance journals and graded score sheets from database servers. This is irreversible.",
+      title: `Permanently Delete "${studentName}"?`,
+      message: `Are you absolutely sure you want to permanently delete the student record for "${studentName}"? This will delete all their details, attendance journals and graded score sheets from database servers. This is irreversible.`,
       accentColor: 'rose',
       onConfirm: () => {
         const filteredStudents = database.students.filter(s => s.id !== studentId);
@@ -1458,19 +1387,21 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   };
 
   const handleDeleteTeacher = (teacherId: string) => {
+    const teacher = database.teachers.find(t => t.id === teacherId);
+    const teacherName = teacher ? `Sh. ${teacher.name}` : `this teacher`;
     const assignedStudents = database.students.filter(s => s.teacherId === teacherId && s.active);
     
-    let confirmMsg = "Are you sure you want to dismiss/delete this teacher? They will no longer have dashboard access.";
+    let confirmMsg = `Are you sure you want to dismiss/delete ${teacherName}? They will no longer have dashboard access.`;
     let shouldUnassign = false;
 
     if (assignedStudents.length > 0) {
-      confirmMsg = `This teacher is currently assigned to ${assignedStudents.length} active student(s). Dismissing this teacher will automatically set their active students as "Unassigned" so you can reassign them in class settings. Do you want to proceed and unassign their students?`;
+      confirmMsg = `${teacherName} is currently assigned to ${assignedStudents.length} active student(s). Dismissing ${teacherName} will automatically set their active students as "Unassigned" so you can reassign them in class settings. Do you want to proceed and unassign their students?`;
       shouldUnassign = true;
     }
 
     setConfirmModal({
       isOpen: true,
-      title: "Confirm Staff Dismissal?",
+      title: `Confirm Dismissal of ${teacherName}?`,
       message: confirmMsg,
       accentColor: 'rose',
       onConfirm: () => {
@@ -1491,7 +1422,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
           students: updatedStudents
         });
 
-        setFeedbackMsg("Teacher record successfully dismissed and deleted from the database.");
+        setFeedbackMsg(`${teacherName} record successfully dismissed and deleted from the database.`);
         setTimeout(() => setFeedbackMsg(''), 4000);
         setConfirmModal(null);
       }
@@ -1499,10 +1430,16 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   };
 
   const handleDeleteSubmission = (submissionId: string) => {
+    const submission = (database.submissions || []).find(s => s.id === submissionId);
+    const subDate = submission?.timestamp ? submission.timestamp.split('T')[0] : '';
+    const submissionDesc = submission 
+      ? `submission by Sh. ${submission.teacherName} on ${subDate} (${submission.className || 'No Class'})` 
+      : "this teacher submission record";
+
     setConfirmModal({
       isOpen: true,
       title: "Delete Audit Record?",
-      message: "Are you absolutely sure you want to permanently delete this teacher submission record? This will delete the entry from the auditing panel.",
+      message: `Are you absolutely sure you want to permanently delete the audit record for the ${submissionDesc}? This will delete the entry from the auditing panel.`,
       accentColor: 'rose',
       onConfirm: () => {
         const filteredSubmissions = (database.submissions || []).filter(s => s.id !== submissionId);
@@ -2818,10 +2755,9 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         newInvoices.push(updatedInv);
       }
 
-      const syncedBilling = syncInvoiceToBilling(updatedInv, [...database.billing], database.students);
       onSaveDatabase({
         ...database,
-        billing: syncedBilling,
+        billing: database.billing,
         invoices: newInvoices
       });
 
@@ -2850,10 +2786,9 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         createdAt: new Date().toISOString()
       };
 
-      const syncedBilling = syncInvoiceToBilling(newInv, [...database.billing], database.students);
       onSaveDatabase({
         ...database,
-        billing: syncedBilling,
+        billing: database.billing,
         invoices: [...(database.invoices || []), newInv]
       });
 
@@ -3135,29 +3070,42 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   });
   const [billingSearch, setBillingSearch] = useState('');
 
-  const getBillingStatusForStudent = (student: Student, monthString: string): BillingRecord => {
-    const keyId = `B-${monthString}-${student.id}`;
-    const record = database.billing.find(b => b.id === keyId || (b.studentId === student.id && b.month === monthString));
-    if (record) return record;
-
-    // Default Unpaid Record Object
-    return {
-      id: `B-${monthString}-${student.id}`,
-      studentId: student.id,
-      studentName: student.name,
-      className: student.className,
-      month: monthString,
-      amountPaid: 0,
-      amountDue: student.monthlyFee,
-      debtAmount: student.monthlyFee,
-      status: 'Unpaid',
-      busFeeDue: student.busFee || 0,
-      busFeePaid: 0
-    };
+  const handleOpenReceiptForRecord = (record: any) => {
+    // Check if there is an invoice with invoiceNo matching or mentioned in notes
+    const invoiceNoMatch = record.notes?.match(/BJ-INV-\d+/);
+    const invoiceNo = record.receiptNo?.startsWith('BJ-INV') ? record.receiptNo : (invoiceNoMatch ? invoiceNoMatch[0] : null);
+    
+    const matchingInvoice = invoiceNo ? database.invoices?.find(inv => inv.invoiceNo === invoiceNo) : null;
+    
+    if (matchingInvoice) {
+      setShowInvoiceReceipt(matchingInvoice);
+    } else if (record.invoiceLinked) {
+      setShowInvoiceReceipt(record.invoiceLinked);
+    } else {
+      setShowReceiptModal(record);
+    }
   };
 
   const handleOpenPayModal = (student: Student) => {
     const record = getBillingStatusForStudent(student, selectedBillingMonth);
+    if (record.id.startsWith('INV-B-')) {
+      const invNo = record.receiptNo || '';
+      setConfirmModal({
+        isOpen: true,
+        title: "Biilka lala xiriiriyay (Invoice-linked Payment)",
+        message: `Lacag-bixintan waxay si toos ah ula xiriirtaa Invoice-ka Waalidka${invNo ? ` (${invNo})` : ''}. Si aad u bedesho ama u maamusho, fadlan guji 'Verify & Action' si lagugu geeyo qaybta 'Parent & Business Invoices' ee bishan si aad wax uga beddesho biilkaas.`,
+        accentColor: 'indigo',
+        onConfirm: () => {
+          setConfirmModal(null);
+          if (invNo) {
+            setInvoiceSearch(invNo);
+          }
+          setBillingSubTab('custom_invoices');
+          setActiveTab('billing');
+        }
+      });
+      return;
+    }
     setShowPayModal(student);
     setPayAmountDue(record.amountDue ?? student.monthlyFee);
     setPayAmountPaid(record.status === 'Unpaid' ? (record.amountDue ?? student.monthlyFee) : record.amountPaid);
@@ -3239,6 +3187,40 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   };
 
   const handleDeleteBillingRecord = (recordId: string, studentName: string) => {
+    if (recordId.startsWith('INV-B-')) {
+      const match = recordId.match(/^INV-B-(\d{4}-\d{2})-(.+)$/);
+      let invNo = '';
+      if (match) {
+        const month = match[1];
+        const studentId = match[2];
+        const matchingInvoice = database.invoices?.find(inv => {
+          if (inv.recipientType !== 'parent' || !inv.studentId) return false;
+          const ids = inv.studentId.split(',').map(id => id.trim()).filter(Boolean);
+          if (!ids.includes(studentId)) return false;
+          const invMonth = inv.date ? inv.date.slice(0, 7) : (inv.createdAt ? inv.createdAt.slice(0, 7) : '');
+          return invMonth === month;
+        });
+        if (matchingInvoice) {
+          invNo = matchingInvoice.invoiceNo;
+        }
+      }
+
+      setConfirmModal({
+        isOpen: true,
+        title: "Biilka lala xiriiriyay (Invoice-linked Payment)",
+        message: `Lacag-bixintan waxay si toos ah ula xiriirtaa Invoice-ka Waalidka${invNo ? ` (${invNo})` : ''}. Si aad u tirtirto ama aad u bedesho, fadlan guji 'Verify & Action' si lagugu geeyo qaybta 'Parent & Business Invoices' ee bishan si aad wax uga beddesho biilkaas.`,
+        accentColor: 'indigo',
+        onConfirm: () => {
+          setConfirmModal(null);
+          if (invNo) {
+            setInvoiceSearch(invNo);
+          }
+          setBillingSubTab('custom_invoices');
+          setActiveTab('billing');
+        }
+      });
+      return;
+    }
     setConfirmModal({
       isOpen: true,
       title: "Reset Payment Record?",
@@ -4460,6 +4442,21 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   display: block !important;
                   background: white !important;
                 }
+                .print-receipt-item {
+                  box-shadow: none !important;
+                  border: 2px dashed #475569 !important;
+                  border-radius: 12px !important;
+                  max-width: 440px !important;
+                  margin: 15px auto !important;
+                  padding: 24px !important;
+                  display: block !important;
+                  background: white !important;
+                  page-break-after: always !important;
+                  box-sizing: border-box !important;
+                }
+                .print-receipt-item:last-child {
+                  page-break-after: avoid !important;
+                }
               </style>
             </head>
             <body>
@@ -4763,6 +4760,12 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
             setActiveTab('billing');
             setBillingSubTab('fees');
           }
+        },
+        {
+          label: 'Rasiidhadii June & Last Month',
+          icon: Printer,
+          checkActive: () => activeTab === 'receiptsHistory',
+          onClick: () => setActiveTab('receiptsHistory')
         },
         {
           label: 'Samee Invoice / Biil',
@@ -5210,6 +5213,36 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         {activeTab === 'overview' && (
           <div className="space-y-8 animate-fade-in" id="portal-overview">
             
+            {/* Dashboard Month/Year Selector */}
+            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
+                  <CalendarRange className="w-6 h-6 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                    Muddada Dashboard-ka (Dashboard Period)
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Xulo bisha aad rabto in warbixinta dashboard-ka laguu muujiyo</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="text-xs font-bold text-slate-600">Dooro Bisha (Select Month):</span>
+                <select
+                  value={currentMonthFilter}
+                  onChange={(e) => setCurrentMonthFilter(e.target.value)}
+                  className="bg-slate-50 border border-slate-200/80 rounded-2xl px-4 py-2.5 text-xs font-extrabold text-slate-800 outline-none focus:bg-white focus:ring-4 focus:ring-emerald-500/10 cursor-pointer shadow-sm transition-all"
+                  id="dashboard-month-selector"
+                >
+                  {getDashboardAvailableMonths().map(m => (
+                    <option key={m} value={m}>
+                      {getFriendlyMonthName(m)} ({m})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             {/* Core Stats Counter Deck */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               
@@ -5528,10 +5561,11 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                           <button
                             type="button"
                             onClick={() => {
+                              const senderInfo = item.name ? `${item.name} (${item.email || 'No email'})` : (item.email || 'unknown sender');
                               setConfirmModal({
                                 isOpen: true,
-                                title: "Delete Inbox Message?",
-                                message: "Are you sure you want to permanently delete this inbox message from the overview audit list? This is irreversible.",
+                                title: `Delete Message from "${item.name || 'Inbox'}"?`,
+                                message: `Are you sure you want to permanently delete the inbox message from "${senderInfo}" from the overview audit list? This is irreversible.`,
                                 accentColor: 'rose',
                                 onConfirm: () => {
                                   const updatedMessages = messagesList.filter(m => m.id !== item.id);
@@ -8519,10 +8553,14 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
           const computedTotalScoreAverage = totalExamsUploaded > 0 ? (overallClassAverageSum / totalExamsUploaded).toFixed(1) : '0';
 
           const handleDeleteAdminExam = (examId: string) => {
+            const ex = (database.exams || []).find(e => e.id === examId);
+            const examDetails = ex 
+              ? `"${ex.heading}" for class "${ex.className}" on ${ex.date}` 
+              : "this exam score sheet";
             setConfirmModal({
               isOpen: true,
               title: "Delete Exam Record?",
-              message: "Are you sure you want to permanently delete this exam score sheet from servers? This operation is irreversible.",
+              message: `Are you sure you want to permanently delete the exam record ${examDetails} from servers? This operation is irreversible.`,
               accentColor: 'rose',
               onConfirm: () => {
                 const updatedExams = (database.exams || []).filter(ex => ex.id !== examId);
@@ -10236,7 +10274,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   <div className="text-right">
                     <p className="text-[10px] text-emerald-600 uppercase font-bold tracking-wider">Deposited Fees</p>
                     <p className="text-sm font-extrabold text-emerald-700">
-                      ${(database.billing.filter(b => b.month === selectedBillingMonth && (b.status === 'Paid' || b.status === 'Partial')).reduce((sum, b) => sum + b.amountPaid, 0) + getInvoicePaymentsForMonth(selectedBillingMonth).total).toFixed(2)}
+                      ${(activeStudents.map(s => getBillingStatusForStudent(s, selectedBillingMonth)).reduce((sum, b) => sum + Number(b.amountPaid || 0), 0) + getInvoicePaymentsForMonth(selectedBillingMonth).total).toFixed(2)}
                     </p>
                   </div>
                 </div>
@@ -10337,7 +10375,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                   <div className="flex items-center justify-center gap-1.5 text-xs">
                                     <button
                                       type="button"
-                                      onClick={() => setShowReceiptModal(record)}
+                                      onClick={() => handleOpenReceiptForRecord(record)}
                                       className="px-2 py-1.5 bg-slate-50 hover:bg-slate-150 border border-slate-200 text-slate-750 font-extrabold text-[10px] tracking-wide uppercase rounded-xl inline-flex items-center gap-1 cursor-pointer transition-colors shrink-0"
                                     >
                                       <Receipt className="w-3.5 h-3.5" />
@@ -10363,7 +10401,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                   <div className="flex items-center justify-center gap-1.5 text-xs">
                                     <button
                                       type="button"
-                                      onClick={() => setShowReceiptModal(record)}
+                                      onClick={() => handleOpenReceiptForRecord(record)}
                                       className="px-2 py-1.5 bg-slate-50 hover:bg-slate-150 border border-slate-200 text-slate-755 font-extrabold text-[10px] tracking-wide uppercase rounded-xl inline-flex items-center gap-1 cursor-pointer transition-colors shrink-0"
                                     >
                                       <Receipt className="w-3.5 h-3.5" />
@@ -11794,6 +11832,392 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
           </div>
         )}
 
+        {/* --- RECEIPTS HISTORY TAB --- */}
+        {activeTab === 'receiptsHistory' && (() => {
+          const resolvedReceipts = (database.students || []).map(s => getBillingStatusForStudent(s, selectedReceiptsMonth));
+          const filteredReceipts = resolvedReceipts.filter(b => {
+            const matchesMonth = b.month === selectedReceiptsMonth;
+            const matchesStatus = b.status === 'Paid' || b.status === 'Partial';
+            if (!matchesMonth || !matchesStatus) return false;
+            
+            const searchLower = receiptsSearch.toLowerCase();
+            const studentName = (b.studentName || '').toLowerCase();
+            const className = (b.className || '').toLowerCase();
+            const receiptNo = (b.receiptNo || '').toLowerCase();
+            const studentId = (b.studentId || '').toLowerCase();
+            
+            return studentName.includes(searchLower) || 
+                   className.includes(searchLower) || 
+                   receiptNo.includes(searchLower) ||
+                   studentId.includes(searchLower);
+          });
+
+          // Compute stats
+          const totalReceiptsCount = filteredReceipts.length;
+          const totalFeesCollected = filteredReceipts.reduce((sum, b) => sum + Number(b.amountPaid || 0), 0);
+          const totalBusCollected = filteredReceipts.reduce((sum, b) => sum + Number(b.busFeePaid || 0), 0);
+          const grandTotalCollected = totalFeesCollected + totalBusCollected;
+
+          return (
+            <div className="space-y-8 animate-fade-in" id="portal-receipts-history">
+              {/* Heading */}
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pointer-print-none">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
+                    <span className="p-2.5 bg-teal-500/15 text-teal-600 rounded-2xl inline-flex">
+                      <Printer className="w-6 h-6" />
+                    </span>
+                    Warbixinta & Daabacaadda Rasiidhada
+                  </h2>
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-0.5">
+                    Maamulka, eegista, iyo daabacaadda rasiidhada khidmadaha ee bisha {selectedReceiptsMonth}
+                  </p>
+                </div>
+                
+                {/* Print All Button */}
+                {filteredReceipts.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => handlePrintElement('printable-all-receipts-batch')}
+                    className="px-5 py-3 bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md shadow-teal-600/10 flex items-center gap-2"
+                  >
+                    <Printer className="w-4 h-4" />
+                    Daabac Dhammaan ({filteredReceipts.length} Rasiidhada)
+                  </button>
+                ) : (
+                  <div className="text-xs font-bold text-slate-400 bg-slate-100 px-4 py-2.5 rounded-xl border border-slate-200">
+                    Ma jiraan rasiidhad la daabaco bishaan
+                  </div>
+                )}
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pointer-print-none">
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-3xs">
+                  <span className="block text-[10px] text-slate-400 font-black uppercase tracking-widest leading-none mb-2">Total Receipts / Rasiidhada</span>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-2xl font-black text-slate-900 leading-none">{totalReceiptsCount}</span>
+                    <span className="text-xs text-slate-400 font-bold">Rasiid</span>
+                  </div>
+                  <div className="mt-2.5 text-[10px] text-slate-400 font-medium">Lagu sifeeyay bisha {selectedReceiptsMonth}</div>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-3xs">
+                  <span className="block text-[10px] text-emerald-600 font-black uppercase tracking-widest leading-none mb-2">Tuition Collected / Khidmadda</span>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-2xl font-black text-emerald-700 leading-none">${totalFeesCollected.toFixed(2)}</span>
+                    <span className="text-xs text-emerald-500 font-mono">USD</span>
+                  </div>
+                  <div className="mt-2.5 text-[10px] text-slate-400 font-medium">Guud ahaan lacagaha waxbarashada</div>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-3xs">
+                  <span className="block text-[10px] text-indigo-600 font-black uppercase tracking-widest leading-none mb-2">Bus Collected / Baska</span>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-2xl font-black text-indigo-700 leading-none">${totalBusCollected.toFixed(2)}</span>
+                    <span className="text-xs text-indigo-500 font-mono">USD</span>
+                  </div>
+                  <div className="mt-2.5 text-[10px] text-slate-400 font-medium">Guud ahaan lacagaha baska ardayda</div>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-3xs bg-gradient-to-br from-teal-500/5 to-emerald-500/5 border-teal-100/50">
+                  <span className="block text-[10px] text-teal-700 font-black uppercase tracking-widest leading-none mb-2">Grand Total / Isku-geyn</span>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-2xl font-black text-teal-900 leading-none">${grandTotalCollected.toFixed(2)}</span>
+                    <span className="text-xs text-teal-600 font-mono font-bold">USD</span>
+                  </div>
+                  <div className="mt-2.5 text-[10px] text-teal-600/70 font-semibold uppercase tracking-wider">Lacagaha la qabtay</div>
+                </div>
+              </div>
+
+              {/* Filters Block */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 pointer-print-none">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 pl-0.5">Accounting Year & Month</label>
+                    <div className="flex gap-2">
+                      <select
+                        value={selectedReceiptsMonth.split('-')[0] || '2026'}
+                        onChange={(e) => {
+                          const month = selectedReceiptsMonth.split('-')[1] || '06';
+                          setSelectedReceiptsMonth(`${e.target.value}-${month}`);
+                        }}
+                        className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 outline-none cursor-pointer focus:bg-white transition-colors"
+                      >
+                        {['2024', '2025', '2026', '2027', '2028', '2029', '2030', '2031', '2032'].map(yy => (
+                          <option key={yy} value={yy}>{yy}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={selectedReceiptsMonth.split('-')[1] || '06'}
+                        onChange={(e) => {
+                          const year = selectedReceiptsMonth.split('-')[0] || '2026';
+                          setSelectedReceiptsMonth(`${year}-${e.target.value}`);
+                        }}
+                        className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 outline-none cursor-pointer focus:bg-white transition-colors"
+                      >
+                        {[
+                          { val: '01', label: '01 - January' },
+                          { val: '02', label: '02 - February' },
+                          { val: '03', label: '03 - March' },
+                          { val: '04', label: '04 - April' },
+                          { val: '05', label: '05 - May' },
+                          { val: '06', label: '06 - June (Bishii hore)' },
+                          { val: '07', label: '07 - July' },
+                          { val: '08', label: '08 - August' },
+                          { val: '09', label: '09 - September' },
+                          { val: '10', label: '10 - October' },
+                          { val: '11', label: '11 - November' },
+                          { val: '12', label: '12 - December' },
+                        ].map(m => (
+                          <option key={m.val} value={m.val}>{m.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 max-w-md">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 pl-0.5">Quick Search / Raadi</label>
+                    <div className="relative">
+                      <Search className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 w-4 h-4 pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Raadi arday, fasal, rasiidh lambar..."
+                        value={receiptsSearch}
+                        onChange={(e) => setReceiptsSearch(e.target.value)}
+                        className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Table Ledger */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm pointer-print-none">
+                <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-50">
+                  <h3 className="font-extrabold text-slate-900 text-sm">Liiska Rasiidhada Khidmadda ee Bixiyay</h3>
+                  <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-lg">
+                    Laga helay: {filteredReceipts.length} Rasiidhada
+                  </span>
+                </div>
+
+                {filteredReceipts.length === 0 ? (
+                  <div className="p-12 text-center border border-dashed border-slate-150 rounded-2xl bg-slate-50/50">
+                    <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Ma jiraan rasiidhad u dhigma bisha ama baaristaada.</p>
+                    <p className="text-xs text-slate-400 mt-1">Fadlan iska hubi in lacag bixin la sameeyay bisha la doortay.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-slate-150">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase text-[10px]">
+                          <th className="py-3 px-4">Student / Ardayga</th>
+                          <th className="py-3 px-4">Receipt No / Lambarka</th>
+                          <th className="py-3 px-4">Date Paid / Taariikhda</th>
+                          <th className="py-3 px-4 text-right">Tuition Paid / Khidmadda</th>
+                          <th className="py-3 px-4 text-right">Bus Paid / Baska</th>
+                          <th className="py-3 px-4 text-right">Total / Isku-geyn</th>
+                          <th className="py-3 px-4 text-center">Status</th>
+                          <th className="py-3 px-4 text-center">Actions / Waxqabad</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-150">
+                        {filteredReceipts.map(rec => {
+                          const totalPaid = Number(rec.amountPaid || 0) + Number(rec.busFeePaid || 0);
+                          return (
+                            <tr key={rec.id} className="hover:bg-slate-50/50 font-semibold text-slate-700">
+                              <td className="py-3.5 px-4">
+                                <span className="block font-extrabold text-slate-900">{rec.studentName}</span>
+                                <span className="text-[10px] text-slate-400 font-medium">ID: {rec.studentId} • Fasal: {rec.className}</span>
+                              </td>
+                              <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500">
+                                {rec.receiptNo || 'Manual Direct'}
+                              </td>
+                              <td className="py-3.5 px-4 font-mono text-[11px]">
+                                {rec.paymentDate || 'No date'}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-black text-emerald-700">
+                                ${Number(rec.amountPaid || 0).toFixed(2)}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-black text-indigo-700">
+                                ${Number(rec.busFeePaid || 0).toFixed(2)}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-black text-teal-800">
+                                ${totalPaid.toFixed(2)}
+                              </td>
+                              <td className="py-3.5 px-4 text-center">
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
+                                  rec.status === 'Paid'
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-100'
+                                }`}>
+                                  {rec.status === 'Paid' ? 'Paid' : 'Partial'}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenReceiptForRecord(rec)}
+                                    className="p-1.5 bg-slate-50 hover:bg-teal-50 text-slate-500 hover:text-teal-600 rounded-lg border border-slate-200 transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-bold"
+                                    title="Eeg & Daabac rasiidka"
+                                  >
+                                    <Printer className="w-3.5 h-3.5" />
+                                    Muuq / Daabac
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* BATCH PRINT CARD (HIDDEN ON SCREEN, VISIBLE ON CLONED PRINT) */}
+              <div id="printable-all-receipts-batch" className="hidden">
+                {filteredReceipts.map((rec, idx) => {
+                  const tuitionPaid = Number(rec.amountPaid || 0);
+                  const tuitionDue = Number(rec.amountDue !== undefined ? rec.amountDue : rec.amountPaid);
+                  const busPaid = Number(rec.busFeePaid || 0);
+                  const busDue = Number(rec.busFeeDue || 0);
+                  const totalPaidSum = tuitionPaid + busPaid;
+                  const remainingDebtVal = Number(rec.debtAmount !== undefined ? rec.debtAmount : 0);
+
+                  return (
+                    <div 
+                      key={`batch-${rec.id}`} 
+                      className="print-receipt-item"
+                      style={{
+                        pageBreakAfter: idx === filteredReceipts.length - 1 ? 'avoid' : 'always',
+                        border: '2px dashed #475569',
+                        borderRadius: '12px',
+                        padding: '24px',
+                        maxWidth: '440px',
+                        margin: '15px auto',
+                        background: 'white',
+                        fontFamily: 'sans-serif'
+                      }}
+                    >
+                      <div className="text-center pb-4 border-b border-dashed border-slate-300" style={{ textAlign: 'center', borderBottom: '1px dashed #cbd5e1', paddingBottom: '12px' }}>
+                        <h2 className="text-xl font-black uppercase tracking-tight text-slate-950 font-lutfey" style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 'bold' }}>DUGSIGA SUBUC</h2>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1" style={{ margin: 0, fontSize: '9px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Rasiidka Lacag-bixinta Rasmiga ah ee Ardayga</p>
+                        <p className="text-[9px] text-slate-500 mt-0.5 font-bold" style={{ margin: '2px 0 0 0', fontSize: '8px', color: '#64748b' }}>Xafiiska Maamulka Garowe</p>
+                      </div>
+
+                      <div className="py-4 space-y-4 text-xs font-semibold" style={{ padding: '16px 0', fontSize: '11px', color: '#1e293b' }}>
+                        <div className="grid grid-cols-2 gap-y-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px', marginBottom: '16px' }}>
+                          <div>
+                            <span className="block text-[10px] text-slate-400 uppercase font-black" style={{ display: 'block', fontSize: '8px', color: '#94a3b8', textTransform: 'uppercase' }}>Tirada Rasiidka</span>
+                            <span className="text-slate-900 font-mono text-xs" style={{ fontWeight: 'bold' }}>{rec.receiptNo || 'may'}</span>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <span className="block text-[10px] text-slate-400 uppercase font-black" style={{ display: 'block', fontSize: '8px', color: '#94a3b8', textTransform: 'uppercase' }}>Taariikhda Bixinta</span>
+                            <span className="text-slate-900" style={{ fontWeight: 'bold' }}>{rec.paymentDate || 'may'}</span>
+                          </div>
+
+                          <div>
+                            <span className="block text-[10px] text-slate-400 uppercase font-black" style={{ display: 'block', fontSize: '8px', color: '#94a3b8', textTransform: 'uppercase' }}>Magaca Ardayga</span>
+                            <span className="text-slate-900 font-extrabold" style={{ fontWeight: 'bold', fontSize: '12px' }}>{rec.studentName}</span>
+                            <span className="block text-[10px] text-slate-400 font-mono" style={{ display: 'block', fontSize: '8px', color: '#94a3b8' }}>ID: {rec.studentId}</span>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <span className="block text-[10px] text-slate-400 uppercase font-black" style={{ display: 'block', fontSize: '8px', color: '#94a3b8', textTransform: 'uppercase' }}>Fasalka</span>
+                            <span className="text-slate-900 text-xs" style={{ fontWeight: 'bold' }}>{rec.className}</span>
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 mt-4" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', marginTop: '12px' }}>
+                          <div className="flex justify-between items-center pb-2 border-b border-slate-200/60" style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px', marginBottom: '6px' }}>
+                            <div>
+                              <span className="block text-[10px] text-slate-400 uppercase font-bold" style={{ display: 'block', fontSize: '8px', color: '#94a3b8', textTransform: 'uppercase' }}>Muddada Biilka</span>
+                              <span className="text-slate-900 font-bold" style={{ fontWeight: 'bold' }}>Khidmadda {rec.month}</span>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <span className="block text-[10px] text-slate-400 uppercase font-bold mb-0.5" style={{ display: 'block', fontSize: '8px', color: '#94a3b8', textTransform: 'uppercase' }}>Heerka Rasiidka</span>
+                              <span style={{
+                                fontWeight: 'bold',
+                                fontSize: '8px',
+                                textTransform: 'uppercase',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                backgroundColor: rec.status === 'Paid' ? '#dcfce7' : '#fef3c7',
+                                color: rec.status === 'Paid' ? '#166534' : '#92400e',
+                                display: 'inline-block'
+                              }}>
+                                {rec.status === 'Paid' ? 'LA BIXIYAY' : 'QEYB BAA LA BIXIYAY'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex justify-between text-xs font-semibold text-slate-600 pt-1" style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
+                            <span style={{ color: '#475569' }}>Lacagta bisha (Tuition Due):</span>
+                            <span style={{ color: '#0f172a', fontWeight: 'bold' }}>${tuitionDue.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between text-xs font-semibold text-slate-600" style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
+                            <span style={{ color: '#475569' }}>Lacagta bisha ee la bixiyay (Tuition Paid):</span>
+                            <span style={{ color: '#166534', fontWeight: 'bold' }}>${tuitionPaid.toFixed(2)}</span>
+                          </div>
+
+                          {(busDue > 0 || busPaid > 0) && (
+                            <>
+                              <div className="flex justify-between text-xs font-semibold text-slate-600 pt-1.5 border-t border-slate-200/40" style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #cbd5e1', paddingTop: '4px', margin: '4px 0' }}>
+                                <span style={{ color: '#475569' }}>Lacagta baska (Bus Due):</span>
+                                <span style={{ color: '#0f172a', fontWeight: 'bold' }}>${busDue.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between text-xs font-semibold text-slate-600" style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
+                                <span style={{ color: '#475569' }}>Lacagta baska ee la bixiyay (Bus Paid):</span>
+                                <span style={{ color: '#166534', fontWeight: 'bold' }}>${busPaid.toFixed(2)}</span>
+                              </div>
+                            </>
+                          )}
+
+                          <div className="flex justify-between text-xs font-extrabold text-slate-900 pt-1.5 border-t border-slate-300 mt-1" style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #94a3b8', paddingTop: '6px', marginTop: '6px', fontWeight: 'bold' }}>
+                            <span>Total Paid (Guud ahaan La Bixiyay):</span>
+                            <span style={{ color: '#166534' }}>${totalPaidSum.toFixed(2)}</span>
+                          </div>
+
+                          <div className="flex justify-between text-xs font-semibold text-slate-600" style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
+                            <span style={{ color: '#475569' }}>Remaining Debt (Haraaga Deynta):</span>
+                            <span style={{ color: remainingDebtVal > 0 ? '#b45309' : '#0f172a', fontWeight: 'bold' }}>
+                              ${remainingDebtVal.toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {rec.notes && (
+                          <div className="bg-amber-50/55 p-3 rounded-xl border border-amber-100/60 mt-4 text-xs" style={{ backgroundColor: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '8px', padding: '8px', marginTop: '12px' }}>
+                            <span className="block text-[9px] text-amber-800 uppercase font-black mb-1" style={{ display: 'block', fontSize: '8px', color: '#92400e', fontWeight: 'bold', textTransform: 'uppercase' }}>Faallooyinka Maamulka:</span>
+                            <p className="text-slate-800 italic font-medium leading-relaxed" style={{ margin: 0, fontSize: '10px', fontStyle: 'italic' }}>{rec.notes}</p>
+                          </div>
+                        )}
+
+                        <div className="border-t border-slate-200 pt-4 flex justify-between items-center" style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #cbd5e1', paddingTop: '12px', marginTop: '12px', alignItems: 'center' }}>
+                          <div>
+                            <span className="text-slate-500 font-semibold block text-xs" style={{ fontSize: '10px', color: '#64748b' }}>Saxiixa Khasajiga Rasmiga ah</span>
+                            <div className="w-24 h-px bg-slate-300 mt-8" style={{ width: '96px', height: '1px', backgroundColor: '#cbd5e1', marginTop: '24px' }} />
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <span className="block text-[10px] text-slate-400 uppercase font-black" style={{ display: 'block', fontSize: '8px', color: '#94a3b8', textTransform: 'uppercase' }}>Xaddiga la Qabtay (Total Collected)</span>
+                            <span className="text-xl font-extrabold text-slate-950" style={{ fontSize: '16px', fontWeight: 'bold', color: '#0f172a' }}>${totalPaidSum.toFixed(2)} USD</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-center pt-4 border-t border-dashed border-slate-300 text-[10px] text-slate-400 font-bold uppercase tracking-wider" style={{ textAlign: 'center', borderTop: '1px dashed #cbd5e1', paddingTop: '8px', fontSize: '8px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Waad ku mahadsan tahay dadaalkaaga waxbarasho
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+            </div>
+          );
+        })()}
+
         </div>
       </main>
 
@@ -12043,7 +12467,10 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         const monthBillingPayments = database.billing.filter(b => b.month === month && (b.status === 'Paid' || b.status === 'Partial'));
         
         // Find all registration and file fees from invoices for this month
-        const monthInvoices = (database.invoices || []).filter(inv => inv.date && inv.date.startsWith(month));
+        const monthInvoices = (database.invoices || []).filter(inv => {
+          const invMonth = inv.date ? inv.date.slice(0, 7) : (inv.createdAt ? inv.createdAt.slice(0, 7) : '');
+          return invMonth === month;
+        });
         
         const invoicePayments: Array<{
           invoiceNo: string;
@@ -12065,7 +12492,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
             const desc = item.description.toLowerCase();
             const isReg = desc.includes('diiwan') || desc.includes('regis');
             const isFile = desc.includes('fayl') || desc.includes('file');
-            const isTuition = desc.includes('bisha') || desc.includes('monthly') || desc.includes('tuition') || desc.includes('fee');
+            const isTuition = desc.includes('bisha') || desc.includes('bish') || desc.includes('monthly') || desc.includes('tuition') || desc.includes('fee') || desc.includes('quraan') || desc.includes('school') || desc.includes('waxbarasho');
             const isBus = desc.includes('baska') || desc.includes('bus');
             
             const itemTotal = item.quantity * item.unitPrice;
@@ -13442,9 +13869,21 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 </div>
 
                 {(() => {
-                  const history = database.billing
-                    .filter(b => b.studentId === showPayModal.id)
-                    .sort((a,b) => b.month.localeCompare(a.month));
+                  const allMonths = Array.from(new Set([
+                    ...database.billing.map(b => b.month),
+                    ...(database.invoices || [])
+                      .filter(inv => {
+                        if (inv.recipientType !== 'parent' || !inv.studentId) return false;
+                        const ids = inv.studentId.split(',').map(id => id.trim()).filter(Boolean);
+                        return ids.includes(showPayModal.id);
+                      })
+                      .map(inv => inv.date ? inv.date.slice(0, 7) : (inv.createdAt ? inv.createdAt.slice(0, 7) : ''))
+                      .filter(Boolean)
+                  ])).sort((a, b) => b.localeCompare(a));
+
+                  const history = allMonths
+                    .map(m => getBillingStatusForStudent(showPayModal, m))
+                    .filter(b => b.status === 'Paid' || b.status === 'Partial');
 
                   if (history.length === 0) {
                     return (

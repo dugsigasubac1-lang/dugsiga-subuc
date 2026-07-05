@@ -344,10 +344,12 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
 
   // Handle Delete
   const handleDeleteRecord = (id: string, transNo: string) => {
+    const record = records.find(r => r.id === id);
+    const details = record ? `for customer "${record.customerName}" ($${record.amountSent})` : `Record ${transNo}`;
     setConfirmModal({
       isOpen: true,
-      title: "Delete Transfer?",
-      message: `Are you absolutely sure you want to delete Money Transfer Record ${transNo}? This action is irreversible.`,
+      title: `Delete Transfer ${transNo}?`,
+      message: `Are you absolutely sure you want to delete Money Transfer Record ${transNo} ${details}? This action is irreversible.`,
       accentColor: 'rose',
       onConfirm: () => {
         const updatedTransfers = records.filter(r => r.id !== id);

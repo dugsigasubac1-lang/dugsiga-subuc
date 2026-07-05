@@ -1187,10 +1187,15 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
   };
 
   const handleDeleteExam = (examId: string) => {
+    const ex = (database.exams || []).find(e => e.id === examId);
+    const examDetails = ex 
+      ? `"${ex.heading}" for class "${ex.className}" on ${ex.date}` 
+      : "this exam results record";
+
     setConfirmModal({
       isOpen: true,
       title: "Delete Exam Records?",
-      message: "Are you sure you want to permanently delete this exam results record? This will remove all student score lists from catalog.",
+      message: `Are you sure you want to permanently delete the exam results record ${examDetails}? This will remove all student score lists from catalog.`,
       accentColor: 'rose',
       onConfirm: () => {
         const updatedExams = (database.exams || []).filter(ex => ex.id !== examId);

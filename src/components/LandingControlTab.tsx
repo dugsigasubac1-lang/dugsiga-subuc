@@ -276,10 +276,12 @@ Fariintaan waxaa la tirtirayaa 24 saac ka dib si loo ilaaliyo bedqabka iyo fudey
   };
 
   const handleDeleteMessage = (msgId: string) => {
+    const msg = messages.find(m => m.id === msgId);
+    const senderInfo = msg ? `from "${msg.name || msg.email || 'unknown sender'}"` : '';
     setConfirmModal({
       isOpen: true,
       title: "Delete Message Forever?",
-      message: "Are you sure you want to delete this inbox message forever?",
+      message: `Are you sure you want to delete the inbox message ${senderInfo} forever? This is irreversible.`,
       accentColor: 'rose',
       onConfirm: () => {
         const updatedMessages = messages.filter(m => m.id !== msgId);
@@ -494,10 +496,12 @@ Fariintaan waxaa la tirtirayaa 24 saac ka dib si loo ilaaliyo bedqabka iyo fudey
   };
 
   const handleDeleteCard = (cardId: string) => {
+    const card = cards.find(c => c.id === cardId);
+    const cardTitle = card ? `"${card.title}"` : "this informational card";
     setConfirmModal({
       isOpen: true,
       title: "Delete Content Card?",
-      message: "Are you sure you want to delete this informational card from public school landing page?",
+      message: `Are you sure you want to delete the informational card ${cardTitle} from public school landing page?`,
       accentColor: 'rose',
       onConfirm: () => {
         const updated = cards.filter(c => c.id !== cardId);
@@ -542,10 +546,12 @@ Fariintaan waxaa la tirtirayaa 24 saac ka dib si loo ilaaliyo bedqabka iyo fudey
   };
 
   const handleDeletePicture = (picId: string) => {
+    const pic = pictures.find(p => p.id === picId);
+    const picCaption = pic ? `"${pic.caption}"` : "this picture";
     setConfirmModal({
       isOpen: true,
       title: "Delete Gallery Image?",
-      message: "Remove this picture from the landing gallery?",
+      message: `Remove the picture ${picCaption} from the landing gallery?`,
       accentColor: 'rose',
       onConfirm: () => {
         const updated = pictures.filter(p => p.id !== picId);
@@ -590,10 +596,12 @@ Fariintaan waxaa la tirtirayaa 24 saac ka dib si loo ilaaliyo bedqabka iyo fudey
   };
 
   const handleDeleteHeroSlide = (slideId: string) => {
+    const slide = heroSlides.find(s => s.id === slideId);
+    const slideCaption = slide ? `"${slide.caption}"` : "this slide image";
     setConfirmModal({
       isOpen: true,
       title: "Ma tirtirtaa Sawirka Slideshow-ga?",
-      message: "Ma hubtaa inaad rabto inaad sawirkaan ka saarto bandhiga is-bedbeddela ee bogga hore?",
+      message: `Ma hubtaa inaad rabto inaad sawirkaan ${slideCaption} ka saarto bandhiga is-bedbeddela ee bogga hore?`,
       accentColor: 'rose',
       onConfirm: () => {
         const updated = heroSlides.filter(s => s.id !== slideId);
