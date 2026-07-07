@@ -1,5 +1,4 @@
 import React from 'react';
-import logoImg from '../assets/images/logo.png';
 
 interface LogoProps {
   className?: string;
@@ -9,9 +8,9 @@ interface LogoProps {
 export function DugsigaSubucLogo({ className = "", size }: LogoProps) {
   return (
     <img 
-      src={logoImg} 
+      src="/logo.png" 
       alt="Dugsiga Subuc Logo" 
-      className={`object-contain ${className}`}
+      className={`rounded-full object-cover bg-white border border-emerald-600/20 shadow-sm aspect-square ${className}`}
       style={size ? { width: size, height: size } : undefined}
       referrerPolicy="no-referrer"
     />
@@ -20,14 +19,13 @@ export function DugsigaSubucLogo({ className = "", size }: LogoProps) {
 
 export function DugsigaSubucFullLogo({ className = "" }: LogoProps) {
   return (
-    <div className={`flex flex-col items-center gap-2 select-none ${className}`} id="dugsiga-subuc-brand-group">
-      <DugsigaSubucLogo className="w-16 h-16" />
-      <span 
-        className="font-extrabold text-lg uppercase text-[#21543d] tracking-widest block font-sans"
-        id="dugsiga-subuc-text-full-logo"
-      >
-        DUGSIGA SUBUC
-      </span>
+    <div className={`flex flex-col items-center justify-center select-none ${className}`} id="dugsiga-subuc-brand-group">
+      <img 
+        src="/logo.png" 
+        alt="Dugsiga Subuc Full Logo" 
+        className="w-full h-auto object-contain max-h-[180px] hover:scale-[1.03] transition-transform duration-300"
+        referrerPolicy="no-referrer"
+      />
     </div>
   );
 }

@@ -514,6 +514,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   ] as const;
   
   // Dynamic State Modals
+  const [showActiveStudentsModal, setShowActiveStudentsModal] = useState<boolean>(false);
   const [showCollectedFeesBreakdownMonth, setShowCollectedFeesBreakdownMonth] = useState<string | null>(null);
   const [showBusCollectedBreakdownMonth, setShowBusCollectedBreakdownMonth] = useState<string | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState<BillingRecord | null>(null);
@@ -2625,9 +2626,12 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [invoiceSearch, setInvoiceSearch] = useState<string>('');
   const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<'all' | 'parent' | 'business'>('all');
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<'all' | 'Paid' | 'Unpaid' | 'Partial'>('all');
+  const [invoiceMonthFilter, setInvoiceMonthFilter] = useState<string>('all');
 
   // Interactive Form States
   const [invFormRecipientType, setInvFormRecipientType] = useState<'parent' | 'business'>('parent');
+  const [selectedParent, setSelectedParent] = useState<{ name: string; phone: string } | null>(null);
+  const [parentSearchTerm, setParentSearchTerm] = useState<string>('');
   const [invFormRecipientName, setInvFormRecipientName] = useState<string>('');
   const [invFormRecipientPhone, setInvFormRecipientPhone] = useState<string>('');
   const [invFormRecipientEmail, setInvFormRecipientEmail] = useState<string>('');
@@ -2647,9 +2651,59 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [invFormStatus, setInvFormStatus] = useState<'Paid' | 'Unpaid' | 'Partial'>('Unpaid');
   const [invFormAmountPaid, setInvFormAmountPaid] = useState<number>(0);
 
+  const uniqueParents = React.useMemo(() => {
+    const parentMap: { [key: string]: { name: string; phone: string; students: Student[] } } = {};
+    activeStudents.forEach(student => {
+      const pName = (student.parentName || '').trim();
+      const pPhone = (student.parentPhone || '').trim();
+      if (!pName) return;
+      const key = `${pName.toLowerCase()}|||${pPhone.toLowerCase()}`;
+      if (!parentMap[key]) {
+        parentMap[key] = {
+          name: pName,
+          phone: pPhone,
+          students: []
+        };
+      }
+      parentMap[key].students.push(student);
+    });
+    return Object.values(parentMap).sort((a, b) => a.name.localeCompare(b.name));
+  }, [activeStudents]);
+
+  const invoiceMonths = React.useMemo(() => {
+    const monthsSet = new Set<string>();
+    
+    // Add current calendar month
+    const now = new Date();
+    const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    monthsSet.add(currentMonthStr);
+    
+    // Add last month
+    const lastMonthDate = new Date();
+    lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
+    const lastMonthStr = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
+    monthsSet.add(lastMonthStr);
+    
+    // Add months from existing invoices
+    if (database.invoices) {
+      database.invoices.forEach(inv => {
+        if (inv.date) {
+          const parts = inv.date.split('-');
+          if (parts.length >= 2) {
+            monthsSet.add(`${parts[0]}-${parts[1]}`);
+          }
+        }
+      });
+    }
+    
+    return Array.from(monthsSet).sort().reverse(); // Newest first
+  }, [database.invoices]);
+
   const handleOpenCreateInvoice = () => {
     setEditingInvoice(null);
     setInvFormRecipientType('parent');
+    setSelectedParent(null);
+    setParentSearchTerm('');
     setInvFormRecipientName('');
     setInvFormRecipientPhone('');
     setInvFormRecipientEmail('');
@@ -2678,6 +2732,23 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     const ids = invoice.studentId ? invoice.studentId.split(', ').map(s => s.trim()).filter(Boolean) : [];
     setInvFormStudentIds(ids);
     setInvStudentSearchTerm('');
+    setParentSearchTerm('');
+    if (invoice.recipientType === 'parent') {
+      const firstStudent = database.students.find(s => ids.includes(s.id));
+      if (firstStudent) {
+        setSelectedParent({
+          name: firstStudent.parentName || invoice.recipientName,
+          phone: firstStudent.parentPhone || invoice.recipientPhone
+        });
+      } else {
+        setSelectedParent({
+          name: invoice.recipientName,
+          phone: invoice.recipientPhone
+        });
+      }
+    } else {
+      setSelectedParent(null);
+    }
     setInvFormDate(invoice.date);
     setInvFormDueDate(invoice.dueDate);
     setInvFormItems(invoice.items.map(item => ({
@@ -4807,6 +4878,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         {/* Brand Row */}
         <div className="flex items-center justify-between pb-6 border-b border-slate-900/60 mb-6 shrink-0">
           <div className="flex items-center gap-3">
+            <DugsigaSubucLogo className="w-10 h-10 shadow-md border-emerald-500/20" />
             <div className="flex flex-col">
               <span className="font-extrabold text-white text-base tracking-tight leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Dugsiga Subuc</span>
               <span className="text-[10px] font-medium text-emerald-400 mt-1.5 leading-none font-mono">مدرسة السبع</span>
@@ -5247,12 +5319,20 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
             {/* Core Stats Counter Deck */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               
-              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
+              <div 
+                onClick={() => setShowActiveStudentsModal(true)}
+                className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-emerald-200 transition-all active:scale-[0.99] group"
+                title="Guji si aad u aragto faahfaahinta fasallada (Click to view class breakdown)"
+              >
                 <div>
-                  <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Active Students</p>
+                  <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                    Active Students
+                    <span className="text-[10px] text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-emerald-50 px-1.5 py-0.5 rounded-md">View details 🔍</span>
+                  </p>
                   <p className="text-3xl font-extrabold text-slate-900 mt-2">{activeStudents.length}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Guji si aad u aragto fasal kasta inta dhigata</p>
                 </div>
-                <div className="p-3.5 bg-emerald-50 text-emerald-600 rounded-2xl">
+                <div className="p-3.5 bg-emerald-50 text-emerald-600 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-colors">
                   <UserCheck className="w-6 h-6" />
                 </div>
               </div>
@@ -10448,50 +10528,68 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
           )}
 
           {/* Custom Invoices View */}
-          {billingSubTab === 'custom_invoices' && (
-            <div className="space-y-6 animate-fade-in" id="custom-invoices-pane">
-              {/* Metrics Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Total Invoiced */}
-                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-5">
-                  <span className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl"><CircleDollarSign className="w-6 h-6" /></span>
-                  <div>
-                    <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Guud ahaan Invoices-ka (Total Issued)</p>
-                    <p className="text-2xl font-black text-slate-900">
-                      ${(database.invoices || []).reduce((sum, inv) => sum + inv.totalAmount, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                    <p className="text-xs text-slate-400 mt-0.5">Total Custom Invoices Issued</p>
+          {billingSubTab === 'custom_invoices' && (() => {
+            const list = database.invoices || [];
+            const filteredInvoices = list.filter(inv => {
+              const term = invoiceSearch.toLowerCase();
+              const matchSearch = 
+                inv.invoiceNo.toLowerCase().includes(term) ||
+                inv.recipientName.toLowerCase().includes(term) ||
+                inv.recipientPhone.toLowerCase().includes(term) ||
+                (inv.recipientEmail && inv.recipientEmail.toLowerCase().includes(term)) ||
+                (inv.studentName && inv.studentName.toLowerCase().includes(term));
+              
+              const matchType = invoiceTypeFilter === 'all' || inv.recipientType === invoiceTypeFilter;
+              const matchStatus = invoiceStatusFilter === 'all' || inv.status === invoiceStatusFilter;
+              const matchMonth = invoiceMonthFilter === 'all' || (inv.date && inv.date.startsWith(invoiceMonthFilter));
+
+              return matchSearch && matchType && matchStatus && matchMonth;
+            });
+
+            return (
+              <div className="space-y-6 animate-fade-in" id="custom-invoices-pane">
+                {/* Metrics Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Total Invoiced */}
+                  <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-5">
+                    <span className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl"><CircleDollarSign className="w-6 h-6" /></span>
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Guud ahaan Invoices-ka (Total Issued)</p>
+                      <p className="text-2xl font-black text-slate-900">
+                        ${filteredInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">Total Custom Invoices Issued</p>
+                    </div>
+                  </div>
+
+                  {/* Total Amount Collected */}
+                  <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-5">
+                    <span className="p-4 bg-teal-50 text-teal-600 rounded-2xl"><Check className="w-6 h-6 animate-pulse" /></span>
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Lacagta la Qabtay (Total Collected)</p>
+                      <p className="text-2xl font-black text-emerald-700">
+                        ${filteredInvoices.reduce((sum, inv) => sum + inv.amountPaid, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">Total Payments Collected</p>
+                    </div>
+                  </div>
+
+                  {/* Outstanding Balance Due */}
+                  <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-5">
+                    <span className="p-4 bg-rose-50 text-rose-600 rounded-2xl"><AlertCircle className="w-6 h-6" /></span>
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Deynta ka maqan (Total Outstanding)</p>
+                      <p className="text-2xl font-black text-rose-600">
+                        ${filteredInvoices.reduce((sum, inv) => sum + (inv.totalAmount - inv.amountPaid), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">Total Outstanding Balance Due</p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Total Amount Collected */}
-                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-5">
-                  <span className="p-4 bg-teal-50 text-teal-600 rounded-2xl"><Check className="w-6 h-6 animate-pulse" /></span>
-                  <div>
-                    <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Lacagta la Qabtay (Total Collected)</p>
-                    <p className="text-2xl font-black text-emerald-700">
-                      ${(database.invoices || []).reduce((sum, inv) => sum + inv.amountPaid, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                    <p className="text-xs text-slate-400 mt-0.5">Total Payments Collected</p>
-                  </div>
-                </div>
-
-                {/* Outstanding Balance Due */}
-                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-5">
-                  <span className="p-4 bg-rose-50 text-rose-600 rounded-2xl"><AlertCircle className="w-6 h-6" /></span>
-                  <div>
-                    <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Deynta ka maqan (Total Outstanding)</p>
-                    <p className="text-2xl font-black text-rose-600">
-                      ${(database.invoices || []).reduce((sum, inv) => sum + (inv.totalAmount - inv.amountPaid), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                    <p className="text-xs text-slate-400 mt-0.5">Total Outstanding Balance Due</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Filter and Quick Actions Header bar */}
-              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full xl:w-auto flex-1">
+                {/* Filter and Quick Actions Header bar */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 w-full xl:w-auto flex-1">
                   {/* Search Field */}
                   <div className="relative">
                     <Search className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 w-4 h-4 pointer-events-none" />
@@ -10525,6 +10623,20 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                     <option value="Paid">Heerka: Waa la bixiyay (Paid)</option>
                     <option value="Partial">Heerka: Qeyb baa la bixiyay (Partial)</option>
                     <option value="Unpaid">Heerka: Lama bixin (Unpaid)</option>
+                  </select>
+
+                  {/* Filter Month */}
+                  <select
+                    value={invoiceMonthFilter}
+                    onChange={(e) => setInvoiceMonthFilter(e.target.value)}
+                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:bg-white"
+                  >
+                    <option value="all">Muddada: Dhammaan (All Months)</option>
+                    {invoiceMonths.map(month => (
+                      <option key={month} value={month}>
+                        Muddada: {getFriendlyMonthName(month)}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -10570,23 +10682,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {(() => {
-                        const list = database.invoices || [];
-                        const filtered = list.filter(inv => {
-                          const term = invoiceSearch.toLowerCase();
-                          const matchSearch = 
-                            inv.invoiceNo.toLowerCase().includes(term) ||
-                            inv.recipientName.toLowerCase().includes(term) ||
-                            inv.recipientPhone.toLowerCase().includes(term) ||
-                            (inv.recipientEmail && inv.recipientEmail.toLowerCase().includes(term)) ||
-                            (inv.studentName && inv.studentName.toLowerCase().includes(term));
-                          
-                          const matchType = invoiceTypeFilter === 'all' || inv.recipientType === invoiceTypeFilter;
-                          const matchStatus = invoiceStatusFilter === 'all' || inv.status === invoiceStatusFilter;
-
-                          return matchSearch && matchType && matchStatus;
-                        });
-
-                        if (filtered.length === 0) {
+                        if (filteredInvoices.length === 0) {
                           return (
                             <tr>
                               <td colSpan={10} className="py-12 text-center text-xs text-slate-400 font-semibold italic">
@@ -10596,7 +10692,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                           );
                         }
 
-                        return filtered.map(invoice => {
+                        return filteredInvoices.map(invoice => {
                           const balanceDue = invoice.totalAmount - invoice.amountPaid;
                           return (
                             <tr key={invoice.id} className="hover:bg-slate-50/50 transition-colors text-xs text-slate-800">
@@ -10694,8 +10790,9 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 </div>
               </div>
 
-            </div>
-          )}
+              </div>
+            );
+          })()}
 
           </div>
         )}
@@ -12482,6 +12579,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
           total: number;
           paidAmount: number;
           date: string;
+          studentId?: string;
         }> = [];
         
         for (const inv of monthInvoices) {
@@ -12512,7 +12610,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 unitPrice: item.unitPrice,
                 total: itemTotal,
                 paidAmount: Number(itemPaid.toFixed(2)),
-                date: inv.date
+                date: inv.date,
+                studentId: inv.studentId
               });
             } else {
               invoicePayments.push({
@@ -12523,7 +12622,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 unitPrice: item.unitPrice,
                 total: itemTotal,
                 paidAmount: Number(itemPaid.toFixed(2)),
-                date: inv.date
+                date: inv.date,
+                studentId: inv.studentId
               });
             }
           }
@@ -12532,6 +12632,32 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         const totalTuitionPaid = monthBillingPayments.reduce((sum, r) => sum + r.amountPaid, 0);
         const totalRegFilesPaid = invoicePayments.reduce((sum, item) => sum + item.paidAmount, 0);
         const grandTotal = totalTuitionPaid + totalRegFilesPaid;
+
+        const getStudentClassFromId = (studentId?: string) => {
+          if (!studentId) return 'other';
+          const ids = studentId.split(',').map(id => id.trim());
+          for (const id of ids) {
+            const student = database.students.find(s => s.id === id);
+            if (student && student.className) {
+              const cls = student.className.toLowerCase();
+              if (cls.includes('higg')) return 'higgaad';
+              if (cls.includes('qur')) return 'quraan';
+            }
+          }
+          return 'other';
+        };
+
+        const tuitionHiggaad = monthBillingPayments.filter(r => r.className?.toLowerCase().includes('higg')).reduce((sum, r) => sum + r.amountPaid, 0);
+        const tuitionQuraan = monthBillingPayments.filter(r => r.className?.toLowerCase().includes('qur')).reduce((sum, r) => sum + r.amountPaid, 0);
+        const tuitionOther = monthBillingPayments.filter(r => !r.className?.toLowerCase().includes('higg') && !r.className?.toLowerCase().includes('qur')).reduce((sum, r) => sum + r.amountPaid, 0);
+
+        const invoiceHiggaad = invoicePayments.filter(item => getStudentClassFromId(item.studentId) === 'higgaad').reduce((sum, item) => sum + item.paidAmount, 0);
+        const invoiceQuraan = invoicePayments.filter(item => getStudentClassFromId(item.studentId) === 'quraan').reduce((sum, item) => sum + item.paidAmount, 0);
+        const invoiceOther = invoicePayments.filter(item => getStudentClassFromId(item.studentId) === 'other').reduce((sum, item) => sum + item.paidAmount, 0);
+
+        const totalHiggaadCollected = tuitionHiggaad + invoiceHiggaad;
+        const totalQuraanCollected = tuitionQuraan + invoiceQuraan;
+        const totalOtherCollected = tuitionOther + invoiceOther;
 
         return (
           <div 
@@ -12588,6 +12714,62 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                     <span className="block text-2xl font-black text-indigo-950">${grandTotal.toFixed(2)}</span>
                     <p className="text-[10px] text-indigo-600 mt-1 font-semibold">Matched to active dashboard sum</p>
                   </div>
+                </div>
+
+                {/* Class-wise Revenue Breakdown */}
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-emerald-600" />
+                    Lacagaha Fasalka Laga Soo Ururiyay (Revenue Breakdown by Class)
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Higgaad Class Card */}
+                    <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-xs flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-bold text-slate-700">Fasalka Higgaad / Higgaadda</span>
+                          <span className="text-sm font-black text-emerald-600">${totalHiggaadCollected.toFixed(2)}</span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-2 mb-2">
+                          <div 
+                            className="bg-emerald-500 h-2 rounded-full transition-all duration-500" 
+                            style={{ width: `${grandTotal > 0 ? (totalHiggaadCollected / grandTotal) * 100 : 0}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold pt-1 border-t border-slate-50 mt-1">
+                        <span>Tuition: ${tuitionHiggaad.toFixed(2)}</span>
+                        <span>Other Fees: ${invoiceHiggaad.toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    {/* Quraan Class Card */}
+                    <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-xs flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-bold text-slate-700">Fasalka Quraan</span>
+                          <span className="text-sm font-black text-indigo-600">${totalQuraanCollected.toFixed(2)}</span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-2 mb-2">
+                          <div 
+                            className="bg-indigo-500 h-2 rounded-full transition-all duration-500" 
+                            style={{ width: `${grandTotal > 0 ? (totalQuraanCollected / grandTotal) * 100 : 0}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold pt-1 border-t border-slate-50 mt-1">
+                        <span>Tuition: ${tuitionQuraan.toFixed(2)}</span>
+                        <span>Other Fees: ${invoiceQuraan.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {totalOtherCollected > 0 && (
+                    <div className="text-[10px] bg-amber-50 text-amber-800 p-2 rounded-lg border border-amber-100 flex items-center justify-between font-semibold">
+                      <span>Invoices with unassigned classes (Kale / Other):</span>
+                      <span className="font-bold">${totalOtherCollected.toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Section 1: Monthly Tuition Fees */}
@@ -12694,6 +12876,201 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 <button
                   type="button"
                   onClick={() => setShowCollectedFeesBreakdownMonth(null)}
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
+                >
+                  Xir (Close)
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        );
+      })()}
+
+      {/* -------------------------------------------------------------
+          MODAL: ACTIVE STUDENTS DETAILED BREAKDOWN BY CLASS
+          ------------------------------------------------------------- */}
+      {showActiveStudentsModal && (() => {
+        const activeHiggaad = activeStudents.filter(s => s.className?.toLowerCase().includes('higg'));
+        const activeQuraan = activeStudents.filter(s => s.className?.toLowerCase().includes('qur'));
+        const activeOther = activeStudents.filter(s => !s.className?.toLowerCase().includes('higg') && !s.className?.toLowerCase().includes('qur'));
+
+        return (
+          <div 
+            className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-55 animate-fade-in overflow-y-auto pointer-print-none" 
+            id="active-students-modal-bg"
+            onClick={(e) => {
+              if ((e.target as HTMLElement).id === 'active-students-modal-bg') {
+                setShowActiveStudentsModal(false);
+              }
+            }}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-3xl shadow-xl border border-slate-100 max-w-3xl w-full overflow-hidden flex flex-col max-h-[85vh]"
+            >
+              {/* Modal Header */}
+              <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                    <Users className="w-5 h-5 text-emerald-600" />
+                    Ardayda Firfircoon ee Dugsiga (Active Students Breakdown)
+                  </h3>
+                  <p className="text-xs text-slate-500 font-semibold mt-1">Total active students currently registered: {activeStudents.length}</p>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setShowActiveStudentsModal(false)}
+                  className="p-1 px-2 text-xs font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
+                >
+                  Xir (Close)
+                </button>
+              </div>
+
+              {/* Scrollable Body */}
+              <div className="p-6 overflow-y-auto space-y-6 flex-1 scrollbar-thin">
+                {/* Class Distribution Visual Summary */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100/60 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-emerald-800 uppercase font-bold block mb-1">Fasalka Higgaad / Higgaadda</span>
+                      <span className="block text-3xl font-extrabold text-emerald-900">{activeHiggaad.length} <span className="text-xs font-semibold text-emerald-700">Arday</span></span>
+                      <p className="text-[10px] text-emerald-600/80 mt-1 font-semibold">{((activeHiggaad.length / (activeStudents.length || 1)) * 100).toFixed(0)}% of active students</p>
+                    </div>
+                    <div className="p-3 bg-emerald-100/60 text-emerald-700 rounded-xl">
+                      <BookOpen className="w-6 h-6" />
+                    </div>
+                  </div>
+
+                  <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/60 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-indigo-800 uppercase font-bold block mb-1">Fasalka Quraan / Quraanka</span>
+                      <span className="block text-3xl font-extrabold text-indigo-900">{activeQuraan.length} <span className="text-xs font-semibold text-indigo-700">Arday</span></span>
+                      <p className="text-[10px] text-indigo-600/80 mt-1 font-semibold">{((activeQuraan.length / (activeStudents.length || 1)) * 100).toFixed(0)}% of active students</p>
+                    </div>
+                    <div className="p-3 bg-indigo-100/60 text-indigo-700 rounded-xl">
+                      <Users className="w-6 h-6" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 1: Higgaad Class Students */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                      1. Liiska Fasalka Higgaad ({activeHiggaad.length} Students)
+                    </h4>
+                  </div>
+
+                  {activeHiggaad.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 rounded-2xl border border-dashed border-slate-150">
+                      No active students in Higgaad class.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto rounded-2xl border border-slate-100 max-h-[250px] overflow-y-auto scrollbar-thin">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider sticky top-0 z-10">
+                            <th className="py-2 px-3">Student Name (Ardayga)</th>
+                            <th className="py-2 px-3">Student ID</th>
+                            <th className="py-2 px-3">Class (Fasalka)</th>
+                            <th className="py-2 px-3 text-right">Monthly Fee (Lacagta)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {activeHiggaad.map((s, idx) => (
+                            <tr key={s.id || idx} className="hover:bg-slate-50/40">
+                              <td className="py-2 px-3 font-bold text-slate-800">{s.name}</td>
+                              <td className="py-2 px-3 font-mono text-[10px] text-slate-500">{s.id}</td>
+                              <td className="py-2 px-3 text-slate-600 font-semibold">{s.className}</td>
+                              <td className="py-2 px-3 text-right font-black text-slate-700">${Number(s.monthlyFee || 0).toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Section 2: Quraan Class Students */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-indigo-500 inline-block" />
+                      2. Liiska Fasalka Quraan ({activeQuraan.length} Students)
+                    </h4>
+                  </div>
+
+                  {activeQuraan.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 rounded-2xl border border-dashed border-slate-150">
+                      No active students in Quraan class.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto rounded-2xl border border-slate-100 max-h-[250px] overflow-y-auto scrollbar-thin">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider sticky top-0 z-10">
+                            <th className="py-2 px-3">Student Name (Ardayga)</th>
+                            <th className="py-2 px-3">Student ID</th>
+                            <th className="py-2 px-3">Class (Fasalka)</th>
+                            <th className="py-2 px-3 text-right">Monthly Fee (Lacagta)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {activeQuraan.map((s, idx) => (
+                            <tr key={s.id || idx} className="hover:bg-slate-50/40">
+                              <td className="py-2 px-3 font-bold text-slate-800">{s.name}</td>
+                              <td className="py-2 px-3 font-mono text-[10px] text-slate-500">{s.id}</td>
+                              <td className="py-2 px-3 text-slate-600 font-semibold">{s.className}</td>
+                              <td className="py-2 px-3 text-right font-black text-slate-700">${Number(s.monthlyFee || 0).toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {activeOther.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-slate-400 inline-block" />
+                        3. Fasallada Kale / Unassigned ({activeOther.length} Students)
+                      </h4>
+                    </div>
+                    <div className="overflow-x-auto rounded-2xl border border-slate-100 max-h-[150px] overflow-y-auto scrollbar-thin">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider sticky top-0 z-10">
+                            <th className="py-2 px-3">Student Name</th>
+                            <th className="py-2 px-3">Student ID</th>
+                            <th className="py-2 px-3">Class</th>
+                            <th className="py-2 px-3 text-right">Fee</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {activeOther.map((s, idx) => (
+                            <tr key={s.id || idx} className="hover:bg-slate-50/40">
+                              <td className="py-2 px-3 font-bold text-slate-800">{s.name}</td>
+                              <td className="py-2 px-3 font-mono text-[10px] text-slate-500">{s.id}</td>
+                              <td className="py-2 px-3 text-slate-600">{s.className || 'None'}</td>
+                              <td className="py-2 px-3 text-right font-black text-slate-700">${Number(s.monthlyFee || 0).toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 pointer-print-none">
+                <button
+                  type="button"
+                  onClick={() => setShowActiveStudentsModal(false)}
                   className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
                 >
                   Xir (Close)
@@ -13081,148 +13458,179 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   </button>
                 </div>
 
-                {/* Parent Auto-Matcher Selection */}
+                {/* Parent and Child Selection */}
                 {invFormRecipientType === 'parent' && (
                   <div className="bg-slate-50/70 p-5 rounded-2xl border border-dashed border-emerald-250 space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                      <div>
-                        <label className="block text-[11px] font-black text-emerald-800 uppercase tracking-widest pl-0.5">
-                          Dooro Ardayda Waalidka u Diwaan-gashan (Select Parent's Student/s) *
-                        </label>
-                        <p className="text-[10px] text-slate-500 mt-0.5">
-                          Waalidka wuxuu yeelan karaa hal ama arday ka badan. Dooro dhamaan ardayda biilka loo soo saarayo.
-                        </p>
-                      </div>
-                      
-                      {/* Active count indicator */}
-                      <span className="text-[10px] bg-emerald-100 text-emerald-700 font-extrabold px-2 py-1 rounded-lg self-start">
-                        {invFormStudentIds.length} la doortay
-                      </span>
-                    </div>
+                    {!selectedParent ? (
+                      /* Step 1: Select Parent */
+                      <div className="space-y-3">
+                        <div className="flex flex-col">
+                          <label className="block text-[11px] font-black text-emerald-800 uppercase tracking-widest pl-0.5">
+                            Dooro Waalidka (Select Parent) *
+                          </label>
+                          <p className="text-[10px] text-slate-500 mt-0.5">
+                            Ugu horeyn, raadi oo dooro waalidka aad u qorayso biilka si aad u aragto ardayda hoos timaada.
+                          </p>
+                        </div>
 
-                    {/* Selected Student Pills display */}
-                    {invFormStudentIds.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5 p-2.5 bg-white border border-slate-150 rounded-xl">
-                        {invFormStudentIds.map(sid => {
-                          const student = database.students.find(s => s.id === sid);
-                          return student ? (
-                            <div 
-                              key={sid} 
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold rounded-lg"
+                        {/* Parent Search Input */}
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="Ku baar magaca waalidka ama telefoonkiisa..."
+                            value={parentSearchTerm}
+                            onChange={(e) => setParentSearchTerm(e.target.value)}
+                            className="w-full pl-9 pr-3.5 py-2 bg-white border border-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-xl text-xs font-semibold text-slate-800 outline-none transition-all"
+                          />
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                          {parentSearchTerm && (
+                            <button
+                              type="button"
+                              onClick={() => setParentSearchTerm('')}
+                              className="absolute right-3 top-2 text-[11px] font-bold text-slate-400 hover:text-slate-600"
                             >
-                              <span>{student.name} ({student.className})</span>
+                              Clear
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Parents List */}
+                        <div className="max-h-52 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-white scrollbar-thin">
+                          {(() => {
+                            const filteredParents = uniqueParents.filter(p => {
+                              const term = parentSearchTerm.toLowerCase().trim();
+                              if (!term) return true;
+                              return (p.name || '').toLowerCase().includes(term) ||
+                                     (p.phone || '').toLowerCase().includes(term);
+                            });
+
+                            if (filteredParents.length === 0) {
+                              return (
+                                <div className="p-4 text-center text-xs text-slate-400 font-semibold italic">
+                                  Waalid waafaqsan baadigoobkaaga lama helin. (No matching parents found)
+                                </div>
+                              );
+                            }
+
+                            return filteredParents.map(parent => (
                               <button
                                 type="button"
-                                onClick={() => setInvFormStudentIds(prev => prev.filter(id => id !== sid))}
-                                className="w-3.5 h-3.5 rounded-full hover:bg-emerald-200 text-emerald-600 flex items-center justify-center font-black cursor-pointer text-[10px]"
-                                title="Remove"
+                                key={`${parent.name}-${parent.phone}`}
+                                onClick={() => {
+                                  setSelectedParent({ name: parent.name, phone: parent.phone });
+                                  setInvFormRecipientName(parent.name);
+                                  setInvFormRecipientPhone(parent.phone);
+                                  // Auto-select all active students of this parent
+                                  const childIds = parent.students.map(s => s.id);
+                                  setInvFormStudentIds(childIds);
+                                }}
+                                className="w-full p-3 flex items-center justify-between gap-3 text-left hover:bg-emerald-50/20 transition-colors text-xs cursor-pointer"
                               >
-                                &times;
-                              </button>
-                            </div>
-                          ) : null;
-                        })}
-                      </div>
-                    ) : (
-                      <div className="text-center py-2 text-[11px] font-bold text-amber-600 bg-amber-50 rounded-xl border border-amber-100">
-                        ⚠️ Fadlan dooro ugu yaraan hal arday hoos ku qoran!
-                      </div>
-                    )}
-
-                    {/* Live Search bar inside selection container */}
-                    <div className="relative">
-                      <input
-                        type="text"
-                        placeholder="Ku baar magaca ardayga, fasalka, ama waalidka..."
-                        value={invStudentSearchTerm}
-                        onChange={(e) => setInvStudentSearchTerm(e.target.value)}
-                        className="w-full pl-9 pr-3.5 py-2 bg-white border border-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-xl text-xs font-semibold text-slate-800 outline-none transition-all"
-                      />
-                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
-                      {invStudentSearchTerm && (
-                        <button
-                          type="button"
-                          onClick={() => setInvStudentSearchTerm('')}
-                          className="absolute right-3 top-2 text-[11px] font-bold text-slate-400 hover:text-slate-600"
-                        >
-                          Clear
-                        </button>
-                      )}
-                    </div>
-
-                    {/* List of active students */}
-                    <div className="max-h-52 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-white scrollbar-thin">
-                      {(() => {
-                        const filtered = activeStudents.filter(s => {
-                          const term = invStudentSearchTerm.toLowerCase().trim();
-                          if (!term) return true;
-                          return (s.name || '').toLowerCase().includes(term) ||
-                                 (s.parentName || '').toLowerCase().includes(term) ||
-                                 (s.className || '').toLowerCase().includes(term);
-                        });
-
-                        if (filtered.length === 0) {
-                          return (
-                            <div className="p-4 text-center text-xs text-slate-400 font-semibold italic">
-                              Arday dhoos ku qoran laguma helin baadigaas. (No matching active students)
-                            </div>
-                          );
-                        }
-
-                        return filtered.map(student => {
-                          const isSelected = invFormStudentIds.includes(student.id);
-                          return (
-                            <div 
-                              key={student.id} 
-                              className={`p-2.5 flex items-center justify-between gap-3 text-xs transition-colors hover:bg-slate-50 ${
-                                isSelected ? 'bg-emerald-50/20' : ''
-                              }`}
-                            >
-                              <label className="flex items-center gap-2.5 cursor-pointer flex-1 select-none">
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={() => {
-                                    if (isSelected) {
-                                      setInvFormStudentIds(prev => prev.filter(id => id !== student.id));
-                                    } else {
-                                      setInvFormStudentIds(prev => [...prev, student.id]);
-                                      // If parent info isn't set, auto fill it or help user
-                                      if (!invFormRecipientName) {
-                                        setInvFormRecipientName(student.parentName || '');
-                                      }
-                                      if (!invFormRecipientPhone) {
-                                        setInvFormRecipientPhone(student.parentPhone || '');
-                                      }
-                                    }
-                                  }}
-                                  className="w-3.5 h-3.5 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer"
-                                />
                                 <div>
-                                  <span className="font-extrabold text-slate-900 block">{student.name}</span>
+                                  <span className="font-extrabold text-slate-900 block">{parent.name}</span>
                                   <span className="text-[10px] text-slate-500 font-bold">
-                                    Fasalka: {student.className} | Waalidka: {student.parentName || 'ma jiro'}
+                                    Telefoon: {parent.phone || 'ma jiro'}
                                   </span>
                                 </div>
-                              </label>
-
-                              {/* Quick Auto-fill button */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setInvFormRecipientName(student.parentName || '');
-                                  setInvFormRecipientPhone(student.parentPhone || '');
-                                }}
-                                className="px-2 py-1 bg-slate-100 hover:bg-emerald-100 border border-slate-200 hover:border-emerald-250 text-[10px] font-bold rounded-lg text-slate-600 hover:text-emerald-700 transition-all shrink-0 cursor-pointer"
-                                title="Auto-fill with parent details"
-                              >
-                                🔗 Copy Parent Info
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-1 rounded-lg">
+                                    {parent.students.length} Arday
+                                  </span>
+                                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                                </div>
                               </button>
-                            </div>
-                          );
-                        });
-                      })()}
-                    </div>
+                            ));
+                          })()}
+                        </div>
+                      </div>
+                    ) : (
+                      /* Step 2: Show Selected Parent and their Children */
+                      <div className="space-y-4">
+                        {/* Selected Parent Card */}
+                        <div className="p-3.5 bg-emerald-600/10 border border-emerald-500/20 rounded-2xl flex items-center justify-between gap-4">
+                          <div>
+                            <span className="text-[10px] font-black text-emerald-800 uppercase tracking-widest block leading-none mb-1">Waalidka la doortay (Selected Parent)</span>
+                            <span className="font-extrabold text-slate-900 text-sm block">{selectedParent.name}</span>
+                            <span className="text-xs text-slate-600 font-semibold">Telefoonka: {selectedParent.phone}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedParent(null);
+                              setInvFormRecipientName('');
+                              setInvFormRecipientPhone('');
+                              setInvFormStudentIds([]);
+                              setParentSearchTerm('');
+                            }}
+                            className="px-3 py-1.5 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-200 text-[10px] font-black uppercase rounded-lg text-rose-600 transition-colors cursor-pointer"
+                          >
+                            Bedel Waalidka (Change Parent)
+                          </button>
+                        </div>
+
+                        {/* Children list of selected parent */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="block text-[11px] font-black text-emerald-800 uppercase tracking-widest pl-0.5">
+                              Dooro Ardayda ku jirta Biilkan (Select Students for Invoice) *
+                            </label>
+                            <span className="text-[10px] bg-emerald-100 text-emerald-700 font-extrabold px-2 py-0.5 rounded-lg">
+                              {invFormStudentIds.length} la doortay
+                            </span>
+                          </div>
+
+                          <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 bg-white overflow-hidden">
+                            {(() => {
+                              // Find all active students of selected parent (by name and phone)
+                              const parentStudents = activeStudents.filter(s => 
+                                (s.parentName || '').trim().toLowerCase() === selectedParent.name.trim().toLowerCase()
+                              );
+
+                              if (parentStudents.length === 0) {
+                                return (
+                                  <div className="p-4 text-center text-xs text-slate-400 font-semibold italic">
+                                    Ma jiraan arday firfircoon oo waalidkan u diwaan-gashan.
+                                  </div>
+                                );
+                              }
+
+                              return parentStudents.map(student => {
+                                const isSelected = invFormStudentIds.includes(student.id);
+                                return (
+                                  <div 
+                                    key={student.id} 
+                                    className={`p-3 flex items-center justify-between gap-3 text-xs transition-colors hover:bg-slate-50 ${
+                                      isSelected ? 'bg-emerald-50/20' : ''
+                                    }`}
+                                  >
+                                    <label className="flex items-center gap-3 cursor-pointer flex-1 select-none">
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => {
+                                          if (isSelected) {
+                                            setInvFormStudentIds(prev => prev.filter(id => id !== student.id));
+                                          } else {
+                                            setInvFormStudentIds(prev => [...prev, student.id]);
+                                          }
+                                        }}
+                                        className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer"
+                                      />
+                                      <div>
+                                        <span className="font-extrabold text-slate-900 block">{student.name}</span>
+                                        <span className="text-[10px] text-slate-500 font-bold">
+                                          Fasalka: {student.className} | Lacagta bishii: ${student.monthlyFee}
+                                        </span>
+                                      </div>
+                                    </label>
+                                  </div>
+                                );
+                              });
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 

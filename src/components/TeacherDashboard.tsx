@@ -1422,6 +1422,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
         {/* Brand Header */}
         <div className="flex items-center justify-between pb-6 border-b border-slate-800/80 mb-6 shrink-0">
           <div className="flex items-center gap-3">
+            <DugsigaSubucLogo className="w-10 h-10 shadow-md border-emerald-500/20" />
             <div className="flex flex-col">
               <span className="font-extrabold text-white text-base tracking-tight leading-none font-sans" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Dugsiga Subuc</span>
               <span className="text-[10px] font-medium text-emerald-400 mt-1.5 leading-none font-mono">مدرسة السبع</span>
