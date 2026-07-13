@@ -394,7 +394,11 @@ async function startServer() {
 
   try {
     let firebaseConfig: any = null;
-    if (process.env.FIREBASE_API_KEY && process.env.FIREBASE_PROJECT_ID) {
+    if (fs.existsSync(CONFIG_FILE)) {
+      const configContent = fs.readFileSync(CONFIG_FILE, 'utf-8');
+      firebaseConfig = JSON.parse(configContent);
+      console.log('Firebase configured using firebase-applet-config.json file.');
+    } else if (process.env.FIREBASE_API_KEY && process.env.FIREBASE_PROJECT_ID) {
       firebaseConfig = {
         apiKey: process.env.FIREBASE_API_KEY,
         authDomain: process.env.FIREBASE_AUTH_DOMAIN || `${process.env.FIREBASE_PROJECT_ID}.firebaseapp.com`,
@@ -412,10 +416,6 @@ async function startServer() {
       } catch (e: any) {
         console.error('Failed to parse FIREBASE_CONFIG environment variable:', e.message || e);
       }
-    } else if (fs.existsSync(CONFIG_FILE)) {
-      const configContent = fs.readFileSync(CONFIG_FILE, 'utf-8');
-      firebaseConfig = JSON.parse(configContent);
-      console.log('Firebase configured using firebase-applet-config.json file.');
     }
 
     if (firebaseConfig) {
