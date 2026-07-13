@@ -386,6 +386,12 @@ async function startServer() {
   let stateDocRef: any = null;
   let currentDatabaseState: any = null;
 
+  let resolveFirstSnapshot: () => void = () => {};
+  const firstSnapshotPromise = new Promise<void>((resolve) => {
+    resolveFirstSnapshot = resolve;
+  });
+  let isSnapshotLoaded = false;
+
   try {
     let firebaseConfig: any = null;
     if (process.env.FIREBASE_API_KEY && process.env.FIREBASE_PROJECT_ID) {
@@ -422,60 +428,73 @@ async function startServer() {
 
       // Start real-time Firestore database synchronization
       onSnapshot(stateDocRef, async (docSnap) => {
-        if (docSnap.exists()) {
-          let remoteState = (docSnap.data() as any)?.state;
-          if (remoteState && typeof remoteState === 'object') {
-            remoteState = sanitizeDatabaseState(remoteState);
-            let mergedState = { ...remoteState };
-            let changed = false;
+        try {
+          if (docSnap.exists()) {
+            let remoteState = (docSnap.data() as any)?.state;
+            if (remoteState && typeof remoteState === 'object') {
+              remoteState = sanitizeDatabaseState(remoteState);
+              let mergedState = { ...remoteState };
+              let changed = false;
 
-            // Check if we have local seeds in database.json that need to be merged
-            if (fs.existsSync(DB_FILE)) {
-              try {
-                const localContent = fs.readFileSync(DB_FILE, 'utf-8');
-                let localState = JSON.parse(localContent);
-                localState = sanitizeDatabaseState(localState);
-                if (localState && localState.moneyTransfers && Array.isArray(localState.moneyTransfers)) {
-                  if (!mergedState.moneyTransfers) {
-                    mergedState.moneyTransfers = [];
-                  }
-                  const remoteIds = new Set(mergedState.moneyTransfers.map((m: any) => m.id));
-                  const updatedTransfers = [...mergedState.moneyTransfers];
-                  for (const item of localState.moneyTransfers) {
-                    if (item && item.id && !remoteIds.has(item.id)) {
-                      updatedTransfers.push(item);
-                      remoteIds.add(item.id);
-                      changed = true;
-                      console.log(`[Server Sync] Merging missing money transfer record: ${item.id}`);
+              // Check if we have local seeds in database.json that need to be merged
+              if (fs.existsSync(DB_FILE)) {
+                try {
+                  const localContent = fs.readFileSync(DB_FILE, 'utf-8');
+                  let localState = JSON.parse(localContent);
+                  localState = sanitizeDatabaseState(localState);
+                  if (localState && localState.moneyTransfers && Array.isArray(localState.moneyTransfers)) {
+                    if (!mergedState.moneyTransfers) {
+                      mergedState.moneyTransfers = [];
+                    }
+                    const remoteIds = new Set(mergedState.moneyTransfers.map((m: any) => m.id));
+                    const updatedTransfers = [...mergedState.moneyTransfers];
+                    for (const item of localState.moneyTransfers) {
+                      if (item && item.id && !remoteIds.has(item.id)) {
+                        updatedTransfers.push(item);
+                        remoteIds.add(item.id);
+                        changed = true;
+                        console.log(`[Server Sync] Merging missing money transfer record: ${item.id}`);
+                      }
+                    }
+                    if (changed) {
+                      mergedState.moneyTransfers = updatedTransfers;
                     }
                   }
-                  if (changed) {
-                    mergedState.moneyTransfers = updatedTransfers;
-                  }
+                } catch (parseErr) {
+                  console.error('[Server Sync] Fail parsing database.json for merge:', parseErr);
                 }
-              } catch (parseErr) {
-                console.error('[Server Sync] Fail parsing database.json for merge:', parseErr);
               }
-            }
 
-            if (changed) {
-              currentDatabaseState = mergedState;
-              fs.writeFileSync(DB_FILE, JSON.stringify(mergedState, null, 2), 'utf-8');
-              try {
-                await setDoc(stateDocRef, { state: mergedState });
-                console.log('[Server Sync] Successfully wrote merged database state to Firestore.');
-              } catch (writeErr) {
-                console.error('[Server Sync] Fail writing merged state to Firestore:', writeErr);
+              if (changed) {
+                currentDatabaseState = mergedState;
+                fs.writeFileSync(DB_FILE, JSON.stringify(mergedState, null, 2), 'utf-8');
+                try {
+                  await setDoc(stateDocRef, { state: mergedState });
+                  console.log('[Server Sync] Successfully wrote merged database state to Firestore.');
+                } catch (writeErr) {
+                  console.error('[Server Sync] Fail writing merged state to Firestore:', writeErr);
+                }
+              } else {
+                currentDatabaseState = remoteState;
+                fs.writeFileSync(DB_FILE, JSON.stringify(remoteState, null, 2), 'utf-8');
+                console.log('Database state synchronized in real-time from Firestore cloud.');
               }
-            } else {
-              currentDatabaseState = remoteState;
-              fs.writeFileSync(DB_FILE, JSON.stringify(remoteState, null, 2), 'utf-8');
-              console.log('Database state synchronized in real-time from Firestore cloud.');
             }
+          }
+        } catch (syncErr) {
+          console.error('[Server Sync] Error resolving sync snapshot:', syncErr);
+        } finally {
+          if (!isSnapshotLoaded) {
+            isSnapshotLoaded = true;
+            resolveFirstSnapshot();
           }
         }
       }, (err) => {
         console.error('Error in Firestore real-time listener:', err);
+        if (!isSnapshotLoaded) {
+          isSnapshotLoaded = true;
+          resolveFirstSnapshot();
+        }
       });
     } else {
       console.warn('Firebase configuration (JSON file or environment variables) not found. Falling back to simple file-based storage.');
@@ -622,6 +641,15 @@ async function startServer() {
   // API Route: Get Database State
   app.get('/api/database', async (req, res) => {
     try {
+      // Wait for the Firestore snapshot listener to have completed its first fetch attempt
+      if (stateDocRef && !isSnapshotLoaded) {
+        console.log('[Server API] Waiting for Firestore snapshot initialization...');
+        await Promise.race([
+          firstSnapshotPromise,
+          new Promise(resolve => setTimeout(resolve, 3000)) // 3-second safeguard timeout
+        ]);
+      }
+
       // 1. Primary path: Serve from hot in-memory synced state (kept up-to-date in real-time by onSnapshot)
       // This is extremely fast (1-2ms), respects Firebase Quotas, and avoids slow blocking Firestore getDoc calls on every client poll.
       if (currentDatabaseState) {
@@ -654,13 +682,25 @@ async function startServer() {
         dbState = sanitizeDatabaseState(dbState);
         currentDatabaseState = dbState;
         
-        // Seed to Firestore to auto-initialize the cloud db
+        // Seed to Firestore to auto-initialize the cloud db ONLY if stateDocRef is available AND we are sure Firestore has no existing state doc
         if (stateDocRef && db) {
           try {
-            await setDoc(stateDocRef, { state: dbState });
-            console.log('Seeded Cloud Firestore with initial local dataset.');
+            // Re-verify if Firestore doc exists before seeding to prevent overwriting existing remote records
+            const checkSnap = await getDoc(stateDocRef);
+            if (!checkSnap.exists()) {
+              await setDoc(stateDocRef, { state: dbState });
+              console.log('Seeded Cloud Firestore with initial local dataset (since remote doc was non-existent).');
+            } else {
+              const remoteState = (checkSnap.data() as any)?.state;
+              if (remoteState) {
+                currentDatabaseState = remoteState;
+                fs.writeFileSync(DB_FILE, JSON.stringify(remoteState, null, 2), 'utf-8');
+                console.log('Successfully recovered remote Firestore dataset on startup fallback check.');
+                return res.json({ initialized: true, data: remoteState });
+              }
+            }
           } catch (seedErr) {
-            console.error('Failed to seed local database to Firestore:', seedErr);
+            console.error('Failed to safely check/seed local database to Firestore:', seedErr);
           }
         }
         return res.json({ initialized: true, data: dbState });

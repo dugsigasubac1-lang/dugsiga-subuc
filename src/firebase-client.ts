@@ -3,13 +3,13 @@ import { initializeFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/f
 import { DatabaseState } from './types';
 
 const firebaseConfig = {
-  projectId: "amplified-watch-0nzsc",
-  appId: "1:99307980290:web:5d196cf5895badaba1c91b",
-  apiKey: "AIzaSyAXPwLDOK00wQdzAvjDTtzbnk_sUHug6J8",
-  authDomain: "amplified-watch-0nzsc.firebaseapp.com",
-  firestoreDatabaseId: "ai-studio-4ff514b8-ec83-4143-b156-7acce5ac27d5",
-  storageBucket: "amplified-watch-0nzsc.firebasestorage.app",
-  messagingSenderId: "99307980290"
+  projectId: "dugsiga-subuc-291ad",
+  appId: "1:910340654988:web:0b4ab67421e7f985b878a9",
+  apiKey: "AIzaSyCQ7WhL8DXyIqNt3FZgAutpq7FB6ySi6jc",
+  authDomain: "dugsiga-subuc-291ad.firebaseapp.com",
+  firestoreDatabaseId: "(default)",
+  storageBucket: "dugsiga-subuc-291ad.firebasestorage.app",
+  messagingSenderId: "910340654988"
 };
 
 let app: any = null;

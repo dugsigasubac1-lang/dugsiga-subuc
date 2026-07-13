@@ -576,6 +576,12 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [selectedWeeklyExamIds, setSelectedWeeklyExamIds] = useState<string[]>([]);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
 
+  // Cache Recovery & CSV Importer states
+  const [foundCacheBackups, setFoundCacheBackups] = useState<Array<{ key: string, origin: 'localStorage' | 'sessionStorage', studentCount: number, timestamp: string, state: DatabaseState }>>([]);
+  const [hasScannedCache, setHasScannedCache] = useState(false);
+  const [csvPreviewStudents, setCsvPreviewStudents] = useState<Array<any>>([]);
+  const [csvError, setCsvError] = useState<string>('');
+
   // Payment Collector states
   const [showPayModal, setShowPayModal] = useState<Student | null>(null);
   const [payAmountDue, setPayAmountDue] = useState<number>(35);
@@ -4739,18 +4745,259 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       fileReader.onload = (event) => {
         try {
           const parsed = JSON.parse(event.target?.result as string);
-          if (parsed.students && parsed.teachers && parsed.progress && parsed.billing) {
-            onSaveDatabase(parsed);
-            alert("Database synchronized successfully! All records, progress entries, and billing logs are fully restored.");
+          if (parsed.students || parsed.teachers || parsed.classes) {
+            const restoredDb = {
+              classes: parsed.classes || database.classes || [],
+              progress: parsed.progress || database.progress || [],
+              teacherAttendance: parsed.teacherAttendance || database.teacherAttendance || [],
+              submissions: parsed.submissions || database.submissions || [],
+              invoices: parsed.invoices || database.invoices || [],
+              moneyTransfers: parsed.moneyTransfers || database.moneyTransfers || [],
+              billing: parsed.billing || database.billing || [],
+              exams: parsed.exams || database.exams || [],
+              teachers: parsed.teachers || database.teachers || [],
+              schoolLocation: parsed.schoolLocation || database.schoolLocation || null,
+              landingPageSettings: parsed.landingPageSettings || database.landingPageSettings || {},
+              contactMessages: parsed.contactMessages || database.contactMessages || [],
+              students: parsed.students || database.students || [],
+              notifications: parsed.notifications || database.notifications || []
+            };
+            onSaveDatabase(restoredDb);
+            alert("Database restored and synchronized successfully! Missing tables were merged with existing records.");
             window.location.reload();
           } else {
-            alert("Verification failed. The uploaded file is missing critical collection tables.");
+            alert("Verification failed. The uploaded file does not contain student, teacher, or class tables.");
           }
         } catch (error) {
           alert("Error parsing JSON backup file. Ensure the document is uncorrupted.");
         }
       };
     }
+  };
+
+  // Scan all localStorage and sessionStorage for any hidden/old backups
+  const handleScanBrowserCache = () => {
+    const backups: any[] = [];
+    const keysToTry = ['banuu_jalaal_db', 'dugsiga_subuc_db', 'dugsi_db', 'database', 'state'];
+    
+    // Scan localStorage
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key) continue;
+        try {
+          const item = localStorage.getItem(key);
+          if (item && item.startsWith('{')) {
+            const parsed = JSON.parse(item);
+            if (parsed && (parsed.students || parsed.teachers)) {
+              backups.push({
+                key,
+                origin: 'localStorage',
+                studentCount: (parsed.students || []).length,
+                timestamp: parsed.lastUpdated || new Date().toLocaleString(),
+                state: parsed
+              });
+            }
+          }
+        } catch (e) {}
+      }
+    } catch (e) {}
+
+    // Scan sessionStorage
+    try {
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (!key) continue;
+        try {
+          const item = sessionStorage.getItem(key);
+          if (item && item.startsWith('{')) {
+            const parsed = JSON.parse(item);
+            if (parsed && (parsed.students || parsed.teachers)) {
+              backups.push({
+                key,
+                origin: 'sessionStorage',
+                studentCount: (parsed.students || []).length,
+                timestamp: new Date().toLocaleString(),
+                state: parsed
+              });
+            }
+          }
+        } catch (e) {}
+      }
+    } catch (e) {}
+
+    setFoundCacheBackups(backups);
+    setHasScannedCache(true);
+    if (backups.length > 0) {
+      setFeedbackMsg(`Scanned successfully! Found ${backups.length} browser cache backups!`);
+    } else {
+      setFeedbackMsg(`Scan completed. No older caches found in this browser instance.`);
+    }
+    setTimeout(() => setFeedbackMsg(''), 5000);
+  };
+
+  const handleRestoreCacheBackup = (backupState: DatabaseState) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Restore Selected Browser Cache?",
+      message: `Are you sure you want to restore this browser cache backup with ${backupState.students?.length || 0} students? This will overwrite the current live database.`,
+      accentColor: 'indigo',
+      onConfirm: () => {
+        onSaveDatabase(backupState);
+        alert("Database successfully restored from browser cache!");
+        window.location.reload();
+      }
+    });
+  };
+
+  // Generate and download a CSV template for batch importing students
+  const handleDownloadCsvTemplate = () => {
+    const headers = "Name,Parent Name,Parent Phone,Class Name,Monthly Fee,Bus Fee,Age,Session,Active\n";
+    const row1 = "Ahmed Ali,Ali Ahmed,615123456,Al-Baqarah Memorization,35,10,12,Both,true\n";
+    const row2 = "Muno Omar,Omar Farah,615789123,Juz Amma Preparatory,35,0,9,Morning,true\n";
+    const row3 = "Farah Yusuf,Yusuf Ahmed,615999888,Advanced Quran Tajweed,35,15,11,Afternoon,true\n";
+    const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(headers + row1 + row2 + row3);
+    
+    const link = document.createElement("a");
+    link.setAttribute("href", csvContent);
+    link.setAttribute("download", "dugsiga_subuc_students_import_template.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    setFeedbackMsg("CSV Import Template downloaded successfully!");
+    setTimeout(() => setFeedbackMsg(''), 4000);
+  };
+
+  // Parse CSV file for student batch imports
+  const handleCsvImportChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCsvError('');
+    setCsvPreviewStudents([]);
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        if (!text) {
+          setCsvError("File content is empty.");
+          return;
+        }
+
+        const lines = text.split(/\r?\n/);
+        if (lines.length < 2) {
+          setCsvError("CSV must have a header row and at least one student row.");
+          return;
+        }
+
+        // Parse student rows
+        const previewList: any[] = [];
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+
+          // Simple CSV line parser handling commas
+          const values = line.split(",").map(v => v.trim());
+          if (values.length < 3) continue;
+
+          const studentObj: any = {
+            name: values[0] || "",
+            parentName: values[1] || "Somali Parent",
+            parentPhone: values[2] || "615000000",
+            className: values[3] || "Al-Baqarah Memorization",
+            monthlyFee: isNaN(Number(values[4])) ? 35 : Number(values[4]),
+            busFee: isNaN(Number(values[5])) ? 0 : Number(values[5]),
+            age: values[6] ? (isNaN(Number(values[6])) ? undefined : Number(values[6])) : undefined,
+            session: values[7] || "Both",
+            active: values[8] ? (values[8].toLowerCase() === 'true' || values[8] === '1') : true
+          };
+
+          if (!studentObj.name) {
+            setCsvError(`Row ${i + 1} is missing the student Name.`);
+            return;
+          }
+
+          previewList.push(studentObj);
+        }
+
+        if (previewList.length === 0) {
+          setCsvError("No valid student rows found in CSV.");
+        } else {
+          setCsvPreviewStudents(previewList);
+        }
+      } catch (err) {
+        setCsvError("Failed to parse CSV file. Ensure it is formatted correctly as a comma-separated file.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // Perform bulk student import
+  const handleBulkImportStudents = () => {
+    if (csvPreviewStudents.length === 0) return;
+
+    // Determine highest current ID
+    const currentMaxIdNum = database.students.reduce((max, s) => {
+      const digits = (s.id || "").replace(/^\D+/g, "");
+      const parsed = parseInt(digits, 10);
+      return !isNaN(parsed) && parsed > max ? parsed : max;
+    }, 0);
+
+    let nextIdNum = currentMaxIdNum + 1;
+    const newStudentsList: Student[] = [];
+
+    for (const item of csvPreviewStudents) {
+      const nextId = `DS${String(nextIdNum).padStart(3, "0")}`;
+      // Map teacherId based on class name or default to empty string if not found
+      const assignedTeacher = database.teachers.find(
+        (t) => t.classAssigned === item.className || t.className === item.className
+      );
+      const teacherId = assignedTeacher ? assignedTeacher.id : "";
+
+      newStudentsList.push({
+        id: nextId,
+        name: item.name,
+        parentName: item.parentName || "Somali Parent",
+        parentPhone: item.parentPhone || "615000000",
+        className: item.className || "Al-Baqarah Memorization",
+        teacherId: teacherId,
+        monthlyFee: Number(item.monthlyFee ?? 35),
+        busFee: Number(item.busFee ?? 0),
+        registrationDate: new Date().toISOString().split("T")[0],
+        active: item.active !== false,
+        session: item.session || "Both",
+        age: item.age
+      });
+      nextIdNum++;
+    }
+
+    const updatedStudents = [...database.students, ...newStudentsList];
+
+    // Create a batch notification
+    const batchNotification: AppNotification = {
+      id: `noti-${Date.now()}`,
+      type: "student",
+      senderId: "admin",
+      senderName: "Admin",
+      senderRole: "admin",
+      message: `Admin imported ${newStudentsList.length} students in bulk via CSV.`,
+      timestamp: new Date().toISOString(),
+      readBy: ["admin"]
+    };
+
+    const updatedNotifs = [batchNotification, ...(database.notifications || [])].slice(0, 100);
+
+    onSaveDatabase({
+      ...database,
+      students: updatedStudents,
+      notifications: updatedNotifs
+    });
+
+    setFeedbackMsg(`Bulk Imported ${newStudentsList.length} students successfully into the database!`);
+    setCsvPreviewStudents([]);
+    setTimeout(() => setFeedbackMsg(""), 5000);
+    alert(`Successfully imported ${newStudentsList.length} students into the database!`);
   };
 
   const sidebarSections = [
@@ -10894,6 +11141,138 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
               </div>
 
             </div>
+
+            {/* --- DATA RECOVERY & CSV IMPORT SYSTEMS --- */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8 border-t border-slate-100 pt-8">
+              
+              {/* Browser Cache Scan module */}
+              <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-indigo-500 to-purple-500" />
+                <span className="p-3 bg-indigo-50 text-indigo-700 rounded-2xl inline-flex mb-5"><RotateCcw className="w-6 h-6" /></span>
+                <h3 className="font-extrabold text-slate-930 text-xl tracking-tight">Browser Cache Recovery Scanner</h3>
+                <p className="text-slate-500 text-sm mt-3 leading-relaxed">
+                  If your students were deleted due to a cloud database reset, they might still reside inside your web browser's offline local storage cache. Use this tool to scan your browser.
+                </p>
+
+                <div className="pt-6">
+                  <button
+                    type="button"
+                    onClick={handleScanBrowserCache}
+                    className="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-indigo-600/10"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Scan Browser Cache for Lost Data
+                  </button>
+                </div>
+
+                {hasScannedCache && (
+                  <div className="mt-6 space-y-4">
+                    <h4 className="font-bold text-slate-900 text-xs uppercase">Scan Results:</h4>
+                    {foundCacheBackups.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic">No older backups found in this browser's local storage.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {foundCacheBackups.map((b, idx) => (
+                          <div key={idx} className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between">
+                            <div>
+                              <span className="font-bold text-slate-800 text-xs block">{b.key} ({b.origin})</span>
+                              <span className="text-[10px] text-slate-400 block">Found: {b.studentCount} Students | Updated: {b.timestamp}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRestoreCacheBackup(b.state)}
+                              className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-[10px] font-bold rounded-lg cursor-pointer"
+                            >
+                              Restore
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* CSV Importer module */}
+              <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-emerald-500 to-teal-500" />
+                <span className="p-3 bg-emerald-50 text-emerald-700 rounded-2xl inline-flex mb-5"><FileSpreadsheet className="w-6 h-6" /></span>
+                <h3 className="font-extrabold text-slate-930 text-xl tracking-tight">Somali/English CSV Batch Importer</h3>
+                <p className="text-slate-500 text-sm mt-3 leading-relaxed">
+                  Easily batch import 31+ students at once from Excel or any spreadsheet list! Download the template, populate it, and upload it below.
+                </p>
+
+                <div className="pt-6 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={handleDownloadCsvTemplate}
+                    className="flex-1 py-4 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] uppercase tracking-wider rounded-2xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Download Template CSV
+                  </button>
+                  
+                  <div className="flex-1 relative">
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleCsvImportChange}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                    <div className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] uppercase tracking-wider rounded-2xl flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                      <UploadCloud className="w-3.5 h-3.5" />
+                      Upload Filled CSV
+                    </div>
+                  </div>
+                </div>
+
+                {csvError && (
+                  <p className="text-xs text-rose-500 font-bold mt-4 flex items-center gap-1"><AlertCircle className="w-4 h-4" />{csvError}</p>
+                )}
+
+                {csvPreviewStudents.length > 0 && (
+                  <div className="mt-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-slate-900 text-xs uppercase">Preview {csvPreviewStudents.length} Students:</h4>
+                      <button
+                        type="button"
+                        onClick={handleBulkImportStudents}
+                        className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg cursor-pointer"
+                      >
+                        Import Now
+                      </button>
+                    </div>
+                    <div className="overflow-x-auto max-h-48 border border-slate-100 rounded-xl">
+                      <table className="min-w-full divide-y divide-slate-100 text-left text-xs">
+                        <thead className="bg-slate-50">
+                          <tr>
+                            <th className="p-2 font-bold text-slate-600">Name</th>
+                            <th className="p-2 font-bold text-slate-600">Parent</th>
+                            <th className="p-2 font-bold text-slate-600">Phone</th>
+                            <th className="p-2 font-bold text-slate-600">Class</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {csvPreviewStudents.slice(0, 10).map((st, i) => (
+                            <tr key={i} className="hover:bg-slate-50">
+                              <td className="p-2 text-slate-800 font-semibold">{st.name}</td>
+                              <td className="p-2 text-slate-500">{st.parentName}</td>
+                              <td className="p-2 text-slate-500">{st.parentPhone}</td>
+                              <td className="p-2 text-slate-400">{st.className}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {csvPreviewStudents.length > 10 && (
+                        <p className="text-[10px] text-slate-400 italic p-2 text-center border-t border-slate-50">And {csvPreviewStudents.length - 10} more rows...</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+            </div>
+
           </div>
         )}
 
