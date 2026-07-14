@@ -21,7 +21,6 @@ WORKDIR /app
 
 # Set production environment
 ENV NODE_ENV=production
-ENV PORT=3000
 
 # Copy package files to install production dependencies
 COPY package*.json ./
@@ -38,8 +37,8 @@ COPY --from=builder /app/firebase-applet-config.json* ./
 # Create uploads folder for local filesystem fallback
 RUN mkdir -p /app/uploads
 
-# Expose port 3000 (used by Express server)
-EXPOSE 3000
+# Expose port 8080 (used by Express server)
+EXPOSE 8080
 
 # Start the application
 CMD ["npm", "start"]

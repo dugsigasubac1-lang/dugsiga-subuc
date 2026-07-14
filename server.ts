@@ -807,8 +807,13 @@ async function startServer() {
     }
   });
 
-  // Vite Middleware for Asset Serving & Hot Realloading in Dev
-  if (process.env.NODE_ENV !== 'production') {
+  // Treat as production mode if NODE_ENV is 'production', OR if running from the compiled 'dist/server.cjs' bundle, OR if source files are missing
+  const isProdMode = process.env.NODE_ENV === 'production' || 
+                      (typeof __filename !== 'undefined' && (__filename.includes('dist') || __filename.endsWith('.cjs'))) ||
+                      !fs.existsSync(path.join(process.cwd(), 'server.ts'));
+
+  // Vite Middleware for Asset Serving & Hot Reloading in Dev
+  if (!isProdMode) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
