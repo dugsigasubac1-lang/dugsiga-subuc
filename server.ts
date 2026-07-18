@@ -794,49 +794,55 @@ async function startServer() {
               remoteState = sanitizeDatabaseState(remoteState);
               currentDatabaseState = remoteState;
               fs.writeFileSync(DB_FILE, JSON.stringify(remoteState, null, 2), 'utf-8');
+              console.log('[Server API] Successfully fetched remote Firestore state directly.');
               return res.json({ initialized: true, data: remoteState });
+            } else {
+              throw new Error('Firestore state document is empty or invalid format.');
+            }
+          } else {
+            // Document does NOT exist in Firestore yet! We need to seed it.
+            console.log('[Server API] Firestore state document does not exist. Seeding from local database.json...');
+            if (fs.existsSync(DB_FILE)) {
+              const fileContent = fs.readFileSync(DB_FILE, 'utf-8');
+              let dbState = JSON.parse(fileContent);
+              dbState = sanitizeDatabaseState(dbState);
+              currentDatabaseState = dbState;
+              
+              await setDoc(stateDocRef, { state: dbState });
+              console.log('[Server API] Successfully seeded empty Firestore with local database.json dataset.');
+              return res.json({ initialized: true, data: dbState });
+            } else {
+              return res.status(500).json({ error: 'no_database_source', message: 'No local database file found to seed Firestore.' });
             }
           }
-        } catch (fbError) {
-          console.error('[Server API] Failed to fetch from Firestore directly:', fbError);
+        } catch (fbError: any) {
+          console.error('[Server API] Error reading/verifying Firestore database:', fbError);
+          // CRITICAL: We failed to contact Firestore, but Firebase IS configured.
+          // Do NOT serve the default 20-student local database.json, because doing so would
+          // cause the client to overwrite its local state and eventually overwrite Firestore.
+          // Instead, return a 503 error.
+          return res.status(503).json({
+            initialized: false,
+            error: 'firestore_unavailable',
+            message: 'Firestore is currently unavailable. Please check your connection or Firestore status.',
+            details: fbError instanceof Error ? fbError.message : String(fbError)
+          });
         }
       }
 
-      // 3. Ultimate structural fallback: local database.json file
+      // 3. If stateDocRef is NOT configured, fall back to pure local file-based database.json storage
       if (fs.existsSync(DB_FILE)) {
         const fileContent = fs.readFileSync(DB_FILE, 'utf-8');
         let dbState = JSON.parse(fileContent);
         dbState = sanitizeDatabaseState(dbState);
         currentDatabaseState = dbState;
-        
-        // Seed to Firestore to auto-initialize the cloud db ONLY if stateDocRef is available AND we are sure Firestore has no existing state doc
-        if (stateDocRef && db) {
-          try {
-            // Re-verify if Firestore doc exists before seeding to prevent overwriting existing remote records
-            const checkSnap = await getDoc(stateDocRef);
-            if (!checkSnap.exists()) {
-              await setDoc(stateDocRef, { state: dbState });
-              console.log('Seeded Cloud Firestore with initial local dataset (since remote doc was non-existent).');
-            } else {
-              const remoteState = (checkSnap.data() as any)?.state;
-              if (remoteState) {
-                currentDatabaseState = remoteState;
-                fs.writeFileSync(DB_FILE, JSON.stringify(remoteState, null, 2), 'utf-8');
-                console.log('Successfully recovered remote Firestore dataset on startup fallback check.');
-                return res.json({ initialized: true, data: remoteState });
-              }
-            }
-          } catch (seedErr) {
-            console.error('Failed to safely check/seed local database to Firestore:', seedErr);
-          }
-        }
         return res.json({ initialized: true, data: dbState });
       } else {
         return res.json({ initialized: false, message: 'Database file not initialized yet.' });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error resolving database state:', error);
-      return res.status(500).json({ error: 'Failed to retrieve database.' });
+      return res.status(500).json({ error: 'Failed to retrieve database.', details: error?.message });
     }
   });
 

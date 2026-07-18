@@ -160,9 +160,15 @@ export default function App() {
       // Backend API Route Flow
       try {
         const res = await fetch(`${API_BASE}/api/database?_t=${Date.now()}`);
+        if (!res.ok) {
+          throw new Error(`Server returned status ${res.status}`);
+        }
         const serverResult = await res.json();
         
         if (active) {
+          if (serverResult && serverResult.error) {
+            throw new Error(serverResult.message || serverResult.error);
+          }
           if (serverResult && serverResult.initialized && serverResult.data) {
             const { updated, changed } = mergeSeedRemittances(serverResult.data);
             setDatabase(updated);

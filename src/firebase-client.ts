@@ -18,13 +18,8 @@ let stateDocRef: any = null;
 let initialized = false;
 
 export function isDirectFirebasePreferred(): boolean {
-  const host = window.location.hostname;
-  // If we are browsing on Netlify/Custom public domains, prefer direct Firebase to avoid CORS/302 redirects
-  return (
-    host.includes('dugsigasubuc.com') ||
-    host.includes('netlify.app') ||
-    host.includes('vercel.app')
-  );
+  // Always prefer direct client-side Firebase Firestore connection to ensure real-time updates and prevent middle-man database overrides or data loss.
+  return true;
 }
 
 export function initFirebaseClient() {
