@@ -490,6 +490,16 @@ export default function StudentMediaModal({ student, onClose, onSave }: StudentM
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Check file size (e.g., 15MB limit)
+    const MAX_SIZE_MB = 15;
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      setStatusMsg({
+        type: 'error',
+        text: `Faylka wuu aad u weyn yahay. Cabbirka ugu badan ee la oggol yahay waa ${MAX_SIZE_MB}MB. Fadlan soo geli feyl ka yar cabbirkan. (File is too large. The maximum allowed size is ${MAX_SIZE_MB}MB. Please compress or select a smaller file).`
+      });
+      return;
+    }
+
     setIsUploading(true);
     setStatusMsg(null);
 
@@ -518,7 +528,10 @@ export default function StudentMediaModal({ student, onClose, onSave }: StudentM
           })
         });
 
-        if (!response.ok) throw new Error('File store fails');
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || `Server responded with status ${response.status}`);
+        }
         const resJson = await response.json();
 
         let updatedState = { ...student };
@@ -559,9 +572,12 @@ export default function StudentMediaModal({ student, onClose, onSave }: StudentM
           text: 'Rikoorka ardayga waa la xiray laguna xaqiijiyay nidaamka. (Student files loaded and updated successfully!)'
         });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setStatusMsg({ type: 'error', text: 'Ku-shubidda fashilantay. Hubi cabbirka faylka. (Failed uploading selected media file).' });
+      setStatusMsg({ 
+        type: 'error', 
+        text: `Ku-shubidda fashilantay: ${err.message || 'Hubi cabbirka faylka'}. (Upload failed: ${err.message || 'Check file size'}).` 
+      });
     } finally {
       setIsUploading(false);
     }

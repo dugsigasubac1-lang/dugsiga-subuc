@@ -1035,7 +1035,7 @@ async function startServer() {
       }
 
       // Extract raw base64 data, ignoring any data url scheme descriptor
-      const base64Data = fileData.replace(/^data:[^;]+;base64,/, '');
+      const base64Data = fileData.includes(';base64,') ? fileData.split(';base64,').pop() : fileData;
       const buffer = Buffer.from(base64Data, 'base64');
       
       const filePath = path.join(UPLOADS_DIR, filename);
