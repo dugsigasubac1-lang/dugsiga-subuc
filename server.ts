@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { initializeApp } from 'firebase/app';
-import { initializeFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { initializeFirestore, doc, getDoc, setDoc, onSnapshot, collection, getDocs, deleteDoc, query, orderBy, limit } from 'firebase/firestore';
 import { S3Client, PutObjectCommand, GetObjectCommand, CreateBucketCommand, ListBucketsCommand } from "@aws-sdk/client-s3";
 
 
@@ -285,6 +285,123 @@ function sanitizeDatabaseState(state: any): any {
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+
+  async function triggerCloudBackupInternal(statePayload: any): Promise<any> {
+    if (!db || !statePayload) {
+      throw new Error('Database or state payload not initialized.');
+    }
+
+    const timestamp = new Date().toISOString();
+    const dateStr = new Date().toISOString().replace(/T/, '_').replace(/\..+/, '').replace(/:/g, '-');
+    const backupId = `backup_${dateStr}`;
+
+    // Calculate metrics
+    const studentCount = Array.isArray(statePayload.students) ? statePayload.students.length : 0;
+    const teacherCount = Array.isArray(statePayload.teachers) ? statePayload.teachers.length : 0;
+    const invoiceCount = Array.isArray(statePayload.invoices) ? statePayload.invoices.length : 0;
+    const jsonString = JSON.stringify(statePayload);
+    const sizeBytes = Buffer.byteLength(jsonString, 'utf8');
+
+    const backupMeta = {
+      id: backupId,
+      timestamp,
+      studentCount,
+      teacherCount,
+      invoiceCount,
+      size: sizeBytes,
+      status: 'success',
+      storageType: 'Google Cloud Storage & Firestore Cloud'
+    };
+
+    // 1. Store backup with full state in Firestore collection `/backups`
+    const backupDocRef = doc(db, 'backups', backupId);
+    await setDoc(backupDocRef, {
+      ...backupMeta,
+      state: statePayload
+    });
+    console.log(`[Backup System] Created Cloud Firestore backup: ${backupId}`);
+
+    // 2. Keep server local disk copy under `backups/` directory
+    const BACKUPS_DIR = path.join(process.cwd(), 'backups');
+    if (!fs.existsSync(BACKUPS_DIR)) {
+      fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+    }
+    const localBackupPath = path.join(BACKUPS_DIR, `${backupId}.json`);
+    fs.writeFileSync(localBackupPath, jsonString, 'utf-8');
+    console.log(`[Backup System] Created local server disk backup copy: ${localBackupPath}`);
+
+    // 3. Attempt uploading to Cloudflare R2 if configured
+    const r2 = getR2Client();
+    if (r2) {
+      const bucketName = process.env.R2_BUCKET_NAME || 'dugsiga-subuc-storage';
+      try {
+        await ensureBucketExists(r2, bucketName);
+        await r2.send(new PutObjectCommand({
+          Bucket: bucketName,
+          Key: `backups/${backupId}.json`,
+          Body: Buffer.from(jsonString),
+          ContentType: 'application/json',
+        }));
+        console.log(`[Backup System] Uploaded copy to Cloudflare R2: backups/${backupId}.json`);
+      } catch (r2Err: any) {
+        console.error(`[Backup System] Failed R2 upload copy:`, r2Err.message || r2Err);
+      }
+    }
+
+    // 4. Prune old backups so we only keep the latest 10 backups to respect Firestore storage limits
+    try {
+      const backupsCol = collection(db, 'backups');
+      const q = query(backupsCol, orderBy('timestamp', 'desc'));
+      const querySnapshot = await getDocs(q);
+      if (querySnapshot.size > 10) {
+        const docsToDelete = querySnapshot.docs.slice(10);
+        for (const oldDoc of docsToDelete) {
+          await deleteDoc(doc(db, 'backups', oldDoc.id));
+          console.log(`[Backup System] Pruned old backup document from Firestore: ${oldDoc.id}`);
+          
+          // Also prune local file
+          const oldLocalPath = path.join(BACKUPS_DIR, `${oldDoc.id}.json`);
+          if (fs.existsSync(oldLocalPath)) {
+            fs.unlinkSync(oldLocalPath);
+          }
+        }
+      }
+    } catch (pruneErr) {
+      console.error('[Backup System] Error pruning older backups:', pruneErr);
+    }
+
+    return backupMeta;
+  }
+
+  async function checkAndRunScheduledBackup(statePayload: any): Promise<void> {
+    if (!db || !statePayload) return;
+    try {
+      const backupsCol = collection(db, 'backups');
+      const q = query(backupsCol, orderBy('timestamp', 'desc'), limit(1));
+      const querySnapshot = await getDocs(q);
+      
+      let needsBackup = true;
+      if (!querySnapshot.empty) {
+        const latestDoc = querySnapshot.docs[0].data();
+        const lastBackupTime = new Date(latestDoc.timestamp).getTime();
+        const msSinceLastBackup = Date.now() - lastBackupTime;
+        // Run backup every 24 hours (86,400,000 ms)
+        const BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; 
+        if (msSinceLastBackup < BACKUP_INTERVAL_MS) {
+          needsBackup = false;
+        }
+      }
+      
+      if (needsBackup) {
+        console.log('[Scheduled Backup] Triggering daily automated cloud backup...');
+        await triggerCloudBackupInternal(statePayload);
+      } else {
+        console.log('[Scheduled Backup] Daily cloud backup is up-to-date.');
+      }
+    } catch (err) {
+      console.error('[Scheduled Backup] Error checking/running scheduled backup:', err);
+    }
+  }
 
   // Use JSON middleware with high limit for larger database payloads
   app.use(express.json({ limit: '50mb' }));
@@ -613,6 +730,16 @@ async function startServer() {
             activeState = remoteState;
           }
         }
+        
+        // Dry-run test write to a diagnostic test document to check write permissions
+        try {
+          const testDocRef = doc(db, 'system', 'write_test');
+          await setDoc(testDocRef, { testedAt: new Date().toISOString() });
+          diagnosticReport.firestoreStatus.writeSuccess = true;
+        } catch (writeErr: any) {
+          diagnosticReport.firestoreStatus.writeSuccess = false;
+          diagnosticReport.firestoreStatus.writeError = writeErr instanceof Error ? writeErr.message : String(writeErr);
+        }
       } catch (fbError: any) {
         diagnosticReport.firestoreStatus.error = fbError instanceof Error ? fbError.message : String(fbError);
       }
@@ -740,24 +867,162 @@ async function startServer() {
         }
       }
 
-      // 1. Save locally in real-time
-      fs.writeFileSync(DB_FILE, JSON.stringify(dbState, null, 2), 'utf-8');
-      currentDatabaseState = dbState;
-
-      // 2. Synchronize to Firestore cloud
-      if (stateDocRef) {
-        try {
-          await setDoc(stateDocRef, { state: dbState });
-          console.log('Successfully saved and synced update to Firestore Cloud.');
-        } catch (fbWriteErr) {
-          console.error('Failed to write updates to Firestore Cloud:', fbWriteErr);
-        }
+      // 1. Attempt the Firestore operation first!
+      if (!stateDocRef) {
+        const errMsg = 'Unable to save. The application cannot connect to Firestore. Please check your connection and try again.';
+        console.error('[Server POST API] Firestore is not initialized or unavailable. Rejecting write.');
+        return res.status(503).json({
+          success: false,
+          error: 'firestore_unavailable',
+          message: errMsg
+        });
       }
 
-      return res.json({ success: true, message: 'Database synchronized successfully.', data: dbState });
+      try {
+        // Enforce a timeout of 30 seconds for the Firestore operation
+        const writePromise = setDoc(stateDocRef, { state: dbState });
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Firestore operation timed out')), 30000)
+        );
+
+        await Promise.race([writePromise, timeoutPromise]);
+        console.log('[Server POST API] Successfully written update to Firestore Cloud first.');
+      } catch (fbWriteErr: any) {
+        const errMsg = 'Unable to save. The application cannot connect to Firestore. Please check your connection and try again.';
+        console.error('[Server POST API] Firestore save error/timeout (data was NOT saved locally):', fbWriteErr);
+        return res.status(503).json({
+          success: false,
+          error: 'firestore_error',
+          message: errMsg,
+          details: fbWriteErr instanceof Error ? fbWriteErr.message : String(fbWriteErr)
+        });
+      }
+
+      // 2. Only after Firestore confirms the write completed successfully, save locally!
+      try {
+        fs.writeFileSync(DB_FILE, JSON.stringify(dbState, null, 2), 'utf-8');
+        currentDatabaseState = dbState;
+      } catch (localWriteErr) {
+        console.warn('[Server POST API] Local cache update failed, but Firestore save was already successful:', localWriteErr);
+      }
+
+      // Check if a scheduled backup is due after a successful user save
+      if (dbState) {
+        // Run in background without blocking the response
+        checkAndRunScheduledBackup(dbState).catch(err => {
+          console.error('[POST API Database] Scheduled backup check failed:', err);
+        });
+      }
+
+      return res.json({ success: true, message: 'Database saved successfully in Firestore and local cache updated.', data: dbState });
     } catch (error) {
       console.error('Error persisting database state changes:', error);
       return res.status(500).json({ error: 'Failed to persist database changes.' });
+    }
+  });
+
+  // API Route: Get all automated cloud backups metadata
+  app.get('/api/backups', async (req, res) => {
+    if (!db) {
+      return res.status(503).json({ error: 'Firestore connection not initialized.' });
+    }
+    try {
+      const backupsCol = collection(db, 'backups');
+      const q = query(backupsCol, orderBy('timestamp', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const backupsList = querySnapshot.docs.map(docSnap => {
+        const d = docSnap.data();
+        return {
+          id: d.id,
+          timestamp: d.timestamp,
+          studentCount: d.studentCount || 0,
+          teacherCount: d.teacherCount || 0,
+          invoiceCount: d.invoiceCount || 0,
+          size: d.size || 0,
+          status: d.status || 'success',
+          storageType: d.storageType || 'Google Cloud Storage & Firestore Cloud'
+        };
+      });
+      return res.json({ success: true, backups: backupsList });
+    } catch (err: any) {
+      console.error('[API GET backups] Failed to list backups:', err);
+      return res.status(500).json({ error: 'Failed to list backups: ' + err.message });
+    }
+  });
+
+  // API Route: Manually trigger an automated cloud backup now
+  app.post('/api/backups/trigger', async (req, res) => {
+    if (!db) {
+      return res.status(503).json({ error: 'Firestore connection not initialized.' });
+    }
+    if (!currentDatabaseState) {
+      return res.status(400).json({ error: 'Current database state is empty.' });
+    }
+    try {
+      const meta = await triggerCloudBackupInternal(currentDatabaseState);
+      return res.json({ success: true, message: 'Backup created successfully!', backup: meta });
+    } catch (err: any) {
+      console.error('[API POST backups/trigger] Fail:', err);
+      return res.status(500).json({ error: 'Failed to trigger backup: ' + err.message });
+    }
+  });
+
+  // API Route: Restore from a specific cloud backup ID
+  app.post('/api/backups/:id/restore', async (req, res) => {
+    if (!db) {
+      return res.status(503).json({ error: 'Firestore connection not initialized.' });
+    }
+    const backupId = req.params.id;
+    try {
+      const backupDocRef = doc(db, 'backups', backupId);
+      const docSnap = await getDoc(backupDocRef);
+      if (!docSnap.exists()) {
+        return res.status(404).json({ error: 'Backup not found in Cloud Firestore.' });
+      }
+      const backupData = docSnap.data();
+      let stateToRestore = backupData.state;
+      if (!stateToRestore || typeof stateToRestore !== 'object') {
+        return res.status(500).json({ error: 'Backup document contains invalid database state.' });
+      }
+
+      // Sanitize the restored state to make sure it's valid
+      stateToRestore = sanitizeDatabaseState(stateToRestore);
+
+      // Write to main system state doc
+      await setDoc(stateDocRef, { state: stateToRestore });
+      console.log(`[Backup Restore] Successfully restored system state to ${backupId} in Firestore.`);
+
+      // Update server's in-memory state and local file
+      currentDatabaseState = stateToRestore;
+      fs.writeFileSync(DB_FILE, JSON.stringify(stateToRestore, null, 2), 'utf-8');
+
+      return res.json({ success: true, message: `System state successfully restored to backup: ${backupId}`, state: stateToRestore });
+    } catch (err: any) {
+      console.error(`[API POST backups/restore] Fail for ${backupId}:`, err);
+      return res.status(500).json({ error: 'Failed to restore backup: ' + err.message });
+    }
+  });
+
+  // API Route: Delete a specific backup
+  app.delete('/api/backups/:id', async (req, res) => {
+    if (!db) {
+      return res.status(503).json({ error: 'Firestore connection not initialized.' });
+    }
+    const backupId = req.params.id;
+    try {
+      await deleteDoc(doc(db, 'backups', backupId));
+      console.log(`[Backup Delete] Deleted backup document ${backupId} from Firestore.`);
+
+      const BACKUPS_DIR = path.join(process.cwd(), 'backups');
+      const localBackupPath = path.join(BACKUPS_DIR, `${backupId}.json`);
+      if (fs.existsSync(localBackupPath)) {
+        fs.unlinkSync(localBackupPath);
+      }
+
+      return res.json({ success: true, message: `Backup deleted successfully.` });
+    } catch (err: any) {
+      console.error(`[API DELETE backup] Fail for ${backupId}:`, err);
+      return res.status(500).json({ error: 'Failed to delete backup: ' + err.message });
     }
   });
 
@@ -829,6 +1094,16 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
+
+    // Check if backup is due on startup once the first snapshot loads
+    firstSnapshotPromise.then(() => {
+      if (currentDatabaseState) {
+        console.log('[Backup System] First snapshot loaded. Checking scheduled backup...');
+        checkAndRunScheduledBackup(currentDatabaseState).catch(err => {
+          console.error('[Backup System] Startup backup check failed:', err);
+        });
+      }
+    });
     
     // Start self-pinging background service (Keep-Alive Pinger) to prevent Render sleep
     const externalUrl = process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_URL;

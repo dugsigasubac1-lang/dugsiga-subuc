@@ -31,7 +31,9 @@ export function initFirebaseClient() {
   if (initialized) return { db, stateDocRef };
   try {
     app = initializeApp(firebaseConfig);
-    db = initializeFirestore(app, {}, firebaseConfig.firestoreDatabaseId);
+    db = initializeFirestore(app, {
+      experimentalForceLongPolling: true
+    }, firebaseConfig.firestoreDatabaseId);
     stateDocRef = doc(db, 'system', 'state');
     initialized = true;
     console.info(`[Dugsiga Subuc] Connected directly to Firestore database: "${firebaseConfig.firestoreDatabaseId}"`);

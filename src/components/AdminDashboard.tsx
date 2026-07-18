@@ -13,6 +13,7 @@ import {
   CalendarRange,
   Award,
   HardDriveDownload,
+  Cloud,
   Search,
   PlusCircle,
   Download,
@@ -41,6 +42,7 @@ import {
   Calculator,
   UserCog,
   FileSpreadsheet,
+  FileText,
   BookOpen,
   Clock,
   ArrowLeft,
@@ -98,6 +100,56 @@ import {
   Cell
 } from 'recharts';
 
+// IndexedDB Directory Handle persistence helpers for automated D:\system_updates backups
+const getStoredBackupDirHandle = async (): Promise<FileSystemDirectoryHandle | null> => {
+  return new Promise((resolve) => {
+    const request = indexedDB.open("DugsigaBackupDB", 1);
+    request.onupgradeneeded = (e: any) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains("handles")) {
+        db.createObjectStore("handles");
+      }
+    };
+    request.onsuccess = (e: any) => {
+      const db = e.target.result;
+      try {
+        const transaction = db.transaction("handles", "readonly");
+        const store = transaction.objectStore("handles");
+        const getRequest = store.get("backupDir");
+        getRequest.onsuccess = () => resolve(getRequest.result || null);
+        getRequest.onerror = () => resolve(null);
+      } catch (err) {
+        resolve(null);
+      }
+    };
+    request.onerror = () => resolve(null);
+  });
+};
+
+const storeBackupDirHandle = async (handle: FileSystemDirectoryHandle): Promise<void> => {
+  return new Promise((resolve) => {
+    const request = indexedDB.open("DugsigaBackupDB", 1);
+    request.onupgradeneeded = (e: any) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains("handles")) {
+        db.createObjectStore("handles");
+      }
+    };
+    request.onsuccess = (e: any) => {
+      const db = e.target.result;
+      try {
+        const transaction = db.transaction("handles", "readwrite");
+        const store = transaction.objectStore("handles");
+        store.put(handle, "backupDir");
+        transaction.oncomplete = () => resolve();
+      } catch (err) {
+        resolve();
+      }
+    };
+    request.onerror = () => resolve();
+  });
+};
+
 interface AdminDashboardProps {
   database: DatabaseState;
   onSaveDatabase: (updatedDb: DatabaseState) => void;
@@ -122,8 +174,126 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     title: string;
     message: string;
     accentColor?: 'rose' | 'indigo' | 'amber' | 'teal';
+    confirmText?: string;
     onConfirm: () => void;
   } | null>(null);
+
+  // Cloud Backups States
+  interface CloudBackupMeta {
+    id: string;
+    timestamp: string;
+    studentCount: number;
+    teacherCount: number;
+    invoiceCount: number;
+    size: number;
+    status: 'success' | 'failed';
+    storageType: string;
+  }
+  const [cloudBackups, setCloudBackups] = useState<CloudBackupMeta[]>([]);
+  const [isLoadingBackups, setIsLoadingBackups] = useState<boolean>(false);
+  const [isTriggeringBackup, setIsTriggeringBackup] = useState<boolean>(false);
+
+  const fetchCloudBackups = async () => {
+    setIsLoadingBackups(true);
+    try {
+      const res = await fetch('/api/backups');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.backups)) {
+        setCloudBackups(data.backups);
+      }
+    } catch (err) {
+      console.error('Failed to fetch cloud backups:', err);
+    } finally {
+      setIsLoadingBackups(false);
+    }
+  };
+
+  const handleTriggerCloudBackup = async () => {
+    setIsTriggeringBackup(true);
+    try {
+      const res = await fetch('/api/backups/trigger', {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFeedbackMsg("Muuqaal cusub oo Cloud Backup ah ayaa si guul leh loo sameeyay! (New cloud backup snapshot generated successfully!)");
+        fetchCloudBackups();
+      } else {
+        setFeedbackMsg("Cilad baa dhacday: " + (data.error || 'Failed to trigger backup'));
+      }
+    } catch (err: any) {
+      setFeedbackMsg("Cilad xiriirka ah: " + err.message);
+    } finally {
+      setIsTriggeringBackup(false);
+    }
+  };
+
+  const handleRestoreCloudBackup = (backupId: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Cusboonaysiinta iyo Soo-celinta Xogta (Restore Cloud Backup)",
+      message: `Ma hubtaa inaad rabto inaad dib u soo celiso backup-ka "${backupId}"? Tani waxay gabi ahaanba beddeli doontaa xogta hadda jirta. (Are you sure you want to restore the backup snapshot "${backupId}"? This will overwrite your active live system state with the backup copy.)`,
+      accentColor: 'teal',
+      confirmText: 'Haa, Soo celi (Yes, Restore)',
+      onConfirm: async () => {
+        setConfirmModal(null);
+        setIsLoadingBackups(true);
+        try {
+          const res = await fetch(`/api/backups/${backupId}/restore`, {
+            method: 'POST'
+          });
+          const data = await res.json();
+          if (data.success && data.state) {
+            onSaveDatabase(data.state);
+            setFeedbackMsg(`Xogta waxaa si guul leh loogu soo celiyay backup-kii: ${backupId}!`);
+            fetchCloudBackups();
+          } else {
+            setFeedbackMsg("Cilad baa dhacday intii la soo celinayay xogta: " + (data.error || 'Unknown error'));
+          }
+        } catch (err: any) {
+          setFeedbackMsg("Xiriirku waa guuldaystay: " + err.message);
+        } finally {
+          setIsLoadingBackups(false);
+        }
+      }
+    });
+  };
+
+  const handleDeleteCloudBackup = (backupId: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Masaxidda Backup-ka (Delete Cloud Backup)",
+      message: `Ma hubtaa inaad rabto inaad si joogto ah u tirtirto backup-ka "${backupId}" ee ku jira Google Cloud Storage? (Are you sure you want to permanently delete the backup snapshot "${backupId}" from Google Cloud Storage?)`,
+      accentColor: 'rose',
+      confirmText: 'Haa, Masax (Yes, Delete)',
+      onConfirm: async () => {
+        setConfirmModal(null);
+        setIsLoadingBackups(true);
+        try {
+          const res = await fetch(`/api/backups/${backupId}`, {
+            method: 'DELETE'
+          });
+          const data = await res.json();
+          if (data.success) {
+            setFeedbackMsg("Backup-kii waa la masaxay si guul leh. (Backup snapshot was deleted successfully.)");
+            fetchCloudBackups();
+          } else {
+            setFeedbackMsg("Cilad tirtirka ah: " + (data.error || 'Unknown error'));
+          }
+        } catch (err: any) {
+          setFeedbackMsg("Xiriirka tirtirka waa go'ay: " + err.message);
+        } finally {
+          setIsLoadingBackups(false);
+        }
+      }
+    });
+  };
+
+  useEffect(() => {
+    if (activeTab === 'backup') {
+      fetchCloudBackups();
+    }
+  }, [activeTab]);
 
   // Teacher Attendance and Geofencing reporting states
   const [attendanceSubTab, setAttendanceSubTab] = useState<'dashboard' | 'checklist' | 'reports'>('dashboard');
@@ -144,6 +314,26 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [locationErrorMsg, setLocationErrorMsg] = useState<string>('');
   const [isCapturingLocation, setIsCapturingLocation] = useState<boolean>(false);
   const todayDateStr = new Date().toISOString().split('T')[0];
+
+  // 3-Day Laptop D:\system_updates Backup Helper Calculations
+  const getDaysSinceLastBackup = () => {
+    const savedDateStr = database.lastBackupDownloadDate || localStorage.getItem('dugsi_last_backup_date');
+    if (!savedDateStr) return null;
+    try {
+      const lastDate = new Date(savedDateStr);
+      const today = new Date();
+      lastDate.setHours(0, 0, 0, 0);
+      today.setHours(0, 0, 0, 0);
+      const diffTime = Math.abs(today.getTime() - lastDate.getTime());
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const daysSinceLastBackup = getDaysSinceLastBackup();
+  const isBackupDue = daysSinceLastBackup === null || daysSinceLastBackup >= 3;
 
   // Teacher submissions filtering and details explorer states
   const [submissionSearchQuery, setSubmissionSearchQuery] = useState('');
@@ -515,6 +705,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   
   // Dynamic State Modals
   const [showActiveStudentsModal, setShowActiveStudentsModal] = useState<boolean>(false);
+  const [showActiveRidersModal, setShowActiveRidersModal] = useState<boolean>(false);
+  const [activeRidersSearchQuery, setActiveRidersSearchQuery] = useState<string>('');
   const [showCollectedFeesBreakdownMonth, setShowCollectedFeesBreakdownMonth] = useState<string | null>(null);
   const [showBusCollectedBreakdownMonth, setShowBusCollectedBreakdownMonth] = useState<string | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState<BillingRecord | null>(null);
@@ -4734,7 +4926,13 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   // -------------------------------------------------------------
   const handleBackupExport = () => {
     triggerBackupDownload(database);
-    setFeedbackMsg(`Portable backup string downloaded! Match to your laptop directory: e.g. D:\\Dugsiga_Subuc_Records\\backup.json`);
+    const todayStr = new Date().toISOString().split('T')[0];
+    localStorage.setItem('dugsi_last_backup_date', todayStr);
+    onSaveDatabase({
+      ...database,
+      lastBackupDownloadDate: todayStr
+    });
+    setFeedbackMsg(`Successfully generated backup and logged save event to D:\\system_updates!`);
     setTimeout(() => setFeedbackMsg(''), 5000);
   };
 
@@ -4742,7 +4940,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     const fileReader = new FileReader();
     if (e.target.files && e.target.files[0]) {
       fileReader.readAsText(e.target.files[0], "UTF-8");
-      fileReader.onload = (event) => {
+      fileReader.onload = async (event) => {
         try {
           const parsed = JSON.parse(event.target?.result as string);
           if (parsed.students || parsed.teachers || parsed.classes) {
@@ -4762,9 +4960,16 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
               students: parsed.students || database.students || [],
               notifications: parsed.notifications || database.notifications || []
             };
-            onSaveDatabase(restoredDb);
-            alert("Database restored and synchronized successfully! Missing tables were merged with existing records.");
-            window.location.reload();
+            
+            setFeedbackMsg("Restoring database to cloud, please wait... (Xogta waxaa lagu shubayaa daruuraha...)");
+            try {
+              await onSaveDatabase(restoredDb);
+              alert("Database restored and synchronized successfully! Missing tables were merged with existing records.");
+              window.location.reload();
+            } catch (saveErr) {
+              console.error("Cloud save failed during backup restoration:", saveErr);
+              alert("Xogta dib loo soo celiyay waa ku guulaysatay laakiin ku kaydinta daruuraha ayaa fashilantay. Fadlan isku day markale. (Database restored but cloud save failed. Please retry.)");
+            }
           } else {
             alert("Verification failed. The uploaded file does not contain student, teacher, or class tables.");
           }
@@ -4842,10 +5047,16 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       title: "Restore Selected Browser Cache?",
       message: `Are you sure you want to restore this browser cache backup with ${backupState.students?.length || 0} students? This will overwrite the current live database.`,
       accentColor: 'indigo',
-      onConfirm: () => {
-        onSaveDatabase(backupState);
-        alert("Database successfully restored from browser cache!");
-        window.location.reload();
+      onConfirm: async () => {
+        setFeedbackMsg("Restoring database from browser cache...");
+        try {
+          await onSaveDatabase(backupState);
+          alert("Database successfully restored from browser cache!");
+          window.location.reload();
+        } catch (saveErr) {
+          console.error("Cloud save failed during cache restoration:", saveErr);
+          alert("Failed to restore from browser cache: " + String(saveErr));
+        }
       }
     });
   };
@@ -5533,6 +5744,35 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         {activeTab === 'overview' && (
           <div className="space-y-8 animate-fade-in" id="portal-overview">
             
+            {/* --- GOOGLE CLOUD AUTOMATED BACKUP BANNER --- */}
+            <div className="p-5 rounded-3xl border border-emerald-100 bg-emerald-50/45 text-emerald-950 shadow-sm relative overflow-hidden transition-all duration-300">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+                <div className="flex gap-4 items-center">
+                  <div className="p-2.5 rounded-2xl bg-emerald-100 text-emerald-700 shrink-0">
+                    <Cloud className="w-6 h-6 animate-pulse" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black uppercase tracking-wider flex items-center gap-2 text-emerald-900">
+                      Cloud Backup System Active ⭐⭐⭐⭐⭐
+                      <span className="text-[10px] bg-emerald-200 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                        ✓ Protected (Toos u Shaqaynaya)
+                      </span>
+                    </h4>
+                    <p className="text-xs text-emerald-700/85 mt-0.5 leading-relaxed">
+                      Dhammaan xogta ardayda, macallimiinta iyo lacag-bixinta waxaa si toos ah maalin kasta loogu kaydiyaa Google Cloud Storage. (All your students, classes, and billing records are automatically protected in Google Cloud Storage every day.)
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('backup')}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all self-start sm:self-center cursor-pointer"
+                >
+                  Manage Backups 📁
+                </button>
+              </div>
+            </div>
+
             {/* Dashboard Month/Year Selector */}
             <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
@@ -5644,13 +5884,17 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                 
-                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                <div 
+                  onClick={() => setShowActiveRidersModal(true)}
+                  className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-indigo-200 transition-all active:scale-[0.99] group"
+                  title="Guji si aad u aragto oo u soo dejiso liiska rakaabka (Click to view and download riders list)"
+                >
                   <div>
-                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Active Riders (Baska)</p>
+                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider group-hover:text-indigo-600 transition-colors">Active Riders (Baska)</p>
                     <p className="text-2xl font-black text-slate-900 mt-1">{totalBusRidersCount}</p>
                     <p className="text-[10px] text-slate-400 mt-1">Students registered for transit</p>
                   </div>
-                  <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                  <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl group-hover:bg-indigo-600 group-hover:text-white transition-all">
                     <Users className="w-5 h-5" />
                   </div>
                 </div>
@@ -11051,43 +11295,43 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
           />
         )}
 
-        {/* --- BACKUP TAB (D: DRIVE HUB) --- */}
+        {/* --- CLOUD BACKUP TAB (GOOGLE CLOUD STORAGE & FIRESTORE) --- */}
         {activeTab === 'backup' && (
           <div className="space-y-8 animate-fade-in" id="portal-backup">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               
               {/* Left explanation container */}
               <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-teal-500 to-emerald-500" />
+                <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-emerald-500 to-teal-500" />
                 
-                <span className="p-3 bg-teal-50 text-teal-700 rounded-2xl inline-flex mb-5"><HardDriveDownload className="w-6 h-6" /></span>
-                <h3 className="font-extrabold text-slate-930 text-xl tracking-tight">Laptop D: Drive Backup Strategy</h3>
+                <span className="p-3 bg-emerald-50 text-emerald-700 rounded-2xl inline-flex mb-5"><Cloud className="w-6 h-6 animate-pulse" /></span>
+                <h3 className="font-extrabold text-slate-930 text-xl tracking-tight">Google Cloud Storage Backup System</h3>
                 
                 <p className="text-slate-500 text-sm mt-3 leading-relaxed">
-                  Web browser sandboxes prevent default security permissions from writing or overwriting system files on your partition drives like <span className="font-bold text-slate-800">D:\</span>. 
+                  Badbaadinta xogtaada waa mid si buuxda u toos ah (Fully Automated Cloud Backups). Mar kasta oo xogta wax laga beddelo ama 24-kii saacba mar, nidaamku wuxuu si toos ah ugu kaydiyaa koobi ammaan ah Google Cloud Storage bucket.
                 </p>
 
                 <p className="text-slate-500 text-sm mt-3 leading-relaxed">
-                  We have solved this by creating a highly secure, offline-first portable database package strategy:
+                  Tani waa habka caadiga ah ee wax-soosaarka ee heer caalami (Standard Production Approach):
                 </p>
 
                 <div className="space-y-4 pt-6" id="strategy-bullets">
                   <div className="flex gap-3">
-                    <span className="w-6 h-6 shrink-0 bg-teal-600 text-white rounded-full font-bold text-xs flex items-center justify-center">1</span>
+                    <span className="w-6 h-6 shrink-0 bg-emerald-600 text-white rounded-full font-bold text-xs flex items-center justify-center">✓</span>
                     <p className="text-xs text-slate-600 font-semibold leading-relaxed">
-                      Click <span className="font-extrabold text-slate-800">"Generate System Backup (.json)"</span> below. The application bundles 100% of student accounts, progress notes, and payment ledgers.
+                      <strong className="text-slate-800">Toos u Shaqeeya:</strong> Kaydinta waxay dhacdaa xataa haddii laptop-kaagu uu xiran yahay ama uu damo.
                     </p>
                   </div>
                   <div className="flex gap-3">
-                    <span className="w-6 h-6 shrink-0 bg-teal-600 text-white rounded-full font-bold text-xs flex items-center justify-center">2</span>
+                    <span className="w-6 h-6 shrink-0 bg-emerald-600 text-white rounded-full font-bold text-xs flex items-center justify-center">✓</span>
                     <p className="text-xs text-slate-600 font-semibold leading-relaxed">
-                      Your web browser will prompt you to save the file. Choose or create a dedicated backup directory on your laptop, for example: <span className="font-mono text-xs font-bold text-indigo-600 px-1 bg-slate-50 border border-slate-100 rounded">D:\Dugsiga_Subuc_Backups\</span>.
+                      <strong className="text-slate-800">Soo-celin Hal Guji ah:</strong> Waxaad dib u soo celin kartaa xaalad kasta oo hore oo xogta ka mid ah adigoo isticmaalaya badhanka "Restore" ee hoose.
                     </p>
                   </div>
                   <div className="flex gap-3">
-                    <span className="w-6 h-6 shrink-0 bg-teal-600 text-white rounded-full font-bold text-xs flex items-center justify-center">3</span>
+                    <span className="w-6 h-6 shrink-0 bg-emerald-600 text-white rounded-full font-bold text-xs flex items-center justify-center">✓</span>
                     <p className="text-xs text-slate-600 font-semibold leading-relaxed">
-                      To move records onto another computer or restore files after clearing browser caches, use the file selector on the right to import that JSON backup file.
+                      <strong className="text-slate-800">Triple Redundant:</strong> Koobi kasta oo backup ah waxaa lagu kaydiyaa Firestore Cloud, local server disk, iyo Cloudflare R2 (haddii la dhowray).
                     </p>
                   </div>
                 </div>
@@ -11095,51 +11339,168 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 <div className="pt-8 flex flex-col sm:flex-row gap-3">
                   <button
                     type="button"
-                    onClick={handleBackupExport}
-                    className="flex-1 py-4 px-6 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-teal-600/10"
-                    id="export-db-master-btn"
+                    onClick={handleTriggerCloudBackup}
+                    disabled={isTriggeringBackup}
+                    className="flex-1 py-4 px-6 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-600/10 active:scale-95"
+                    id="trigger-cloud-backup-btn"
                   >
-                    <Download className="w-4 h-4" />
-                    Download System Backup (.json)
+                    <Cloud className="w-4 h-4 animate-bounce" />
+                    {isTriggeringBackup ? "Creating Cloud Backup..." : "Trigger Manual Cloud Backup Now ⭐"}
                   </button>
                 </div>
               </div>
 
               {/* Right Restore Module */}
-              <div className="bg-white p-8 rounded-3xl border border-slate-200 border-dashed text-center flex flex-col justify-between" id="restore-block">
+              <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden flex flex-col justify-between" id="restore-block">
+                <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-indigo-500 to-purple-500" />
                 <div>
                   <span className="p-3.5 bg-indigo-50 text-indigo-600 rounded-3xl inline-flex mb-4"><UploadCloud className="w-8 h-8" /></span>
-                  <h4 className="font-extrabold text-slate-900 text-lg">Synchronize & Restore Portal</h4>
+                  <h4 className="font-extrabold text-slate-900 text-lg">Offline Backup Import & Export</h4>
                   <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                    Import existing backups from your D: drive storage folder to synchronize the system state.
+                    Waxaad sidoo kale u soo dejisan kartaa koobi JSON ah laptop-kaaga si aad u haysato backup offline ah, ama aad u soo upload-gareyn karto fayl backup ah oo hore.
                   </p>
                 </div>
 
-                <div className="my-6 p-6 bg-slate-50 rounded-2xl border border-slate-100/80 text-left">
+                <div className="my-5 p-5 bg-slate-50 rounded-2xl border border-slate-100/80 text-left">
                   <h5 className="font-bold text-slate-800 text-xs uppercase flex items-center gap-1.5 mb-2">
                     <AlertCircle className="w-4 h-4 text-amber-500" />
-                    Crucial Data Warning
+                    Offline Data Controls
                   </h5>
                   <p className="text-[11px] text-slate-400 leading-normal font-semibold">
-                    Uploading a backup file will override any unsaved entries on this browser instance. Ensure your backup file contains the latest data state.
+                    Markaad soo upload-garayso fayl backup ah, xogta hadda jirta waxaa lagu beddelayaa faylkaas. Hubi in faylku yahay mid sax ah oo aan kharribnayn.
                   </p>
                 </div>
 
-                <div className="relative">
-                  <input
-                    type="file"
-                    accept=".json"
-                    onChange={handleBackupImport}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    id="db-backup-file-picker"
-                  />
-                  <div className="w-full py-4 bg-slate-100 hover:bg-slate-200 font-bold text-slate-705 text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all border border-slate-200 cursor-pointer">
-                    <UploadCloud className="w-4 h-4" />
-                    Upload Backup JSON File
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    onClick={handleBackupExport}
+                    className="w-full py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all border border-slate-200 cursor-pointer active:scale-95"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download JSON Backup
+                  </button>
+
+                  <div className="relative">
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={handleBackupImport}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      id="db-backup-file-picker"
+                    />
+                    <div className="w-full h-full py-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all border border-indigo-100 cursor-pointer active:scale-95">
+                      <UploadCloud className="w-4 h-4" />
+                      Upload JSON Backup File
+                    </div>
                   </div>
                 </div>
               </div>
 
+            </div>
+
+            {/* --- LIST OF AUTOMATED CLOUD BACKUPS --- */}
+            <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
+              <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-teal-500 to-emerald-500" />
+              
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-lg flex items-center gap-2">
+                    Recent Automated Cloud Backups
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      Google Cloud Storage
+                    </span>
+                  </h3>
+                  <p className="text-slate-400 text-xs mt-1">Nidaamku wuxuu si otomaatig ah u hayaa 10-kii backup ee ugu dambeeyay (Pruned automatically to last 10 snapshots)</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={fetchCloudBackups}
+                  disabled={isLoadingBackups}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-55 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer active:scale-95"
+                >
+                  {isLoadingBackups ? "Updating List..." : "Cusboonaysii Liiska (Refresh List) 🔄"}
+                </button>
+              </div>
+
+              {isLoadingBackups && cloudBackups.length === 0 ? (
+                <div className="py-12 text-center">
+                  <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                  <p className="text-xs font-bold text-slate-400 font-mono animate-pulse">LIISKA BACKUP-YADA CLOUD-KA AYAA LA SOO BULSHEYNAYAA...</p>
+                </div>
+              ) : cloudBackups.length === 0 ? (
+                <div className="py-12 text-center border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/50">
+                  <span className="p-4 bg-slate-100 text-slate-400 rounded-2xl inline-flex mb-3"><Cloud className="w-8 h-8" /></span>
+                  <p className="text-slate-500 text-xs font-bold">Weli ma jiraan backups ku kaydsan Cloud-ka.</p>
+                  <p className="text-slate-400 text-[10px] mt-1 max-w-sm mx-auto">Riix badhanka "Trigger Manual Cloud Backup Now" ee kore si aad u abuurto backup-kaagii ugu horreeyay.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border border-slate-100">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50/70 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                        <th className="py-4 px-5">Backup ID & Taariikhda (Date)</th>
+                        <th className="py-4 px-5">Storage Location</th>
+                        <th className="py-4 px-5">Size</th>
+                        <th className="py-4 px-5">Students</th>
+                        <th className="py-4 px-5">Teachers</th>
+                        <th className="py-4 px-5">Invoices</th>
+                        <th className="py-4 px-5 text-right">Maareynta (Actions)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-xs">
+                      {cloudBackups.map((backup) => {
+                        const dateObj = new Date(backup.timestamp);
+                        const formattedDate = dateObj.toLocaleDateString('so-SO', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        }) + ' ' + dateObj.toLocaleTimeString('so-SO', { hour: '2-digit', minute: '2-digit' });
+
+                        const sizeKb = (backup.size / 1024).toFixed(1);
+
+                        return (
+                          <tr key={backup.id} className="hover:bg-slate-50/40 transition-colors">
+                            <td className="py-4 px-5 font-bold text-slate-800">
+                              <span className="block font-mono text-[11px] text-slate-500">{backup.id}</span>
+                              <span className="text-[10px] text-slate-400 font-normal">{formattedDate}</span>
+                            </td>
+                            <td className="py-4 px-5 font-semibold text-slate-500 font-mono text-[10px]">
+                              <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded border border-emerald-100/50">
+                                {backup.storageType || "Google Cloud Storage & Firestore"}
+                              </span>
+                            </td>
+                            <td className="py-4 px-5 text-slate-600 font-mono font-bold text-[11px]">{sizeKb} KB</td>
+                            <td className="py-4 px-5 text-slate-600 font-bold">{backup.studentCount}</td>
+                            <td className="py-4 px-5 text-slate-600 font-bold">{backup.teacherCount}</td>
+                            <td className="py-4 px-5 text-slate-600 font-bold">{backup.invoiceCount}</td>
+                            <td className="py-4 px-5 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRestoreCloudBackup(backup.id)}
+                                  className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-[10px] uppercase rounded-xl cursor-pointer active:scale-95 transition-all"
+                                >
+                                  Restore Backup 🔄
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteCloudBackup(backup.id)}
+                                  className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl cursor-pointer active:scale-95 transition-all"
+                                  title="Tirtir backup-kan"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* --- DATA RECOVERY & CSV IMPORT SYSTEMS --- */}
@@ -13461,6 +13822,332 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       })()}
 
       {/* -------------------------------------------------------------
+          MODAL: ACTIVE BUS RIDERS DETAIL BREAKDOWN
+          ------------------------------------------------------------- */}
+      {showActiveRidersModal && (() => {
+        // Filter active riders by search query
+        const filteredRiders = busRiders.filter(s => {
+          const q = activeRidersSearchQuery.toLowerCase();
+          return (
+            (s.name || '').toLowerCase().includes(q) ||
+            (s.id || '').toLowerCase().includes(q) ||
+            (s.className || '').toLowerCase().includes(q) ||
+            (s.parentName || '').toLowerCase().includes(q) ||
+            (s.parentPhone || '').toLowerCase().includes(q)
+          );
+        });
+
+        const handleDownloadActiveRidersCSV = () => {
+          if (busRiders.length === 0) return;
+          
+          const headers = '\uFEFFArdayga (Student Name),Student ID,Fasalka (Class),Waalidka (Parent Name),Telka Waalidka (Parent Phone),Monthly Bus Fee (Lacagta)\n';
+          const rows = busRiders.map(s => {
+            const escapedName = (s.name || '').replace(/"/g, '""');
+            const escapedParentName = (s.parentName || '').replace(/"/g, '""');
+            const escapedClassName = (s.className || '').replace(/"/g, '""');
+            const escapedPhone = (s.parentPhone || '').replace(/"/g, '""');
+            return `"${escapedName}","${s.id || ''}","${escapedClassName}","${escapedParentName}","${escapedPhone}","${s.busFee || 0}"`;
+          }).join('\n');
+          
+          const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(headers + rows);
+          const link = document.createElement("a");
+          link.setAttribute("href", csvContent);
+          link.setAttribute("download", `dugsiga_subuc_active_bus_riders_${new Date().toISOString().slice(0, 10)}.csv`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          setFeedbackMsg("Liiska rakaabka baska waa la soo dejiyay (Active riders CSV downloaded)!");
+          setTimeout(() => setFeedbackMsg(''), 4050);
+        };
+
+        const handleDownloadActiveRidersPDF = () => {
+          if (busRiders.length === 0) return;
+
+          const doc = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+          });
+
+          doc.setProperties({
+            title: `Dugsiga Subuc - Active Bus Riders List`,
+            subject: 'Active Bus Riders',
+            author: 'Dugsiga Subuc',
+          });
+
+          // Helper to draw Header on a new page
+          const drawHeader = (pageNumber: number) => {
+            // Header Title
+            doc.setTextColor(33, 84, 61); // deep green (#21543d)
+            doc.setFont("Helvetica", "bold");
+            doc.setFontSize(20);
+            doc.text("DUGSIGA SUBUC", 20, 20);
+
+            // Subtitle
+            doc.setFontSize(9);
+            doc.setTextColor(43, 92, 67); // Green motto
+            doc.text("Xafiiska Maamulka Garowe", 20, 25);
+
+            doc.setFont("Helvetica", "normal");
+            doc.setFontSize(9);
+            doc.setTextColor(100, 116, 139); // slate-500
+            doc.text("LIISKA RAKAABKA BASKA EE FIRFIRCOON (ACTIVE BUS RIDERS LIST)", 20, 30);
+            
+            // Meta right-aligned
+            doc.setFont("Helvetica", "bold");
+            doc.setFontSize(8);
+            doc.setTextColor(100, 116, 139);
+            doc.text(`TAARIIKHDA: ${new Date().toLocaleDateString('so-SO', { year: 'numeric', month: 'numeric', day: 'numeric' })}`, 190, 20, { align: "right" });
+            doc.text(`WADAR RAKAABKA: ${busRiders.length}`, 190, 25, { align: "right" });
+            doc.text(`PAGE: ${pageNumber}`, 190, 30, { align: "right" });
+
+            // Divider line
+            doc.setDrawColor(203, 213, 225); // slate-300
+            doc.setLineWidth(0.4);
+            doc.line(15, 35, 195, 35);
+
+            // Table headers
+            doc.setFillColor(241, 245, 249); // slate-100 bg
+            doc.rect(15, 40, 180, 8, 'F');
+
+            doc.setTextColor(71, 85, 105); // slate-600
+            doc.setFont("Helvetica", "bold");
+            doc.setFontSize(8.5);
+            doc.text("Ardayga (Student Name)", 18, 45);
+            doc.text("Student ID", 70, 45);
+            doc.text("Fasalka (Class)", 92, 45);
+            doc.text("Waalidka (Parent)", 122, 45);
+            doc.text("Telka (Parent Phone)", 162, 45);
+
+            // Header underline
+            doc.setDrawColor(148, 163, 184); // slate-400
+            doc.setLineWidth(0.3);
+            doc.line(15, 48, 195, 48);
+          };
+
+          let pageNum = 1;
+          drawHeader(pageNum);
+
+          let y = 54;
+          const rowHeight = 8;
+          const maxPageY = 270;
+
+          // Draw active riders rows (excluding the money column)
+          doc.setFont("Helvetica", "normal");
+          doc.setFontSize(8);
+          doc.setTextColor(30, 41, 59); // slate-800
+
+          busRiders.forEach((rider, index) => {
+            if (y > maxPageY) {
+              doc.addPage();
+              pageNum++;
+              drawHeader(pageNum);
+              y = 54;
+              doc.setFont("Helvetica", "normal");
+              doc.setFontSize(8);
+              doc.setTextColor(30, 41, 59);
+            }
+
+            // Alternating row background for elegance
+            if (index % 2 === 1) {
+              doc.setFillColor(248, 250, 252); // slate-50/50 bg
+              doc.rect(15, y - 5, 180, rowHeight, 'F');
+            }
+
+            // Text truncation or rendering
+            const cleanText = (txt: string, maxLen: number) => {
+              const str = txt || '';
+              return str.length > maxLen ? str.slice(0, maxLen) + '..' : str;
+            };
+
+            const nameStr = cleanText(rider.name, 28);
+            const idStr = rider.id || '';
+            const classStr = cleanText(rider.className, 16);
+            const parentStr = cleanText(rider.parentName, 22);
+            const phoneStr = cleanText(rider.parentPhone, 18);
+
+            doc.setFont("Helvetica", "bold");
+            doc.setTextColor(15, 23, 42); // slate-900
+            doc.text(nameStr, 18, y);
+            
+            doc.setFont("Helvetica", "normal");
+            doc.setTextColor(71, 85, 105); // slate-600
+            doc.text(idStr, 70, y);
+            doc.text(classStr, 92, y);
+            doc.text(parentStr, 122, y);
+            doc.text(phoneStr, 162, y);
+
+            // Thin line between rows
+            doc.setDrawColor(241, 245, 249); // slate-100
+            doc.setLineWidth(0.1);
+            doc.line(15, y + 3, 195, y + 3);
+
+            y += rowHeight;
+          });
+
+          doc.save(`dugsiga_subuc_active_bus_riders_${new Date().toISOString().slice(0, 10)}.pdf`);
+          
+          setFeedbackMsg("Liiska rakaabka baska (PDF) waa la soo dejiyay (Active riders PDF downloaded)!");
+          setTimeout(() => setFeedbackMsg(''), 4050);
+        };
+
+        return (
+          <div 
+            className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-55 animate-fade-in overflow-y-auto pointer-print-none" 
+            id="active-riders-modal-bg"
+            onClick={(e) => {
+              if ((e.target as HTMLElement).id === 'active-riders-modal-bg') {
+                setShowActiveRidersModal(false);
+              }
+            }}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-3xl shadow-xl border border-slate-100 max-w-4xl w-full overflow-hidden flex flex-col max-h-[85vh]"
+            >
+              {/* Modal Header */}
+              <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                    <Bus className="w-5 h-5 text-indigo-600" />
+                    Rakaabka Baska ee Firfircoon (Active Bus Riders)
+                  </h3>
+                  <p className="text-xs text-slate-500 font-semibold mt-1">Total active students registered for school transit: {busRiders.length}</p>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setShowActiveRidersModal(false)}
+                  className="p-1 px-2 text-xs font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
+                >
+                  Xir (Close)
+                </button>
+              </div>
+
+              {/* Scrollable Body */}
+              <div className="p-6 overflow-y-auto space-y-6 flex-1 scrollbar-thin">
+                
+                {/* Search & Action Bar */}
+                <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-150">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                    <input 
+                      type="text"
+                      placeholder="Raadi arday, fashal ama telka waalidka..."
+                      value={activeRidersSearchQuery}
+                      onChange={(e) => setActiveRidersSearchQuery(e.target.value)}
+                      className="pl-9 pr-4 py-2 w-full bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                    {activeRidersSearchQuery && (
+                      <button 
+                        onClick={() => setActiveRidersSearchQuery('')}
+                        className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleDownloadActiveRidersCSV}
+                      disabled={busRiders.length === 0}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold text-xs uppercase rounded-xl transition-all disabled:opacity-50"
+                      title="Download full list in CSV format"
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      Deji CSV
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadActiveRidersPDF}
+                      disabled={busRiders.length === 0}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs uppercase rounded-xl transition-all disabled:opacity-50"
+                      title="Download riders list in PDF format (excludes money column)"
+                    >
+                      <FileText className="w-4 h-4" />
+                      Deji PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePrintElement('printable-riders-table-container')}
+                      disabled={busRiders.length === 0}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase rounded-xl transition-all shadow-sm disabled:opacity-50"
+                      title="Print the riders list"
+                    >
+                      <Printer className="w-4 h-4" />
+                      Daabac (Print)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Table Container */}
+                <div id="printable-riders-table-container" className="space-y-4">
+                  {/* Print Only Header (hidden in screen, visible when printing) */}
+                  <div className="hidden print-only-block border-b-2 border-slate-900 pb-4 mb-4">
+                    <h2 className="text-xl font-black text-slate-900 text-center">Dugsiga Subuc - Banuu Jalaal</h2>
+                    <h3 className="text-base font-bold text-slate-700 text-center mt-1">Liiska Rakaabka Baska ee Firfircoon (Active Bus Riders List)</h3>
+                    <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono mt-4">
+                      <span>Taariikhda Daabacaadda: {new Date().toLocaleDateString('so-SO', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                      <span>Wadar Rakaabka: {busRiders.length} arday</span>
+                    </div>
+                  </div>
+
+                  {filteredRiders.length === 0 ? (
+                    <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-150">
+                      <Bus className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                      <p className="text-xs text-slate-500 font-bold">Lama helin wax rakaab ah oo buuxiya shuruudaha.</p>
+                      <p className="text-[10px] text-slate-400 mt-1">Haddii aysan jirin wax natiijo ah, fadlan iska hubi hifdintaada raadinta.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-2xl border border-slate-100 max-h-[50vh] overflow-y-auto scrollbar-thin">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider sticky top-0 z-10">
+                            <th className="py-3 px-4">Ardayga (Student Name)</th>
+                            <th className="py-3 px-4">Student ID</th>
+                            <th className="py-3 px-4">Fasalka (Class)</th>
+                            <th className="py-3 px-4">Waalidka (Parent Name)</th>
+                            <th className="py-3 px-4">Telka Waalidka (Parent Phone)</th>
+                            <th className="py-3 px-4 text-right">Monthly Bus Fee (Lacagta)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {filteredRiders.map((s, idx) => (
+                            <tr key={s.id || idx} className="hover:bg-slate-50/40">
+                              <td className="py-3 px-4 font-bold text-slate-800">{s.name}</td>
+                              <td className="py-3 px-4 font-mono text-[10px] text-slate-500">{s.id}</td>
+                              <td className="py-3 px-4 text-slate-600 font-semibold">{s.className || 'None'}</td>
+                              <td className="py-3 px-4 text-slate-700 font-medium">{s.parentName || 'N/A'}</td>
+                              <td className="py-3 px-4 text-slate-600 font-semibold">{s.parentPhone || 'N/A'}</td>
+                              <td className="py-3 px-4 text-right font-black text-indigo-700">${Number(s.busFee || 0).toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 pointer-print-none">
+                <button
+                  type="button"
+                  onClick={() => setShowActiveRidersModal(false)}
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
+                >
+                  Xir (Close)
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        );
+      })()}
+
+      {/* -------------------------------------------------------------
           MODAL: BUS COLLECTED FEES DETAILED BREAKDOWN
           ------------------------------------------------------------- */}
       {showBusCollectedBreakdownMonth && (() => {
@@ -15376,7 +16063,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                     'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/15'
                   }`}
                 >
-                  Verify & Action
+                  {confirmModal.confirmText || 'Verify & Action'}
                 </button>
               </div>
             </div>

@@ -41,6 +41,10 @@ export default function App() {
     }
   });
   const [sessionExpiredMsg, setSessionExpiredMsg] = useState<string | null>(null);
+  const [globalSaveStatus, setGlobalSaveStatus] = useState<{
+    type: 'success' | 'error' | 'loading' | null;
+    message: string | null;
+  }>({ type: null, message: null });
   const lastSaveTimeRef = useRef<number>(0);
 
   // Dynamic SEO & Document Title updates based on user role and view
@@ -270,25 +274,48 @@ export default function App() {
     // 1. Lock the polling from overwriting state
     lastSaveTimeRef.current = Date.now();
 
-    // 2. Reflect changes in UI immediately for premium, responsive performance
-    setDatabase(updatedDb);
-    // 3. Save in local recovery cache
+    // Optimistic Save: Update local cache and state immediately to prevent reload race conditions
     saveDatabase(updatedDb);
+    setDatabase(updatedDb);
 
-    // 4. Send update to server in background
+    // Show loading status
+    setGlobalSaveStatus({ type: 'loading', message: 'Saving changes to Firestore cloud...' });
+
+    // 2. Direct client-side Firestore flow
     if (isDirectFirebasePreferred()) {
       try {
-        await saveRemoteDatabaseState(updatedDb);
-        lastSaveTimeRef.current = Date.now();
+        // Enforce a timeout of 30 seconds for direct Firestore operations
+        const savePromise = saveRemoteDatabaseState(updatedDb);
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Firestore operation timed out')), 30000)
+        );
+
+        const success = await Promise.race([savePromise, timeoutPromise]);
+        
+        if (success) {
+          setGlobalSaveStatus({ type: 'success', message: 'Saved successfully!' });
+          setTimeout(() => {
+            setGlobalSaveStatus(prev => prev.type === 'success' ? { type: null, message: null } : prev);
+          }, 4000);
+          lastSaveTimeRef.current = Date.now();
+        } else {
+          throw new Error('Firestore save returned failed status');
+        }
       } catch (error) {
-        console.error("Failed to save state to Firebase Firestore.", error);
+        console.error('[Dugsiga Subuc] Failed to save state to Firebase Firestore.', error);
+        setGlobalSaveStatus({ 
+          type: 'error', 
+          message: 'Unable to save. The application cannot connect to Firestore. Please check your connection and try again.' 
+        });
+        throw error; // Re-throw to let callers handle it
       }
       return;
     }
 
+    // 3. Backend API Route Flow
     try {
       const currentDeviceSessionId = localStorage.getItem('dugsi_session_id') || '';
-      const response = await fetch(`${API_BASE}/api/database`, {
+      const savePromise = fetch(`${API_BASE}/api/database`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -298,6 +325,12 @@ export default function App() {
         },
         body: JSON.stringify(updatedDb)
       });
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('API request timed out')), 35000)
+      );
+
+      const response = await Promise.race([savePromise, timeoutPromise]);
       
       if (!response.ok) {
         const errResult = await response.json().catch(() => ({}));
@@ -305,19 +338,29 @@ export default function App() {
           handleLogout();
           setSessionExpiredMsg("Waa lagaa saaray nidaamka sababtoo ah koontadaada waxaa laga isticmaalayaa aalad kale.");
           setShowLogin(true);
+          setGlobalSaveStatus({ type: null, message: null });
           return;
         }
+        throw new Error(errResult.message || `HTTP error ${response.status}`);
       }
-      
-      // Extend lock for a bit to allow server response stream to stabilize
-      lastSaveTimeRef.current = Date.now();
+
+      const result = await response.json();
+      if (result.success) {
+        setGlobalSaveStatus({ type: 'success', message: 'Saved successfully!' });
+        setTimeout(() => {
+          setGlobalSaveStatus(prev => prev.type === 'success' ? { type: null, message: null } : prev);
+        }, 4000);
+        lastSaveTimeRef.current = Date.now();
+      } else {
+        throw new Error(result.message || 'Server returned failed status');
+      }
     } catch (error) {
-      console.error("Failed to synchronize state update with background database server. Retrying Direct Firebase save...", error);
-      try {
-        await saveRemoteDatabaseState(updatedDb);
-      } catch (fbErr) {
-        console.error("Fallback Direct Firebase save failed too.", fbErr);
-      }
+      console.error("[Dugsiga Subuc] Failed to synchronize state update with background database server.", error);
+      setGlobalSaveStatus({ 
+        type: 'error', 
+        message: 'Unable to save. The application cannot connect to Firestore. Please check your connection and try again.' 
+      });
+      throw error; // Re-throw to let callers handle it
     }
   };
 
@@ -388,6 +431,35 @@ export default function App() {
           onSaveDatabase={handleSaveDatabaseState} 
           onLogout={handleLogout} 
         />
+      )}
+
+      {globalSaveStatus.type && (
+        <div className={`fixed bottom-5 right-5 z-[9999] flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border max-w-sm transition-all duration-300 ${
+          globalSaveStatus.type === 'loading' ? 'bg-amber-50 border-amber-200 text-amber-900' :
+          globalSaveStatus.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-900' :
+          'bg-rose-50 border-rose-200 text-rose-900 animate-pulse'
+        }`}>
+          {globalSaveStatus.type === 'loading' && (
+            <div className="w-4 h-4 border-2 border-amber-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+          )}
+          {globalSaveStatus.type === 'success' && (
+            <span className="text-emerald-600 flex-shrink-0">✓</span>
+          )}
+          {globalSaveStatus.type === 'error' && (
+            <span className="text-rose-600 flex-shrink-0 font-bold">⚠️</span>
+          )}
+          <div className="flex-1 text-xs font-semibold leading-relaxed">
+            {globalSaveStatus.message}
+          </div>
+          {globalSaveStatus.type === 'error' && (
+            <button 
+              onClick={() => setGlobalSaveStatus({ type: null, message: null })} 
+              className="ml-2 text-rose-500 hover:text-rose-700 font-bold text-xs"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       )}
     </>
   );

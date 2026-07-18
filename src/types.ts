@@ -254,6 +254,7 @@ export interface DatabaseState {
   contactMessages?: ContactMessage[];
   adminSessionId?: string; // Active session tracking for concurrent device login control
   invoices?: Invoice[];
+  lastBackupDownloadDate?: string; // YYYY-MM-DD format to track local D:\ system backup reminders
 }
 
 export interface ExamScore {
