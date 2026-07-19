@@ -49,6 +49,7 @@ export async function fetchRemoteDatabaseState(): Promise<DatabaseState | null> 
     }
   } catch (error) {
     console.error('[Dugsiga Subuc] Direct Firestore fetch error:', error);
+    throw error;
   }
   return null;
 }
@@ -61,7 +62,7 @@ export async function saveRemoteDatabaseState(state: DatabaseState): Promise<boo
     return true;
   } catch (error) {
     console.error('[Dugsiga Subuc] Direct Firestore save error:', error);
-    return false;
+    throw error;
   }
 }
 

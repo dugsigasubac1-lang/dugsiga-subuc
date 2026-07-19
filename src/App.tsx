@@ -42,10 +42,62 @@ export default function App() {
   });
   const [sessionExpiredMsg, setSessionExpiredMsg] = useState<string | null>(null);
   const [globalSaveStatus, setGlobalSaveStatus] = useState<{
-    type: 'success' | 'error' | 'loading' | null;
+    type: 'success' | 'error' | 'loading' | 'warning' | null;
     message: string | null;
   }>({ type: null, message: null });
+  const [isOffline, setIsOffline] = useState<boolean>(() => !navigator.onLine);
   const lastSaveTimeRef = useRef<number>(0);
+
+  // Monitor online status
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+      console.info('[Dugsiga Subuc] Device went online.');
+    };
+    const handleOffline = () => {
+      setIsOffline(true);
+      console.warn('[Dugsiga Subuc] Device went offline.');
+    };
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Auto-sync when connection is restored
+  useEffect(() => {
+    if (!isOffline && database) {
+      console.info('[Dugsiga Subuc] Connection restored. Auto-synchronizing with Firestore...');
+      setGlobalSaveStatus({ type: 'loading', message: 'Khadka internet-ka ayaa ku laabtay. Waxaa la dhexgelinayaa xogtii ugu dambaysay...' });
+      
+      fetchRemoteDatabaseState()
+        .then(directData => {
+          if (directData) {
+            const { updated } = mergeSeedRemittances(directData);
+            setDatabase(currentDb => {
+              const remoteTime = updated.lastUpdatedTime || 0;
+              const localTime = currentDb?.lastUpdatedTime || 0;
+              if (remoteTime > localTime) {
+                console.info('[Dugsiga Subuc] Synced newer remote state on reconnect.', remoteTime, localTime);
+                saveDatabase(updated);
+                return updated;
+              }
+              return currentDb;
+            });
+            setGlobalSaveStatus({ type: 'success', message: 'Waa la isku dhex-galiyay xogtii ugu dambaysay ee server-ka!' });
+            setTimeout(() => {
+              setGlobalSaveStatus(prev => prev.type === 'success' ? { type: null, message: null } : prev);
+            }, 3000);
+          }
+        })
+        .catch(err => {
+          console.warn('[Dugsiga Subuc] Automatic reconnect sync failed:', err);
+          setGlobalSaveStatus({ type: 'error', message: 'Waa lagu guuldarraystay dhex-gelinta xogta cusub ee server-ka.' });
+        });
+    }
+  }, [isOffline]);
 
   // Dynamic SEO & Document Title updates based on user role and view
   useEffect(() => {
@@ -117,35 +169,65 @@ export default function App() {
           if (active) {
             if (directData) {
               const { updated, changed } = mergeSeedRemittances(directData);
+              if (!updated.lastUpdatedTime) {
+                updated.lastUpdatedTime = Date.now();
+              }
               setDatabase(updated);
               saveDatabase(updated);
               if (changed) {
                 await saveRemoteDatabaseState(updated);
               }
             } else {
-              const clientDb = getDatabase();
-              setDatabase(clientDb);
-              await saveRemoteDatabaseState(clientDb);
+              // Firestore system/state is currently null/unseeded!
+              // Hit backend GET route to seed from full server-side database.json (containing 34 students) rather than saving empty template!
+              console.info('[Dugsiga Subuc] Remote database is empty. Seeding from server database.json...');
+              const res = await fetch(`${API_BASE}/api/database?_t=${Date.now()}`);
+              if (!res.ok) {
+                throw new Error(`Server returned status ${res.status}`);
+              }
+              const serverResult = await res.json();
+              if (active && serverResult && serverResult.initialized && serverResult.data) {
+                const { updated } = mergeSeedRemittances(serverResult.data);
+                if (!updated.lastUpdatedTime) {
+                  updated.lastUpdatedTime = Date.now();
+                }
+                setDatabase(updated);
+                saveDatabase(updated);
+                await saveRemoteDatabaseState(updated);
+              } else {
+                const clientDb = getDatabase();
+                if (!clientDb.lastUpdatedTime) {
+                  clientDb.lastUpdatedTime = Date.now();
+                }
+                setDatabase(clientDb);
+              }
             }
           }
         } catch (err) {
-          console.warn('[Dugsiga Subuc] Direct Firebase fetch failed. Using local cache.', err);
+          console.warn('[Dugsiga Subuc] Direct Firebase fetch failed. Using local cache for offline viewing.', err);
           if (active) {
-            setDatabase(getDatabase());
+            // CRITICAL: Load from localStorage cache, but DO NOT overwrite Firestore!
+            const cachedDb = getDatabase();
+            setDatabase(cachedDb);
+            setGlobalSaveStatus({
+              type: 'error',
+              message: 'Ma jiro xiriir internet ama khadku waa gaabis. Waxaad ku shaqeynaysaa xogta aaladda ku kaydsan (Offline/Cached).'
+            });
           }
         }
 
         // Setup real-time listener
         if (active) {
           unsubscribe = subscribeToRemoteDatabaseState((remoteDb) => {
-            if (Date.now() - lastSaveTimeRef.current < 4000) {
-              return;
-            }
             if (active && remoteDb) {
-              const remoteStateStr = JSON.stringify(remoteDb);
+              const remoteTime = remoteDb.lastUpdatedTime || 0;
               setDatabase(currentDb => {
                 if (!currentDb) return remoteDb;
-                if (JSON.stringify(currentDb) !== remoteStateStr) {
+                const localTime = currentDb.lastUpdatedTime || 0;
+                
+                // Compare timestamps precisely rather than using an arbitrary blind 4-second timeout
+                if (remoteTime > localTime) {
+                  console.info('[Dugsiga Subuc] Received newer database state from Firestore Cloud. Synchronizing...', remoteTime, localTime);
                   saveDatabase(remoteDb);
                   return remoteDb;
                 }
@@ -171,6 +253,9 @@ export default function App() {
           }
           if (serverResult && serverResult.initialized && serverResult.data) {
             const { updated, changed } = mergeSeedRemittances(serverResult.data);
+            if (!updated.lastUpdatedTime) {
+              updated.lastUpdatedTime = Date.now();
+            }
             setDatabase(updated);
             saveDatabase(updated);
             if (changed) {
@@ -182,6 +267,9 @@ export default function App() {
             }
           } else {
             const clientDb = getDatabase();
+            if (!clientDb.lastUpdatedTime) {
+              clientDb.lastUpdatedTime = Date.now();
+            }
             setDatabase(clientDb);
             await fetch(`${API_BASE}/api/database`, {
               method: 'POST',
@@ -202,12 +290,12 @@ export default function App() {
               
               // Subscribe as fallback
               unsubscribe = subscribeToRemoteDatabaseState((remoteDb) => {
-                if (Date.now() - lastSaveTimeRef.current < 4000) return;
                 if (active && remoteDb) {
-                  const remoteStateStr = JSON.stringify(remoteDb);
+                  const remoteTime = remoteDb.lastUpdatedTime || 0;
                   setDatabase(currentDb => {
                     if (!currentDb) return remoteDb;
-                    if (JSON.stringify(currentDb) !== remoteStateStr) {
+                    const localTime = currentDb.lastUpdatedTime || 0;
+                    if (remoteTime > localTime) {
                       saveDatabase(remoteDb);
                       return remoteDb;
                     }
@@ -277,29 +365,64 @@ export default function App() {
   }, []);
 
   const handleSaveDatabaseState = async (updatedDb: DatabaseState) => {
-    // 1. Lock the polling from overwriting state
-    lastSaveTimeRef.current = Date.now();
+    // 1. Assign new timestamp to track modifications
+    const now = Date.now();
+    const dbWithTimestamp = {
+      ...updatedDb,
+      lastUpdatedTime: now
+    };
 
-    // Optimistic Save: Update local cache and state immediately to prevent reload race conditions
-    saveDatabase(updatedDb);
-    setDatabase(updatedDb);
+    // 2. Lock the listener from overwriting immediately
+    lastSaveTimeRef.current = now;
 
-    // Show loading status
-    setGlobalSaveStatus({ type: 'loading', message: 'Saving changes to Firestore cloud...' });
+    // Optimistically save locally to localStorage and update component state
+    saveDatabase(dbWithTimestamp);
+    setDatabase(dbWithTimestamp);
+
+    if (isOffline) {
+      setGlobalSaveStatus({ 
+        type: 'warning', 
+        message: 'Aaladdaadu hadda khadka kama jirto (Offline). Xogta waxaa lagu kaydiyay gudaha aaladda waxaana loo gudbin doonaa cloud-ka marka khadku soo laabto.' 
+      });
+      // Fire-and-forget background save so Firestore queues the write
+      if (isDirectFirebasePreferred()) {
+        saveRemoteDatabaseState(dbWithTimestamp).catch(() => {});
+      }
+      return;
+    }
+
+    setGlobalSaveStatus({ type: 'loading', message: 'La xiriiraya Firestore cloud...' });
 
     // 2. Direct client-side Firestore flow
     if (isDirectFirebasePreferred()) {
       try {
-        // Enforce a timeout of 30 seconds for direct Firestore operations
-        const savePromise = saveRemoteDatabaseState(updatedDb);
+        // Data Integrity Guard: Fetch remote state first to verify nobody else saved a newer version
+        let remoteState: DatabaseState | null = null;
+        try {
+          remoteState = await fetchRemoteDatabaseState();
+        } catch (fetchErr) {
+          console.warn('[Dugsiga Subuc] Failed to verify remote version before writing:', fetchErr);
+        }
+
+        if (remoteState && remoteState.lastUpdatedTime && remoteState.lastUpdatedTime > (database?.lastUpdatedTime || 0)) {
+          // Conflict detected: remote state is newer than what we originally loaded!
+          setGlobalSaveStatus({ 
+            type: 'error', 
+            message: 'Digniin: Waxaa jira xog ka cusub tan oo qof kale uu kaydiyay server-ka. Fadlan dib u cusbooneysii (refresh) bogga si aysan xogtu u tirtirmin.' 
+          });
+          return;
+        }
+
+        // Perform the Firestore write
+        const savePromise = saveRemoteDatabaseState(dbWithTimestamp);
         const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Firestore operation timed out')), 30000)
+          setTimeout(() => reject(new Error('Firestore operation timed out')), 25000)
         );
 
         const success = await Promise.race([savePromise, timeoutPromise]);
         
         if (success) {
-          setGlobalSaveStatus({ type: 'success', message: 'Saved successfully!' });
+          setGlobalSaveStatus({ type: 'success', message: 'Si guul leh ayaa loo kaydiyay xogta!' });
           setTimeout(() => {
             setGlobalSaveStatus(prev => prev.type === 'success' ? { type: null, message: null } : prev);
           }, 4000);
@@ -311,9 +434,9 @@ export default function App() {
         console.error('[Dugsiga Subuc] Failed to save state to Firebase Firestore.', error);
         setGlobalSaveStatus({ 
           type: 'error', 
-          message: 'Unable to save. The application cannot connect to Firestore. Please check your connection and try again.' 
+          message: 'Kaydinta waa ay guuldaraysatay. Fadlan hubi khadkaaga internet-ka oo dib u tijaabi.' 
         });
-        throw error; // Re-throw to let callers handle it
+        throw error;
       }
       return;
     }
@@ -329,7 +452,7 @@ export default function App() {
           'X-Teacher-Id': loggedTeacher?.id || '',
           'X-Session-Id': currentDeviceSessionId
         },
-        body: JSON.stringify(updatedDb)
+        body: JSON.stringify(dbWithTimestamp)
       });
 
       const timeoutPromise = new Promise<never>((_, reject) =>
@@ -352,7 +475,7 @@ export default function App() {
 
       const result = await response.json();
       if (result.success) {
-        setGlobalSaveStatus({ type: 'success', message: 'Saved successfully!' });
+        setGlobalSaveStatus({ type: 'success', message: 'Si guul leh ayaa loo kaydiyay xogta!' });
         setTimeout(() => {
           setGlobalSaveStatus(prev => prev.type === 'success' ? { type: null, message: null } : prev);
         }, 4000);
@@ -364,9 +487,9 @@ export default function App() {
       console.error("[Dugsiga Subuc] Failed to synchronize state update with background database server.", error);
       setGlobalSaveStatus({ 
         type: 'error', 
-        message: 'Unable to save. The application cannot connect to Firestore. Please check your connection and try again.' 
+        message: 'Kaydinta waa ay guuldaraysatay. Fadlan hubi khadkaaga internet-ka.' 
       });
-      throw error; // Re-throw to let callers handle it
+      throw error;
     }
   };
 
@@ -403,6 +526,13 @@ export default function App() {
 
   return (
     <>
+      {isOffline && (
+        <div className="bg-amber-600 text-white text-[11px] sm:text-xs font-semibold py-2.5 px-4 text-center sticky top-0 z-[10000] flex items-center justify-center gap-2 shadow-md transition-all duration-300">
+          <span className="inline-block w-2 h-2 rounded-full bg-white animate-pulse" />
+          <span><strong>Khadka waa ka baxsan tahay (Offline)</strong> — Xogta la muujiyay waxaa laga yaabaa inaysan ahayn tii ugu dambaysay. Nidaamku wuxuu si otomaatig ah ula dhexgelin doonaa Firestore marka aad khadka ku soo laabato.</span>
+        </div>
+      )}
+
       {userRole === null && !showLogin && (
         <LandingPage 
           database={database} 
@@ -443,6 +573,7 @@ export default function App() {
         <div className={`fixed bottom-5 right-5 z-[9999] flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border max-w-sm transition-all duration-300 ${
           globalSaveStatus.type === 'loading' ? 'bg-amber-50 border-amber-200 text-amber-900' :
           globalSaveStatus.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-900' :
+          globalSaveStatus.type === 'warning' ? 'bg-amber-100 border-amber-300 text-amber-950 animate-bounce' :
           'bg-rose-50 border-rose-200 text-rose-900 animate-pulse'
         }`}>
           {globalSaveStatus.type === 'loading' && (
@@ -451,16 +582,19 @@ export default function App() {
           {globalSaveStatus.type === 'success' && (
             <span className="text-emerald-600 flex-shrink-0">✓</span>
           )}
+          {globalSaveStatus.type === 'warning' && (
+            <span className="text-amber-600 flex-shrink-0 font-bold">⚠️</span>
+          )}
           {globalSaveStatus.type === 'error' && (
             <span className="text-rose-600 flex-shrink-0 font-bold">⚠️</span>
           )}
           <div className="flex-1 text-xs font-semibold leading-relaxed">
             {globalSaveStatus.message}
           </div>
-          {globalSaveStatus.type === 'error' && (
+          {(globalSaveStatus.type === 'error' || globalSaveStatus.type === 'warning') && (
             <button 
               onClick={() => setGlobalSaveStatus({ type: null, message: null })} 
-              className="ml-2 text-rose-500 hover:text-rose-700 font-bold text-xs"
+              className="ml-2 text-slate-500 hover:text-slate-700 font-bold text-xs"
             >
               ✕
             </button>

@@ -255,6 +255,7 @@ export interface DatabaseState {
   adminSessionId?: string; // Active session tracking for concurrent device login control
   invoices?: Invoice[];
   lastBackupDownloadDate?: string; // YYYY-MM-DD format to track local D:\ system backup reminders
+  lastUpdatedTime?: number; // timestamp to prevent accidental overwrite of newer cloud state with older local state
 }
 
 export interface ExamScore {

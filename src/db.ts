@@ -878,21 +878,6 @@ export function getDatabase(): DatabaseState {
     if (!parsed.moneyTransfers) {
       parsed.moneyTransfers = [...DEFAULT_MONEY_TRANSFERS];
       saveDatabase(parsed);
-    } else {
-      // Force merge to guarantee all seed records exist in their active database state
-      const existingIds = new Set(parsed.moneyTransfers.map((m: any) => m.id));
-      let updatedTransfers = [...parsed.moneyTransfers];
-      let addedAny = false;
-      for (const seed of DEFAULT_MONEY_TRANSFERS) {
-        if (!existingIds.has(seed.id)) {
-          updatedTransfers.push(seed);
-          addedAny = true;
-        }
-      }
-      if (addedAny) {
-        parsed.moneyTransfers = updatedTransfers;
-        saveDatabase(parsed);
-      }
     }
     if (!parsed.contactMessages) {
       parsed.contactMessages = [];
@@ -937,18 +922,6 @@ export function mergeSeedRemittances(parsed: DatabaseState): { updated: Database
   if (!parsed.moneyTransfers) {
     parsed.moneyTransfers = [...DEFAULT_MONEY_TRANSFERS];
     changed = true;
-  } else {
-    const existingIds = new Set(parsed.moneyTransfers.map((m: any) => m.id));
-    const updatedTransfers = [...parsed.moneyTransfers];
-    for (const seed of DEFAULT_MONEY_TRANSFERS) {
-      if (!existingIds.has(seed.id)) {
-        updatedTransfers.push(seed);
-        changed = true;
-      }
-    }
-    if (changed) {
-      parsed.moneyTransfers = updatedTransfers;
-    }
   }
   return { updated: sanitizeLocalDatabase(parsed), changed };
 }
