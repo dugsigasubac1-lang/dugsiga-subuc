@@ -550,52 +550,9 @@ async function startServer() {
             let remoteState = (docSnap.data() as any)?.state;
             if (remoteState && typeof remoteState === 'object') {
               remoteState = sanitizeDatabaseState(remoteState);
-              let mergedState = { ...remoteState };
-              let changed = false;
-
-              // Check if we have local seeds in database.json that need to be merged
-              if (fs.existsSync(DB_FILE)) {
-                try {
-                  const localContent = fs.readFileSync(DB_FILE, 'utf-8');
-                  let localState = JSON.parse(localContent);
-                  localState = sanitizeDatabaseState(localState);
-                  if (localState && localState.moneyTransfers && Array.isArray(localState.moneyTransfers)) {
-                    if (!mergedState.moneyTransfers) {
-                      mergedState.moneyTransfers = [];
-                    }
-                    const remoteIds = new Set(mergedState.moneyTransfers.map((m: any) => m.id));
-                    const updatedTransfers = [...mergedState.moneyTransfers];
-                    for (const item of localState.moneyTransfers) {
-                      if (item && item.id && !remoteIds.has(item.id)) {
-                        updatedTransfers.push(item);
-                        remoteIds.add(item.id);
-                        changed = true;
-                        console.log(`[Server Sync] Merging missing money transfer record: ${item.id}`);
-                      }
-                    }
-                    if (changed) {
-                      mergedState.moneyTransfers = updatedTransfers;
-                    }
-                  }
-                } catch (parseErr) {
-                  console.error('[Server Sync] Fail parsing database.json for merge:', parseErr);
-                }
-              }
-
-              if (changed) {
-                currentDatabaseState = mergedState;
-                fs.writeFileSync(DB_FILE, JSON.stringify(mergedState, null, 2), 'utf-8');
-                try {
-                  await setDoc(stateDocRef, { state: mergedState });
-                  console.log('[Server Sync] Successfully wrote merged database state to Firestore.');
-                } catch (writeErr) {
-                  console.error('[Server Sync] Fail writing merged state to Firestore:', writeErr);
-                }
-              } else {
-                currentDatabaseState = remoteState;
-                fs.writeFileSync(DB_FILE, JSON.stringify(remoteState, null, 2), 'utf-8');
-                console.log('Database state synchronized in real-time from Firestore cloud.');
-              }
+              currentDatabaseState = remoteState;
+              fs.writeFileSync(DB_FILE, JSON.stringify(remoteState, null, 2), 'utf-8');
+              console.log('Database state synchronized in real-time from Firestore cloud.');
             }
           }
         } catch (syncErr) {
