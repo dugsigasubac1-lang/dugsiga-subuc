@@ -220,14 +220,16 @@ export default function App() {
         if (active) {
           unsubscribe = subscribeToRemoteDatabaseState((remoteDb) => {
             if (active && remoteDb) {
-              const remoteTime = remoteDb.lastUpdatedTime || 0;
               setDatabase(currentDb => {
                 if (!currentDb) return remoteDb;
-                const localTime = currentDb.lastUpdatedTime || 0;
                 
-                // Compare timestamps precisely rather than using an arbitrary blind 4-second timeout
-                if (remoteTime > localTime) {
-                  console.info('[Dugsiga Subuc] Received newer database state from Firestore Cloud. Synchronizing...', remoteTime, localTime);
+                // Avoid recursive loops or overwrites if we are actively saving on this device
+                if (Date.now() - lastSaveTimeRef.current < 2500) {
+                  return currentDb;
+                }
+
+                if (JSON.stringify(currentDb) !== JSON.stringify(remoteDb)) {
+                  console.info('[Dugsiga Subuc] Real-time Firestore update received.');
                   saveDatabase(remoteDb);
                   return remoteDb;
                 }
@@ -291,11 +293,15 @@ export default function App() {
               // Subscribe as fallback
               unsubscribe = subscribeToRemoteDatabaseState((remoteDb) => {
                 if (active && remoteDb) {
-                  const remoteTime = remoteDb.lastUpdatedTime || 0;
                   setDatabase(currentDb => {
                     if (!currentDb) return remoteDb;
-                    const localTime = currentDb.lastUpdatedTime || 0;
-                    if (remoteTime > localTime) {
+                    
+                    if (Date.now() - lastSaveTimeRef.current < 2500) {
+                      return currentDb;
+                    }
+
+                    if (JSON.stringify(currentDb) !== JSON.stringify(remoteDb)) {
+                      console.info('[Dugsiga Subuc] Real-time Firestore fallback update received.');
                       saveDatabase(remoteDb);
                       return remoteDb;
                     }
