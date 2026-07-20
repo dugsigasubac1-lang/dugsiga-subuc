@@ -8,7 +8,7 @@ interface LogoProps {
 export function DugsigaSubucLogo({ className = "", size }: LogoProps) {
   return (
     <img 
-      src="/logo.png" 
+      src="/logo.png?v=3" 
       alt="Dugsiga Subuc Logo" 
       className={`rounded-full object-cover bg-white border border-emerald-600/20 shadow-sm aspect-square ${className}`}
       style={size ? { width: size, height: size } : undefined}
@@ -21,7 +21,7 @@ export function DugsigaSubucFullLogo({ className = "" }: LogoProps) {
   return (
     <div className={`flex flex-col items-center justify-center select-none ${className}`} id="dugsiga-subuc-brand-group">
       <img 
-        src="/logo.png" 
+        src="/logo.png?v=3" 
         alt="Dugsiga Subuc Full Logo" 
         className="w-full h-auto object-contain max-h-[180px] hover:scale-[1.03] transition-transform duration-300"
         referrerPolicy="no-referrer"
