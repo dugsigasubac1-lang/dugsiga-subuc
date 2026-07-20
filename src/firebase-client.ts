@@ -27,7 +27,8 @@ export function initFirebaseClient() {
   try {
     app = initializeApp(firebaseConfig);
     db = initializeFirestore(app, {
-      experimentalForceLongPolling: true
+      experimentalForceLongPolling: true,
+      ignoreUndefinedProperties: true
     }, firebaseConfig.firestoreDatabaseId);
     stateDocRef = doc(db, 'system', 'state');
     initialized = true;
@@ -36,6 +37,23 @@ export function initFirebaseClient() {
     console.error('[Dugsiga Subuc] Failed to initialize direct Firebase Client:', error);
   }
   return { db, stateDocRef };
+}
+
+function removeUndefined(obj: any): any {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(removeUndefined);
+  }
+  const cleaned: any = {};
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (val !== undefined) {
+      cleaned[key] = removeUndefined(val);
+    }
+  }
+  return cleaned;
 }
 
 export async function fetchRemoteDatabaseState(): Promise<DatabaseState | null> {
@@ -58,7 +76,8 @@ export async function saveRemoteDatabaseState(state: DatabaseState): Promise<boo
   const { stateDocRef } = initFirebaseClient();
   if (!stateDocRef) return false;
   try {
-    await setDoc(stateDocRef, { state });
+    const sanitizedState = removeUndefined(state);
+    await setDoc(stateDocRef, { state: sanitizedState });
     return true;
   } catch (error) {
     console.error('[Dugsiga Subuc] Direct Firestore save error:', error);
