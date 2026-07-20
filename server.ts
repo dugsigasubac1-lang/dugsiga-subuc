@@ -415,6 +415,63 @@ async function startServer() {
     }
   }
 
+  // Intercept primary static branding files to serve them directly as pristine binary streams from Cloudflare R2
+  const STATIC_BRANDING_FILES = [
+    'logo.png', 'logo.jpg', 
+    'favicon.png', 'favicon.ico', 
+    'school-preview.jpg',
+    'favicon-48x48.png', 'favicon-96x96.png', 
+    'favicon-144x144.png', 'favicon-192x192.png'
+  ];
+
+  app.get('/:filename', async (req, res, next) => {
+    const filename = req.params.filename;
+    if (STATIC_BRANDING_FILES.includes(filename)) {
+      const r2 = getR2Client();
+      if (r2) {
+        const bucketName = process.env.R2_BUCKET_NAME || 'subuc';
+        try {
+          let r2Object;
+          try {
+            const command = new GetObjectCommand({
+              Bucket: bucketName,
+              Key: `static/${filename}`,
+            });
+            r2Object = await r2.send(command);
+          } catch (firstErr) {
+            const command = new GetObjectCommand({
+              Bucket: bucketName,
+              Key: filename,
+            });
+            r2Object = await r2.send(command);
+          }
+
+          if (r2Object && r2Object.Body) {
+            const ext = path.extname(filename).toLowerCase();
+            if (ext === '.png') res.setHeader('Content-Type', 'image/png');
+            else if (ext === '.jpg' || ext === '.jpeg') res.setHeader('Content-Type', 'image/jpeg');
+            else if (ext === '.ico') res.setHeader('Content-Type', 'image/x-icon');
+            
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+            res.setHeader('Access-Control-Allow-Headers', '*');
+            res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+            
+            if (r2Object.ContentLength) {
+              res.setHeader('Content-Length', r2Object.ContentLength);
+            }
+            
+            const stream = r2Object.Body as any;
+            return stream.pipe(res);
+          }
+        } catch (r2Err: any) {
+          console.log(`[R2/Static] File "${filename}" not retrieved from R2, falling back to local:`, r2Err.message || r2Err);
+        }
+      }
+    }
+    next();
+  });
+
   // Intercept uploads requested from the client. Retrieve from Cloudflare R2 if possible, or fallback to local files
   app.get('/uploads/:filename', async (req, res, next) => {
     const filename = req.params.filename;
