@@ -5972,8 +5972,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   <span className="p-1 px-3 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-lg uppercase tracking-wider">Daily Session Drill</span>
                 </div>
                 
-                <div className="h-72 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-72 w-full relative min-w-0 min-h-0">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <BarChart data={attendanceTrendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <CartesianGrid stroke="#f1f5f9" strokeDasharray="3 3" />
                       <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} fontWeight={600} />
@@ -5995,24 +5995,26 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   <p className="text-slate-400 text-xs mt-0.5">Payment distribution for current month</p>
                 </div>
 
-                <div className="h-44 w-full flex items-center justify-center relative">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={billingOverviewData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={55}
-                        outerRadius={75}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {billingOverviewData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
+                <div className="h-44 w-full flex items-center justify-center relative min-w-0 min-h-0">
+                  <div className="absolute inset-0 min-w-0 min-h-0">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                      <PieChart>
+                        <Pie
+                          data={billingOverviewData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={55}
+                          outerRadius={75}
+                          paddingAngle={5}
+                          dataKey="value"
+                        >
+                          {billingOverviewData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
                   
                   {/* Absolute Center Metric */}
                   <div className="absolute text-center">
@@ -7201,24 +7203,26 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                           <p className="text-[10px] text-slate-405 block mt-0.5">Proportion breakdown of registered attendance today</p>
                         </div>
                         
-                        <div className="h-44 w-full flex items-center justify-center relative">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie
-                                data={distributionData}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={45}
-                                outerRadius={60}
-                                paddingAngle={3}
-                                dataKey="value"
-                              >
-                                {distributionData.map((entry, index) => (
-                                  <Cell key={`cell-${index}`} fill={entry.color} />
-                                ))}
-                              </Pie>
-                            </PieChart>
-                          </ResponsiveContainer>
+                        <div className="h-44 w-full flex items-center justify-center relative min-w-0 min-h-0">
+                          <div className="absolute inset-0 min-w-0 min-h-0">
+                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                              <PieChart>
+                                <Pie
+                                  data={distributionData}
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius={45}
+                                  outerRadius={60}
+                                  paddingAngle={3}
+                                  dataKey="value"
+                                >
+                                  {distributionData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                  ))}
+                                </Pie>
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
                           
                           {/* Inner Label */}
                           <div className="absolute text-center">
@@ -7250,8 +7254,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                           <p className="text-[10px] text-slate-405 block mt-0.5">Presents vs Lates over the last 7 calendar days</p>
                         </div>
 
-                        <div className="h-44 w-full mt-2">
-                          <ResponsiveContainer width="100%" height="100%">
+                        <div className="h-44 w-full mt-2 relative min-w-0 min-h-0">
+                          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                             <BarChart data={last7DaysTrend} margin={{ top: 5, right: 10, left: -25, bottom: 5 }}>
                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                               <XAxis dataKey="day" stroke="#94a3b8" fontSize={9} tickLine={false} axisLine={false} />
@@ -14110,7 +14114,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                             <th className="py-3 px-4">Fasalka (Class)</th>
                             <th className="py-3 px-4">Waalidka (Parent Name)</th>
                             <th className="py-3 px-4">Telka Waalidka (Parent Phone)</th>
-                            <th className="py-3 px-4 text-right">Monthly Bus Fee (Lacagta)</th>
+                            <th className="py-3 px-4 text-right pointer-print-none no-print">Monthly Bus Fee (Lacagta)</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -14121,7 +14125,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                               <td className="py-3 px-4 text-slate-600 font-semibold">{s.className || 'None'}</td>
                               <td className="py-3 px-4 text-slate-700 font-medium">{s.parentName || 'N/A'}</td>
                               <td className="py-3 px-4 text-slate-600 font-semibold">{s.parentPhone || 'N/A'}</td>
-                              <td className="py-3 px-4 text-right font-black text-indigo-700">${Number(s.busFee || 0).toFixed(2)}</td>
+                              <td className="py-3 px-4 text-right font-black text-indigo-700 pointer-print-none no-print">${Number(s.busFee || 0).toFixed(2)}</td>
                             </tr>
                           ))}
                         </tbody>
