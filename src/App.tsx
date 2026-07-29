@@ -130,23 +130,42 @@ export default function App() {
     if (customLogo && typeof customLogo === 'string' && customLogo.trim() !== '') {
       const activeLogo = customLogo.trim();
 
-      // 1. Update or create favicon link tags in browser head
-      const rels = ['icon', 'shortcut icon', 'apple-touch-icon'];
-      rels.forEach(rel => {
-        const existingLinks = Array.from(document.querySelectorAll(`link[rel="${rel}"]`));
-        if (existingLinks.length > 0) {
-          existingLinks.forEach(link => {
-            (link as HTMLLinkElement).href = activeLogo;
-          });
-        } else {
-          const newLink = document.createElement('link');
-          newLink.rel = rel;
-          newLink.href = activeLogo;
-          document.head.appendChild(newLink);
-        }
+      // Determine MIME type
+      let mimeType = 'image/png';
+      if (activeLogo.startsWith('data:image/jpeg') || activeLogo.match(/\.(jpg|jpeg)(\?.*)?$/i)) {
+        mimeType = 'image/jpeg';
+      } else if (activeLogo.startsWith('data:image/webp') || activeLogo.match(/\.webp(\?.*)?$/i)) {
+        mimeType = 'image/webp';
+      } else if (activeLogo.startsWith('data:image/svg') || activeLogo.match(/\.svg(\?.*)?$/i)) {
+        mimeType = 'image/svg+xml';
+      }
+
+      // Add cache buster for HTTP/HTTPS URLs to force browser tab icon refresh
+      const faviconHref = activeLogo.startsWith('data:')
+        ? activeLogo
+        : `${activeLogo}${activeLogo.includes('?') ? '&' : '?'}v=${Date.now()}`;
+
+      // 1. Remove all old favicon link elements in document head
+      const selector = 'link[rel*="icon"], link[rel*="shortcut"], link[rel*="apple-touch-icon"]';
+      const existingFavicons = document.querySelectorAll(selector);
+      existingFavicons.forEach(el => el.remove());
+
+      // 2. Insert fresh link elements with proper rel, type, and href
+      const linkConfigs = [
+        { rel: 'icon', type: mimeType },
+        { rel: 'shortcut icon', type: mimeType },
+        { rel: 'apple-touch-icon', type: mimeType }
+      ];
+
+      linkConfigs.forEach(({ rel, type }) => {
+        const link = document.createElement('link');
+        link.rel = rel;
+        link.type = type;
+        link.href = faviconHref;
+        document.head.appendChild(link);
       });
 
-      // 2. Update meta images for search engines and social sharing
+      // 3. Update meta images for search engines and social sharing
       const ogImg = document.querySelector('meta[property="og:image"]');
       if (ogImg) ogImg.setAttribute('content', activeLogo);
 

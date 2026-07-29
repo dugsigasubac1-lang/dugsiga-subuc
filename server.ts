@@ -403,6 +403,17 @@ async function startServer() {
     }
   }
 
+  // Shared State & Firestore Database references
+  let db: any = null;
+  let stateDocRef: any = null;
+  let currentDatabaseState: any = null;
+
+  let resolveFirstSnapshot: () => void = () => {};
+  const firstSnapshotPromise = new Promise<void>((resolve) => {
+    resolveFirstSnapshot = resolve;
+  });
+  let isSnapshotLoaded = false;
+
   // Use JSON middleware with high limit for larger database payloads
   app.use(express.json({ limit: '50mb' }));
 
@@ -428,6 +439,13 @@ async function startServer() {
   app.get('/:filename', async (req, res, next) => {
     const filename = req.params.filename;
     if (STATIC_BRANDING_FILES.includes(filename)) {
+      if (stateDocRef && !isSnapshotLoaded) {
+        await Promise.race([
+          firstSnapshotPromise,
+          new Promise(resolve => setTimeout(resolve, 2000))
+        ]);
+      }
+
       // Priority 1: If user configured a custom website profile logo, serve it dynamically as the favicon/logo!
       const customLogoUrl = currentDatabaseState?.landingPageSettings?.logoUrl;
       if (customLogoUrl && typeof customLogoUrl === 'string' && customLogoUrl.trim() !== '') {
@@ -580,16 +598,6 @@ async function startServer() {
   });
 
   // Initialize Firebase Firestore Connection
-  let db: any = null;
-  let stateDocRef: any = null;
-  let currentDatabaseState: any = null;
-
-  let resolveFirstSnapshot: () => void = () => {};
-  const firstSnapshotPromise = new Promise<void>((resolve) => {
-    resolveFirstSnapshot = resolve;
-  });
-  let isSnapshotLoaded = false;
-
   try {
     let firebaseConfig: any = null;
     if (fs.existsSync(CONFIG_FILE)) {
@@ -1130,13 +1138,32 @@ async function startServer() {
     const logoUrl = customLogo.trim();
     let modified = htmlContent;
 
-    // Dynamically replace favicon link tags with the custom profile logo
-    modified = modified.replace(/href="\/favicon[^"]*"/g, `href="${logoUrl}"`);
-    modified = modified.replace(/href="\/logo[^"]*"/g, `href="${logoUrl}"`);
+    // Determine MIME type
+    let mimeType = 'image/png';
+    if (logoUrl.startsWith('data:image/jpeg') || logoUrl.match(/\.(jpg|jpeg)(\?.*)?$/i)) {
+      mimeType = 'image/jpeg';
+    } else if (logoUrl.startsWith('data:image/webp') || logoUrl.match(/\.webp(\?.*)?$/i)) {
+      mimeType = 'image/webp';
+    } else if (logoUrl.startsWith('data:image/svg') || logoUrl.match(/\.svg(\?.*)?$/i)) {
+      mimeType = 'image/svg+xml';
+    }
 
-    // Replace OpenGraph & Twitter preview images
+    // Strips out static favicon link tags and injects clean dynamic ones
+    modified = modified.replace(/<link[^>]*rel="[^"]*icon[^"]*"[^>]*>/gi, '');
+    modified = modified.replace(/<link[^>]*rel="apple-touch-icon"[^>]*>/gi, '');
+
+    const newFaviconTags = `
+    <link rel="icon" type="${mimeType}" href="${logoUrl}" />
+    <link rel="shortcut icon" type="${mimeType}" href="${logoUrl}" />
+    <link rel="apple-touch-icon" href="${logoUrl}" />`;
+
+    modified = modified.replace('</head>', `${newFaviconTags}\n</head>`);
+
+    // Replace OpenGraph & Twitter preview images for search engines (Google, Bing) and social shares
     modified = modified.replace(/content="https:\/\/dugsigasubuc\.com\/school-preview\.jpg[^"]*"/g, `content="${logoUrl}"`);
     modified = modified.replace(/content="https:\/\/dugsigasubuc\.com\/logo\.jpg[^"]*"/g, `content="${logoUrl}"`);
+    modified = modified.replace(/<meta property="og:image" content="[^"]*"/g, `<meta property="og:image" content="${logoUrl}"`);
+    modified = modified.replace(/<meta property="twitter:image" content="[^"]*"/g, `<meta property="twitter:image" content="${logoUrl}"`);
     modified = modified.replace(/"logo":\s*"[^"]*"/g, `"logo": "${logoUrl}"`);
 
     return modified;
@@ -1148,6 +1175,26 @@ async function startServer() {
       server: { middlewareMode: true },
       appType: 'spa',
     });
+
+    // Dev HTML transformer route to mirror production dynamic branding
+    app.use(async (req, res, next) => {
+      if (req.method === 'GET' && (req.path === '/' || req.path === '/index.html')) {
+        try {
+          const indexPath = path.join(process.cwd(), 'index.html');
+          if (fs.existsSync(indexPath)) {
+            let html = fs.readFileSync(indexPath, 'utf-8');
+            html = await vite.transformIndexHtml(req.originalUrl, html);
+            html = renderHtmlWithDynamicBranding(html);
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            return res.send(html);
+          }
+        } catch (e) {
+          return next(e);
+        }
+      }
+      next();
+    });
+
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
