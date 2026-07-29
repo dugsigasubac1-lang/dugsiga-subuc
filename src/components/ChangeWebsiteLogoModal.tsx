@@ -66,10 +66,10 @@ export function ChangeWebsiteLogoModal({
     reader.onload = (event) => {
       const img = new Image();
       img.onload = () => {
-        // Compress and resize image to optimal size (max 512x512) for fast loading
+        // Compress and resize image to optimal size (max 300x300) for fast loading & small Firestore footprint
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 512;
-        const MAX_HEIGHT = 512;
+        const MAX_WIDTH = 300;
+        const MAX_HEIGHT = 300;
         let width = img.width;
         let height = img.height;
 
@@ -85,12 +85,14 @@ export function ChangeWebsiteLogoModal({
           }
         }
 
-        canvas.width = width;
-        canvas.height = height;
+        canvas.width = Math.round(width);
+        canvas.height = Math.round(height);
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressedDataUrl = canvas.toDataURL('image/png', 0.92);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
           setPreviewUrl(compressedDataUrl);
           setSuccessMsg('Sawirka waa la habeeyay! Guji "Kaydi Sawirka" si aad u xaqiijiso.');
         } else {

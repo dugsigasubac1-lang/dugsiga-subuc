@@ -22,7 +22,7 @@ export function DugsigaSubucLogo({
 
   return (
     <div 
-      className={`relative inline-block group shrink-0 ${onClick ? 'cursor-pointer' : ''}`}
+      className={`relative inline-block group shrink-0 ${onClick ? 'cursor-pointer z-10' : ''}`}
       onClick={onClick}
       title={title || (editable ? "Guji si aad u beddesho sawirka astaanta website-ka (Click to change website profile photo)" : "Dugsiga Subuc Logo")}
     >
@@ -34,7 +34,7 @@ export function DugsigaSubucLogo({
         referrerPolicy="no-referrer"
       />
       {editable && (
-        <div className="absolute inset-0 rounded-full bg-slate-900/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white backdrop-blur-[1px]">
+        <div className="absolute inset-0 rounded-full bg-slate-900/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white backdrop-blur-[1px] pointer-events-none">
           <Camera className="w-4 h-4 text-white drop-shadow-sm" />
         </div>
       )}
@@ -53,7 +53,7 @@ export function DugsigaSubucFullLogo({
 
   return (
     <div 
-      className={`relative group flex flex-col items-center justify-center select-none ${onClick ? 'cursor-pointer' : ''} ${className}`} 
+      className={`relative group flex flex-col items-center justify-center select-none ${onClick ? 'cursor-pointer z-10' : ''} ${className}`} 
       id="dugsiga-subuc-brand-group"
       onClick={onClick}
       title={title || (editable ? "Guji si aad u beddesho sawirka astaanta website-ka (Click to change website profile photo)" : "Dugsiga Subuc Full Logo")}
@@ -65,7 +65,7 @@ export function DugsigaSubucFullLogo({
         referrerPolicy="no-referrer"
       />
       {editable && (
-        <div className="absolute inset-0 rounded-2xl bg-slate-900/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs gap-1.5 backdrop-blur-[1px]">
+        <div className="absolute inset-0 rounded-2xl bg-slate-900/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs gap-1.5 backdrop-blur-[1px] pointer-events-none">
           <Camera className="w-4 h-4 text-white drop-shadow-sm" />
           <span>Beddel Sawirka Astaanta</span>
         </div>

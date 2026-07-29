@@ -124,6 +124,37 @@ export default function App() {
     }
   }, [showLogin, userRole]);
 
+  // Dynamic Website Profile Logo & Favicon synchronization
+  useEffect(() => {
+    const customLogo = database?.landingPageSettings?.logoUrl;
+    if (customLogo && typeof customLogo === 'string' && customLogo.trim() !== '') {
+      const activeLogo = customLogo.trim();
+
+      // 1. Update or create favicon link tags in browser head
+      const rels = ['icon', 'shortcut icon', 'apple-touch-icon'];
+      rels.forEach(rel => {
+        const existingLinks = Array.from(document.querySelectorAll(`link[rel="${rel}"]`));
+        if (existingLinks.length > 0) {
+          existingLinks.forEach(link => {
+            (link as HTMLLinkElement).href = activeLogo;
+          });
+        } else {
+          const newLink = document.createElement('link');
+          newLink.rel = rel;
+          newLink.href = activeLogo;
+          document.head.appendChild(newLink);
+        }
+      });
+
+      // 2. Update meta images for search engines and social sharing
+      const ogImg = document.querySelector('meta[property="og:image"]');
+      if (ogImg) ogImg.setAttribute('content', activeLogo);
+
+      const twImg = document.querySelector('meta[property="twitter:image"]');
+      if (twImg) twImg.setAttribute('content', activeLogo);
+    }
+  }, [database?.landingPageSettings?.logoUrl]);
+
   // Synchronize logged-in teacher state with latest server/cached database changes
   useEffect(() => {
     if (userRole === 'teacher' && loggedTeacher && database) {

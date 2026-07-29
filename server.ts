@@ -415,18 +415,42 @@ async function startServer() {
     }
   }
 
-  // Intercept primary static branding files to serve them directly as pristine binary streams from Cloudflare R2
+  // Intercept primary static branding files to serve them directly as pristine binary streams from Cloudflare R2 or dynamic website profile logo
   const STATIC_BRANDING_FILES = [
     'logo.png', 'logo.jpg', 
     'favicon.png', 'favicon.ico', 
     'school-preview.jpg',
     'favicon-48x48.png', 'favicon-96x96.png', 
-    'favicon-144x144.png', 'favicon-192x192.png'
+    'favicon-144x144.png', 'favicon-192x192.png',
+    'apple-touch-icon.png'
   ];
 
   app.get('/:filename', async (req, res, next) => {
     const filename = req.params.filename;
     if (STATIC_BRANDING_FILES.includes(filename)) {
+      // Priority 1: If user configured a custom website profile logo, serve it dynamically as the favicon/logo!
+      const customLogoUrl = currentDatabaseState?.landingPageSettings?.logoUrl;
+      if (customLogoUrl && typeof customLogoUrl === 'string' && customLogoUrl.trim() !== '') {
+        const logo = customLogoUrl.trim();
+        if (logo.startsWith('data:image/')) {
+          const match = logo.match(/^data:(image\/[a-zA-Z0-9+\-+.]+);base64,(.+)$/);
+          if (match) {
+            const mimeType = match[1];
+            const base64Data = match[2];
+            const imgBuffer = Buffer.from(base64Data, 'base64');
+            res.setHeader('Content-Type', mimeType);
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+            res.setHeader('Content-Length', imgBuffer.length);
+            return res.send(imgBuffer);
+          }
+        } else if (logo.startsWith('/uploads/')) {
+          return res.redirect(logo);
+        } else if (logo.startsWith('http://') || logo.startsWith('https://')) {
+          return res.redirect(logo);
+        }
+      }
+
       const r2 = getR2Client();
       if (r2) {
         const bucketName = process.env.R2_BUCKET_NAME || 'subuc';
@@ -1097,6 +1121,27 @@ async function startServer() {
                       (typeof __filename !== 'undefined' && (__filename.includes('dist') || __filename.endsWith('.cjs'))) ||
                       !fs.existsSync(path.join(process.cwd(), 'server.ts'));
 
+  function renderHtmlWithDynamicBranding(htmlContent: string): string {
+    const customLogo = currentDatabaseState?.landingPageSettings?.logoUrl;
+    if (!customLogo || typeof customLogo !== 'string' || !customLogo.trim()) {
+      return htmlContent;
+    }
+
+    const logoUrl = customLogo.trim();
+    let modified = htmlContent;
+
+    // Dynamically replace favicon link tags with the custom profile logo
+    modified = modified.replace(/href="\/favicon[^"]*"/g, `href="${logoUrl}"`);
+    modified = modified.replace(/href="\/logo[^"]*"/g, `href="${logoUrl}"`);
+
+    // Replace OpenGraph & Twitter preview images
+    modified = modified.replace(/content="https:\/\/dugsigasubuc\.com\/school-preview\.jpg[^"]*"/g, `content="${logoUrl}"`);
+    modified = modified.replace(/content="https:\/\/dugsigasubuc\.com\/logo\.jpg[^"]*"/g, `content="${logoUrl}"`);
+    modified = modified.replace(/"logo":\s*"[^"]*"/g, `"logo": "${logoUrl}"`);
+
+    return modified;
+  }
+
   // Vite Middleware for Asset Serving & Hot Reloading in Dev
   if (!isProdMode) {
     const vite = await createViteServer({
@@ -1106,9 +1151,20 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, { index: false }));
     app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      const indexPath = path.join(distPath, 'index.html');
+      if (fs.existsSync(indexPath)) {
+        try {
+          let html = fs.readFileSync(indexPath, 'utf-8');
+          html = renderHtmlWithDynamicBranding(html);
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          return res.send(html);
+        } catch (e) {
+          return res.sendFile(indexPath);
+        }
+      }
+      return res.sendFile(indexPath);
     });
   }
 
