@@ -168,6 +168,7 @@ export interface SchoolImage {
 
 export interface LandingPageSettings {
   schoolName: string;
+  logoUrl?: string;
   heroTitle: string;
   heroSub: string;
   aboutText: string;

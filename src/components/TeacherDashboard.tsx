@@ -49,6 +49,7 @@ import {
 } from 'lucide-react';
 import { DatabaseState, Teacher, Student, DailyProgress, AttendanceType, LessonStatusType, TaskStatusType, GradeType, Exam, ExamScore, AppNotification, TeacherSubmission, TeacherAttendanceRecord } from '../types';
 import { DugsigaSubucLogo } from './Logo';
+import { ChangeWebsiteLogoModal } from './ChangeWebsiteLogoModal';
 import StudentMediaModal from './StudentMediaModal';
 
 interface TeacherDashboardProps {
@@ -66,6 +67,28 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [hasJustSubmitted, setHasJustSubmitted] = useState(false);
+  const [showLogoModal, setShowLogoModal] = useState(false);
+
+  const handleSaveLogo = (newLogoUrl: string) => {
+    onSaveDatabase({
+      ...database,
+      landingPageSettings: {
+        ...(database.landingPageSettings || {
+          schoolName: "Dugsiga Subuc",
+          heroTitle: "",
+          heroSub: "",
+          aboutText: "",
+          whatWeDo: "",
+          contactEmail: "",
+          contactPhone: "",
+          contactAddress: "",
+          cards: [],
+          pictures: []
+        }),
+        logoUrl: newLogoUrl
+      }
+    });
+  };
 
   // Workspace toggling
   const [activeWorkspace, setActiveWorkspace] = useState<'attendance' | 'exams' | 'studentHistory' | 'myAttendance'>('attendance');
@@ -1422,7 +1445,13 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
         {/* Brand Header */}
         <div className="flex items-center justify-between pb-6 border-b border-slate-800/80 mb-6 shrink-0">
           <div className="flex items-center gap-3">
-            <DugsigaSubucLogo className="w-10 h-10 shadow-md border-emerald-500/20" />
+            <DugsigaSubucLogo 
+              className="w-10 h-10 shadow-md border-emerald-500/20" 
+              logoUrl={database.landingPageSettings?.logoUrl}
+              editable={true}
+              onClick={() => setShowLogoModal(true)}
+              title="Guji si aad u beddesho sawirka astaanta (Click to change website profile logo)"
+            />
             <div className="flex flex-col">
               <span className="font-extrabold text-white text-base tracking-tight leading-none font-sans" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Dugsiga Subuc</span>
               <span className="text-[10px] font-medium text-emerald-400 mt-1.5 leading-none font-mono">مدرسة السبع</span>
@@ -4427,6 +4456,14 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
           }}
         />
       )}
+
+      {/* Website Logo Change Modal */}
+      <ChangeWebsiteLogoModal 
+        isOpen={showLogoModal}
+        onClose={() => setShowLogoModal(false)}
+        currentLogoUrl={database.landingPageSettings?.logoUrl}
+        onSaveLogo={handleSaveLogo}
+      />
 
     </div>
   </div>

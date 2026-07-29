@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { DatabaseState, LandingPageSettings, ContactMessage, AppNotification } from '../types';
 import { DugsigaSubucLogo } from './Logo';
+import { ChangeWebsiteLogoModal } from './ChangeWebsiteLogoModal';
 
 // Map icon string names from the admin settings tab to actual Lucide Icon components
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -64,6 +65,17 @@ export function LandingPage({ database, onEnterLogin, onSaveDatabase }: LandingP
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isNightMode, setIsNightMode] = useState(false);
+  const [showLogoModal, setShowLogoModal] = useState(false);
+
+  const handleSaveLogo = (newLogoUrl: string) => {
+    onSaveDatabase({
+      ...database,
+      landingPageSettings: {
+        ...settings,
+        logoUrl: newLogoUrl
+      }
+    });
+  };
 
   // States for visitor messaging
   const [activeFormTab, setActiveFormTab] = useState<'steps' | 'message'>('steps');
@@ -212,7 +224,13 @@ export function LandingPage({ database, onEnterLogin, onSaveDatabase }: LandingP
         <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
           
           <div className="flex items-center gap-3">
-            <DugsigaSubucLogo className="w-11 h-11" />
+            <DugsigaSubucLogo 
+              className="w-11 h-11" 
+              logoUrl={settings.logoUrl}
+              editable={true}
+              onClick={() => setShowLogoModal(true)}
+              title="Guji si aad u beddesho sawirka astaanta (Click to change profile logo)"
+            />
             <div className="flex flex-col">
               <span className={`font-extrabold text-sm sm:text-base tracking-tight leading-none transition-colors ${titleClass}`} style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                 {settings.schoolName}
@@ -927,6 +945,14 @@ export function LandingPage({ database, onEnterLogin, onSaveDatabase }: LandingP
           </div>
         </div>
       </footer>
+
+      {/* Website Logo Change Modal */}
+      <ChangeWebsiteLogoModal 
+        isOpen={showLogoModal}
+        onClose={() => setShowLogoModal(false)}
+        currentLogoUrl={settings.logoUrl}
+        onSaveLogo={handleSaveLogo}
+      />
     </div>
   );
 }

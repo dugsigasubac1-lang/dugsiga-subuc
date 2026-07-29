@@ -33,6 +33,8 @@ import {
 import { DatabaseState, LandingPageSettings, LandingCard, SchoolImage, ContactMessage } from '../types';
 import { DEFAULT_LANDING_SETTINGS } from '../db';
 import { motion } from 'motion/react';
+import { DugsigaSubucLogo } from './Logo';
+import { ChangeWebsiteLogoModal } from './ChangeWebsiteLogoModal';
 
 const VALID_ICONS = ["BookOpen", "Award", "Heart", "ShieldCheck", "Users", "Clock", "Sparkles"];
 
@@ -47,6 +49,8 @@ export function LandingControlTab({ database, onSaveDatabase }: LandingControlTa
 
   // General Fields States
   const [schoolName, setSchoolName] = useState(settings.schoolName);
+  const [logoUrl, setLogoUrl] = useState(settings.logoUrl || '');
+  const [showLogoModal, setShowLogoModal] = useState(false);
   const [heroTitle, setHeroTitle] = useState(settings.heroTitle);
   const [heroSub, setHeroSub] = useState(settings.heroSub);
   const [aboutText, setAboutText] = useState(settings.aboutText);
@@ -298,6 +302,7 @@ Fariintaan waxaa la tirtirayaa 24 saac ka dib si loo ilaaliyo bedqabka iyo fudey
   const getCurrentSettings = (overrides?: Partial<LandingPageSettings>): LandingPageSettings => {
     return {
       schoolName: schoolName.trim(),
+      logoUrl: logoUrl.trim(),
       heroTitle: heroTitle.trim(),
       heroSub: heroSub.trim(),
       aboutText: aboutText.trim(),
@@ -659,6 +664,35 @@ Fariintaan waxaa la tirtirayaa 24 saac ka dib si loo ilaaliyo bedqabka iyo fudey
             </div>
 
             <form onSubmit={handleSaveGeneral} className="space-y-4">
+              {/* Website Profile Logo Configuration Card */}
+              <div className="p-4 bg-emerald-50/60 border border-emerald-200/80 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <DugsigaSubucLogo 
+                    className="w-14 h-14 shadow-md" 
+                    logoUrl={logoUrl} 
+                    editable={true}
+                    onClick={() => setShowLogoModal(true)}
+                  />
+                  <div>
+                    <h4 className="text-xs font-extrabold text-slate-800">Astaanta Website-ka (Website Profile Photo/Logo)</h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Guji sawirka ama batoonka si aad sawir cusub uga soo geliarto device-kaaga ama URL
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setShowLogoModal(true)}
+                    className="w-full sm:w-auto px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Beddel Sawirka Logo</span>
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5 pl-0.5">School Official Name *</label>
                 <input
@@ -1856,6 +1890,21 @@ Fariintaan waxaa la tirtirayaa 24 saac ka dib si loo ilaaliyo bedqabka iyo fudey
         </div>
       )}
 
+      {/* Website Logo Change Modal */}
+      <ChangeWebsiteLogoModal 
+        isOpen={showLogoModal}
+        onClose={() => setShowLogoModal(false)}
+        currentLogoUrl={logoUrl}
+        onSaveLogo={(newLogo) => {
+          setLogoUrl(newLogo);
+          const updated = getCurrentSettings({ logoUrl: newLogo });
+          onSaveDatabase({
+            ...database,
+            landingPageSettings: updated
+          });
+          triggerFeedback("Sawirka Astaanta Dugsiga/Website-ka waa la beddelay!");
+        }}
+      />
     </div>
   );
 }

@@ -78,6 +78,7 @@ import { MoneyTransferTab } from './MoneyTransferTab';
 import { LandingControlTab } from './LandingControlTab';
 import StudentMediaModal from './StudentMediaModal';
 import { DugsigaSubucLogo } from './Logo';
+import { ChangeWebsiteLogoModal } from './ChangeWebsiteLogoModal';
 import { 
   generateDailyTextReport, 
   generateAttendanceSummaryReport,
@@ -160,6 +161,29 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [activeTab, setActiveTab ] = useState<'overview' | 'students' | 'teachers' | 'classes' | 'reports' | 'billing' | 'backup' | 'exams' | 'moneyTransfers' | 'submissions' | 'teacherAttendance' | 'landing' | 'studentAttendance' | 'receiptsHistory'>('overview');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showNotifPopup, setShowNotifPopup] = useState(false);
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const [showLogoModal, setShowLogoModal] = useState(false);
+
+  const handleSaveLogo = (newLogoUrl: string) => {
+    onSaveDatabase({
+      ...database,
+      landingPageSettings: {
+        ...(database.landingPageSettings || {
+          schoolName: "Dugsiga Subuc",
+          heroTitle: "",
+          heroSub: "",
+          aboutText: "",
+          whatWeDo: "",
+          contactEmail: "",
+          contactPhone: "",
+          contactAddress: "",
+          cards: [],
+          pictures: []
+        }),
+        logoUrl: newLogoUrl
+      }
+    });
+  };
   
   // Student Attendance filter and details states
   const [studAttClass, setStudAttClass] = useState<string>('All');
@@ -707,6 +731,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [showActiveStudentsModal, setShowActiveStudentsModal] = useState<boolean>(false);
   const [showActiveRidersModal, setShowActiveRidersModal] = useState<boolean>(false);
   const [activeRidersSearchQuery, setActiveRidersSearchQuery] = useState<string>('');
+  const [showBusInvoicedModal, setShowBusInvoicedModal] = useState<boolean>(false);
+  const [busInvoicedSearchQuery, setBusInvoicedSearchQuery] = useState<string>('');
   const [showCollectedFeesBreakdownMonth, setShowCollectedFeesBreakdownMonth] = useState<string | null>(null);
   const [showBusCollectedBreakdownMonth, setShowBusCollectedBreakdownMonth] = useState<string | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState<BillingRecord | null>(null);
@@ -4922,6 +4948,301 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   };
 
   // -------------------------------------------------------------
+  // STUDENTS MULTI-FORMAT EXPORT SYSTEM (PDF, Excel, Word)
+  // -------------------------------------------------------------
+  const handleExportStudentsExcel = (list: Student[], exportTypeLabel: string) => {
+    if (list.length === 0) {
+      alert("Ma jiraan arday la soo dejiyo!");
+      return;
+    }
+    const headers = [
+      "Student ID",
+      "Full Name (Ardayga)",
+      "Class (Fasalka)",
+      "Session (Shift)",
+      "Parent Name (Waalidka)",
+      "Parent Phone (Telka Waalidka)",
+      "Monthly Tuition Fee ($)",
+      "Monthly Bus Fee ($)",
+      "Status",
+      "Registration Date"
+    ];
+
+    const rows = list.map(s => [
+      s.id,
+      s.name,
+      s.className || 'None',
+      s.session || 'Both',
+      s.parentName || 'N/A',
+      s.parentPhone || 'N/A',
+      s.monthlyFee,
+      s.busFee || 0,
+      s.active ? 'Active' : 'Suspended',
+      s.registrationDate || 'N/A'
+    ]);
+
+    const csvContent = "\uFEFF" + [
+      headers.join(","),
+      ...rows.map(row => row.map(val => {
+        const cell = val === null || val === undefined ? '' : String(val);
+        if (cell.includes('"') || cell.includes(',') || cell.includes('\n')) {
+          return `"${cell.replace(/"/g, '""')}"`;
+        }
+        return `"${cell}"`;
+      }).join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `dugsiga_subuc_${exportTypeLabel.toLowerCase()}_students_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    setFeedbackMsg(`Ardayda waxaa loo soo dejiyay Excel (.csv) ahaan si guul ah!`);
+    setTimeout(() => setFeedbackMsg(''), 4000);
+  };
+
+  const handleExportStudentsWord = (list: Student[], exportTypeLabel: string) => {
+    if (list.length === 0) {
+      alert("Ma jiraan arday la soo dejiyo!");
+      return;
+    }
+    
+    let html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+  <meta charset="utf-8">
+  <title>Dugsiga Subuc - Students Directory</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: #334155;
+    }
+    h2 {
+      color: #21543d;
+      font-size: 18pt;
+      margin-bottom: 5px;
+    }
+    p {
+      font-size: 10pt;
+      color: #64748b;
+      margin-top: 0;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+    }
+    th {
+      background-color: #21543d;
+      color: #ffffff;
+      text-align: left;
+      font-weight: bold;
+      font-size: 10pt;
+      padding: 10px;
+      border: 1px solid #cbd5e1;
+    }
+    td {
+      padding: 10px;
+      border: 1px solid #cbd5e1;
+      font-size: 9.5pt;
+    }
+    .status-active {
+      color: #166534;
+      font-weight: bold;
+    }
+    .status-suspended {
+      color: #991b1b;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h2>DUGSIGA SUBUC</h2>
+  <p><b>Liiska Ardayda (${exportTypeLabel}) / Student Directory</b><br/>
+  Total: ${list.length} Students<br/>
+  Taariikhda la soo saaray: ${new Date().toLocaleDateString()}</p>
+  
+  <table>
+    <thead>
+      <tr>
+        <th>Student ID</th>
+        <th>Full Name (Ardayga)</th>
+        <th>Class (Fasalka)</th>
+        <th>Session (Shift)</th>
+        <th>Parent Name (Waalidka)</th>
+        <th>Parent Phone (Telka Waalidka)</th>
+        <th>Tuition ($)</th>
+        <th>Bus Fee ($)</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+    list.forEach(s => {
+      html += `
+        <tr>
+          <td><b>${s.id}</b></td>
+          <td>${s.name}</td>
+          <td>${s.className || 'None'}</td>
+          <td>${s.session || 'Both'}</td>
+          <td>${s.parentName || 'N/A'}</td>
+          <td>${s.parentPhone || 'N/A'}</td>
+          <td>$${Number(s.monthlyFee || 0).toFixed(2)}</td>
+          <td>$${Number(s.busFee || 0).toFixed(2)}</td>
+          <td>
+            <span class="${s.active ? 'status-active' : 'status-suspended'}">
+              ${s.active ? 'Active' : 'Suspended'}
+            </span>
+          </td>
+        </tr>`;
+    });
+
+    html += `
+      </tbody>
+    </table>
+  </body>
+  </html>`;
+
+    const blob = new Blob(['\ufeff' + html], { type: 'application/msword;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `dugsiga_subuc_${exportTypeLabel.toLowerCase()}_students_${new Date().toISOString().slice(0, 10)}.doc`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    setFeedbackMsg(`Ardayda waxaa loo soo dejiyay Word (.doc) ahaan si guul ah!`);
+    setTimeout(() => setFeedbackMsg(''), 4000);
+  };
+
+  const handleExportStudentsPDF = (list: Student[], exportTypeLabel: string) => {
+    if (list.length === 0) {
+      alert("Ma jiraan arday la soo dejiyo!");
+      return;
+    }
+
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    doc.setProperties({
+      title: 'Dugsiga Subuc - Students Directory',
+      author: 'Dugsiga Subuc'
+    });
+
+    let pageNumber = 1;
+
+    const drawHeader = (pageNum: number) => {
+      // Header Title
+      doc.setTextColor(33, 84, 61); // deep green (#21543d)
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(20);
+      doc.text("DUGSIGA SUBUC", 15, 20);
+
+      // Subtitle
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139); // slate-500
+      doc.text(`STUDENTS DIRECTORY (${exportTypeLabel})  |  Diiwaanka Ardayda`, 15, 26);
+
+      // Divider
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.5);
+      doc.line(15, 30, 195, 30);
+
+      // Page metadata
+      doc.setFont("Helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184); // slate-400
+      doc.text(`Printed: ${new Date().toLocaleDateString()}  |  Total: ${list.length} Students`, 15, 35);
+      doc.text(`Page ${pageNum}`, 195, 35, { align: 'right' });
+    };
+
+    drawHeader(pageNumber);
+
+    // Table Headers
+    let y = 45;
+    
+    const drawTableHeaders = (startY: number) => {
+      doc.setFillColor(241, 245, 249); // light grey
+      doc.rect(15, startY, 180, 8, "F");
+      doc.setDrawColor(203, 213, 225);
+      doc.rect(15, startY, 180, 8, "S");
+
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(51, 65, 85); // slate-700
+
+      doc.text("ID", 17, startY + 5.5);
+      doc.text("Student Name (Ardayga)", 32, startY + 5.5);
+      doc.text("Class", 85, startY + 5.5);
+      doc.text("Parent Name", 110, startY + 5.5);
+      doc.text("Parent Phone", 145, startY + 5.5);
+      doc.text("Fee", 182, startY + 5.5, { align: 'right' });
+    };
+
+    drawTableHeaders(y);
+    y += 8;
+
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(30, 41, 59);
+
+    list.forEach((s, index) => {
+      if (y > 275) {
+        doc.addPage();
+        pageNumber += 1;
+        drawHeader(pageNumber);
+        y = 45;
+        drawTableHeaders(y);
+        y += 8;
+      }
+
+      // Row zebra stripes
+      if (index % 2 === 1) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(15, y, 180, 8, "F");
+      }
+
+      // Border line bottom
+      doc.setDrawColor(241, 245, 249);
+      doc.setLineWidth(0.3);
+      doc.line(15, y + 8, 195, y + 8);
+
+      doc.setFont("Helvetica", "bold");
+      doc.text(s.id || '', 17, y + 5.5);
+
+      doc.setFont("Helvetica", "normal");
+      let displayName = s.name || '';
+      if (displayName.length > 28) displayName = displayName.substring(0, 26) + '..';
+      doc.text(displayName, 32, y + 5.5);
+
+      doc.text(s.className || 'None', 85, y + 5.5);
+      
+      let displayParent = s.parentName || 'N/A';
+      if (displayParent.length > 20) displayParent = displayParent.substring(0, 18) + '..';
+      doc.text(displayParent, 110, y + 5.5);
+
+      doc.text(s.parentPhone || 'N/A', 145, y + 5.5);
+
+      doc.setFont("Helvetica", "bold");
+      doc.text(`$${Number(s.monthlyFee || 0).toFixed(0)}`, 182, y + 5.5, { align: 'right' });
+
+      y += 8;
+    });
+
+    doc.save(`dugsiga_subuc_${exportTypeLabel.toLowerCase()}_students_${new Date().toISOString().slice(0, 10)}.pdf`);
+    
+    setFeedbackMsg(`Ardayda waxaa loo soo dejiyay PDF ahaan si guul ah!`);
+    setTimeout(() => setFeedbackMsg(''), 4000);
+  };
+
+  // -------------------------------------------------------------
   // TAB 6: D: DRIVE BACKUP SYSTEM
   // -------------------------------------------------------------
   const handleBackupExport = () => {
@@ -5336,7 +5657,13 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         {/* Brand Row */}
         <div className="flex items-center justify-between pb-6 border-b border-slate-900/60 mb-6 shrink-0">
           <div className="flex items-center gap-3">
-            <DugsigaSubucLogo className="w-10 h-10 shadow-md border-emerald-500/20" />
+            <DugsigaSubucLogo 
+              className="w-10 h-10 shadow-md border-emerald-500/20" 
+              logoUrl={database.landingPageSettings?.logoUrl}
+              editable={true}
+              onClick={() => setShowLogoModal(true)}
+              title="Guji si aad u beddesho sawirka astaanta (Click to change website profile logo)"
+            />
             <div className="flex flex-col">
               <span className="font-extrabold text-white text-base tracking-tight leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Dugsiga Subuc</span>
               <span className="text-[10px] font-medium text-emerald-400 mt-1.5 leading-none font-mono">مدرسة السبع</span>
@@ -5899,13 +6226,20 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                <div 
+                  onClick={() => setShowBusInvoicedModal(true)}
+                  className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-sky-300 transition-all active:scale-[0.99] group"
+                  title="Guji si aad u aragto faahfaahinta kashifida baska (Click to view expected bus dues breakdown)"
+                >
                   <div>
-                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Bus Invoiced ({currentMonthName})</p>
+                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider group-hover:text-sky-600 transition-colors">Bus Invoiced ({currentMonthName})</p>
                     <p className="text-2xl font-black text-slate-900 mt-1">${Number(currentMonthBusInvoiced).toFixed(2)}</p>
-                    <p className="text-[10px] text-slate-400 mt-1">Total expected baska dues</p>
+                    <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                      Total expected baska dues
+                      <span className="text-[9px] text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-sky-50 px-1 rounded-sm">View details 🔍</span>
+                    </p>
                   </div>
-                  <div className="p-3 bg-sky-50 text-sky-600 rounded-xl">
+                  <div className="p-3 bg-sky-50 text-sky-600 rounded-xl group-hover:bg-sky-600 group-hover:text-white transition-all">
                     <Calculator className="w-5 h-5" />
                   </div>
                 </div>
@@ -6428,6 +6762,130 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                           </option>
                         ))}
                       </select>
+
+                      {/* --- DOWNLOAD DIRECTORY MULTI-FORMAT TRIGGER --- */}
+                      <div className="relative z-30">
+                        <button
+                          type="button"
+                          onClick={() => setShowExportDropdown(!showExportDropdown)}
+                          className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl text-xs font-bold text-indigo-900 flex items-center gap-1.5 transition-all outline-none cursor-pointer active:scale-95"
+                          title="Guji si aad u soo degto liiska ardayda (Download Students List)"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>La soo deg (Download)</span>
+                          <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${showExportDropdown ? 'rotate-180' : ''}`} />
+                        </button>
+                        
+                        {showExportDropdown && (
+                          <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 p-4 space-y-3 animate-fade-in">
+                            <div className="flex items-center justify-between border-b border-slate-50 pb-2">
+                              <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                                <Download className="w-3.5 h-3.5 text-indigo-600" />
+                                Options / Noocyada
+                              </span>
+                              <button 
+                                type="button"
+                                onClick={() => setShowExportDropdown(false)}
+                                className="text-slate-400 hover:text-slate-600 font-bold text-xs"
+                              >
+                                ✕
+                              </button>
+                            </div>
+
+                            {/* All Students Section */}
+                            <div className="space-y-2">
+                              <div className="text-[10px] font-black text-indigo-600 tracking-widest uppercase">
+                                Dhamaan Ardayda ({database.students.length})
+                              </div>
+                              <div className="grid grid-cols-3 gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleExportStudentsPDF(database.students, "Dhamaan_All");
+                                    setShowExportDropdown(false);
+                                  }}
+                                  className="py-2.5 px-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] rounded-xl border border-rose-100 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer active:scale-95"
+                                  title="Download all students as PDF"
+                                >
+                                  <span className="text-xs">📕</span>
+                                  PDF
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleExportStudentsExcel(database.students, "Dhamaan_All");
+                                    setShowExportDropdown(false);
+                                  }}
+                                  className="py-2.5 px-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] rounded-xl border border-emerald-100 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer active:scale-95"
+                                  title="Download all students as Excel (CSV)"
+                                >
+                                  <span className="text-xs">📗</span>
+                                  Excel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleExportStudentsWord(database.students, "Dhamaan_All");
+                                    setShowExportDropdown(false);
+                                  }}
+                                  className="py-2.5 px-1 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-[10px] rounded-xl border border-sky-100 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer active:scale-95"
+                                  title="Download all students as Word"
+                                >
+                                  <span className="text-xs">📘</span>
+                                  Word
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Filtered Students Section */}
+                            {filteredStudents.length !== database.students.length && (
+                              <div className="space-y-2 pt-2 border-t border-slate-100/60">
+                                <div className="text-[10px] font-black text-amber-600 tracking-widest uppercase">
+                                  Kaliya kuwa la shaandheeyay ({filteredStudents.length})
+                                </div>
+                                <div className="grid grid-cols-3 gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleExportStudentsPDF(filteredStudents, "Shaandheeyay_Filtered");
+                                      setShowExportDropdown(false);
+                                    }}
+                                    className="py-2.5 px-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] rounded-xl border border-rose-100 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer active:scale-95"
+                                    title="Download filtered list as PDF"
+                                  >
+                                    <span className="text-xs">📕</span>
+                                    PDF
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleExportStudentsExcel(filteredStudents, "Shaandheeyay_Filtered");
+                                      setShowExportDropdown(false);
+                                    }}
+                                    className="py-2.5 px-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] rounded-xl border border-emerald-100 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer active:scale-95"
+                                    title="Download filtered list as Excel"
+                                  >
+                                    <span className="text-xs">📗</span>
+                                    Excel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleExportStudentsWord(filteredStudents, "Shaandheeyay_Filtered");
+                                      setShowExportDropdown(false);
+                                    }}
+                                    className="py-2.5 px-1 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-[10px] rounded-xl border border-sky-100 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer active:scale-95"
+                                    title="Download filtered list as Word"
+                                  >
+                                    <span className="text-xs">📘</span>
+                                    Word
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -14152,6 +14610,453 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       })()}
 
       {/* -------------------------------------------------------------
+          MODAL: BUS INVOICED EXPECTED DUES BREAKDOWN
+          ------------------------------------------------------------- */}
+      {showBusInvoicedModal && (() => {
+        // Filter bus riders by search query
+        const filteredInvoicedRiders = busRiders.filter(s => {
+          const q = busInvoicedSearchQuery.toLowerCase();
+          return (
+            (s.name || '').toLowerCase().includes(q) ||
+            (s.id || '').toLowerCase().includes(q) ||
+            (s.className || '').toLowerCase().includes(q) ||
+            (s.parentName || '').toLowerCase().includes(q) ||
+            (s.parentPhone || '').toLowerCase().includes(q)
+          );
+        });
+
+        const handleDownloadBusInvoicedCSV = () => {
+          if (busRiders.length === 0) return;
+          const headers = '\uFEFFStudent ID,Ardayga (Student Name),Fasalka (Class),Waalidka (Parent Name),Telka Waalidka (Parent Phone),Monthly Bus Fee ($),Paid So Far ($),Pending Balance ($),Status\n';
+          const rows = busRiders.map(s => {
+            const billingStatus = getBillingStatusForStudent(s, currentMonthFilter);
+            const busPaid = Number(billingStatus?.busFeePaid || 0);
+            const busFee = Number(s.busFee || 0);
+            const busPending = Math.max(0, busFee - busPaid);
+            const status = busPaid >= busFee ? 'Paid' : (busPaid > 0 ? 'Partial' : 'Pending');
+            
+            return `"${s.id || ''}","${(s.name || '').replace(/"/g, '""')}","${(s.className || '').replace(/"/g, '""')}","${(s.parentName || '').replace(/"/g, '""')}","${(s.parentPhone || '').replace(/"/g, '""')}","${busFee}","${busPaid}","${busPending}","${status}"`;
+          }).join('\n');
+          
+          const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.setAttribute("href", url);
+          link.setAttribute("download", `dugsiga_subuc_bus_invoiced_${currentMonthFilter}_${new Date().toISOString().slice(0, 10)}.csv`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          setFeedbackMsg("Faahfaahinta lacagta baska ee la kashifay waa la soo dejiyay (Bus Invoiced CSV downloaded)!");
+          setTimeout(() => setFeedbackMsg(''), 4000);
+        };
+
+        const handleDownloadBusInvoicedWord = () => {
+          if (busRiders.length === 0) return;
+          let html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+  <meta charset="utf-8">
+  <title>Dugsiga Subuc - Bus Invoiced Breakdown (${currentMonthName})</title>
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; color: #334155; }
+    h2 { color: #21543d; font-size: 18pt; margin-bottom: 2px; }
+    p { font-size: 10pt; color: #64748b; margin-top: 0; }
+    table { border-collapse: collapse; width: 100%; margin-top: 15px; }
+    th { background-color: #0284c7; color: #ffffff; text-align: left; font-weight: bold; font-size: 10pt; padding: 8px; border: 1px solid #cbd5e1; }
+    td { padding: 8px; border: 1px solid #cbd5e1; font-size: 9.5pt; }
+    .text-right { text-align: right; }
+  </style>
+</head>
+<body>
+  <h2>DUGSIGA SUBUC</h2>
+  <p><b>WARBIXINTA KASHIFIDA BASKA / BUS INVOICED BREAKDOWN (${currentMonthName})</b><br/>
+  Total Bus Invoiced: $${Number(currentMonthBusInvoiced).toFixed(2)} | Total Bus Riders: ${busRiders.length}<br/>
+  Taariikhda: ${new Date().toLocaleDateString()}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Ardayga (Student)</th>
+        <th>Class</th>
+        <th>Waalidka (Parent)</th>
+        <th>Telka</th>
+        <th class="text-right">Bus Fee ($)</th>
+        <th class="text-right">Paid ($)</th>
+        <th class="text-right">Pending ($)</th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+          busRiders.forEach(s => {
+            const billingStatus = getBillingStatusForStudent(s, currentMonthFilter);
+            const busPaid = Number(billingStatus?.busFeePaid || 0);
+            const busFee = Number(s.busFee || 0);
+            const busPending = Math.max(0, busFee - busPaid);
+
+            html += `
+              <tr>
+                <td><b>${s.id || ''}</b></td>
+                <td>${s.name || ''}</td>
+                <td>${s.className || 'None'}</td>
+                <td>${s.parentName || 'N/A'}</td>
+                <td>${s.parentPhone || 'N/A'}</td>
+                <td class="text-right">$${busFee.toFixed(2)}</td>
+                <td class="text-right">$${busPaid.toFixed(2)}</td>
+                <td class="text-right">$${busPending.toFixed(2)}</td>
+              </tr>`;
+          });
+
+          html += `
+            </tbody>
+          </table>
+        </body>
+        </html>`;
+
+          const blob = new Blob(['\ufeff' + html], { type: 'application/msword;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.setAttribute("href", url);
+          link.setAttribute("download", `dugsiga_subuc_bus_invoiced_${currentMonthFilter}_${new Date().toISOString().slice(0, 10)}.doc`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          setFeedbackMsg("Faahfaahinta lacagta baska waa la soo dejiyay Word (.doc) ahaan!");
+          setTimeout(() => setFeedbackMsg(''), 4000);
+        };
+
+        const handleDownloadBusInvoicedPDF = () => {
+          if (busRiders.length === 0) return;
+
+          const doc = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+          });
+
+          doc.setProperties({
+            title: `Dugsiga Subuc - Bus Invoiced Breakdown ${currentMonthName}`,
+            subject: 'Bus Invoiced Dues Breakdown',
+            author: 'Dugsiga Subuc'
+          });
+
+          let pageNum = 1;
+
+          const drawHeader = (pageNumber: number) => {
+            doc.setTextColor(33, 84, 61); // deep green
+            doc.setFont("Helvetica", "bold");
+            doc.setFontSize(20);
+            doc.text("DUGSIGA SUBUC", 15, 20);
+
+            doc.setFontSize(9);
+            doc.setTextColor(2, 132, 199); // sky blue
+            doc.text(`BUS INVOICED DUES BREAKDOWN (${currentMonthName.toUpperCase()})`, 15, 26);
+
+            doc.setDrawColor(203, 213, 225);
+            doc.setLineWidth(0.5);
+            doc.line(15, 30, 195, 30);
+
+            doc.setFont("Helvetica", "normal");
+            doc.setFontSize(8);
+            doc.setTextColor(100, 116, 139);
+            doc.text(`Total Expected Bus Dues: $${Number(currentMonthBusInvoiced).toFixed(2)}  |  Riders: ${busRiders.length}`, 15, 35);
+            doc.text(`Page ${pageNumber}`, 195, 35, { align: 'right' });
+          };
+
+          drawHeader(pageNum);
+
+          let y = 42;
+
+          const drawTableHeaders = (startY: number) => {
+            doc.setFillColor(240, 249, 255); // sky-50
+            doc.rect(15, startY, 180, 8, "F");
+            doc.setDrawColor(186, 230, 253);
+            doc.rect(15, startY, 180, 8, "S");
+
+            doc.setFont("Helvetica", "bold");
+            doc.setFontSize(8);
+            doc.setTextColor(3, 105, 161);
+
+            doc.text("ID", 17, startY + 5.5);
+            doc.text("Student Name (Ardayga)", 32, startY + 5.5);
+            doc.text("Class", 85, startY + 5.5);
+            doc.text("Parent Name", 110, startY + 5.5);
+            doc.text("Phone", 145, startY + 5.5);
+            doc.text("Bus Fee", 182, startY + 5.5, { align: 'right' });
+          };
+
+          drawTableHeaders(y);
+          y += 8;
+
+          doc.setFont("Helvetica", "normal");
+          doc.setFontSize(8);
+          doc.setTextColor(30, 41, 59);
+
+          busRiders.forEach((s, idx) => {
+            if (y > 275) {
+              doc.addPage();
+              pageNum++;
+              drawHeader(pageNum);
+              y = 42;
+              drawTableHeaders(y);
+              y += 8;
+            }
+
+            if (idx % 2 === 1) {
+              doc.setFillColor(248, 250, 252);
+              doc.rect(15, y, 180, 8, "F");
+            }
+
+            doc.setDrawColor(241, 245, 249);
+            doc.setLineWidth(0.3);
+            doc.line(15, y + 8, 195, y + 8);
+
+            doc.setFont("Helvetica", "bold");
+            doc.text(s.id || '', 17, y + 5.5);
+
+            doc.setFont("Helvetica", "normal");
+            let displayName = s.name || '';
+            if (displayName.length > 28) displayName = displayName.substring(0, 26) + '..';
+            doc.text(displayName, 32, y + 5.5);
+
+            doc.text(s.className || 'None', 85, y + 5.5);
+
+            let displayParent = s.parentName || 'N/A';
+            if (displayParent.length > 18) displayParent = displayParent.substring(0, 16) + '..';
+            doc.text(displayParent, 110, y + 5.5);
+
+            doc.text(s.parentPhone || 'N/A', 145, y + 5.5);
+
+            doc.setFont("Helvetica", "bold");
+            doc.text(`$${Number(s.busFee || 0).toFixed(2)}`, 182, y + 5.5, { align: 'right' });
+
+            y += 8;
+          });
+
+          doc.save(`dugsiga_subuc_bus_invoiced_${currentMonthFilter}_${new Date().toISOString().slice(0, 10)}.pdf`);
+          
+          setFeedbackMsg("Faahfaahinta lacagta baska waa la soo dejiyay PDF ahaan!");
+          setTimeout(() => setFeedbackMsg(''), 4000);
+        };
+
+        return (
+          <div 
+            className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-55 animate-fade-in overflow-y-auto pointer-print-none" 
+            id="bus-invoiced-modal-bg"
+            onClick={(e) => {
+              if ((e.target as HTMLElement).id === 'bus-invoiced-modal-bg') {
+                setShowBusInvoicedModal(false);
+              }
+            }}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-3xl shadow-xl border border-slate-100 max-w-5xl w-full overflow-hidden flex flex-col max-h-[88vh]"
+            >
+              {/* Modal Header */}
+              <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                    <Calculator className="w-5 h-5 text-sky-600" />
+                    Bus Invoiced Breakdown ({currentMonthName})
+                  </h3>
+                  <p className="text-xs text-slate-500 font-semibold mt-1">Faahfaahinta oo dhan oo ku saabsan lacagta baska ee la kashifay / Expected bus fee dues breakdown</p>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setShowBusInvoicedModal(false)}
+                  className="p-1 px-2.5 text-xs font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
+                >
+                  Xir (Close)
+                </button>
+              </div>
+
+              {/* Scrollable Body */}
+              <div className="p-6 overflow-y-auto space-y-6 flex-1 scrollbar-thin">
+                
+                {/* Summary Stat Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-sky-50/60 p-4 rounded-2xl border border-sky-100">
+                    <p className="text-[10px] font-black text-sky-700 uppercase tracking-wider">Total Bus Invoiced</p>
+                    <p className="text-xl font-black text-sky-900 mt-1">${Number(currentMonthBusInvoiced).toFixed(2)}</p>
+                    <p className="text-[10px] text-sky-600/80 mt-0.5">Expected dues ({currentMonthName})</p>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Total Bus Riders</p>
+                    <p className="text-xl font-black text-slate-800 mt-1">{busRiders.length}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Registered bus students</p>
+                  </div>
+                  <div className="bg-teal-50/60 p-4 rounded-2xl border border-teal-100">
+                    <p className="text-[10px] font-black text-teal-700 uppercase tracking-wider">Collected So Far</p>
+                    <p className="text-xl font-black text-teal-900 mt-1">${Number(currentMonthBusCollected).toFixed(2)}</p>
+                    <p className="text-[10px] text-teal-600/80 mt-0.5">Received payments</p>
+                  </div>
+                  <div className="bg-rose-50/60 p-4 rounded-2xl border border-rose-100">
+                    <p className="text-[10px] font-black text-rose-700 uppercase tracking-wider">Pending Dues</p>
+                    <p className="text-xl font-black text-rose-900 mt-1">${Number(currentMonthBusPending).toFixed(2)}</p>
+                    <p className="text-[10px] text-rose-600/80 mt-0.5">Remaining balance</p>
+                  </div>
+                </div>
+
+                {/* Search & Export Actions */}
+                <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-150">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                    <input 
+                      type="text"
+                      placeholder="Raadi arday, fashal ama telka waalidka..."
+                      value={busInvoicedSearchQuery}
+                      onChange={(e) => setBusInvoicedSearchQuery(e.target.value)}
+                      className="pl-9 pr-4 py-2 w-full bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                    />
+                    {busInvoicedSearchQuery && (
+                      <button 
+                        onClick={() => setBusInvoicedSearchQuery('')}
+                        className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handleDownloadBusInvoicedCSV}
+                      disabled={busRiders.length === 0}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-extrabold text-xs uppercase rounded-xl transition-all cursor-pointer disabled:opacity-50 active:scale-95"
+                      title="Download full invoiced bus dues in Excel CSV format"
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      Excel (CSV)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadBusInvoicedPDF}
+                      disabled={busRiders.length === 0}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs uppercase rounded-xl transition-all cursor-pointer disabled:opacity-50 active:scale-95"
+                      title="Download in PDF format"
+                    >
+                      <FileText className="w-4 h-4" />
+                      PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadBusInvoicedWord}
+                      disabled={busRiders.length === 0}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-extrabold text-xs uppercase rounded-xl transition-all cursor-pointer disabled:opacity-50 active:scale-95"
+                      title="Download in Word (.doc) format"
+                    >
+                      <FileText className="w-4 h-4" />
+                      Word
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePrintElement('printable-bus-invoiced-container')}
+                      disabled={busRiders.length === 0}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase rounded-xl transition-all shadow-sm cursor-pointer disabled:opacity-50 active:scale-95"
+                      title="Print the bus invoiced list"
+                    >
+                      <Printer className="w-4 h-4" />
+                      Daabac (Print)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Printable Table Container */}
+                <div id="printable-bus-invoiced-container" className="space-y-4">
+                  {/* Print Only Header */}
+                  <div className="hidden print-only-block border-b-2 border-slate-900 pb-4 mb-4">
+                    <h2 className="text-xl font-black text-slate-900 text-center">Dugsiga Subuc - Banuu Jalaal</h2>
+                    <h3 className="text-base font-bold text-slate-700 text-center mt-1">Bus Invoiced Breakdown ({currentMonthName})</h3>
+                    <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono mt-4">
+                      <span>Taariikhda Daabacaadda: {new Date().toLocaleDateString('so-SO', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                      <span>Total Bus Invoiced: ${Number(currentMonthBusInvoiced).toFixed(2)} | Riders: {busRiders.length}</span>
+                    </div>
+                  </div>
+
+                  {filteredInvoicedRiders.length === 0 ? (
+                    <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-150">
+                      <Bus className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                      <p className="text-xs text-slate-500 font-bold">Lama helin wax arday ah oo buuxiya shuruudaha raadinta.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-2xl border border-slate-100 max-h-[50vh] overflow-y-auto scrollbar-thin">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider sticky top-0 z-10">
+                            <th className="py-3 px-4">#</th>
+                            <th className="py-3 px-4">Ardayga (Student Name)</th>
+                            <th className="py-3 px-4">Fasalka (Class)</th>
+                            <th className="py-3 px-4">Waalidka (Parent Name)</th>
+                            <th className="py-3 px-4">Telka Waalidka</th>
+                            <th className="py-3 px-4 text-right">Bus Fee Due ($)</th>
+                            <th className="py-3 px-4 text-right">Paid So Far ($)</th>
+                            <th className="py-3 px-4 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {filteredInvoicedRiders.map((s, idx) => {
+                            const billingStatus = getBillingStatusForStudent(s, currentMonthFilter);
+                            const busPaid = Number(billingStatus?.busFeePaid || 0);
+                            const busFee = Number(s.busFee || 0);
+                            const isPaid = busPaid >= busFee;
+                            const isPartial = busPaid > 0 && busPaid < busFee;
+
+                            return (
+                              <tr key={s.id || idx} className="hover:bg-slate-50/40">
+                                <td className="py-3 px-4 text-slate-400 font-mono text-[10px]">{idx + 1}</td>
+                                <td className="py-3 px-4 font-bold text-slate-800">
+                                  {s.name}
+                                  <span className="block text-[10px] text-slate-400 font-mono font-normal">{s.id}</span>
+                                </td>
+                                <td className="py-3 px-4 text-slate-600 font-semibold">{s.className || 'None'}</td>
+                                <td className="py-3 px-4 text-slate-700 font-medium">{s.parentName || 'N/A'}</td>
+                                <td className="py-3 px-4 text-slate-600 font-semibold">{s.parentPhone || 'N/A'}</td>
+                                <td className="py-3 px-4 text-right font-black text-sky-700">${busFee.toFixed(2)}</td>
+                                <td className="py-3 px-4 text-right font-black text-teal-700">${busPaid.toFixed(2)}</td>
+                                <td className="py-3 px-4 text-center">
+                                  {isPaid ? (
+                                    <span className="px-2 py-0.5 text-[10px] font-extrabold bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100">
+                                      Shubay (Paid)
+                                    </span>
+                                  ) : isPartial ? (
+                                    <span className="px-2 py-0.5 text-[10px] font-extrabold bg-amber-50 text-amber-700 rounded-full border border-amber-100">
+                                      Qayb (Partial)
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 text-[10px] font-extrabold bg-rose-50 text-rose-700 rounded-full border border-rose-100">
+                                      Deyn (Pending)
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 pointer-print-none">
+                <button
+                  type="button"
+                  onClick={() => setShowBusInvoicedModal(false)}
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
+                >
+                  Xir (Close)
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        );
+      })()}
+
+      {/* -------------------------------------------------------------
           MODAL: BUS COLLECTED FEES DETAILED BREAKDOWN
           ------------------------------------------------------------- */}
       {showBusCollectedBreakdownMonth && (() => {
@@ -16220,6 +17125,13 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         </div>
       )}
 
+      {/* Website Logo Change Modal */}
+      <ChangeWebsiteLogoModal 
+        isOpen={showLogoModal}
+        onClose={() => setShowLogoModal(false)}
+        currentLogoUrl={database.landingPageSettings?.logoUrl}
+        onSaveLogo={handleSaveLogo}
+      />
     </div>
   );
 }
