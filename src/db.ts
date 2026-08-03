@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DatabaseState, Teacher, Student, DailyProgress, BillingRecord, Exam, MoneyTransferRecord, TeacherAttendanceRecord, SchoolLocationSettings, LandingPageSettings, Invoice } from './types';
+import { DatabaseState, Teacher, Student, DailyProgress, BillingRecord, Exam, MoneyTransferRecord, TeacherAttendanceRecord, SchoolLocationSettings, LandingPageSettings, Invoice, XawaaladaAccount, XawaaladaTransaction } from './types';
 
 /// Let's create some beautiful, realistic seed data
 const DEFAULT_TEACHERS: Teacher[] = [];
@@ -25,9 +25,119 @@ const DEFAULT_EXAMS: Exam[] = [];
 
 const DEFAULT_MONEY_TRANSFERS: MoneyTransferRecord[] = [];
 
+export const DEFAULT_XAWAALADA_ACCOUNTS: XawaaladaAccount[] = [
+  {
+    id: "acc-1",
+    name: "Account 1 (Zaad Service)",
+    accountNumber: "0615551234",
+    openingBalance: 5000,
+    notes: "EVC / Zaad Service main mobile wallet account",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "acc-2",
+    name: "Account 2 (Dahabshiil)",
+    accountNumber: "Dahab-1002",
+    openingBalance: 10000,
+    notes: "Main Dahabshiil remittance account",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "acc-3",
+    name: "Account 3 (Premier Bank)",
+    accountNumber: "PB-8821",
+    openingBalance: 3500,
+    notes: "Premier Bank corporate account",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "acc-4",
+    name: "Account 4 (Cash Box / Sanduuqa)",
+    accountNumber: "CASH-MAIN",
+    openingBalance: 1500,
+    notes: "Physical cash on hand at office counter",
+    createdAt: new Date().toISOString()
+  }
+];
+
+export const DEFAULT_XAWAALADA_TRANSACTIONS: XawaaladaTransaction[] = [
+  {
+    id: "TXN-101",
+    accountId: "acc-1",
+    type: "in",
+    amount: 1200,
+    clientName: "Cabdi Xasan Maxamed",
+    clientPhone: "0615112233",
+    referenceNo: "REF-501",
+    description: "Deposit for school tuition fee transfer",
+    date: new Date().toISOString().split('T')[0],
+    time: "09:30",
+    createdBy: "yaxyecabdisalanmohamed1234@gmail.com",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "TXN-102",
+    accountId: "acc-1",
+    type: "out",
+    amount: 450,
+    clientName: "Aamina Cali Jaamac",
+    clientPhone: "0615445566",
+    referenceNo: "REF-502",
+    description: "Payout to recipient family in Mogadishu",
+    date: new Date().toISOString().split('T')[0],
+    time: "10:15",
+    createdBy: "yaxyecabdisalanmohamed1234@gmail.com",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "TXN-103",
+    accountId: "acc-2",
+    type: "in",
+    amount: 2500,
+    clientName: "Faarax Cumar Cismaan",
+    clientPhone: "0615778899",
+    referenceNo: "REF-503",
+    description: "Dahabshiil wire transfer deposit from Hargeisa",
+    date: new Date().toISOString().split('T')[0],
+    time: "11:00",
+    createdBy: "yaxyecabdisalanmohamed1234@gmail.com",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "TXN-104",
+    accountId: "acc-2",
+    type: "out",
+    amount: 1000,
+    clientName: "Xaawo Maxamuud Saacid",
+    clientPhone: "0615990011",
+    referenceNo: "REF-504",
+    description: "Teacher monthly salary distribution payout",
+    date: new Date().toISOString().split('T')[0],
+    time: "11:45",
+    createdBy: "yaxyecabdisalanmohamed1234@gmail.com",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "TXN-105",
+    accountId: "acc-3",
+    type: "in",
+    amount: 800,
+    clientName: "Jaamac Axmed Warsame",
+    clientPhone: "0615223344",
+    referenceNo: "REF-505",
+    description: "Premier Bank online deposit",
+    date: new Date().toISOString().split('T')[0],
+    time: "14:20",
+    createdBy: "yaxyecabdisalanmohamed1234@gmail.com",
+    createdAt: new Date().toISOString()
+  }
+];
+
 const LOCAL_STORAGE_KEY = 'banuu_jalaal_db';
 
 const DEFAULT_SUBMISSIONS: any[] = [];
+
+export const DEFAULT_INVOICE_ACCOUNTS_NOTE = "Account Numbers: 516963 Higgaad and 516962 Qur'aan";
 
 export const DEFAULT_LANDING_SETTINGS: LandingPageSettings = {
   schoolName: "Dugsiga Subuc",
@@ -171,7 +281,7 @@ export function sanitizeLocalDatabase(parsed: DatabaseState): DatabaseState {
     }
   }
 
-  // Auto-translate old Somali item descriptions dynamically to guarantee standardized names during print / download
+  // Auto-translate old Somali item descriptions dynamically and ensure account numbers exist in invoice notes
   if (parsed && parsed.invoices && Array.isArray(parsed.invoices)) {
     parsed.invoices.forEach((inv: any) => {
       if (inv && Array.isArray(inv.items)) {
@@ -189,6 +299,14 @@ export function sanitizeLocalDatabase(parsed: DatabaseState): DatabaseState {
             }
           }
         });
+      }
+
+      if (inv) {
+        if (!inv.notes || inv.notes.trim() === '') {
+          inv.notes = DEFAULT_INVOICE_ACCOUNTS_NOTE;
+        } else if (!inv.notes.includes('516963') && !inv.notes.includes('516962')) {
+          inv.notes = `${inv.notes.trim()}\n${DEFAULT_INVOICE_ACCOUNTS_NOTE}`;
+        }
       }
     });
   }
@@ -446,6 +564,14 @@ export function getDatabase(): DatabaseState {
       parsed.invoices = [];
       saveDatabase(parsed);
     }
+    if (!parsed.xawaaladaAccounts || parsed.xawaaladaAccounts.length === 0) {
+      parsed.xawaaladaAccounts = [...DEFAULT_XAWAALADA_ACCOUNTS];
+      saveDatabase(parsed);
+    }
+    if (!parsed.xawaaladaTransactions) {
+      parsed.xawaaladaTransactions = [...DEFAULT_XAWAALADA_TRANSACTIONS];
+      saveDatabase(parsed);
+    }
     return sanitizeLocalDatabase(parsed);
   } catch (e) {
     console.error("Error reading database from localStorage, loading fallback seeds", e);
@@ -678,6 +804,113 @@ export function generateTeacherAttendanceReport(teacherId: string, startDate: st
   content += `\n=========================================================\n`;
   content += `Report generated at ${new Date().toLocaleString()} (Local Time)\n`;
   return content;
+}
+
+// Generate report of student behavior comments and notes with dates
+export function generateStudentBehaviorCommentsReport(
+  startDateOrDb: string | DatabaseState,
+  endDate: string = '',
+  classSelection: string = 'All',
+  dbParam?: DatabaseState
+): string {
+  let db: DatabaseState;
+  let startDate = '';
+  if (typeof startDateOrDb === 'object') {
+    db = startDateOrDb;
+    startDate = '';
+  } else {
+    startDate = startDateOrDb || '';
+    db = dbParam!;
+  }
+
+  const filteredProgress = (db?.progress || []).filter(p => {
+    const dateMatch = (!startDate || p.date >= startDate) && (!endDate || p.date <= endDate);
+    const classMatch = !classSelection || classSelection === 'All' ? true : p.className === classSelection;
+    const hasCommentOrBehavior = (p.faahfaahin && p.faahfaahin.trim() !== '') || (p.behaviorRemark && p.behaviorRemark.trim() !== '');
+    return dateMatch && classMatch && hasCommentOrBehavior;
+  });
+
+  // Sort by date descending
+  filteredProgress.sort((a, b) => b.date.localeCompare(a.date));
+
+  let content = `DUGSIGA SUBUC - DIIWAANKA FAAHFAAHINTA IYO DHAQANKA ARDAYDA\n`;
+  content += `STUDENT BEHAVIOR & COMMENTS JOURNAL REPORT\n`;
+  content += `=========================================================\n`;
+  content += `Report Period: ${startDate || 'Beginning'} to ${endDate || 'Latest'}\n`;
+  content += `Selected Class: ${!classSelection || classSelection === 'All' ? 'Dhamaan Fasalada (All Classes)' : classSelection}\n`;
+  content += `Total Comments Logged: ${filteredProgress.length}\n`;
+  content += `Generated Date: ${new Date().toLocaleString()}\n`;
+  content += `=========================================================\n\n`;
+
+  if (filteredProgress.length === 0) {
+    content += `No behavior remarks or comments found for the selected filter period.\n`;
+    return content;
+  }
+
+  filteredProgress.forEach((p, idx) => {
+    content += `${idx + 1}. DATE: ${p.date} | STUDENT: ${p.studentName.toUpperCase()}\n`;
+    content += `   Class: ${p.className} | Session: ${p.session || 'N/A'} | Attendance: ${p.attendance}\n`;
+    if (p.behaviorRemark) {
+      content += `   ⚠️ DHAQANKA & ANSHAXA (Behavior Remark): ${p.behaviorRemark}\n`;
+    }
+    if (p.faahfaahin) {
+      content += `   📝 FAAHFAAHIN (General Notes): ${p.faahfaahin}\n`;
+    }
+    content += `---------------------------------------------------------\n`;
+  });
+
+  content += `\n=========================================================\n`;
+  content += `Subuc Management System - Report Complete\n`;
+  return content;
+}
+
+export function generateStudentBehaviorCommentsCSV(
+  startDateOrDb: string | DatabaseState,
+  endDateOrClassSelection?: string,
+  classSelection: string = 'All',
+  dbParam?: DatabaseState
+): string {
+  let db: DatabaseState;
+  let startDate = '';
+  let endDate = '';
+  if (typeof startDateOrDb === 'object') {
+    db = startDateOrDb;
+    startDate = '';
+    endDate = '';
+    classSelection = endDateOrClassSelection || 'All';
+  } else {
+    startDate = startDateOrDb || '';
+    endDate = endDateOrClassSelection || '';
+    db = dbParam!;
+  }
+
+  const filteredProgress = (db?.progress || []).filter(p => {
+    const dateMatch = (!startDate || p.date >= startDate) && (!endDate || p.date <= endDate);
+    const classMatch = !classSelection || classSelection === 'All' ? true : p.className === classSelection;
+    const hasCommentOrBehavior = (p.faahfaahin && p.faahfaahin.trim() !== '') || (p.behaviorRemark && p.behaviorRemark.trim() !== '');
+    return dateMatch && classMatch && hasCommentOrBehavior;
+  });
+
+  filteredProgress.sort((a, b) => b.date.localeCompare(a.date));
+
+  const rows = [
+    ['Date', 'Student Name', 'Class', 'Session', 'Attendance', 'Lesson Status', 'Behavior Remark (Dhaqanka)', 'General Notes (Faahfaahin)']
+  ];
+
+  filteredProgress.forEach(p => {
+    rows.push([
+      `"${p.date}"`,
+      `"${(p.studentName || '').replace(/"/g, '""')}"`,
+      `"${(p.className || '').replace(/"/g, '""')}"`,
+      `"${(p.session || '').replace(/"/g, '""')}"`,
+      `"${(p.attendance || '').replace(/"/g, '""')}"`,
+      `"${(p.lessonCompleted || '').replace(/"/g, '""')}"`,
+      `"${(p.behaviorRemark || '').replace(/"/g, '""')}"`,
+      `"${(p.faahfaahin || '').replace(/"/g, '""')}"`
+    ]);
+  });
+
+  return rows.map(r => r.join(',')).join('\n');
 }
 
 // Create complete DB restore from selected backup file

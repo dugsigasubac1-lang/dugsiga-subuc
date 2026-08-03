@@ -61,6 +61,7 @@ export interface DailyProgress {
   dhaqan: GradeType; // Manners / conduct
   nadaafad: GradeType; // Hygiene / cleanliness
   faahfaahin: string; // Extra information / comments
+  behaviorRemark?: string; // Behavior & Conduct remarks (e.g. rude, missed class, good conduct)
   session?: 'Morning' | 'Afternoon';
   suuradeeMaraya?: string; // Current Surah the student is reading / at
   inteeBog?: string; // How many pages completed (half, 1, 2, 3, 4)
@@ -108,12 +109,37 @@ export interface MoneyTransferRecord {
   createdAt: string; // ISO string
 }
 
+export interface XawaaladaAccount {
+  id: string;
+  name: string; // e.g. "Zaad Service", "Dahabshiil", "Premier Bank", "Cash Box"
+  accountNumber?: string; // e.g. "516963" or "0615551234"
+  openingBalance: number; // Starting balance chosen by user
+  notes?: string;
+  createdAt: string;
+}
+
+export interface XawaaladaTransaction {
+  id: string;
+  accountId: string; // Links to XawaaladaAccount.id
+  type: 'in' | 'out'; // 'in' = Money In / Deposit (+), 'out' = Money Out / Withdrawal (-)
+  amount: number;
+  clientName?: string;
+  clientPhone?: string;
+  referenceNo?: string;
+  description: string;
+  date: string; // YYYY-MM-DD
+  time?: string;
+  createdBy?: string;
+  createdAt: string; // ISO string
+}
+
 export interface TeacherSubmissionStudentDetail {
   studentId: string;
   studentName: string;
   attendanceSent?: string;
   lessonSent?: string;
   notesSent?: string;
+  behaviorSent?: string;
   scoresSent?: Record<string, number>;
   averageScoreSent?: number;
   gradeSent?: string;
@@ -248,6 +274,8 @@ export interface DatabaseState {
   exams?: Exam[];
   notifications?: AppNotification[];
   moneyTransfers?: MoneyTransferRecord[];
+  xawaaladaAccounts?: XawaaladaAccount[];
+  xawaaladaTransactions?: XawaaladaTransaction[];
   submissions?: TeacherSubmission[];
   teacherAttendance?: TeacherAttendanceRecord[];
   schoolLocation?: SchoolLocationSettings;

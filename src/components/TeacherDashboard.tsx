@@ -48,8 +48,8 @@ import {
   Compass
 } from 'lucide-react';
 import { DatabaseState, Teacher, Student, DailyProgress, AttendanceType, LessonStatusType, TaskStatusType, GradeType, Exam, ExamScore, AppNotification, TeacherSubmission, TeacherAttendanceRecord } from '../types';
+import { triggerFileDownload, generateStudentBehaviorCommentsReport, generateStudentBehaviorCommentsCSV } from '../db';
 import { DugsigaSubucLogo } from './Logo';
-import { ChangeWebsiteLogoModal } from './ChangeWebsiteLogoModal';
 import StudentMediaModal from './StudentMediaModal';
 
 interface TeacherDashboardProps {
@@ -67,28 +67,6 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [hasJustSubmitted, setHasJustSubmitted] = useState(false);
-  const [showLogoModal, setShowLogoModal] = useState(false);
-
-  const handleSaveLogo = (newLogoUrl: string) => {
-    onSaveDatabase({
-      ...database,
-      landingPageSettings: {
-        ...(database.landingPageSettings || {
-          schoolName: "Dugsiga Subuc",
-          heroTitle: "",
-          heroSub: "",
-          aboutText: "",
-          whatWeDo: "",
-          contactEmail: "",
-          contactPhone: "",
-          contactAddress: "",
-          cards: [],
-          pictures: []
-        }),
-        logoUrl: newLogoUrl
-      }
-    });
-  };
 
   // Workspace toggling
   const [activeWorkspace, setActiveWorkspace] = useState<'attendance' | 'exams' | 'studentHistory' | 'myAttendance'>('attendance');
@@ -730,6 +708,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
   const [dhaqanRecords, setDhaqanRecords] = useState<Record<string, GradeType>>({});
   const [nadaafadRecords, setNadaafadRecords] = useState<Record<string, GradeType>>({});
   const [commentsRecords, setCommentsRecords] = useState<Record<string, string>>({});
+  const [behaviorRecords, setBehaviorRecords] = useState<Record<string, string>>({});
   const [suuradeeMarayaRecords, setSuuradeeMarayaRecords] = useState<Record<string, string>>({});
   const [inteeBogRecords, setInteeBogRecords] = useState<Record<string, string>>({});
   const [boggeeRecords, setBoggeeRecords] = useState<Record<string, string>>({});
@@ -769,6 +748,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
     const tempDhaq: Record<string, GradeType> = {};
     const tempNad: Record<string, GradeType> = {};
     const tempComm: Record<string, string> = {};
+    const tempBehav: Record<string, string> = {};
     const tempSuuradee: Record<string, string> = {};
     const tempInteeBog: Record<string, string> = {};
     const tempBoggee: Record<string, string> = {};
@@ -783,6 +763,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
         tempDhaq[stu.id] = recorded.dhaqan;
         tempNad[stu.id] = recorded.nadaafad;
         tempComm[stu.id] = recorded.faahfaahin;
+        tempBehav[stu.id] = recorded.behaviorRemark || '';
         tempSuuradee[stu.id] = recorded.suuradeeMaraya || '';
         tempInteeBog[stu.id] = recorded.inteeBog || '';
         tempBoggee[stu.id] = recorded.boggee || '';
@@ -795,6 +776,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
         tempDhaq[stu.id] = 'Good';
         tempNad[stu.id] = 'Good';
         tempComm[stu.id] = '';
+        tempBehav[stu.id] = '';
         tempSuuradee[stu.id] = '';
         tempInteeBog[stu.id] = '';
         tempBoggee[stu.id] = '';
@@ -808,6 +790,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
     setDhaqanRecords(tempDhaq);
     setNadaafadRecords(tempNad);
     setCommentsRecords(tempComm);
+    setBehaviorRecords(tempBehav);
     setSuuradeeMarayaRecords(tempSuuradee);
     setInteeBogRecords(tempInteeBog);
     setBoggeeRecords(tempBoggee);
@@ -1234,9 +1217,8 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
   };
 
   const handleFieldChange = <T extends string>(
-
     studentId: string, 
-    field: 'attendance' | 'lesson' | 'surad' | 'subac' | 'dhaqan' | 'nadaafad' | 'comment' | 'suuradeeMaraya' | 'inteeBog' | 'boggee', 
+    field: 'attendance' | 'lesson' | 'surad' | 'subac' | 'dhaqan' | 'nadaafad' | 'comment' | 'suuradeeMaraya' | 'inteeBog' | 'boggee' | 'behavior', 
     value: T
   ) => {
     if (field === 'attendance') setAttendanceRecords(prev => ({ ...prev, [studentId]: value as unknown as AttendanceType }));
@@ -1249,6 +1231,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
     if (field === 'suuradeeMaraya') setSuuradeeMarayaRecords(prev => ({ ...prev, [studentId]: value }));
     if (field === 'inteeBog') setInteeBogRecords(prev => ({ ...prev, [studentId]: value }));
     if (field === 'boggee') setBoggeeRecords(prev => ({ ...prev, [studentId]: value }));
+    if (field === 'behavior') setBehaviorRecords(prev => ({ ...prev, [studentId]: value }));
   };
 
   const handleSubmitDailyWork = (e: React.FormEvent) => {
@@ -1276,6 +1259,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
           dhaqan: dhaqanRecords[stu.id] || 'Good',
           nadaafad: nadaafadRecords[stu.id] || 'Good',
           faahfaahin: commentsRecords[stu.id] || '',
+          behaviorRemark: behaviorRecords[stu.id] || '',
           session: currentSession,
           suuradeeMaraya: suuradeeMarayaRecords[stu.id] || '',
           inteeBog: inteeBogRecords[stu.id] || '',
@@ -1308,7 +1292,8 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
         studentName: stu.name,
         attendanceSent: attendanceRecords[stu.id] || 'Present',
         lessonSent: lessonRecords[stu.id] || 'Completed',
-        notesSent: commentsRecords[stu.id] || ''
+        notesSent: commentsRecords[stu.id] || '',
+        behaviorSent: behaviorRecords[stu.id] || ''
       }));
 
       const presentCount = sessionStudents.filter(stu => (attendanceRecords[stu.id] || 'Present') === 'Present').length;
@@ -1448,9 +1433,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
             <DugsigaSubucLogo 
               className="w-10 h-10 shadow-md border-emerald-500/20" 
               logoUrl={database.landingPageSettings?.logoUrl}
-              editable={true}
-              onClick={() => setShowLogoModal(true)}
-              title="Guji si aad u beddesho sawirka astaanta (Click to change website profile logo)"
+              editable={false}
             />
             <div className="flex flex-col">
               <span className="font-extrabold text-white text-base tracking-tight leading-none font-sans" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Dugsiga Subuc</span>
@@ -1899,6 +1882,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                           <th className="py-3 px-4 text-center w-48">Surada</th>
                           <th className="py-3 px-4 text-center w-32">Boggee</th>
                           <th className="py-3 px-4 text-center w-32">Intee Bog</th>
+                          <th className="py-3 px-4 pl-4 w-44">⚠️ Dhaqanka (Behavior Remark)</th>
                           <th className="py-3 px-4 pl-6">Notes / Observations</th>
                         </tr>
                       </thead>
@@ -1911,6 +1895,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                           const currentDhaq = dhaqanRecords[stu.id] || 'Good';
                           const currentNad = nadaafadRecords[stu.id] || 'Good';
                           const currentComm = commentsRecords[stu.id] || '';
+                          const currentBehav = behaviorRecords[stu.id] || '';
                           const currentSuuradee = suuradeeMarayaRecords[stu.id] || '';
                           const currentInteeBog = inteeBogRecords[stu.id] || '';
                           const currentBoggee = boggeeRecords[stu.id] || '';
@@ -2192,6 +2177,21 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                                     </div>
                                   </td>
 
+                                  {/* 3c. Behavior Remark Text */}
+                                  <td className="py-2.5 px-4 pl-4">
+                                    <input
+                                      type="text"
+                                      placeholder="Rude, Missed class..."
+                                      value={currentBehav}
+                                      onChange={(e) => handleFieldChange(stu.id, 'behavior', e.target.value)}
+                                      className={`w-full px-2.5 py-1.5 rounded-lg text-[10px] sm:text-xs font-semibold outline-none transition-all placeholder:text-slate-400 border ${
+                                        currentBehav
+                                          ? 'bg-rose-50 border-rose-300 text-rose-950 font-bold ring-2 ring-rose-100 shadow-sm'
+                                          : 'bg-slate-50 hover:bg-slate-105 border-slate-200 text-slate-700 focus:border-rose-400 focus:bg-white'
+                                      }`}
+                                    />
+                                  </td>
+
                                   {/* 3d. Note Text */}
                                   <td className="py-2.5 px-4 pl-6">
                                     <input
@@ -2225,6 +2225,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                       const currentDhaq = dhaqanRecords[stu.id] || 'Good';
                       const currentNad = nadaafadRecords[stu.id] || 'Good';
                       const currentComm = commentsRecords[stu.id] || '';
+                      const currentBehav = behaviorRecords[stu.id] || '';
                       const currentSuuradee = suuradeeMarayaRecords[stu.id] || '';
                       const currentInteeBog = inteeBogRecords[stu.id] || '';
                       const currentBoggee = boggeeRecords[stu.id] || '';
@@ -2472,6 +2473,67 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                                     )}
                                   </div>
                                 </div>
+                              </div>
+
+                              {/* Behavior Remark in mobile card */}
+                              <div className="space-y-1.5 pt-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-wide block pl-0.5">
+                                    ⚠️ Dhaqanka & Anshaxa (Behavior Remark)
+                                  </span>
+                                  {currentBehav && (
+                                    <button 
+                                      type="button" 
+                                      onClick={() => handleFieldChange(stu.id, 'behavior', '')}
+                                      className="text-[9px] font-extrabold text-rose-500 hover:text-rose-700 cursor-pointer"
+                                    >
+                                      Tirtir (Clear)
+                                    </button>
+                                  )}
+                                </div>
+
+                                <div className="flex flex-wrap gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFieldChange(stu.id, 'behavior', 'Ardaygu wuxuu muujiyay dhaqan-xumo / Rude & Disrespectful')}
+                                    className="text-[8.5px] font-black px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 cursor-pointer transition-all"
+                                  >
+                                    🔴 Rude
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFieldChange(stu.id, 'behavior', 'Fasalka waayay / Missed class without excuse')}
+                                    className="text-[8.5px] font-black px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 cursor-pointer transition-all"
+                                  >
+                                    🛑 Missed Class
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFieldChange(stu.id, 'behavior', 'Ardayda kale mashquuliyay / Distracting others')}
+                                    className="text-[8.5px] font-black px-2 py-0.5 rounded-md bg-orange-50 text-orange-800 border border-orange-200 hover:bg-orange-100 cursor-pointer transition-all"
+                                  >
+                                    ⚠️ Distracting
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFieldChange(stu.id, 'behavior', 'Dhaqan wanaagsan / Good behavior')}
+                                    className="text-[8.5px] font-black px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 cursor-pointer transition-all"
+                                  >
+                                    🟢 Good Behavior
+                                  </button>
+                                </div>
+
+                                <input
+                                  type="text"
+                                  placeholder="t.g. Rude, Missed class, Came late..."
+                                  value={currentBehav}
+                                  onChange={(e) => handleFieldChange(stu.id, 'behavior', e.target.value)}
+                                  className={`w-full px-3 py-1.5 rounded-lg text-[10px] font-semibold outline-none transition-all placeholder:text-slate-400 border ${
+                                    currentBehav
+                                      ? 'bg-rose-50/70 border-rose-300 text-rose-950 font-bold ring-2 ring-rose-100 shadow-sm'
+                                      : 'bg-slate-50 hover:bg-slate-10 border border-slate-200 focus:border-rose-400 focus:bg-white'
+                                  }`}
+                                />
                               </div>
 
                               {/* Notes/Comments in mobile card */}
@@ -3229,9 +3291,37 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                 <Users className="w-4 h-4 text-[#1e5ee6]" id="icon-history-users" />
                 My Students Catalog
               </h3>
-              <p className="text-slate-400 text-xs font-semibold mb-4" id="history-sidebar-subtitle">
+              <p className="text-slate-400 text-xs font-semibold mb-3" id="history-sidebar-subtitle">
                 Select a student below to inspect their full academic timeline and progress metrics.
               </p>
+
+              {/* Behavior & Comments Journal Export Buttons */}
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const reportTxt = generateStudentBehaviorCommentsReport('', '', teacher.classAssigned, database);
+                    triggerFileDownload(`dhaqanka_faallooyinka_${teacher.classAssigned.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.txt`, reportTxt);
+                  }}
+                  className="py-2 px-2.5 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-700 hover:to-amber-700 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                  title="Soo deji dhamaan faallooyinka & dhaqanka ardayda fasalka (.txt)"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Journal (.TXT)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const csvData = generateStudentBehaviorCommentsCSV('', '', teacher.classAssigned, database);
+                    triggerFileDownload(`dhaqanka_faallooyinka_${teacher.classAssigned.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`, csvData);
+                  }}
+                  className="py-2 px-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                  title="Soo deji dhamaan faallooyinka & dhaqanka ardayda fasalka (.csv Excel)"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Excel (.CSV)</span>
+                </button>
+              </div>
 
               {/* Search Box */}
               <div className="relative mb-4" id="history-search-container">
@@ -4456,14 +4546,6 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
           }}
         />
       )}
-
-      {/* Website Logo Change Modal */}
-      <ChangeWebsiteLogoModal 
-        isOpen={showLogoModal}
-        onClose={() => setShowLogoModal(false)}
-        currentLogoUrl={database.landingPageSettings?.logoUrl}
-        onSaveLogo={handleSaveLogo}
-      />
 
     </div>
   </div>

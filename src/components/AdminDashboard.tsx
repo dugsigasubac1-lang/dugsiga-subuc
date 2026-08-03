@@ -84,8 +84,11 @@ import {
   generateAttendanceSummaryReport,
   generateStudentAttendanceHistoryReport,
   generateTeacherAttendanceReport,
+  generateStudentBehaviorCommentsReport,
+  generateStudentBehaviorCommentsCSV,
   triggerFileDownload, 
-  triggerBackupDownload 
+  triggerBackupDownload,
+  DEFAULT_INVOICE_ACCOUNTS_NOTE
 } from '../db';
 import {
   BarChart,
@@ -162,6 +165,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showNotifPopup, setShowNotifPopup] = useState(false);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const [exportSelectedClass, setExportSelectedClass] = useState<string>('All');
   const [showLogoModal, setShowLogoModal] = useState(false);
 
   const handleSaveLogo = (newLogoUrl: string) => {
@@ -373,6 +377,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     attendanceSent: 'Present' | 'Late' | 'Absent';
     lessonSent: 'Completed' | 'Pending';
     notesSent: string;
+    behaviorSent?: string;
     type: 'attendance' | 'exam';
   } | null>(null);
 
@@ -733,6 +738,9 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [activeRidersSearchQuery, setActiveRidersSearchQuery] = useState<string>('');
   const [showBusInvoicedModal, setShowBusInvoicedModal] = useState<boolean>(false);
   const [busInvoicedSearchQuery, setBusInvoicedSearchQuery] = useState<string>('');
+  const [invoiceCategoryModal, setInvoiceCategoryModal] = useState<'fee' | 'bus' | null>(null);
+  const [categoryModalSearch, setCategoryModalSearch] = useState<string>('');
+  const [categoryModalFilter, setCategoryModalFilter] = useState<'all' | 'collected' | 'outstanding'>('all');
   const [showCollectedFeesBreakdownMonth, setShowCollectedFeesBreakdownMonth] = useState<string | null>(null);
   const [showBusCollectedBreakdownMonth, setShowBusCollectedBreakdownMonth] = useState<string | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState<BillingRecord | null>(null);
@@ -1687,6 +1695,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       attendanceSent: 'Present' | 'Late' | 'Absent'; 
       lessonSent: 'Completed' | 'Pending'; 
       notesSent: string; 
+      behaviorSent?: string;
     }
   ) => {
     const updatedSubmissions = (database.submissions || []).map(sub => {
@@ -1698,7 +1707,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
           ...stu,
           attendanceSent: fields.attendanceSent,
           lessonSent: fields.lessonSent,
-          notesSent: fields.notesSent
+          notesSent: fields.notesSent,
+          behaviorSent: fields.behaviorSent
         };
       });
 
@@ -1729,7 +1739,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
             ...updatedProgress[existingIdx],
             attendance: fields.attendanceSent,
             lessonCompleted: fields.lessonSent === 'Completed' ? 'Completed' : 'Not Completed',
-            faahfaahin: fields.notesSent
+            faahfaahin: fields.notesSent,
+            behaviorRemark: fields.behaviorSent
           };
         } else {
           updatedProgress.push({
@@ -1742,6 +1753,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
             attendance: fields.attendanceSent,
             lessonCompleted: fields.lessonSent === 'Completed' ? 'Completed' : 'Not Completed',
             faahfaahin: fields.notesSent,
+            behaviorRemark: fields.behaviorSent,
             session: subSession as any,
             surad: 'N/A',
             subac: 'Completed',
@@ -2871,7 +2883,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [invFormItems, setInvFormItems] = useState<{ id: string; description: string; quantity: number; unitPrice: number }[]>([
     { id: '1', description: '', quantity: 1, unitPrice: 0 }
   ]);
-  const [invFormNotes, setInvFormNotes] = useState<string>('');
+  const [invFormNotes, setInvFormNotes] = useState<string>(DEFAULT_INVOICE_ACCOUNTS_NOTE);
   const [invFormStatus, setInvFormStatus] = useState<'Paid' | 'Unpaid' | 'Partial'>('Unpaid');
   const [invFormAmountPaid, setInvFormAmountPaid] = useState<number>(0);
 
@@ -2939,7 +2951,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     d.setDate(d.getDate() + 30);
     setInvFormDueDate(d.toISOString().split('T')[0]);
     setInvFormItems([{ id: '1', description: '', quantity: 1, unitPrice: 0 }]);
-    setInvFormNotes('');
+    setInvFormNotes(DEFAULT_INVOICE_ACCOUNTS_NOTE);
     setInvFormStatus('Unpaid');
     setInvFormAmountPaid(0);
     setShowInvoiceModal(true);
@@ -2981,7 +2993,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       quantity: item.quantity,
       unitPrice: item.unitPrice
     })));
-    setInvFormNotes(invoice.notes || '');
+    setInvFormNotes(invoice.notes || DEFAULT_INVOICE_ACCOUNTS_NOTE);
     setInvFormStatus(invoice.status);
     setInvFormAmountPaid(invoice.amountPaid);
     setShowInvoiceModal(true);
@@ -4949,10 +4961,12 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
 
   // -------------------------------------------------------------
   // STUDENTS MULTI-FORMAT EXPORT SYSTEM (PDF, Excel, Word)
+  // Excludes inactive/suspended students automatically
   // -------------------------------------------------------------
   const handleExportStudentsExcel = (list: Student[], exportTypeLabel: string) => {
-    if (list.length === 0) {
-      alert("Ma jiraan arday la soo dejiyo!");
+    const activeList = list.filter(s => s.active);
+    if (activeList.length === 0) {
+      alert("Ma jiraan arday firfircoon (active) oo la soo dejiyo!");
       return;
     }
     const headers = [
@@ -4965,10 +4979,10 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       "Monthly Tuition Fee ($)",
       "Monthly Bus Fee ($)",
       "Status",
-      "Registration Date"
+      "Registration Date (Taariikhda Diiwaangelinta)"
     ];
 
-    const rows = list.map(s => [
+    const rows = activeList.map(s => [
       s.id,
       s.name,
       s.className || 'None',
@@ -4977,8 +4991,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       s.parentPhone || 'N/A',
       s.monthlyFee,
       s.busFee || 0,
-      s.active ? 'Active' : 'Suspended',
-      s.registrationDate || 'N/A'
+      'Active',
+      s.registrationDate || '2026-05-15'
     ]);
 
     const csvContent = "\uFEFF" + [
@@ -4996,18 +5010,19 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `dugsiga_subuc_${exportTypeLabel.toLowerCase()}_students_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute("download", `dugsiga_subuc_${exportTypeLabel.toLowerCase()}_active_students_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     
-    setFeedbackMsg(`Ardayda waxaa loo soo dejiyay Excel (.csv) ahaan si guul ah!`);
+    setFeedbackMsg(`Ardayda firfircoon (${activeList.length}) waxaa loo soo dejiyay Excel (.csv) ahaan si guul ah!`);
     setTimeout(() => setFeedbackMsg(''), 4000);
   };
 
   const handleExportStudentsWord = (list: Student[], exportTypeLabel: string) => {
-    if (list.length === 0) {
-      alert("Ma jiraan arday la soo dejiyo!");
+    const activeList = list.filter(s => s.active);
+    if (activeList.length === 0) {
+      alert("Ma jiraan arday firfircoon (active) oo la soo dejiyo!");
       return;
     }
     
@@ -5053,16 +5068,12 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       color: #166534;
       font-weight: bold;
     }
-    .status-suspended {
-      color: #991b1b;
-      font-weight: bold;
-    }
   </style>
 </head>
 <body>
   <h2>DUGSIGA SUBUC</h2>
-  <p><b>Liiska Ardayda (${exportTypeLabel}) / Student Directory</b><br/>
-  Total: ${list.length} Students<br/>
+  <p><b>Liiska Ardayda Firfircoon (${exportTypeLabel}) / Active Student Directory</b><br/>
+  Total Active: ${activeList.length} Students<br/>
   Taariikhda la soo saaray: ${new Date().toLocaleDateString()}</p>
   
   <table>
@@ -5074,6 +5085,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         <th>Session (Shift)</th>
         <th>Parent Name (Waalidka)</th>
         <th>Parent Phone (Telka Waalidka)</th>
+        <th>Registration Date (Taariikhda)</th>
         <th>Tuition ($)</th>
         <th>Bus Fee ($)</th>
         <th>Status</th>
@@ -5081,7 +5093,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     </thead>
     <tbody>`;
 
-    list.forEach(s => {
+    activeList.forEach(s => {
       html += `
         <tr>
           <td><b>${s.id}</b></td>
@@ -5090,11 +5102,12 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
           <td>${s.session || 'Both'}</td>
           <td>${s.parentName || 'N/A'}</td>
           <td>${s.parentPhone || 'N/A'}</td>
+          <td><b>${s.registrationDate || '2026-05-15'}</b></td>
           <td>$${Number(s.monthlyFee || 0).toFixed(2)}</td>
           <td>$${Number(s.busFee || 0).toFixed(2)}</td>
           <td>
-            <span class="${s.active ? 'status-active' : 'status-suspended'}">
-              ${s.active ? 'Active' : 'Suspended'}
+            <span class="status-active">
+              Active
             </span>
           </td>
         </tr>`;
@@ -5110,18 +5123,19 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `dugsiga_subuc_${exportTypeLabel.toLowerCase()}_students_${new Date().toISOString().slice(0, 10)}.doc`);
+    link.setAttribute("download", `dugsiga_subuc_${exportTypeLabel.toLowerCase()}_active_students_${new Date().toISOString().slice(0, 10)}.doc`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 
-    setFeedbackMsg(`Ardayda waxaa loo soo dejiyay Word (.doc) ahaan si guul ah!`);
+    setFeedbackMsg(`Ardayda firfircoon (${activeList.length}) waxaa loo soo dejiyay Word (.doc) ahaan si guul ah!`);
     setTimeout(() => setFeedbackMsg(''), 4000);
   };
 
   const handleExportStudentsPDF = (list: Student[], exportTypeLabel: string) => {
-    if (list.length === 0) {
-      alert("Ma jiraan arday la soo dejiyo!");
+    const activeList = list.filter(s => s.active);
+    if (activeList.length === 0) {
+      alert("Ma jiraan arday firfircoon (active) oo la soo dejiyo!");
       return;
     }
 
@@ -5143,62 +5157,63 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       doc.setTextColor(33, 84, 61); // deep green (#21543d)
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(20);
-      doc.text("DUGSIGA SUBUC", 15, 20);
+      doc.text("DUGSIGA SUBUC", 12, 20);
 
       // Subtitle
       doc.setFontSize(9);
       doc.setTextColor(100, 116, 139); // slate-500
-      doc.text(`STUDENTS DIRECTORY (${exportTypeLabel})  |  Diiwaanka Ardayda`, 15, 26);
+      doc.text(`ACTIVE STUDENTS DIRECTORY (${exportTypeLabel})  |  Diiwaanka Ardayda Firfircoon`, 12, 26);
 
       // Divider
       doc.setDrawColor(203, 213, 225);
       doc.setLineWidth(0.5);
-      doc.line(15, 30, 195, 30);
+      doc.line(12, 30, 198, 30);
 
       // Page metadata
       doc.setFont("Helvetica", "normal");
       doc.setFontSize(8);
       doc.setTextColor(148, 163, 184); // slate-400
-      doc.text(`Printed: ${new Date().toLocaleDateString()}  |  Total: ${list.length} Students`, 15, 35);
-      doc.text(`Page ${pageNum}`, 195, 35, { align: 'right' });
+      doc.text(`Printed: ${new Date().toLocaleDateString()}  |  Total Active: ${activeList.length} Students`, 12, 35);
+      doc.text(`Page ${pageNum}`, 198, 35, { align: 'right' });
     };
 
     drawHeader(pageNumber);
 
     // Table Headers
-    let y = 45;
+    let y = 43;
     
     const drawTableHeaders = (startY: number) => {
       doc.setFillColor(241, 245, 249); // light grey
-      doc.rect(15, startY, 180, 8, "F");
+      doc.rect(12, startY, 186, 8, "F");
       doc.setDrawColor(203, 213, 225);
-      doc.rect(15, startY, 180, 8, "S");
+      doc.rect(12, startY, 186, 8, "S");
 
       doc.setFont("Helvetica", "bold");
-      doc.setFontSize(8.5);
+      doc.setFontSize(8);
       doc.setTextColor(51, 65, 85); // slate-700
 
-      doc.text("ID", 17, startY + 5.5);
-      doc.text("Student Name (Ardayga)", 32, startY + 5.5);
-      doc.text("Class", 85, startY + 5.5);
-      doc.text("Parent Name", 110, startY + 5.5);
-      doc.text("Parent Phone", 145, startY + 5.5);
-      doc.text("Fee", 182, startY + 5.5, { align: 'right' });
+      doc.text("ID", 14, startY + 5.5);
+      doc.text("Student Name (Ardayga)", 27, startY + 5.5);
+      doc.text("Class", 76, startY + 5.5);
+      doc.text("Reg. Date", 102, startY + 5.5);
+      doc.text("Parent Name", 126, startY + 5.5);
+      doc.text("Parent Phone", 158, startY + 5.5);
+      doc.text("Fee", 195, startY + 5.5, { align: 'right' });
     };
 
     drawTableHeaders(y);
     y += 8;
 
     doc.setFont("Helvetica", "normal");
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(30, 41, 59);
 
-    list.forEach((s, index) => {
+    activeList.forEach((s, index) => {
       if (y > 275) {
         doc.addPage();
         pageNumber += 1;
         drawHeader(pageNumber);
-        y = 45;
+        y = 43;
         drawTableHeaders(y);
         y += 8;
       }
@@ -5206,39 +5221,64 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       // Row zebra stripes
       if (index % 2 === 1) {
         doc.setFillColor(248, 250, 252);
-        doc.rect(15, y, 180, 8, "F");
+        doc.rect(12, y, 186, 8, "F");
       }
 
       // Border line bottom
       doc.setDrawColor(241, 245, 249);
       doc.setLineWidth(0.3);
-      doc.line(15, y + 8, 195, y + 8);
+      doc.line(12, y + 8, 198, y + 8);
 
       doc.setFont("Helvetica", "bold");
-      doc.text(s.id || '', 17, y + 5.5);
+      doc.text(s.id || '', 14, y + 5.5);
 
       doc.setFont("Helvetica", "normal");
       let displayName = s.name || '';
-      if (displayName.length > 28) displayName = displayName.substring(0, 26) + '..';
-      doc.text(displayName, 32, y + 5.5);
+      if (displayName.length > 25) displayName = displayName.substring(0, 23) + '..';
+      doc.text(displayName, 27, y + 5.5);
 
-      doc.text(s.className || 'None', 85, y + 5.5);
+      let displayClass = s.className || 'None';
+      if (displayClass.length > 16) displayClass = displayClass.substring(0, 14) + '..';
+      doc.text(displayClass, 76, y + 5.5);
       
-      let displayParent = s.parentName || 'N/A';
-      if (displayParent.length > 20) displayParent = displayParent.substring(0, 18) + '..';
-      doc.text(displayParent, 110, y + 5.5);
+      doc.text(s.registrationDate || '2026-05-15', 102, y + 5.5);
 
-      doc.text(s.parentPhone || 'N/A', 145, y + 5.5);
+      let displayParent = s.parentName || 'N/A';
+      if (displayParent.length > 18) displayParent = displayParent.substring(0, 16) + '..';
+      doc.text(displayParent, 126, y + 5.5);
+
+      doc.text(s.parentPhone || 'N/A', 158, y + 5.5);
 
       doc.setFont("Helvetica", "bold");
-      doc.text(`$${Number(s.monthlyFee || 0).toFixed(0)}`, 182, y + 5.5, { align: 'right' });
+      doc.text(`$${Number(s.monthlyFee || 0).toFixed(0)}`, 195, y + 5.5, { align: 'right' });
 
       y += 8;
     });
 
-    doc.save(`dugsiga_subuc_${exportTypeLabel.toLowerCase()}_students_${new Date().toISOString().slice(0, 10)}.pdf`);
+    doc.save(`dugsiga_subuc_${exportTypeLabel.toLowerCase()}_active_students_${new Date().toISOString().slice(0, 10)}.pdf`);
     
-    setFeedbackMsg(`Ardayda waxaa loo soo dejiyay PDF ahaan si guul ah!`);
+    setFeedbackMsg(`Ardayda firfircoon (${activeList.length}) waxaa loo soo dejiyay PDF ahaan si guul ah!`);
+    setTimeout(() => setFeedbackMsg(''), 4000);
+  };
+
+  const handleExportAllClassesSeparately = (format: 'excel' | 'pdf' | 'word') => {
+    const classes = classSelectionList;
+    if (classes.length === 0) {
+      alert("Ma jiraan fasalo la soo dejiyo!");
+      return;
+    }
+    let count = 0;
+    classes.forEach(cls => {
+      const classStudents = database.students.filter(s => s.className === cls && s.active);
+      if (classStudents.length > 0) {
+        count++;
+        const safeLabel = `Fasalka_${cls.replace(/\s+/g, '_')}`;
+        if (format === 'excel') handleExportStudentsExcel(classStudents, safeLabel);
+        else if (format === 'word') handleExportStudentsWord(classStudents, safeLabel);
+        else if (format === 'pdf') handleExportStudentsPDF(classStudents, safeLabel);
+      }
+    });
+    setFeedbackMsg(`Sida guusha leh waxaa loo soo dejiyay ${count} fasal oo ardayda firfircoon ah (${format.toUpperCase()})!`);
     setTimeout(() => setFeedbackMsg(''), 4000);
   };
 
@@ -6777,25 +6817,26 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                         </button>
                         
                         {showExportDropdown && (
-                          <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 p-4 space-y-3 animate-fade-in">
-                            <div className="flex items-center justify-between border-b border-slate-50 pb-2">
-                              <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                                <Download className="w-3.5 h-3.5 text-indigo-600" />
-                                Options / Noocyada
+                          <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 p-4 space-y-3.5 animate-fade-in text-left">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                              <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                                <Download className="w-4 h-4 text-indigo-600" />
+                                Soo Dejinta Ardayda / Export Options
                               </span>
                               <button 
                                 type="button"
                                 onClick={() => setShowExportDropdown(false)}
-                                className="text-slate-400 hover:text-slate-600 font-bold text-xs"
+                                className="text-slate-400 hover:text-slate-600 font-bold text-xs p-1"
                               >
                                 ✕
                               </button>
                             </div>
 
-                            {/* All Students Section */}
-                            <div className="space-y-2">
-                              <div className="text-[10px] font-black text-indigo-600 tracking-widest uppercase">
-                                Dhamaan Ardayda ({database.students.length})
+                            {/* Section 1: All Active Students */}
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between text-[10px] font-black text-indigo-700 uppercase tracking-wider">
+                                <span>Dhamaan Ardayda Firfircoon</span>
+                                <span className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-bold">{database.students.filter(s => s.active).length} Arday</span>
                               </div>
                               <div className="grid grid-cols-3 gap-1.5">
                                 <button
@@ -6804,7 +6845,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                     handleExportStudentsPDF(database.students, "Dhamaan_All");
                                     setShowExportDropdown(false);
                                   }}
-                                  className="py-2.5 px-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] rounded-xl border border-rose-100 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer active:scale-95"
+                                  className="py-2 px-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] rounded-xl border border-rose-200/60 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95"
                                   title="Download all students as PDF"
                                 >
                                   <span className="text-xs">📕</span>
@@ -6816,7 +6857,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                     handleExportStudentsExcel(database.students, "Dhamaan_All");
                                     setShowExportDropdown(false);
                                   }}
-                                  className="py-2.5 px-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] rounded-xl border border-emerald-100 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer active:scale-95"
+                                  className="py-2 px-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] rounded-xl border border-emerald-200/60 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95"
                                   title="Download all students as Excel (CSV)"
                                 >
                                   <span className="text-xs">📗</span>
@@ -6828,7 +6869,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                     handleExportStudentsWord(database.students, "Dhamaan_All");
                                     setShowExportDropdown(false);
                                   }}
-                                  className="py-2.5 px-1 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-[10px] rounded-xl border border-sky-100 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer active:scale-95"
+                                  className="py-2 px-1 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-[10px] rounded-xl border border-sky-200/60 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95"
                                   title="Download all students as Word"
                                 >
                                   <span className="text-xs">📘</span>
@@ -6837,11 +6878,117 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                               </div>
                             </div>
 
-                            {/* Filtered Students Section */}
+                            {/* Section 2: Download by Class Separately */}
+                            <div className="space-y-2 pt-2.5 border-t border-slate-100">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black text-teal-700 uppercase tracking-wider">
+                                  Fasal Gaar Ah (Class Separately)
+                                </span>
+                              </div>
+                              <div className="space-y-1.5">
+                                <select
+                                  value={exportSelectedClass}
+                                  onChange={(e) => setExportSelectedClass(e.target.value)}
+                                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none cursor-pointer"
+                                >
+                                  <option value="All">--- Dooro Fasal (Select Class) ---</option>
+                                  {classSelectionList.map(cls => {
+                                    const count = database.students.filter(s => s.className === cls && s.active).length;
+                                    return (
+                                      <option key={cls} value={cls}>
+                                        {cls} ({count} Arday)
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+
+                                {exportSelectedClass !== 'All' ? (
+                                  <div className="grid grid-cols-3 gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const list = database.students.filter(s => s.className === exportSelectedClass);
+                                        handleExportStudentsPDF(list, `Fasalka_${exportSelectedClass.replace(/\s+/g, '_')}`);
+                                        setShowExportDropdown(false);
+                                      }}
+                                      className="py-2 px-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] rounded-xl border border-rose-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95"
+                                    >
+                                      <span className="text-xs">📕</span>
+                                      PDF
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const list = database.students.filter(s => s.className === exportSelectedClass);
+                                        handleExportStudentsExcel(list, `Fasalka_${exportSelectedClass.replace(/\s+/g, '_')}`);
+                                        setShowExportDropdown(false);
+                                      }}
+                                      className="py-2 px-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] rounded-xl border border-emerald-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95"
+                                    >
+                                      <span className="text-xs">📗</span>
+                                      Excel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const list = database.students.filter(s => s.className === exportSelectedClass);
+                                        handleExportStudentsWord(list, `Fasalka_${exportSelectedClass.replace(/\s+/g, '_')}`);
+                                        setShowExportDropdown(false);
+                                      }}
+                                      className="py-2 px-1 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-[10px] rounded-xl border border-sky-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95"
+                                    >
+                                      <span className="text-xs">📘</span>
+                                      Word
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="p-2 bg-teal-50/70 border border-teal-100 rounded-xl flex flex-col gap-1">
+                                    <div className="text-[10px] font-extrabold text-teal-800">
+                                      ⚡ Deji Dhamaan Fasalada Mid Mid (Export All Classes Separately):
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          handleExportAllClassesSeparately('pdf');
+                                          setShowExportDropdown(false);
+                                        }}
+                                        className="py-1.5 px-1 bg-white hover:bg-rose-50 text-rose-700 font-extrabold text-[9.5px] rounded-lg border border-rose-200 text-center transition-all cursor-pointer"
+                                      >
+                                        📕 All PDF
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          handleExportAllClassesSeparately('excel');
+                                          setShowExportDropdown(false);
+                                        }}
+                                        className="py-1.5 px-1 bg-white hover:bg-emerald-50 text-emerald-700 font-extrabold text-[9.5px] rounded-lg border border-emerald-200 text-center transition-all cursor-pointer"
+                                      >
+                                        📗 All Excel
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          handleExportAllClassesSeparately('word');
+                                          setShowExportDropdown(false);
+                                        }}
+                                        className="py-1.5 px-1 bg-white hover:bg-sky-50 text-sky-700 font-extrabold text-[9.5px] rounded-lg border border-sky-200 text-center transition-all cursor-pointer"
+                                      >
+                                        📘 All Word
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Section 3: Filtered Students Section */}
                             {filteredStudents.length !== database.students.length && (
-                              <div className="space-y-2 pt-2 border-t border-slate-100/60">
-                                <div className="text-[10px] font-black text-amber-600 tracking-widest uppercase">
-                                  Kaliya kuwa la shaandheeyay ({filteredStudents.length})
+                              <div className="space-y-1.5 pt-2.5 border-t border-slate-100">
+                                <div className="flex items-center justify-between text-[10px] font-black text-amber-600 uppercase tracking-wider">
+                                  <span>Kaliya kuwa la shaandheeyay</span>
+                                  <span className="bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded font-bold">{filteredStudents.filter(s => s.active).length} Arday</span>
                                 </div>
                                 <div className="grid grid-cols-3 gap-1.5">
                                   <button
@@ -6850,7 +6997,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                       handleExportStudentsPDF(filteredStudents, "Shaandheeyay_Filtered");
                                       setShowExportDropdown(false);
                                     }}
-                                    className="py-2.5 px-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] rounded-xl border border-rose-100 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer active:scale-95"
+                                    className="py-2 px-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] rounded-xl border border-rose-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95"
                                     title="Download filtered list as PDF"
                                   >
                                     <span className="text-xs">📕</span>
@@ -6862,7 +7009,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                       handleExportStudentsExcel(filteredStudents, "Shaandheeyay_Filtered");
                                       setShowExportDropdown(false);
                                     }}
-                                    className="py-2.5 px-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] rounded-xl border border-emerald-100 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer active:scale-95"
+                                    className="py-2 px-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] rounded-xl border border-emerald-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95"
                                     title="Download filtered list as Excel"
                                   >
                                     <span className="text-xs">📗</span>
@@ -6874,7 +7021,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                       handleExportStudentsWord(filteredStudents, "Shaandheeyay_Filtered");
                                       setShowExportDropdown(false);
                                     }}
-                                    className="py-2.5 px-1 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-[10px] rounded-xl border border-sky-100 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer active:scale-95"
+                                    className="py-2 px-1 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-[10px] rounded-xl border border-sky-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95"
                                     title="Download filtered list as Word"
                                   >
                                     <span className="text-xs">📘</span>
@@ -8482,6 +8629,49 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                           <div className="flex justify-between items-center text-[10px] text-slate-400 font-medium">
                             <span>Teachers: <span className="font-bold text-slate-600">{teacherAssignedCount} Staff</span></span>
                             <span className="text-[9px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded-md border border-indigo-100">Official Division</span>
+                          </div>
+
+                          {/* Quick Export options per class */}
+                          <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-slate-200/40">
+                            <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                              <Download className="w-3 h-3 text-emerald-600" />
+                              Export:
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const classStudents = database.students.filter(s => s.className === cls);
+                                  handleExportStudentsPDF(classStudents, `Fasalka_${cls.replace(/\s+/g, '_')}`);
+                                }}
+                                className="px-2 py-1 text-[9.5px] bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-lg border border-rose-100 transition-colors cursor-pointer"
+                                title="Download Class PDF"
+                              >
+                                📕 PDF
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const classStudents = database.students.filter(s => s.className === cls);
+                                  handleExportStudentsExcel(classStudents, `Fasalka_${cls.replace(/\s+/g, '_')}`);
+                                }}
+                                className="px-2 py-1 text-[9.5px] bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-lg border border-emerald-100 transition-colors cursor-pointer"
+                                title="Download Class Excel"
+                              >
+                                📗 Excel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const classStudents = database.students.filter(s => s.className === cls);
+                                  handleExportStudentsWord(classStudents, `Fasalka_${cls.replace(/\s+/g, '_')}`);
+                                }}
+                                className="px-2 py-1 text-[9.5px] bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold rounded-lg border border-sky-100 transition-colors cursor-pointer"
+                                title="Download Class Word"
+                              >
+                                📘 Word
+                              </button>
+                            </div>
                           </div>
                           
                           <div className="flex gap-2 justify-end mt-1">
@@ -11499,43 +11689,198 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
               return matchSearch && matchType && matchStatus && matchMonth;
             });
 
+            const invoiceStats = filteredInvoices.reduce((acc, inv) => {
+              let busAmount = 0;
+              let feeAmount = 0;
+
+              (inv.items || []).forEach(item => {
+                const desc = (item.description || '').toLowerCase();
+                const isBus = desc.includes('baska') || desc.includes('bus');
+                const itemTotal = Number(item.total || (item.quantity * item.unitPrice) || 0);
+                if (isBus) {
+                  busAmount += itemTotal;
+                } else {
+                  feeAmount += itemTotal;
+                }
+              });
+
+              const itemsSum = busAmount + feeAmount;
+              if (itemsSum === 0 && inv.totalAmount > 0) {
+                feeAmount = inv.totalAmount;
+              }
+
+              const total = Number(inv.totalAmount || 0);
+              const paid = Number(inv.amountPaid || 0);
+              const ratio = total > 0 ? Math.min(1, Math.max(0, paid / total)) : 0;
+
+              const busPaid = busAmount * ratio;
+              const feePaid = feeAmount * ratio;
+
+              const busDue = Math.max(0, busAmount - busPaid);
+              const feeDue = Math.max(0, feeAmount - feePaid);
+
+              acc.busIssued += busAmount;
+              acc.feeIssued += feeAmount;
+
+              acc.busCollected += busPaid;
+              acc.feeCollected += feePaid;
+
+              acc.busOutstanding += busDue;
+              acc.feeOutstanding += feeDue;
+
+              acc.totalIssued += total;
+              acc.totalCollected += paid;
+              acc.totalOutstanding += Math.max(0, total - paid);
+
+              return acc;
+            }, {
+              busIssued: 0,
+              feeIssued: 0,
+              busCollected: 0,
+              feeCollected: 0,
+              busOutstanding: 0,
+              feeOutstanding: 0,
+              totalIssued: 0,
+              totalCollected: 0,
+              totalOutstanding: 0
+            });
+
             return (
               <div className="space-y-6 animate-fade-in" id="custom-invoices-pane">
                 {/* Metrics Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {/* Total Invoiced */}
-                  <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-5">
-                    <span className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl"><CircleDollarSign className="w-6 h-6" /></span>
-                    <div>
-                      <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Guud ahaan Invoices-ka (Total Issued)</p>
-                      <p className="text-2xl font-black text-slate-900">
-                        ${filteredInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </p>
-                      <p className="text-xs text-slate-400 mt-0.5">Total Custom Invoices Issued</p>
+                  <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between space-y-3.5">
+                    <div className="flex items-center gap-4">
+                      <span className="p-3.5 bg-emerald-50 text-emerald-600 rounded-2xl shrink-0"><CircleDollarSign className="w-6 h-6" /></span>
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest truncate">Guud ahaan Invoices-ka (Total Issued)</p>
+                        <p className="text-2xl font-black text-slate-900 leading-tight">
+                          ${invoiceStats.totalIssued.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">Total Custom Invoices Issued</p>
+                      </div>
+                    </div>
+                    {/* Separated Statistics */}
+                    <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-2 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => { setInvoiceCategoryModal('fee'); setCategoryModalFilter('all'); }}
+                        className="bg-slate-50 hover:bg-indigo-50/70 p-2 rounded-xl border border-slate-150 hover:border-indigo-300 flex flex-col text-left transition-all cursor-pointer group shadow-xs hover:shadow-sm"
+                        title="Daawo ardayda bixisa ama lagu leeyahay School Fee"
+                      >
+                        <span className="text-[9px] font-black text-slate-500 group-hover:text-indigo-700 uppercase tracking-wider flex items-center justify-between">
+                          <span>📚 School Fee</span>
+                          <span className="text-[8px] opacity-0 group-hover:opacity-100 transition-opacity">Daawo →</span>
+                        </span>
+                        <span className="font-extrabold text-slate-800 group-hover:text-indigo-950 text-xs mt-0.5">
+                          ${invoiceStats.feeIssued.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setInvoiceCategoryModal('bus'); setCategoryModalFilter('all'); }}
+                        className="bg-amber-50/70 hover:bg-amber-100/80 p-2 rounded-xl border border-amber-200/60 hover:border-amber-300 flex flex-col text-left transition-all cursor-pointer group shadow-xs hover:shadow-sm"
+                        title="Daawo ardayda bixisa ama lagu leeyahay Bus Fare"
+                      >
+                        <span className="text-[9px] font-black text-amber-800 uppercase tracking-wider flex items-center justify-between">
+                          <span>🚌 Bus Fare (Baska)</span>
+                          <span className="text-[8px] opacity-0 group-hover:opacity-100 transition-opacity">Daawo →</span>
+                        </span>
+                        <span className="font-extrabold text-amber-900 text-xs mt-0.5">
+                          ${invoiceStats.busIssued.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </button>
                     </div>
                   </div>
 
                   {/* Total Amount Collected */}
-                  <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-5">
-                    <span className="p-4 bg-teal-50 text-teal-600 rounded-2xl"><Check className="w-6 h-6 animate-pulse" /></span>
-                    <div>
-                      <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Lacagta la Qabtay (Total Collected)</p>
-                      <p className="text-2xl font-black text-emerald-700">
-                        ${filteredInvoices.reduce((sum, inv) => sum + inv.amountPaid, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </p>
-                      <p className="text-xs text-slate-400 mt-0.5">Total Payments Collected</p>
+                  <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between space-y-3.5">
+                    <div className="flex items-center gap-4">
+                      <span className="p-3.5 bg-teal-50 text-teal-600 rounded-2xl shrink-0"><Check className="w-6 h-6 animate-pulse" /></span>
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest truncate">Lacagta la Qabtay (Total Collected)</p>
+                        <p className="text-2xl font-black text-emerald-700 leading-tight">
+                          ${invoiceStats.totalCollected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">Total Payments Collected</p>
+                      </div>
+                    </div>
+                    {/* Separated Statistics */}
+                    <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-2 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => { setInvoiceCategoryModal('fee'); setCategoryModalFilter('collected'); }}
+                        className="bg-teal-50/60 hover:bg-teal-100/80 p-2 rounded-xl border border-teal-150 hover:border-teal-300 flex flex-col text-left transition-all cursor-pointer group shadow-xs hover:shadow-sm"
+                        title="Daawo ardayda bixisay School Fee"
+                      >
+                        <span className="text-[9px] font-black text-teal-800 uppercase tracking-wider flex items-center justify-between">
+                          <span>📚 School Fee</span>
+                          <span className="text-[8px] opacity-0 group-hover:opacity-100 transition-opacity">Daawo →</span>
+                        </span>
+                        <span className="font-extrabold text-teal-900 text-xs mt-0.5">
+                          ${invoiceStats.feeCollected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setInvoiceCategoryModal('bus'); setCategoryModalFilter('collected'); }}
+                        className="bg-emerald-50/70 hover:bg-emerald-100/80 p-2 rounded-xl border border-emerald-200/60 hover:border-emerald-300 flex flex-col text-left transition-all cursor-pointer group shadow-xs hover:shadow-sm"
+                        title="Daawo ardayda bixisay Bus Fare"
+                      >
+                        <span className="text-[9px] font-black text-emerald-800 uppercase tracking-wider flex items-center justify-between">
+                          <span>🚌 Bus Fare (Baska)</span>
+                          <span className="text-[8px] opacity-0 group-hover:opacity-100 transition-opacity">Daawo →</span>
+                        </span>
+                        <span className="font-extrabold text-emerald-900 text-xs mt-0.5">
+                          ${invoiceStats.busCollected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </button>
                     </div>
                   </div>
 
                   {/* Outstanding Balance Due */}
-                  <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-5">
-                    <span className="p-4 bg-rose-50 text-rose-600 rounded-2xl"><AlertCircle className="w-6 h-6" /></span>
-                    <div>
-                      <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Deynta ka maqan (Total Outstanding)</p>
-                      <p className="text-2xl font-black text-rose-600">
-                        ${filteredInvoices.reduce((sum, inv) => sum + (inv.totalAmount - inv.amountPaid), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </p>
-                      <p className="text-xs text-slate-400 mt-0.5">Total Outstanding Balance Due</p>
+                  <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between space-y-3.5">
+                    <div className="flex items-center gap-4">
+                      <span className="p-3.5 bg-rose-50 text-rose-600 rounded-2xl shrink-0"><AlertCircle className="w-6 h-6" /></span>
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest truncate">Deynta ka maqan (Total Outstanding)</p>
+                        <p className="text-2xl font-black text-rose-600 leading-tight">
+                          ${invoiceStats.totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">Total Outstanding Balance Due</p>
+                      </div>
+                    </div>
+                    {/* Separated Statistics */}
+                    <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-2 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => { setInvoiceCategoryModal('fee'); setCategoryModalFilter('outstanding'); }}
+                        className="bg-rose-50/70 hover:bg-rose-100/80 p-2 rounded-xl border border-rose-200/60 hover:border-rose-300 flex flex-col text-left transition-all cursor-pointer group shadow-xs hover:shadow-sm"
+                        title="Daawo ardayda lagu leeyahay School Fee"
+                      >
+                        <span className="text-[9px] font-black text-rose-800 uppercase tracking-wider flex items-center justify-between">
+                          <span>📚 School Fee</span>
+                          <span className="text-[8px] opacity-0 group-hover:opacity-100 transition-opacity">Daawo →</span>
+                        </span>
+                        <span className="font-extrabold text-rose-900 text-xs mt-0.5">
+                          ${invoiceStats.feeOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setInvoiceCategoryModal('bus'); setCategoryModalFilter('outstanding'); }}
+                        className="bg-amber-50/70 hover:bg-amber-100/80 p-2 rounded-xl border border-amber-200/60 hover:border-amber-300 flex flex-col text-left transition-all cursor-pointer group shadow-xs hover:shadow-sm"
+                        title="Daawo ardayda lagu leeyahay Bus Fare"
+                      >
+                        <span className="text-[9px] font-black text-amber-800 uppercase tracking-wider flex items-center justify-between">
+                          <span>🚌 Bus Fare (Baska)</span>
+                          <span className="text-[8px] opacity-0 group-hover:opacity-100 transition-opacity">Daawo →</span>
+                        </span>
+                        <span className="font-extrabold text-amber-900 text-xs mt-0.5">
+                          ${invoiceStats.busOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -12655,6 +13000,43 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                    <div>
                      <h4 className="font-extrabold text-sm text-slate-900">Diiwaanka Casharka & Joogitaanka</h4>
                      <p className="text-[11px] text-slate-450">Total filtered: <span className="font-black text-slate-700">{filteredStudentsForAttendance.length}</span> students. Laba-jeer guji magaca si aad u aragto macluumaadka oo dhan.</p>
+                   </div>
+                   <div className="flex items-center gap-2 shrink-0">
+                     <button
+                       type="button"
+                       onClick={() => {
+                         const report = generateStudentBehaviorCommentsReport(database);
+                         triggerFileDownload(`dugsiga_subuc_student_behavior_comments_${new Date().toISOString().split('T')[0]}.txt`, report);
+                         setFeedbackMsg("Warbixinta Akhlaaqda & Faallooyinka Ardayda waa la soo dejiyay!");
+                         setTimeout(() => setFeedbackMsg(''), 4000);
+                       }}
+                       className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 border border-rose-200"
+                       title="Download full student behavior comments history in TXT"
+                     >
+                       <Download className="w-3.5 h-3.5 text-rose-600" />
+                       Behavior (.TXT)
+                     </button>
+                     <button
+                       type="button"
+                       onClick={() => {
+                         const csv = generateStudentBehaviorCommentsCSV(database);
+                         const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+                         const url = URL.createObjectURL(blob);
+                         const link = document.createElement("a");
+                         link.setAttribute("href", url);
+                         link.setAttribute("download", `dugsiga_subuc_student_behavior_comments_${new Date().toISOString().split('T')[0]}.csv`);
+                         document.body.appendChild(link);
+                         link.click();
+                         document.body.removeChild(link);
+                         setFeedbackMsg("Warbixinta Akhlaaqda CSV (Excel) waa la soo dejiyay!");
+                         setTimeout(() => setFeedbackMsg(''), 4000);
+                       }}
+                       className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
+                       title="Download full student behavior comments history in Excel CSV"
+                     >
+                       <Download className="w-3.5 h-3.5 text-white" />
+                       Behavior (.CSV)
+                     </button>
                    </div>
                 </div>
 
@@ -15196,6 +15578,356 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       })()}
 
       {/* -------------------------------------------------------------
+          MODAL: INVOICE CATEGORY (FEE vs BUS) BREAKDOWN & RECIPIENTS
+          ------------------------------------------------------------- */}
+      {invoiceCategoryModal && (() => {
+        const isBusCategory = invoiceCategoryModal === 'bus';
+        const categoryName = isBusCategory ? "Bus Fare (Baska)" : "School Fee (Waxbarashada)";
+        
+        // Helper to check if item belongs to category
+        const isMatchingItem = (itemTitle: string) => {
+          const lower = itemTitle.toLowerCase();
+          if (isBusCategory) {
+            return lower.includes('bus') || lower.includes('baska') || lower.includes('geedi') || lower.includes('gaadhi') || lower.includes('transport');
+          } else {
+            return lower.includes('fee') || lower.includes('adaad') || lower.includes('dugsi') || lower.includes('school') || lower.includes('tuition') || lower.includes('waxbarasho') || (!lower.includes('bus') && !lower.includes('baska'));
+          }
+        };
+
+        // Gather matching invoice records from database.invoices
+        const invoiceCategoryRecords = (database.invoices || []).map(inv => {
+          const matchingItems = (inv.items || []).filter(item => isMatchingItem(item.description || ''));
+          const categoryTotal = matchingItems.reduce((sum, item) => sum + Number(item.total || (item.unitPrice * item.quantity) || 0), 0);
+          
+          if (categoryTotal <= 0) return null;
+
+          const invTotal = Number(inv.totalAmount || 0);
+          const invPaid = Number(inv.amountPaid || 0);
+          
+          // Proportional allocation of paid amount to this category or full allocation if single item
+          const categoryPaid = invTotal > 0 ? Math.min(categoryTotal, (invPaid / invTotal) * categoryTotal) : (inv.status === 'Paid' ? categoryTotal : 0);
+          const categoryOutstanding = Math.max(0, categoryTotal - categoryPaid);
+          const categoryStatus = categoryPaid >= categoryTotal || inv.status === 'Paid' ? 'Paid' : (categoryPaid > 0 ? 'Partial' : 'Unpaid');
+
+          return {
+            invoice: inv,
+            matchingItems,
+            categoryTotal,
+            categoryPaid,
+            categoryOutstanding,
+            categoryStatus
+          };
+        }).filter(Boolean) as Array<{
+          invoice: any;
+          matchingItems: any[];
+          categoryTotal: number;
+          categoryPaid: number;
+          categoryOutstanding: number;
+          categoryStatus: string;
+        }>;
+
+        // Apply Search and Tab Filters
+        const filteredCategoryRecords = invoiceCategoryRecords.filter(rec => {
+          const q = categoryModalSearch.toLowerCase();
+          const matchesSearch = !q || (
+            (rec.invoice.recipientName || '').toLowerCase().includes(q) ||
+            (rec.invoice.recipientPhone || '').toLowerCase().includes(q) ||
+            (rec.invoice.invoiceNumber || '').toLowerCase().includes(q) ||
+            (rec.invoice.id || '').toLowerCase().includes(q)
+          );
+
+          if (!matchesSearch) return false;
+
+          if (categoryModalFilter === 'collected') {
+            return rec.categoryStatus === 'Paid' || rec.categoryPaid > 0;
+          }
+          if (categoryModalFilter === 'outstanding') {
+            return rec.categoryOutstanding > 0 && rec.categoryStatus !== 'Paid';
+          }
+          return true;
+        });
+
+        // Category metrics totals
+        const totalCategoryIssuedSum = invoiceCategoryRecords.reduce((sum, r) => sum + r.categoryTotal, 0);
+        const totalCategoryCollectedSum = invoiceCategoryRecords.reduce((sum, r) => sum + r.categoryPaid, 0);
+        const totalCategoryOutstandingSum = invoiceCategoryRecords.reduce((sum, r) => sum + r.categoryOutstanding, 0);
+
+        // Download TXT report
+        const handleDownloadTxt = () => {
+          let report = `====================================================\n`;
+          report += `DUGSIGA SUBUC - ${categoryName.toUpperCase()} RECIPIENTS REPORT\n`;
+          report += `Generated: ${new Date().toLocaleString()}\n`;
+          report += `Filter Mode: ${categoryModalFilter.toUpperCase()}\n`;
+          report += `Total Issued: $${totalCategoryIssuedSum.toFixed(2)} | Collected: $${totalCategoryCollectedSum.toFixed(2)} | Outstanding: $${totalCategoryOutstandingSum.toFixed(2)}\n`;
+          report += `====================================================\n\n`;
+
+          filteredCategoryRecords.forEach((rec, i) => {
+            report += `${i + 1}. Invoice #${rec.invoice.invoiceNumber || rec.invoice.id}\n`;
+            report += `   Recipient/Student: ${rec.invoice.recipientName || 'N/A'}\n`;
+            report += `   Phone: ${rec.invoice.recipientPhone || 'N/A'}\n`;
+            report += `   Date: ${rec.invoice.issueDate || 'N/A'}\n`;
+            report += `   Category Items: ${rec.matchingItems.map(m => `${m.description} ($${m.amount})`).join(', ')}\n`;
+            report += `   Category Total: $${rec.categoryTotal.toFixed(2)} | Paid: $${rec.categoryPaid.toFixed(2)} | Balance Due: $${rec.categoryOutstanding.toFixed(2)}\n`;
+            report += `   Status: ${rec.categoryStatus.toUpperCase()}\n`;
+            report += `----------------------------------------------------\n`;
+          });
+
+          triggerFileDownload(`invoices_${isBusCategory ? 'bus' : 'school_fee'}_${categoryModalFilter}_${new Date().toISOString().split('T')[0]}.txt`, report);
+          setFeedbackMsg("Warbixinta Invoysada waa la soo dejiyay (TXT Report downloaded)!");
+          setTimeout(() => setFeedbackMsg(''), 4000);
+        };
+
+        // Download CSV report
+        const handleDownloadCsv = () => {
+          const headers = '\uFEFFInvoice #,Date,Recipient Name,Phone,Category Items,Category Total ($),Paid So Far ($),Balance Due ($),Status\n';
+          const rows = filteredCategoryRecords.map(rec => {
+            const itemsStr = rec.matchingItems.map(m => `${m.description} ($${m.amount})`).join('; ');
+            return `"${rec.invoice.invoiceNumber || rec.invoice.id}","${rec.invoice.issueDate || ''}","${(rec.invoice.recipientName || '').replace(/"/g, '""')}","${(rec.invoice.recipientPhone || '').replace(/"/g, '""')}","${itemsStr.replace(/"/g, '""')}","${rec.categoryTotal.toFixed(2)}","${rec.categoryPaid.toFixed(2)}","${rec.categoryOutstanding.toFixed(2)}","${rec.categoryStatus}"`;
+          }).join('\n');
+
+          const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.setAttribute("href", url);
+          link.setAttribute("download", `invoices_${isBusCategory ? 'bus' : 'school_fee'}_${categoryModalFilter}_${new Date().toISOString().split('T')[0]}.csv`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          setFeedbackMsg("Warbixinta Invoysada CSV waa la soo dejiyay (CSV Report downloaded)!");
+          setTimeout(() => setFeedbackMsg(''), 4000);
+        };
+
+        return (
+          <div 
+            className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-55 animate-fade-in overflow-y-auto pointer-print-none" 
+            id="invoice-category-modal-bg"
+            onClick={(e) => {
+              if ((e.target as HTMLElement).id === 'invoice-category-modal-bg') {
+                setInvoiceCategoryModal(null);
+              }
+            }}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-5xl w-full overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              {/* Modal Header */}
+              <div className="p-6 bg-slate-900 text-white flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="p-3 bg-white/10 rounded-2xl text-2xl">
+                    {isBusCategory ? '🚌' : '📚'}
+                  </span>
+                  <div>
+                    <h3 className="text-lg font-black text-white flex items-center gap-2">
+                      {isBusCategory ? 'Bus Fare (Baska) Invoices Breakdown' : 'School Fee Invoices Breakdown'}
+                    </h3>
+                    <p className="text-xs text-slate-300 font-semibold mt-0.5">
+                      Daawo ardayda bixiya ama lagu leeyahay {categoryName}
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setInvoiceCategoryModal(null)}
+                  className="p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl transition-all cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Summary Metric Pills */}
+              <div className="bg-slate-50 p-4 border-b border-slate-200/80 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="bg-white p-3.5 rounded-2xl border border-slate-200/60 shadow-xs flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Total Issued</span>
+                    <span className="text-base font-black text-slate-800">${totalCategoryIssuedSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <span className="text-xs font-extrabold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700">{invoiceCategoryRecords.length} Invoices</span>
+                </div>
+                <div className="bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-200/60 shadow-xs flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider block">Total Collected</span>
+                    <span className="text-base font-black text-emerald-700">${totalCategoryCollectedSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <Check className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div className="bg-rose-50/60 p-3.5 rounded-2xl border border-rose-200/60 shadow-xs flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-black text-rose-800 uppercase tracking-wider block">Total Outstanding</span>
+                    <span className="text-base font-black text-rose-600">${totalCategoryOutstandingSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <AlertCircle className="w-5 h-5 text-rose-500" />
+                </div>
+              </div>
+
+              {/* Controls Bar: Search, Filters, and Downloads */}
+              <div className="p-4 bg-white border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                {/* Search */}
+                <div className="relative flex-1">
+                  <Search className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 w-4 h-4 mt-2.5 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Magaca, Telka ama Invoyska..."
+                    value={categoryModalSearch}
+                    onChange={(e) => setCategoryModalSearch(e.target.value)}
+                    className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
+                  />
+                  {categoryModalSearch && (
+                    <button type="button" onClick={() => setCategoryModalSearch('')} className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filter Tabs */}
+                <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200/60 text-xs font-extrabold shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setCategoryModalFilter('all')}
+                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${categoryModalFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    Dhamaan ({invoiceCategoryRecords.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCategoryModalFilter('collected')}
+                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${categoryModalFilter === 'collected' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-500 hover:text-emerald-700'}`}
+                  >
+                    Paid ({invoiceCategoryRecords.filter(r => r.categoryStatus === 'Paid' || r.categoryPaid > 0).length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCategoryModalFilter('outstanding')}
+                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${categoryModalFilter === 'outstanding' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-500 hover:text-rose-700'}`}
+                  >
+                    Outstanding ({invoiceCategoryRecords.filter(r => r.categoryOutstanding > 0 && r.categoryStatus !== 'Paid').length})
+                  </button>
+                </div>
+
+                {/* Export Report Action */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleDownloadTxt}
+                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                    title="Soo deji warbixinta text ah"
+                  >
+                    <Download className="w-3.5 h-3.5 text-slate-600" />
+                    TXT
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownloadCsv}
+                    className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
+                    title="Soo deji Excel / CSV"
+                  >
+                    <Download className="w-3.5 h-3.5 text-white" />
+                    CSV (Excel)
+                  </button>
+                </div>
+              </div>
+
+              {/* Recipients Table */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {filteredCategoryRecords.length === 0 ? (
+                  <div className="text-center py-16 text-slate-400 font-semibold bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                    <p className="text-sm">Wax invoic ah oo laga helay ma jiraan.</p>
+                    <p className="text-xs text-slate-400 mt-1">No matching invoices found for this filter selection.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto bg-white rounded-2xl border border-slate-200/80 shadow-xs">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          <th className="py-3 px-4">Invoice # & Date</th>
+                          <th className="py-3 px-4">Recipient / Student</th>
+                          <th className="py-3 px-4">Category Line Items</th>
+                          <th className="py-3 px-4 text-right">Category Total</th>
+                          <th className="py-3 px-4 text-right">Paid</th>
+                          <th className="py-3 px-4 text-right">Balance Due</th>
+                          <th className="py-3 px-4 text-center">Status</th>
+                          <th className="py-3 px-4 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-xs font-semibold">
+                        {filteredCategoryRecords.map((rec) => (
+                          <tr key={rec.invoice.id} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="py-3 px-4">
+                              <span className="font-mono font-black text-indigo-900 block">#{rec.invoice.invoiceNumber || rec.invoice.id}</span>
+                              <span className="text-[10px] font-mono text-slate-400">{rec.invoice.issueDate}</span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="font-extrabold text-slate-900 block">{rec.invoice.recipientName || 'N/A'}</span>
+                              <span className="text-[10px] font-mono text-slate-500">{rec.invoice.recipientPhone || 'No Phone'}</span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="space-y-0.5">
+                                {rec.matchingItems.map((item, idx) => (
+                                  <div key={idx} className="text-[11px] text-slate-700 font-medium flex items-center justify-between gap-2">
+                                    <span>• {item.description}</span>
+                                    <span className="font-mono text-slate-500">${Number(item.total || (item.unitPrice * item.quantity) || 0).toFixed(2)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-right font-black text-slate-800">
+                              ${rec.categoryTotal.toFixed(2)}
+                            </td>
+                            <td className="py-3 px-4 text-right font-black text-emerald-700">
+                              ${rec.categoryPaid.toFixed(2)}
+                            </td>
+                            <td className="py-3 px-4 text-right font-black text-rose-600">
+                              ${rec.categoryOutstanding.toFixed(2)}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider inline-block ${
+                                rec.categoryStatus === 'Paid'
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                  : rec.categoryStatus === 'Partial'
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                  : 'bg-rose-100 text-rose-800 border border-rose-200'
+                              }`}>
+                                {rec.categoryStatus}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setInvoiceCategoryModal(null);
+                                  setShowInvoiceReceipt(rec.invoice);
+                                }}
+                                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer inline-flex items-center gap-1 shadow-xs"
+                              >
+                                📄 Receipt
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setInvoiceCategoryModal(null)}
+                  className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
+                >
+                  Xir (Close)
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        );
+      })()}
+
+      {/* -------------------------------------------------------------
           MODAL 1: PRINT STUDENT PAYMENT RECEIPT VOUCHER
           ------------------------------------------------------------- */}
       {showReceiptModal && (
@@ -15814,10 +16546,30 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
 
                   {/* Payment registration & Summary Maths */}
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-200">
-                      <span className="font-bold text-slate-500 uppercase tracking-wider">Lacagta guud ee biilka (Total Invoiced):</span>
-                      <span className="text-sm font-black text-slate-900">${invFormItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0).toFixed(2)} USD</span>
-                    </div>
+                    {(() => {
+                      let modalBus = 0;
+                      let modalFee = 0;
+                      invFormItems.forEach(item => {
+                        const desc = (item.description || '').toLowerCase();
+                        const isBus = desc.includes('baska') || desc.includes('bus');
+                        const tot = (item.quantity || 0) * (item.unitPrice || 0);
+                        if (isBus) modalBus += tot;
+                        else modalFee += tot;
+                      });
+
+                      return (
+                        <div className="space-y-2 pb-2.5 border-b border-slate-200">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-bold text-slate-500 uppercase tracking-wider">Lacagta guud ee biilka (Total Invoiced):</span>
+                            <span className="text-sm font-black text-slate-900">${(modalBus + modalFee).toFixed(2)} USD</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] font-bold bg-white p-2 rounded-xl border border-slate-200">
+                            <span className="text-slate-600">📚 School Fee: <strong className="text-slate-900">${modalFee.toFixed(2)}</strong></span>
+                            <span className="text-amber-800">🚌 Bus Fare (Baska): <strong className="text-amber-950">${modalBus.toFixed(2)}</strong></span>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Registrate quick collected payment */}
                     <div>
@@ -16042,7 +16794,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 {showInvoiceReceipt.notes && (
                   <div className="text-right max-w-[60%]">
                     <span className="block text-[8px] text-slate-400 font-black uppercase mb-0.5">Faallo:</span>
-                    <p className="text-[10px] text-slate-500 font-semibold leading-relaxed italic">{showInvoiceReceipt.notes}</p>
+                    <p className="text-[10px] text-slate-500 font-semibold leading-relaxed italic whitespace-pre-line">{showInvoiceReceipt.notes}</p>
                   </div>
                 )}
               </div>
@@ -17078,7 +17830,22 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   </div>
                 </div>
 
-                {/* 3. Remarks textarea */}
+                {/* 3. Behavior Remark field */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-extrabold text-rose-500 tracking-wider">⚠️ Behavior & Conduct Remark</label>
+                  <input
+                    type="text"
+                    placeholder="E.g. Rude, Missed class without permission, Distracting..."
+                    value={editingStudentDetail.behaviorSent || ''}
+                    onChange={(e) => setEditingStudentDetail({
+                      ...editingStudentDetail,
+                      behaviorSent: e.target.value
+                    })}
+                    className="w-full text-xs font-semibold text-rose-950 bg-rose-50/40 border border-rose-200 focus:border-rose-500 focus:bg-white rounded-xl p-2.5 outline-none transition-all placeholder:text-slate-400"
+                  />
+                </div>
+
+                {/* 4. Remarks textarea */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Specific Remarks & Comments</label>
                   <textarea
@@ -17111,7 +17878,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                     {
                       attendanceSent: editingStudentDetail.attendanceSent,
                       lessonSent: editingStudentDetail.lessonSent,
-                      notesSent: editingStudentDetail.notesSent
+                      notesSent: editingStudentDetail.notesSent,
+                      behaviorSent: editingStudentDetail.behaviorSent
                     }
                   )}
                   className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-[10px] tracking-wider uppercase rounded-xl cursor-pointer transition-all shadow-md shadow-emerald-500/10 flex items-center gap-1.5"

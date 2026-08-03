@@ -48,12 +48,12 @@
     }
     
     /* Hide normal app dashboards of admin or teacher layout */
-    #admin-workspace, #teacher-workspace, #login-container, .pointer-print-none {
+    #admin-workspace, #teacher-workspace, #login-container, .pointer-print-none, .no-print {
       display: none !important;
     }
 
     /* Target frame to print uniquely */
-    #printable-report-canvas {
+    #printable-report-canvas, #print-area {
       display: block !important;
       position: absolute;
       top: 0;
@@ -63,6 +63,8 @@
       padding: 0 !important;
       margin: 0 !important;
       border: none !important;
+      background: white !important;
+      color: black !important;
     }
 
     #printable-receipt-card {

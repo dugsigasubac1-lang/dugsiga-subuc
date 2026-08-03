@@ -8,7 +8,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ShieldAlert, GraduationCap, ArrowRight, Lock, User, AlertTriangle, X, Eye, EyeOff } from 'lucide-react';
 import { DatabaseState, Teacher } from '../types';
 import { DugsigaSubucFullLogo } from './Logo';
-import { ChangeWebsiteLogoModal } from './ChangeWebsiteLogoModal';
 import { API_BASE } from '../config';
 
 function getDeviceInfo(): string {
@@ -58,28 +57,6 @@ export function LoginScreen({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [showLogoModal, setShowLogoModal] = useState<boolean>(false);
-
-  const handleSaveLogo = (newLogoUrl: string) => {
-    onSaveDatabase({
-      ...database,
-      landingPageSettings: {
-        ...(database.landingPageSettings || {
-          schoolName: "Dugsiga Subuc",
-          heroTitle: "",
-          heroSub: "",
-          aboutText: "",
-          whatWeDo: "",
-          contactEmail: "",
-          contactPhone: "",
-          contactAddress: "",
-          cards: [],
-          pictures: []
-        }),
-        logoUrl: newLogoUrl
-      }
-    });
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,9 +134,7 @@ export function LoginScreen({
             <DugsigaSubucFullLogo 
               className="w-56 h-auto" 
               logoUrl={database.landingPageSettings?.logoUrl}
-              editable={true}
-              onClick={() => setShowLogoModal(true)}
-              title="Guji si aad u beddesho sawirka astaanta (Click to change website profile logo)"
+              editable={false}
             />
           </div>
           <p className="text-slate-400 text-xs mt-3 font-semibold tracking-wider uppercase">
@@ -334,14 +309,6 @@ export function LoginScreen({
           © 2026 Dugsiga Subuc. Dhammaan xuquuqdu waa dhowran tahay.
         </p>
       </div>
-
-      {/* Website Logo Change Modal */}
-      <ChangeWebsiteLogoModal 
-        isOpen={showLogoModal}
-        onClose={() => setShowLogoModal(false)}
-        currentLogoUrl={database.landingPageSettings?.logoUrl}
-        onSaveLogo={handleSaveLogo}
-      />
     </div>
   );
 }

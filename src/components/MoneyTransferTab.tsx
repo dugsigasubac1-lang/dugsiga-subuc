@@ -24,36 +24,19 @@ import {
   Clock,
   ChevronRight,
   History,
-  Notebook
+  Notebook,
+  Wallet,
+  ArrowUpRight,
+  ArrowDownLeft,
+  LayoutGrid,
+  ListFilter,
+  CheckCircle2,
+  Building2,
+  DollarSign,
+  Plus
 } from 'lucide-react';
-import { DatabaseState, MoneyTransferRecord } from '../types';
-
-const formatDateTime = (isoString: string) => {
-  try {
-    const d = new Date(isoString);
-    if (isNaN(d.getTime())) return isoString;
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day} ${hours}:${minutes}`;
-  } catch (e) {
-    return isoString;
-  }
-};
-
-const formatRecordDate = (dateStr: string) => {
-  if (!dateStr) return "-";
-  if (dateStr.includes('-')) {
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-      const [year, month, day] = parts;
-      return `${day}/${month}/${year}`;
-    }
-  }
-  return dateStr;
-};
+import { DatabaseState, MoneyTransferRecord, XawaaladaAccount, XawaaladaTransaction } from '../types';
+import { DEFAULT_XAWAALADA_ACCOUNTS, DEFAULT_XAWAALADA_TRANSACTIONS, triggerFileDownload } from '../db';
 
 interface MoneyTransferTabProps {
   database: DatabaseState;
@@ -61,12 +44,23 @@ interface MoneyTransferTabProps {
 }
 
 export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabProps) {
-  // Grab records
-  const records = useMemo(() => database.moneyTransfers || [], [database.moneyTransfers]);
+  // Accounts and Transactions state from database with fallback defaults
+  const accounts: XawaaladaAccount[] = useMemo(() => {
+    if (database.xawaaladaAccounts && database.xawaaladaAccounts.length > 0) {
+      return database.xawaaladaAccounts;
+    }
+    return DEFAULT_XAWAALADA_ACCOUNTS;
+  }, [database.xawaaladaAccounts]);
 
-  // Current times
+  const transactions: XawaaladaTransaction[] = useMemo(() => {
+    if (database.xawaaladaTransactions && database.xawaaladaTransactions.length >= 0) {
+      return database.xawaaladaTransactions;
+    }
+    return DEFAULT_XAWAALADA_TRANSACTIONS;
+  }, [database.xawaaladaTransactions]);
+
+  // Current local date formatting
   const todayDateStr = useMemo(() => {
-    // Current local time: 2026-05-30 based on system metadata
     const d = new Date();
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -77,1859 +71,1910 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
   const currentYearStr = useMemo(() => new Date().getFullYear().toString(), []);
   const currentMonthStr = useMemo(() => String(new Date().getMonth() + 1).padStart(2, '0'), []);
 
+  // Primary View Mode: 'board' (Sketched Prototype Layout) | 'list' (Flat Table) | 'summary'
+  const [viewMode, setViewMode] = useState<'board' | 'list' | 'summary'>('board');
+
   // Filter States
   const [searchTerm, setSearchTerm] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
-  const [monthFilter, setMonthFilter] = useState('');
-  const [yearFilter, setYearFilter] = useState('');
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
+  const [dateFilter, setDateFilter] = useState(''); // Specific YYYY-MM-DD
+  const [monthFilter, setMonthFilter] = useState(currentMonthStr); // YYYY-MM or MM
+  const [yearFilter, setYearFilter] = useState(currentYearStr);
 
-  // UI Modals
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<MoneyTransferRecord | null>(null);
+  // Modals UI state
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<XawaaladaAccount | null>(null);
 
-  // Form States (for Add & Edit)
-  const [formName, setFormName] = useState('');
-  const [formPhone, setFormPhone] = useState('');
-  const [formAmount, setFormAmount] = useState<number | ''>('');
-  const [formNotes, setFormNotes] = useState('');
-  const [formDate, setFormDate] = useState('');
-  const [formError, setFormError] = useState('');
+  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<XawaaladaTransaction | null>(null);
 
-  // Active Report Generation States
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [reportType, setReportType] = useState<'daily' | 'monthly' | 'range'>('daily');
-  const [reportDate, setReportDate] = useState(todayDateStr);
-  const [reportMonth, setReportMonth] = useState(currentMonthStr);
-  const [reportYear, setReportYear] = useState(currentYearStr);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+
+  // Form state for Account
+  const [accName, setAccName] = useState('');
+  const [accNumber, setAccNumber] = useState('');
+  const [accOpening, setAccOpening] = useState<number | ''>('');
+  const [accNotes, setAccNotes] = useState('');
+  const [accError, setAccError] = useState('');
+
+  // Form state for Transaction
+  const [txAccountId, setTxAccountId] = useState('');
+  const [txType, setTxType] = useState<'in' | 'out'>('in');
+  const [txAmount, setTxAmount] = useState<number | ''>('');
+  const [txClientName, setTxClientName] = useState('');
+  const [txClientPhone, setTxClientPhone] = useState('');
+  const [txRefNo, setTxRefNo] = useState('');
+  const [txDescription, setTxDescription] = useState('');
+  const [txDate, setTxDate] = useState(todayDateStr);
+  const [txTime, setTxTime] = useState('12:00');
+  const [txError, setTxError] = useState('');
+
+  // Report filters state
+  const [reportMonth, setReportMonth] = useState(`${currentYearStr}-${currentMonthStr}`);
+  const [reportType, setReportType] = useState<'monthly' | 'custom'>('monthly');
   const [reportStartDate, setReportStartDate] = useState(todayDateStr);
   const [reportEndDate, setReportEndDate] = useState(todayDateStr);
 
-  // Success Feedbacks
+  // Feedback notifications
   const [feedback, setFeedback] = useState('');
-
-  // Autocomplete support state
-  const [showNameSuggestions, setShowNameSuggestions] = useState(false);
-  const [showPhoneSuggestions, setShowPhoneSuggestions] = useState(false);
-
-  // Extract unique previous clients sorted by most recent
-  const uniqueCustomers = useMemo(() => {
-    const sorted = [...records].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    const result: { name: string; phone: string }[] = [];
-    const seenNames = new Set<string>();
-
-    for (const r of sorted) {
-      const normName = r.customerName.trim().toLowerCase();
-      if (normName && !seenNames.has(normName)) {
-        seenNames.add(normName);
-        result.push({
-          name: r.customerName.trim(),
-          phone: r.customerPhone.trim()
-        });
-      }
-    }
-    return result;
-  }, [records]);
-
-  // Name autocomplete suggestions
-  const nameSuggestions = useMemo(() => {
-    if (!formName.trim()) return [];
-    const query = formName.trim().toLowerCase();
-    return uniqueCustomers.filter(c => 
-      c.name.toLowerCase().includes(query)
-    ).slice(0, 5);
-  }, [formName, uniqueCustomers]);
-
-  // Phone autocomplete suggestions
-  const phoneSuggestions = useMemo(() => {
-    if (!formPhone.trim()) return [];
-    const query = formPhone.trim().toLowerCase();
-    return uniqueCustomers.filter(c => 
-      c.phone.toLowerCase().includes(query)
-    ).slice(0, 5);
-  }, [formPhone, uniqueCustomers]);
-
-  const handleSelectCustomer = (c: { name: string; phone: string }) => {
-    setFormName(c.name);
-    setFormPhone(c.phone);
-    setShowNameSuggestions(false);
-    setShowPhoneSuggestions(false);
-  };
-
-  // Custom confirmation modal state to bypass iframe modal blockages
-  const [confirmModal, setConfirmModal] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    accentColor?: 'rose' | 'indigo' | 'amber' | 'teal';
-    onConfirm: () => void;
-  } | null>(null);
-
   const triggerFeedback = (msg: string) => {
     setFeedback(msg);
     setTimeout(() => setFeedback(''), 4000);
   };
 
-  // Autogen helper
-  const generateNextTransNo = () => {
-    const list = database.moneyTransfers || [];
-    const lastNum = list.length > 0 ? Math.max(...list.map(r => {
-      const match = r.transNo.match(/\d+/);
-      return match ? parseInt(match[0], 10) : 10000;
-    })) : 10000;
-    return `TX-${lastNum + 1}`;
-  };
+  // Custom confirmation modal
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    accentColor?: 'rose' | 'indigo' | 'amber' | 'emerald';
+    onConfirm: () => void;
+  } | null>(null);
 
-  // Dashboard Stats
-  const stats = useMemo(() => {
-    let todayTotal = 0;
-    let monthlyTotal = 0;
-    const currentYearNum = new Date().getFullYear();
-    const currentMonthNum = new Date().getMonth() + 1; // 1-12
-    const currentYrMo = `${currentYearNum}-${String(currentMonthNum).padStart(2, '0')}`;
-
-    records.forEach(r => {
-      if (r.date === todayDateStr) {
-        todayTotal += r.amountSent;
-      }
-      if (r.date.startsWith(currentYrMo)) {
-        monthlyTotal += r.amountSent;
+  // Autocomplete suggestions for customers
+  const uniqueClients = useMemo(() => {
+    const list: { name: string; phone: string }[] = [];
+    const seen = new Set<string>();
+    transactions.forEach(t => {
+      const name = (t.clientName || '').trim();
+      const phone = (t.clientPhone || '').trim();
+      if (name && !seen.has(name.toLowerCase())) {
+        seen.add(name.toLowerCase());
+        list.push({ name, phone });
       }
     });
+    return list;
+  }, [transactions]);
 
-    return {
-      todayTotal,
-      monthlyTotal,
-      totalCount: records.length
-    };
-  }, [records, todayDateStr]);
+  const [showNameSuggestions, setShowNameSuggestions] = useState(false);
 
-  // Main Filtered results
-  const filteredRecords = useMemo(() => {
-    return records.filter(r => {
+  const filteredClients = useMemo(() => {
+    if (!txClientName.trim()) return [];
+    const q = txClientName.toLowerCase().trim();
+    return uniqueClients.filter(c => c.name.toLowerCase().includes(q)).slice(0, 5);
+  }, [txClientName, uniqueClients]);
+
+  // Helper generator for reference numbers
+  const generateRefNo = () => {
+    const nextNum = transactions.length + 101;
+    return `REF-${nextNum}`;
+  };
+
+  // Filtered transactions list
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
       // Search
-      const text = searchTerm.toLowerCase().trim();
-      const matchSearch = text === '' ||
-        r.customerName.toLowerCase().includes(text) ||
-        r.customerPhone.toLowerCase().includes(text) ||
-        r.transNo.toLowerCase().includes(text);
+      const search = searchTerm.toLowerCase().trim();
+      const matchSearch = !search ||
+        (t.clientName && t.clientName.toLowerCase().includes(search)) ||
+        (t.clientPhone && t.clientPhone.toLowerCase().includes(search)) ||
+        (t.referenceNo && t.referenceNo.toLowerCase().includes(search)) ||
+        (t.description && t.description.toLowerCase().includes(search));
 
-      // Date Specific
-      const matchDate = dateFilter === '' || r.date === dateFilter;
+      // Account filter
+      const matchAccount = selectedAccountId === 'all' || t.accountId === selectedAccountId;
 
-      // Month
-      const matchMonth = monthFilter === '' || r.date.split('-')[1] === monthFilter;
+      // Date specific
+      const matchDate = !dateFilter || t.date === dateFilter;
 
-      // Year
-      const matchYear = yearFilter === '' || r.date.split('-')[0] === yearFilter;
+      // Month specific
+      const matchMonth = !monthFilter || t.date.split('-')[1] === monthFilter;
 
-      return matchSearch && matchDate && matchMonth && matchYear;
+      // Year specific
+      const matchYear = !yearFilter || t.date.split('-')[0] === yearFilter;
+
+      return matchSearch && matchAccount && matchDate && matchMonth && matchYear;
     }).sort((a, b) => {
-      const dateCompare = b.date.localeCompare(a.date);
-      if (dateCompare !== 0) return dateCompare;
+      const dCompare = b.date.localeCompare(a.date);
+      if (dCompare !== 0) return dCompare;
       return b.createdAt.localeCompare(a.createdAt);
     });
-  }, [records, searchTerm, dateFilter, monthFilter, yearFilter]);
+  }, [transactions, searchTerm, selectedAccountId, dateFilter, monthFilter, yearFilter]);
 
-  // Customer History Lookup (if search term matches or customer name is clicked)
-  const historyLookup = useMemo(() => {
-    const cleanSearch = searchTerm.toLowerCase().trim();
-    if (cleanSearch.length < 2) return null;
+  // Accounting Ledger calculations per account
+  const accountCalculations = useMemo(() => {
+    const map: Record<string, {
+      account: XawaaladaAccount;
+      openingBalance: number;
+      totalIn: number;
+      totalOut: number;
+      netChange: number;
+      currentBalance: number;
+      filteredTxns: XawaaladaTransaction[];
+    }> = {};
 
-    // Filter to find all transactions matching exactly this phone number or part of name
-    const matches = records.filter(r => 
-      r.customerPhone.toLowerCase().includes(cleanSearch) || 
-      r.customerName.toLowerCase().includes(cleanSearch)
-    ).sort((a,b) => b.date.localeCompare(a.date));
+    let grandOpening = 0;
+    let grandIn = 0;
+    let grandOut = 0;
+    let grandCurrent = 0;
 
-    if (matches.length === 0) return null;
+    accounts.forEach(acc => {
+      // Find transactions for this account subject to date/month filters
+      const accTxns = transactions.filter(t => {
+        if (t.accountId !== acc.id) return false;
 
-    const totalSent = matches.reduce((sum, r) => sum + r.amountSent, 0);
+        const matchDate = !dateFilter || t.date === dateFilter;
+        const matchMonth = !monthFilter || t.date.split('-')[1] === monthFilter;
+        const matchYear = !yearFilter || t.date.split('-')[0] === yearFilter;
+
+        return matchDate && matchMonth && matchYear;
+      });
+
+      const totalIn = accTxns.filter(t => t.type === 'in').reduce((sum, t) => sum + Number(t.amount || 0), 0);
+      const totalOut = accTxns.filter(t => t.type === 'out').reduce((sum, t) => sum + Number(t.amount || 0), 0);
+      const netChange = totalIn - totalOut;
+      const currentBalance = acc.openingBalance + netChange;
+
+      map[acc.id] = {
+        account: acc,
+        openingBalance: acc.openingBalance,
+        totalIn,
+        totalOut,
+        netChange,
+        currentBalance,
+        filteredTxns: accTxns.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      };
+
+      grandOpening += acc.openingBalance;
+      grandIn += totalIn;
+      grandOut += totalOut;
+      grandCurrent += currentBalance;
+    });
+
+    const isBalanced = Math.abs((grandOpening + grandIn - grandOut) - grandCurrent) < 0.01;
 
     return {
-      matches,
-      totalSent,
-      count: matches.length
+      perAccount: map,
+      grandOpening,
+      grandIn,
+      grandOut,
+      grandCurrent,
+      isBalanced
     };
-  }, [records, searchTerm]);
+  }, [accounts, transactions, dateFilter, monthFilter, yearFilter]);
 
-  // Handle Add Submit
-  const handleAddSubmit = (e: React.FormEvent) => {
+  // Handle Account Form Submission (Create or Edit)
+  const handleAccountSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setFormError('');
+    setAccError('');
 
-    if (!formName.trim()) return setFormError('Customer Name is required.');
-    if (!formPhone.trim()) return setFormError('Customer Phone Number is required.');
-    if (!formAmount || typeof formAmount !== 'number' || formAmount <= 0) {
-      return setFormError('Amount Sent must be a valid number greater than 0.');
+    if (!accName.trim()) {
+      setAccError('Mgaca Akawnku waa maqan yahay (Account Name is required).');
+      return;
     }
 
-    const nextNo = generateNextTransNo();
-    const newRecord: MoneyTransferRecord = {
-      id: `MT-${Date.now()}`,
-      transNo: nextNo,
-      customerName: formName.trim(),
-      customerPhone: formPhone.trim(),
-      amountSent: formAmount,
-      date: formDate || todayDateStr,
-      notes: formNotes.trim(),
-      createdBy: 'yaxyecabdisalanmohamed1234@gmail.com',// Admin email from user session metadata
-      createdAt: new Date().toISOString()
-    };
+    const openingNum = typeof accOpening === 'number' ? accOpening : 0;
 
-    const updatedTransfers = [newRecord, ...records];
-    onSaveDatabase({
-      ...database,
-      moneyTransfers: updatedTransfers
-    });
+    let updatedAccounts: XawaaladaAccount[] = [];
 
-    setIsAddModalOpen(false);
-    // Reset Form
-    setFormName('');
-    setFormPhone('');
-    setFormAmount('');
-    setFormNotes('');
-    setFormDate('');
-    triggerFeedback(`Successfully logged Money Transfer ${nextNo} for $${formAmount}!`);
-  };
-
-  // Open Edit Dialog
-  const openEditDialog = (record: MoneyTransferRecord) => {
-    setSelectedRecord(record);
-    setFormName(record.customerName);
-    setFormPhone(record.customerPhone);
-    setFormAmount(record.amountSent);
-    setFormDate(record.date || todayDateStr);
-    setFormNotes(record.notes);
-    setFormError('');
-    setIsEditModalOpen(true);
-  };
-
-  // Handle Edit Submit
-  const handleEditSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedRecord) return;
-    setFormError('');
-
-    if (!formName.trim()) return setFormError('Customer Name is required.');
-    if (!formPhone.trim()) return setFormError('Customer Phone Number is required.');
-    if (!formAmount || typeof formAmount !== 'number' || formAmount <= 0) {
-      return setFormError('Amount Sent must be a valid number greater than 0.');
+    if (editingAccount) {
+      updatedAccounts = accounts.map(a => a.id === editingAccount.id ? {
+        ...a,
+        name: accName.trim(),
+        accountNumber: accNumber.trim(),
+        openingBalance: openingNum,
+        notes: accNotes.trim()
+      } : a);
+      triggerFeedback(`Akawnka ${accName} waa la cusbooneysiiyay!`);
+    } else {
+      const newAcc: XawaaladaAccount = {
+        id: `acc-${Date.now()}`,
+        name: accName.trim(),
+        accountNumber: accNumber.trim() || `ACC-${accounts.length + 1}`,
+        openingBalance: openingNum,
+        notes: accNotes.trim(),
+        createdAt: new Date().toISOString()
+      };
+      updatedAccounts = [...accounts, newAcc];
+      triggerFeedback(`Akawnka cusub ee ${accName} waa la abuuray!`);
     }
-
-    const updatedTransfers = records.map(r => {
-      if (r.id === selectedRecord.id) {
-        return {
-          ...r,
-          customerName: formName.trim(),
-          customerPhone: formPhone.trim(),
-          amountSent: formAmount,
-          date: formDate || r.date,
-          notes: formNotes.trim()
-        };
-      }
-      return r;
-    });
 
     onSaveDatabase({
       ...database,
-      moneyTransfers: updatedTransfers
+      xawaaladaAccounts: updatedAccounts
     });
 
-    setIsEditModalOpen(false);
-    setFormDate('');
-    triggerFeedback(`Successfully updated Money Transfer ${selectedRecord.transNo}!`);
+    setIsAccountModalOpen(false);
+    setEditingAccount(null);
+    setAccName('');
+    setAccNumber('');
+    setAccOpening('');
+    setAccNotes('');
   };
 
-  // Handle Delete
-  const handleDeleteRecord = (id: string, transNo: string) => {
-    const record = records.find(r => r.id === id);
-    const details = record ? `for customer "${record.customerName}" ($${record.amountSent})` : `Record ${transNo}`;
+  // Delete Account
+  const handleDeleteAccount = (acc: XawaaladaAccount) => {
     setConfirmModal({
       isOpen: true,
-      title: `Delete Transfer ${transNo}?`,
-      message: `Are you absolutely sure you want to delete Money Transfer Record ${transNo} ${details}? This action is irreversible.`,
+      title: `Tirtir Akawnka (${acc.name})?`,
+      message: `Ma hubtaa inaad tirtirto akawnkan? Dhammaan xawilaadaha ku jira akawnkan ayaa iyagana la tirtiri doonaa!`,
       accentColor: 'rose',
       onConfirm: () => {
-        const updatedTransfers = records.filter(r => r.id !== id);
+        const updatedAccounts = accounts.filter(a => a.id !== acc.id);
+        const updatedTxns = transactions.filter(t => t.accountId !== acc.id);
         onSaveDatabase({
           ...database,
-          moneyTransfers: updatedTransfers
+          xawaaladaAccounts: updatedAccounts,
+          xawaaladaTransactions: updatedTxns
         });
-        triggerFeedback(`Money Transfer Record ${transNo} was permanently deleted.`);
+        triggerFeedback(`Akawnka ${acc.name} waa la tirtiray.`);
         setConfirmModal(null);
       }
     });
   };
 
-  const handleDeleteAllTransfers = () => {
+  // Open Transaction Modal
+  const openNewTransaction = (preAccountId?: string, preType?: 'in' | 'out') => {
+    setEditingTransaction(null);
+    setTxAccountId(preAccountId || (accounts[0]?.id || ''));
+    setTxType(preType || 'in');
+    setTxAmount('');
+    setTxClientName('');
+    setTxClientPhone('');
+    setTxRefNo(generateRefNo());
+    setTxDescription('');
+    setTxDate(todayDateStr);
+    setTxTime(new Date().toTimeString().slice(0, 5));
+    setTxError('');
+    setIsTransactionModalOpen(true);
+  };
+
+  const openEditTransaction = (tx: XawaaladaTransaction) => {
+    setEditingTransaction(tx);
+    setTxAccountId(tx.accountId);
+    setTxType(tx.type);
+    setTxAmount(tx.amount);
+    setTxClientName(tx.clientName || '');
+    setTxClientPhone(tx.clientPhone || '');
+    setTxRefNo(tx.referenceNo || '');
+    setTxDescription(tx.description || '');
+    setTxDate(tx.date);
+    setTxTime(tx.time || '12:00');
+    setTxError('');
+    setIsTransactionModalOpen(true);
+  };
+
+  // Submit Transaction Form
+  const handleTransactionSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setTxError('');
+
+    if (!txAccountId) {
+      setTxError('Fadlan dooro Akawnka (Please select an account).');
+      return;
+    }
+    if (!txAmount || typeof txAmount !== 'number' || txAmount <= 0) {
+      setTxError('Fadlan geli lacag sax ah oo ka weyn $0 (Please enter a valid amount).');
+      return;
+    }
+
+    let updatedTxns: XawaaladaTransaction[] = [];
+
+    if (editingTransaction) {
+      updatedTxns = transactions.map(t => t.id === editingTransaction.id ? {
+        ...t,
+        accountId: txAccountId,
+        type: txType,
+        amount: Number(txAmount),
+        clientName: txClientName.trim(),
+        clientPhone: txClientPhone.trim(),
+        referenceNo: txRefNo.trim(),
+        description: txDescription.trim() || (txType === 'in' ? 'Money In Deposit' : 'Money Out Payout'),
+        date: txDate,
+        time: txTime
+      } : t);
+      triggerFeedback(`Diiwaanka lacagta waa la cusbooneysiiyay!`);
+    } else {
+      const newTx: XawaaladaTransaction = {
+        id: `TXN-${Date.now()}`,
+        accountId: txAccountId,
+        type: txType,
+        amount: Number(txAmount),
+        clientName: txClientName.trim(),
+        clientPhone: txClientPhone.trim(),
+        referenceNo: txRefNo.trim() || generateRefNo(),
+        description: txDescription.trim() || (txType === 'in' ? 'Money In Deposit' : 'Money Out Payout'),
+        date: txDate,
+        time: txTime,
+        createdBy: 'yaxyecabdisalanmohamed1234@gmail.com',
+        createdAt: new Date().toISOString()
+      };
+      updatedTxns = [newTx, ...transactions];
+      triggerFeedback(`Lacagta $${txAmount} (${txType === 'in' ? 'Money In' : 'Money Out'}) waa la diiwaangeliyay!`);
+    }
+
+    onSaveDatabase({
+      ...database,
+      xawaaladaTransactions: updatedTxns
+    });
+
+    setIsTransactionModalOpen(false);
+  };
+
+  // Delete Transaction
+  const handleDeleteTransaction = (tx: XawaaladaTransaction) => {
     setConfirmModal({
       isOpen: true,
-      title: "Ma hubtaa inaad tirtirto dhammaan xawaaladaha?",
-      message: "Tallaabadan dib looma soo celin karo! Dhammaan xogta xawaaladaha (remittances) waa la masixi doonaa. Ma hubtaa?",
+      title: `Tirtir Diiwaanka Lacagta ($${tx.amount})?`,
+      message: `Ma hubtaa inaad tirtirto diiwaankan? Tallaabadan dib looma soo celin karo.`,
       accentColor: 'rose',
       onConfirm: () => {
+        const updatedTxns = transactions.filter(t => t.id !== tx.id);
         onSaveDatabase({
           ...database,
-          moneyTransfers: []
+          xawaaladaTransactions: updatedTxns
         });
-        triggerFeedback("Dhammaan diiwaanka xawaaladaha si buuxda ayaa loo tirtiray.");
+        triggerFeedback(`Diiwaanka lacagta waa la tirtiray.`);
         setConfirmModal(null);
       }
     });
   };
 
-  // Reset Filters
-  const resetFilters = () => {
-    setSearchTerm('');
-    setDateFilter('');
-    setMonthFilter('');
-    setYearFilter('');
-  };
+  // Generate TXT Monthly Ledger Report
+  const downloadTxtReport = () => {
+    let text = `========================================================================\n`;
+    text += `         DUGSIGA SUBUC & XAWAALLADA - MONTHLY ACCOUNT LEDGER REPORT\n`;
+    text += `========================================================================\n`;
+    text += `Report Period: ${reportMonth || 'All Months'}\n`;
+    text += `Generated At : ${new Date().toLocaleString()}\n`;
+    text += `Status Check : ${accountCalculations.isBalanced ? '🟢 SYSTEM BALANCED & RECONCILED' : '⚠️ UNBALANCED'}\n`;
+    text += `------------------------------------------------------------------------\n\n`;
 
-  // Fetch all transactions for a specific customer detail
-  const getCustomerTransactions = (name: string, phone: string) => {
-    return records.filter(r => r.customerName === name || r.customerPhone === phone)
-      .sort((a, b) => b.date.localeCompare(a.date));
-  };
+    text += `SUMMARY OF ACCOUNTS & BALANCES:\n`;
+    text += `------------------------------------------------------------------------------------------------------------------------\n`;
+    text += `ACCOUNT NAME                     | OPENING BAL   | TOTAL IN (+)  | TOTAL OUT (-) | NET CHANGE    | CLOSING BALANCE\n`;
+    text += `------------------------------------------------------------------------------------------------------------------------\n`;
 
-  // Compute Active Report Records in state
-  const reportRecords = useMemo(() => {
-    return records.filter(r => {
-      if (reportType === 'daily') {
-        return r.date === reportDate;
-      } else if (reportType === 'monthly') {
-        const [yr, mo] = r.date.split('-');
-        return yr === reportYear && mo === reportMonth;
+    accounts.forEach(acc => {
+      const calc = accountCalculations.perAccount[acc.id];
+      const nameCol = (acc.name).padEnd(32, ' ');
+      const openCol = (`$${calc.openingBalance.toFixed(2)}`).padEnd(15, ' ');
+      const inCol = (`+$${calc.totalIn.toFixed(2)}`).padEnd(15, ' ');
+      const outCol = (`-$${calc.totalOut.toFixed(2)}`).padEnd(15, ' ');
+      const netCol = (`${calc.netChange >= 0 ? '+' : ''}$${calc.netChange.toFixed(2)}`).padEnd(15, ' ');
+      const closeCol = (`$${calc.currentBalance.toFixed(2)}`);
+
+      text += `${nameCol} | ${openCol} | ${inCol} | ${outCol} | ${netCol} | ${closeCol}\n`;
+    });
+
+    text += `------------------------------------------------------------------------------------------------------------------------\n`;
+    text += `GRAND TOTALS                     | $${accountCalculations.grandOpening.toFixed(2).padEnd(13, ' ')} | +$${accountCalculations.grandIn.toFixed(2).padEnd(12, ' ')} | -$${accountCalculations.grandOut.toFixed(2).padEnd(12, ' ')} | ${accountCalculations.grandIn - accountCalculations.grandOut >= 0 ? '+' : ''}$${(accountCalculations.grandIn - accountCalculations.grandOut).toFixed(2).padEnd(12, ' ')} | $${accountCalculations.grandCurrent.toFixed(2)}\n`;
+    text += `================================================================================----------------------------------------\n\n`;
+
+    text += `DETAILED TRANSACTION JOURNAL PER ACCOUNT:\n`;
+    text += `========================================================================\n\n`;
+
+    accounts.forEach(acc => {
+      const calc = accountCalculations.perAccount[acc.id];
+      text += `>>> ACCOUNT: ${acc.name} (${acc.accountNumber || 'N/A'})\n`;
+      text += `    Starting Balance: $${calc.openingBalance.toFixed(2)}\n`;
+      text += `    --------------------------------------------------------------------\n`;
+
+      if (calc.filteredTxns.length === 0) {
+        text += `    (No transactions recorded for this period)\n\n`;
       } else {
-        return r.date >= reportStartDate && r.date <= reportEndDate;
+        calc.filteredTxns.forEach((tx, idx) => {
+          const typeStr = tx.type === 'in' ? '[MONEY IN +]' : '[MONEY OUT -]';
+          text += `    ${idx + 1}. ${tx.date} ${tx.time || ''} ${typeStr} $${tx.amount.toFixed(2)} | Ref: ${tx.referenceNo || 'N/A'}\n`;
+          text += `       Client: ${tx.clientName || 'N/A'} (${tx.clientPhone || 'N/A'})\n`;
+          text += `       Note  : ${tx.description}\n`;
+        });
+        text += `    --------------------------------------------------------------------\n`;
+        text += `    ACCOUNT CLOSING BALANCE: $${calc.currentBalance.toFixed(2)}\n\n`;
       }
-    }).sort((a,b) => a.date.localeCompare(b.date));
-  }, [records, reportType, reportDate, reportMonth, reportYear, reportStartDate, reportEndDate]);
-
-  const reportTotalAmount = useMemo(() => {
-    return reportRecords.reduce((sum, r) => sum + r.amountSent, 0);
-  }, [reportRecords]);
-
-  // Report title
-  const reportTitle = reportType === 'daily'
-    ? `Money Transfer Daily Report - ${reportDate}`
-    : reportType === 'monthly'
-      ? `Money Transfer Monthly Report - ${reportYear}-${reportMonth}`
-      : `Money Transfer Custom Range Report (${reportStartDate} to ${reportEndDate})`;
-
-  // PRINT Trigger helper
-  const handlePrintReport = () => {
-    // Check if we already have a temp clone, clean it up just in case
-    const existingContainer = document.getElementById('print-temp-container');
-    if (existingContainer) {
-      existingContainer.parentNode?.removeChild(existingContainer);
-    }
-    const existingStyle = document.getElementById('print-temp-style');
-    if (existingStyle) {
-      existingStyle.parentNode?.removeChild(existingStyle);
-    }
-
-    try {
-      const container = document.createElement('div');
-      container.id = 'print-temp-container';
-      
-      container.innerHTML = `
-        <div style="font-family: 'Helvetica Neue', Arial, sans-serif; color: #1e293b; padding: 40px; background: white !important;">
-          <h1 style="font-size: 24px; margin-bottom: 5px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">${reportTitle}</h1>
-          <div style="font-size: 13px; color: #64748b; margin-bottom: 30px;">
-            Generated on: ${new Date().toLocaleString()} | Created by System Admin
-          </div>
-          
-          <div style="display: flex; gap: 20px; margin-bottom: 35px;">
-            <div style="background: #f8fafc; border: 1px solid #edf2f7; border-radius: 8px; padding: 15px 20px; min-width: 150px; flex: 1;">
-              <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; font-weight: bold;">Total Sent</div>
-              <div style="font-size: 20px; font-weight: bold; color: #0f172a; margin-top: 5px;">$${reportTotalAmount.toLocaleString()}</div>
-            </div>
-            <div style="background: #f8fafc; border: 1px solid #edf2f7; border-radius: 8px; padding: 15px 20px; min-width: 150px; flex: 1;">
-              <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; font-weight: bold;">Transactions Logged</div>
-              <div style="font-size: 20px; font-weight: bold; color: #0f172a; margin-top: 5px;">${reportRecords.length}</div>
-            </div>
-          </div>
-
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 40px;">
-            <thead>
-              <tr>
-                <th style="text-align: left; padding: 12px 10px; border-bottom: 2px solid #cbd5e1; font-size: 11px; text-transform: uppercase; color: #475569; letter-spacing: 0.05em;">Trans Number</th>
-                <th style="text-align: left; padding: 12px 10px; border-bottom: 2px solid #cbd5e1; font-size: 11px; text-transform: uppercase; color: #475569; letter-spacing: 0.05em;">Record Date</th>
-                <th style="text-align: left; padding: 12px 10px; border-bottom: 2px solid #cbd5e1; font-size: 11px; text-transform: uppercase; color: #475569; letter-spacing: 0.05em;">Customer Name</th>
-                <th style="text-align: left; padding: 12px 10px; border-bottom: 2px solid #cbd5e1; font-size: 11px; text-transform: uppercase; color: #475569; letter-spacing: 0.05em;">Phone Number</th>
-                <th style="text-align: left; padding: 12px 10px; border-bottom: 2px solid #cbd5e1; font-size: 11px; text-transform: uppercase; color: #475569; letter-spacing: 0.05em;">Amount</th>
-                <th style="text-align: left; padding: 12px 10px; border-bottom: 2px solid #cbd5e1; font-size: 11px; text-transform: uppercase; color: #475569; letter-spacing: 0.05em;">Description/Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${reportRecords.map(r => `
-                <tr>
-                  <td style="padding: 12px 10px; border-bottom: 1px solid #edf2f7; font-size: 12px;"><strong>${r.transNo}</strong></td>
-                  <td style="padding: 12px 10px; border-bottom: 1px solid #edf2f7; font-size: 12px;">${formatRecordDate(r.date)}</td>
-                  <td style="padding: 12px 10px; border-bottom: 1px solid #edf2f7; font-size: 12px;">${r.customerName}</td>
-                  <td style="padding: 12px 10px; border-bottom: 1px solid #edf2f7; font-size: 12px;">${r.customerPhone}</td>
-                  <td style="padding: 12px 10px; border-bottom: 1px solid #edf2f7; font-size: 12px;"><strong>$${r.amountSent}</strong></td>
-                  <td style="padding: 12px 10px; border-bottom: 1px solid #edf2f7; font-size: 12px; color: #64748b; font-style: italic; max-width: 250px;">${r.notes || '-'}</td>
-                </tr>
-              `).join('')}
-              ${reportRecords.length === 0 ? `
-                <tr>
-                  <td colspan="6" style="text-align: center; color: #cbd5e1; padding: 30px;">
-                    No money transfer records found for the selected period.
-                  </td>
-                </tr>
-              ` : ''}
-            </tbody>
-          </table>
-
-          <div style="font-size: 10px; color: #94a3b8; border-top: 1px dashed #e2e8f0; padding-top: 15px; margin-top: 50px; text-align: center;">
-            Dugsiga Subuc - Money Transfer Records System Admin Portal Ledger Page.
-          </div>
-        </div>
-      `;
-      
-      document.body.appendChild(container);
-
-      const style = document.createElement('style');
-      style.id = 'print-temp-style';
-      style.innerHTML = `
-        @media print {
-          body > :not(#print-temp-container) {
-            display: none !important;
-          }
-          #print-temp-container {
-            display: block !important;
-            visibility: visible !important;
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            min-height: 100% !important;
-            background: white !important;
-            color: black !important;
-          }
-        }
-      `;
-      document.head.appendChild(style);
-
-      setTimeout(() => {
-        window.focus();
-        window.print();
-        setTimeout(() => {
-          if (document.body.contains(container)) {
-            document.body.removeChild(container);
-          }
-          if (document.head.contains(style)) {
-            document.head.removeChild(style);
-          }
-        }, 1000);
-      }, 150);
-    } catch (err) {
-      console.error("Print creation failed", err);
-      window.focus();
-      window.print();
-    }
-  };
-
-  // EXCEL download helper with custom column widths
-  const handleExportExcel = () => {
-    const cleanFileNameStr = reportTitle.toLowerCase().replace(/[^a-z0-9]+/g, '_');
-    
-    let html = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-      <head>
-        <!--[if gte mso 9]>
-        <xml>
-          <x:ExcelWorkbook>
-            <x:ExcelWorksheets>
-              <x:ExcelWorksheet>
-                <x:Name>Money Transfers Ledger</x:Name>
-                <x:WorksheetOptions>
-                  <x:DisplayGridlines/>
-                </x:WorksheetOptions>
-              </x:ExcelWorksheet>
-            </x:ExcelWorksheets>
-          </x:ExcelWorkbook>
-        </xml>
-        <![endif]-->
-        <style>
-          table { border-collapse: collapse; font-family: Arial, sans-serif; }
-          th { background-color: #0f172a; color: #ffffff; font-weight: bold; text-align: left; padding: 10px; border: 1px solid #cbd5e1; }
-          td { padding: 10px; border: 1px solid #edf2f7; font-size: 11pt; }
-          .amount { font-weight: bold; color: #10b981; }
-          .trans-id { font-weight: bold; }
-        </style>
-      </head>
-      <body>
-        <h2>${reportTitle}</h2>
-        <p>Generated: ${new Date().toLocaleString()} | Created by System Admin</p>
-        <p>Total Sent: $${reportTotalAmount.toLocaleString()} | Records Count: ${reportRecords.length}</p>
-        <br/>
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 130px;">Transaction Number</th>
-              <th style="width: 140px;">Record Date</th>
-              <th style="width: 180px;">Customer Name</th>
-              <th style="width: 130px;">Phone Number</th>
-              <th style="width: 100px;">Amount Sent ($)</th>
-              <th style="width: 250px;">Notes / Description</th>
-              <th style="width: 180px;">Created By</th>
-            </tr>
-          </thead>
-          <tbody>
-    `;
-
-    reportRecords.forEach(r => {
-      html += `
-        <tr>
-          <td class="trans-id">${r.transNo}</td>
-          <td>${formatRecordDate(r.date)}</td>
-          <td>${r.customerName}</td>
-          <td style="mso-number-format:'\\@';">${r.customerPhone}</td>
-          <td class="amount">$${r.amountSent}</td>
-          <td>${r.notes || '-'}</td>
-          <td>${r.createdBy}</td>
-        </tr>
-      `;
     });
 
-    html += `
-          </tbody>
-        </table>
-      </body>
-      </html>
-    `;
+    triggerFileDownload(`xawaallada_monthly_report_${reportMonth}.txt`, text);
+    triggerFeedback('Warbixinta Billeedka ah ee Xawaallada waa la soo dejiyay (.TXT)!');
+  };
 
-    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+  // Generate CSV Monthly Ledger Report
+  const downloadCsvReport = () => {
+    let csv = `Account Name,Account Number,Opening Balance ($),Total Money In (+),Total Money Out (-),Net Change ($),Closing Balance ($)\n`;
+
+    accounts.forEach(acc => {
+      const calc = accountCalculations.perAccount[acc.id];
+      csv += `"${acc.name.replace(/"/g, '""')}","${(acc.accountNumber || '').replace(/"/g, '""')}",${calc.openingBalance.toFixed(2)},${calc.totalIn.toFixed(2)},${calc.totalOut.toFixed(2)},${calc.netChange.toFixed(2)},${calc.currentBalance.toFixed(2)}\n`;
+    });
+
+    csv += `\n"GRAND TOTALS","--",${accountCalculations.grandOpening.toFixed(2)},${accountCalculations.grandIn.toFixed(2)},${accountCalculations.grandOut.toFixed(2)},${(accountCalculations.grandIn - accountCalculations.grandOut).toFixed(2)},${accountCalculations.grandCurrent.toFixed(2)}\n\n`;
+
+    csv += `Transaction ID,Account Name,Date,Time,Type,Amount ($),Client Name,Client Phone,Reference No,Description\n`;
+
+    transactions.forEach(tx => {
+      const acc = accounts.find(a => a.id === tx.accountId);
+      const accName = acc ? acc.name : 'Unknown';
+      csv += `"${tx.id}","${accName.replace(/"/g, '""')}","${tx.date}","${tx.time || ''}","${tx.type === 'in' ? 'Money In (+)' : 'Money Out (-)'}",${tx.amount.toFixed(2)},"${(tx.clientName || '').replace(/"/g, '""')}","${(tx.clientPhone || '').replace(/"/g, '""')}","${(tx.referenceNo || '').replace(/"/g, '""')}","${(tx.description || '').replace(/"/g, '""')}"\n`;
+    });
+
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `money_transfers_${cleanFileNameStr}.xls`);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `xawaallada_monthly_ledger_${reportMonth}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    triggerFeedback("Excel ledger sheet exported with auto-set column dimensions!");
+
+    triggerFeedback('Warbixinta Excel (.CSV) waa la soo dejiyay!');
   };
 
-  // PDF Download triggers using jsPDF
-  const handleExportPDF = () => {
-    const doc = new jsPDF();
-    
-    // Header Style
-    doc.setFillColor(15, 23, 42); // slate-900
-    doc.rect(0, 0, 210, 40, 'F');
-    
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(20);
-    doc.setFont("Helvetica", "bold");
-    doc.text("Dugsiga Subuc Management Ledger", 15, 18);
-    
-    doc.setFontSize(10);
-    doc.setFont("Helvetica", "normal");
-    doc.text(`MONEY TRANSFER FINANCE STATEMENT — ACCESS: LEVEL 4 ADMIN`, 15, 28);
-    
-    // Report Info
-    doc.setTextColor(15, 23, 42);
-    doc.setFontSize(14);
-    doc.setFont("Helvetica", "bold");
-    doc.text(reportTitle.toUpperCase(), 15, 55);
-    
-    // Metadata block
-    doc.setFontSize(9);
-    doc.setFont("Helvetica", "normal");
-    doc.setTextColor(100, 116, 139);
-    doc.text(`Statement Period: ${reportType === 'daily' ? reportDate : reportType === 'monthly' ? (reportYear + '-' + reportMonth) : (reportStartDate + ' to ' + reportEndDate)}`, 15, 63);
-    doc.text(`Generated On: ${new Date().toLocaleString()}`, 15, 68);
-    doc.text(`Authorizing User: yaxyecabdisalanmohamed1234@gmail.com`, 15, 73);
-    
-    // Draw Stats box
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(226, 232, 240);
-    doc.rect(15, 80, 180, 20, 'FD');
-    
-    doc.setTextColor(71, 85, 105);
-    doc.setFontSize(8);
-    doc.text("TOTAL DISBURSED AMOUNT", 25, 88);
-    doc.text("TRANSACTION LEDGER COUNT", 125, 88);
-    
-    doc.setTextColor(15, 23, 42);
-    doc.setFontSize(14);
-    doc.setFont("Helvetica", "bold");
-    doc.text(`$${reportTotalAmount.toLocaleString()}`, 25, 95);
-    doc.text(`${reportRecords.length} records`, 125, 95);
-    
-    // Table Headers
-    let y = 115;
-    doc.setFillColor(241, 245, 249);
-    doc.rect(15, y - 6, 180, 8, 'F');
-    
-    doc.setFontSize(8);
-    doc.setFont("Helvetica", "bold");
-    doc.setTextColor(71, 85, 105);
-    doc.text("TRANS ID", 17, y - 1);
-    doc.text("CREATED AT", 38, y - 1);
-    doc.text("CUSTOMER NAME", 72, y - 1);
-    doc.text("PHONE", 115, y - 1);
-    doc.text("AMOUNT", 147, y - 1);
-    doc.text("NOTES", 167, y - 1);
-    
-    // List Items
-    doc.setFont("Helvetica", "normal");
-    doc.setFontSize(8.5);
-    doc.setTextColor(15, 23, 42);
-    
-    reportRecords.forEach((r, idx) => {
-      y += idx === 0 ? 5 : 8;
-      
-      // Page buffer expansion
-      if (y > 275) {
-        doc.addPage();
-        y = 30;
-        // Reprint table header on new page
-        doc.setFillColor(241, 245, 249);
-        doc.rect(15, y - 6, 180, 8, 'F');
-        doc.setFont("Helvetica", "bold");
-        doc.setTextColor(71, 85, 105);
-        doc.text("TRANS ID", 17, y - 1);
-        doc.text("RECORD DATE", 38, y - 1);
-        doc.text("CUSTOMER NAME", 72, y - 1);
-        doc.text("PHONE", 115, y - 1);
-        doc.text("AMOUNT", 147, y - 1);
-        doc.text("NOTES", 167, y - 1);
-        doc.setFont("Helvetica", "normal");
+  // Generate PDF Monthly Ledger Report using jsPDF
+  const downloadPdfReport = () => {
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let y = 15;
+
+      const checkAddPage = (needed: number) => {
+        if (y + needed > pageHeight - 15) {
+          doc.addPage();
+          y = 15;
+        }
+      };
+
+      // Header Banner
+      doc.setFillColor(33, 84, 61); // #21543d
+      doc.rect(14, y, pageWidth - 28, 18, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.text("DUGSIGA SUBUC & XAWAALLADA", 18, y + 7);
+
+      doc.setFontSize(8.5);
+      doc.setFont('Helvetica', 'normal');
+      doc.text("MONTHLY ACCOUNT AUDIT LEDGER STATEMENT & RECONCILIATION REPORT", 18, y + 13);
+
+      y += 24;
+
+      // Metadata Summary Box
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(14, y, pageWidth - 28, 14, 2, 2, 'F');
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(14, y, pageWidth - 28, 14, 2, 2, 'S');
+
+      doc.setTextColor(51, 65, 85);
+      doc.setFontSize(8.5);
+      doc.setFont('Helvetica', 'bold');
+      doc.text(`Period / Bisha: ${reportMonth || 'All Months'}`, 18, y + 6);
+      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 90, y + 6);
+      doc.text(`Status: ${accountCalculations.isBalanced ? 'RECONCILED & BALANCED' : 'UNBALANCED'}`, 150, y + 6);
+
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.text(`Total Accounts: ${accounts.length} | Grand Current Liquidity: $${accountCalculations.grandCurrent.toFixed(2)}`, 18, y + 11);
+
+      y += 20;
+
+      // Section 1: Summary of Accounts
+      doc.setFontSize(10);
+      doc.setFont('Helvetica', 'bold');
+      doc.setTextColor(33, 84, 61);
+      doc.text("1. SUMMARY OF ACCOUNTS & BALANCING CALCULATIONS", 14, y);
+      y += 5;
+
+      // Table Header
+      doc.setFillColor(241, 245, 249);
+      doc.rect(14, y, pageWidth - 28, 7, 'F');
+      doc.setFontSize(8);
+      doc.setFont('Helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+
+      doc.text("Account Name", 17, y + 5);
+      doc.text("Acc No", 62, y + 5);
+      doc.text("Opening ($)", 92, y + 5, { align: 'right' });
+      doc.text("Total In (+)", 122, y + 5, { align: 'right' });
+      doc.text("Total Out (-)", 152, y + 5, { align: 'right' });
+      doc.text("Closing Bal ($)", 193, y + 5, { align: 'right' });
+      y += 7;
+
+      doc.setFont('Helvetica', 'normal');
+      accounts.forEach((acc, i) => {
+        checkAddPage(7);
+        const calc = accountCalculations.perAccount[acc.id];
+        if (i % 2 === 1) {
+          doc.setFillColor(248, 250, 252);
+          doc.rect(14, y, pageWidth - 28, 6, 'F');
+        }
         doc.setTextColor(15, 23, 42);
-        y += 5;
-      }
-      
-      // Zebra shading
-      if (idx % 2 === 1) {
-        doc.setFillColor(250, 250, 250);
-        doc.rect(15, y - 4.5, 180, 6, 'F');
-      }
-      
-      doc.text(r.transNo, 17, y);
-      doc.text(formatRecordDate(r.date), 38, y);
-      
-      // Name truncation to prevent clipping
-      const cleanName = r.customerName.length > 20 ? r.customerName.slice(0, 18) + ".." : r.customerName;
-      doc.text(cleanName, 72, y);
-      doc.text(r.customerPhone, 115, y);
-      doc.text(`$${r.amountSent}`, 147, y);
-      
-      const cleanNotes = (r.notes || '').length > 15 ? (r.notes || '').slice(0, 13) + ".." : (r.notes || '-');
-      doc.text(cleanNotes, 167, y);
-    });
-    
-    if (reportRecords.length === 0) {
-      doc.setTextColor(168, 85, 247);
-      doc.text("No transactions registered inside this operational boundary.", 55, y + 10);
+        doc.text(acc.name.length > 24 ? acc.name.substring(0, 24) + '...' : acc.name, 17, y + 4.5);
+        doc.text(acc.accountNumber || '-', 62, y + 4.5);
+        doc.text(`$${calc.openingBalance.toFixed(2)}`, 92, y + 4.5, { align: 'right' });
+
+        doc.setTextColor(16, 185, 129);
+        doc.text(`+$${calc.totalIn.toFixed(2)}`, 122, y + 4.5, { align: 'right' });
+
+        doc.setTextColor(225, 29, 72);
+        doc.text(`-$${calc.totalOut.toFixed(2)}`, 152, y + 4.5, { align: 'right' });
+
+        doc.setTextColor(15, 23, 42);
+        doc.setFont('Helvetica', 'bold');
+        doc.text(`$${calc.currentBalance.toFixed(2)}`, 193, y + 4.5, { align: 'right' });
+        doc.setFont('Helvetica', 'normal');
+
+        y += 6;
+      });
+
+      // Grand Totals Row
+      checkAddPage(8);
+      doc.setFillColor(33, 84, 61);
+      doc.rect(14, y, pageWidth - 28, 7, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('Helvetica', 'bold');
+      doc.text("GRAND TOTALS", 17, y + 5);
+      doc.text(`$${accountCalculations.grandOpening.toFixed(2)}`, 92, y + 5, { align: 'right' });
+      doc.text(`+$${accountCalculations.grandIn.toFixed(2)}`, 122, y + 5, { align: 'right' });
+      doc.text(`-$${accountCalculations.grandOut.toFixed(2)}`, 152, y + 5, { align: 'right' });
+      doc.text(`$${accountCalculations.grandCurrent.toFixed(2)}`, 193, y + 5, { align: 'right' });
+
+      y += 12;
+
+      // Section 2: Detailed Transaction Journal Stream
+      checkAddPage(15);
+      doc.setFontSize(10);
+      doc.setFont('Helvetica', 'bold');
+      doc.setTextColor(33, 84, 61);
+      doc.text("2. DETAILED TRANSACTION JOURNAL PER ACCOUNT", 14, y);
+      y += 6;
+
+      accounts.forEach(acc => {
+        const calc = accountCalculations.perAccount[acc.id];
+        checkAddPage(15);
+        doc.setFontSize(8.5);
+        doc.setFont('Helvetica', 'bold');
+        doc.setTextColor(30, 41, 59);
+        doc.text(`Account: ${acc.name} (${acc.accountNumber || 'N/A'})`, 14, y);
+        doc.setFont('Helvetica', 'normal');
+        doc.setTextColor(100, 116, 139);
+        doc.text(`Starting Balance: $${calc.openingBalance.toFixed(2)} | Closing Balance: $${calc.currentBalance.toFixed(2)}`, 105, y);
+        y += 4;
+
+        if (calc.filteredTxns.length === 0) {
+          doc.setFontSize(7.5);
+          doc.text("   (No transactions recorded for this period)", 18, y);
+          y += 6;
+        } else {
+          doc.setFillColor(241, 245, 249);
+          doc.rect(14, y, pageWidth - 28, 5, 'F');
+          doc.setFontSize(7.5);
+          doc.setFont('Helvetica', 'bold');
+          doc.setTextColor(15, 23, 42);
+          doc.text("Date & Time", 16, y + 3.5);
+          doc.text("Type", 48, y + 3.5);
+          doc.text("Client Name / Phone", 75, y + 3.5);
+          doc.text("Ref No / Note", 125, y + 3.5);
+          doc.text("Amount ($)", 193, y + 3.5, { align: 'right' });
+          y += 5;
+
+          calc.filteredTxns.forEach(tx => {
+            checkAddPage(6);
+            doc.setFontSize(7.5);
+            doc.setFont('Helvetica', 'normal');
+            doc.setTextColor(51, 65, 85);
+            doc.text(`${tx.date} ${tx.time || ''}`, 16, y + 3.5);
+
+            if (tx.type === 'in') {
+              doc.setTextColor(16, 185, 129);
+              doc.text("Money In (+)", 48, y + 3.5);
+            } else {
+              doc.setTextColor(225, 29, 72);
+              doc.text("Money Out (-)", 48, y + 3.5);
+            }
+
+            doc.setTextColor(15, 23, 42);
+            const clientStr = `${tx.clientName || 'N/A'} ${tx.clientPhone ? `(${tx.clientPhone})` : ''}`;
+            doc.text(clientStr.length > 26 ? clientStr.substring(0, 26) + '..' : clientStr, 75, y + 3.5);
+
+            const descStr = `${tx.referenceNo ? `[${tx.referenceNo}] ` : ''}${tx.description}`;
+            doc.text(descStr.length > 35 ? descStr.substring(0, 35) + '..' : descStr, 125, y + 3.5);
+
+            doc.setFont('Helvetica', 'bold');
+            if (tx.type === 'in') {
+              doc.setTextColor(16, 185, 129);
+              doc.text(`+$${tx.amount.toFixed(2)}`, 193, y + 3.5, { align: 'right' });
+            } else {
+              doc.setTextColor(225, 29, 72);
+              doc.text(`-$${tx.amount.toFixed(2)}`, 193, y + 3.5, { align: 'right' });
+            }
+
+            y += 5;
+          });
+          y += 3;
+        }
+      });
+
+      // Signatures Section
+      checkAddPage(30);
+      y += 5;
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.3);
+      doc.line(14, y, pageWidth - 14, y);
+      y += 8;
+
+      doc.setFontSize(8);
+      doc.setFont('Helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text("Insaabka & Xisaabiyaha (Prepared By Accountant):", 14, y);
+      doc.text("Oggolaanshaha Maamulka (Approved By Director):", 120, y);
+
+      y += 12;
+      doc.line(14, y, 70, y);
+      doc.line(120, y, 175, y);
+
+      y += 4;
+      doc.setFontSize(7);
+      doc.setFont('Helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text("Sainka & Taariikhda", 14, y);
+      doc.text("Sainka & Shaambada", 120, y);
+
+      doc.save(`xawaallada_audit_statement_${reportMonth || 'all'}.pdf`);
+      triggerFeedback('Warbixinta PDF-ka ee Xawaallada waa la soo dejiyay!');
+    } catch (err) {
+      console.error('PDF generation error:', err);
+      triggerFeedback('Qalad ayaa dhacay meesha PDF-ka lagu samaynayay.');
     }
-    
-    // Save
-    const cleanFN = reportTitle.toLowerCase().replace(/[^a-z0-9]+/g, '_');
-    doc.save(`money_transfers_${cleanFN}.pdf`);
-    triggerFeedback("PDF Statement downloaded successfully!");
+  };
+
+  // Robust Print Handler
+  const handlePrintStatement = () => {
+    const printArea = document.getElementById('print-area');
+    if (printArea) {
+      const printWindow = window.open('', '_blank', 'width=900,height=850');
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Xawaallada Audit Ledger Statement - ${reportMonth}</title>
+              <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #0f172a; padding: 24px; line-height: 1.4; }
+                h1 { font-size: 20px; font-weight: 900; margin: 0 0 4px 0; color: #1e293b; text-transform: uppercase; }
+                p { margin: 0; font-size: 12px; color: #64748b; }
+                table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
+                th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; }
+                th { background-color: #f1f5f9; font-weight: 800; color: #1e293b; }
+                .text-right { text-align: right; }
+                .font-mono { font-family: monospace; }
+                .text-emerald-700 { color: #047857; }
+                .text-rose-700 { color: #be123c; }
+                .bg-slate-900 { background-color: #0f172a; color: white; }
+                @media print {
+                  @page { size: A4; margin: 12mm; }
+                  body { padding: 0; }
+                }
+              </style>
+            </head>
+            <body>
+              ${printArea.innerHTML}
+              <script>
+                window.onload = function() {
+                  setTimeout(function() {
+                    window.print();
+                  }, 200);
+                };
+              </script>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+        return;
+      }
+    }
+    window.print();
   };
 
   return (
-    <div className="space-y-6" id="money-transfers-viewport">
-      
-      {/* Banner Succes Confirmation */}
+    <div className="space-y-6 pb-12">
+      {/* Toast Feedback Notification */}
       <AnimatePresence>
         {feedback && (
           <motion.div
-            initial={{ opacity: 0, y: -15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -15 }}
-            className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-3 shadow-sm text-emerald-950 text-xs font-semibold"
-            id="money-transfer-toast"
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-3"
           >
-            <Check className="w-5 h-5 text-emerald-600 shrink-0" />
-            <span>{feedback}</span>
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            <span className="text-xs font-bold">{feedback}</span>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-slate-50 p-6 rounded-3xl border border-slate-200/50">
-        <div>
-          <h3 className="text-xl font-extrabold text-[#020617] tracking-tight flex items-center gap-2.5">
-            <ArrowLeftRight className="w-6 h-6 text-[#1e5ee6]" />
-            <span>Money Transfer Records</span>
-          </h3>
-          <p className="text-xs text-slate-500 font-medium mt-1">
-            Admin console replacing standard Excel tracking ledger for client cash remittances.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              const d = new Date();
-              const firstDayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-              setReportStartDate(firstDayStr);
-              setReportEndDate(todayDateStr);
-              setReportDate(todayDateStr);
-              setReportMonth(currentMonthStr);
-              setReportYear(currentYearStr);
-              setReportType('daily');
-              setShowReportModal(true);
-            }}
-            className="py-2.5 px-4 text-xs font-extrabold uppercase tracking-wider bg-white hover:bg-slate-50 text-slate-700 transition-all rounded-xl border border-slate-200 flex items-center gap-2 cursor-pointer shadow-sm shadow-slate-100"
-            id="btn-generate-reports"
-          >
-            <Notebook className="w-4 h-4 text-[#1e5ee6]" />
-            <span>Generate Ledger Reports</span>
-          </button>
-
-          {records.length > 0 && (
-            <button
-              type="button"
-              onClick={handleDeleteAllTransfers}
-              className="py-2.5 px-4 text-xs font-extrabold uppercase tracking-wider bg-rose-50 hover:bg-rose-100 text-rose-700 transition-all rounded-xl border border-rose-200 flex items-center gap-2 cursor-pointer shadow-sm shadow-rose-100"
-              id="btn-delete-all-transfers"
-            >
-              <Trash2 className="w-4 h-4 text-rose-600" />
-              <span>Futa Dhammaan (Delete All)</span>
-            </button>
-          )}
-          
-          <button
-            type="button"
-            onClick={() => {
-              setFormError('');
-              setFormName('');
-              setFormPhone('');
-              setFormAmount('');
-              setFormNotes('');
-              setFormDate(todayDateStr);
-              setIsAddModalOpen(true);
-            }}
-            className="py-2.5 px-4 text-xs font-extrabold uppercase bg-[#1e5ee6] hover:bg-blue-700 text-white transition-all rounded-xl shadow-md shadow-blue-500/10 flex items-center gap-2 cursor-pointer"
-            id="btn-add-transfer-record"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>Add New Record</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 2. DASHBOARD SUMMARY CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6" id="transfer-dashboard-widgets">
-        
-        {/* Widget 1 */}
-        <div className="bg-white border border-slate-150 p-6 rounded-3xl shadow-sm hover:shadow-md transition-all relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full blur-3xl -z-10 translate-x-8 -translate-y-8" />
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-[10px] bg-blue-50 text-[#1e5ee6] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">Remittances Today</span>
-            <div className="p-2 bg-blue-50 border border-blue-100 rounded-xl">
-              <Clock className="w-5 h-5 text-[#1e5ee6]" />
+      {/* Top Banner & Header */}
+      <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-xs font-black uppercase tracking-wider">
+              <CircleDollarSign className="w-3.5 h-3.5 text-indigo-400" />
+              Nidaamka Xawaallada & Xisaabaadka Akawnnada
             </div>
-          </div>
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block leading-none">Today's Remitted Sum</span>
-            <h4 className="text-3xl font-black text-slate-900 tracking-tight mt-2.5">${stats.todayTotal.toLocaleString()}</h4>
-          </div>
-        </div>
-
-        {/* Widget 2 */}
-        <div className="bg-white border border-slate-150 p-6 rounded-3xl shadow-sm hover:shadow-md transition-all relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-full blur-3xl -z-10 translate-x-8 -translate-y-8" />
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">Remittances This Month</span>
-            <div className="p-2 bg-emerald-50 border border-emerald-100 rounded-xl">
-              <TrendingUp className="w-5 h-5 text-emerald-600" />
-            </div>
-          </div>
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block leading-none">Monthly Total Sent</span>
-            <h4 className="text-3xl font-black text-slate-900 tracking-tight mt-2.5">${stats.monthlyTotal.toLocaleString()}</h4>
-          </div>
-        </div>
-
-        {/* Widget 3 */}
-        <div className="bg-white border border-slate-150 p-6 rounded-3xl shadow-sm hover:shadow-md transition-all relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-purple-50 rounded-full blur-3xl -z-10 translate-x-8 -translate-y-8" />
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-[10px] bg-purple-50 text-purple-600 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">All Transactions</span>
-            <div className="p-2 bg-purple-50 border border-purple-100 rounded-xl">
-              <CircleDollarSign className="w-5 h-5 text-purple-600" />
-            </div>
-          </div>
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block leading-none">Total Ledgers Logged</span>
-            <h4 className="text-3xl font-black text-slate-900 tracking-tight mt-2.5">{stats.totalCount} txs</h4>
-          </div>
-        </div>
-
-      </div>
-
-      {/* 3. FILTERS BAR & ACTIVE GRAPH CONTROLLER */}
-      <div className="bg-white border border-slate-150 rounded-3xl p-6 shadow-sm space-y-5" id="transfer-filters-container">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-          <div className="flex items-center gap-2">
-            <Search className="w-4 h-4 text-slate-400" />
-            <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider">Queries & Search Filter Boundary</h4>
-          </div>
-          {(searchTerm || dateFilter || monthFilter || yearFilter) && (
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="text-xs font-semibold text-rose-600 hover:text-rose-800 transition-colors flex items-center gap-1.5 cursor-pointer bg-rose-50 border border-rose-100 rounded-xl px-3 py-1.5 hover:bg-rose-100"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Clear Filter Queries</span>
-            </button>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          
-          {/* Search Term */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-              <span>Search Ledger</span>
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search Client, Phone, TX ID.."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-slate-50/50 focus:border-[#1e5ee6] focus:bg-white transition-all text-slate-800"
-              />
-              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-            </div>
+            <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+              Xawaallada & Multi-Account Ledger Board
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+              Maamul akawnno badan oo mid kasta leeyahay lacag bilow ah (Opening Balance). Geli lacagaha soo gala (+) ama baxa (-), nidaamku si toos ah ayuu u samaynayaa xisaabinta, isu-dheelli-tirka (Balancing), iyo warbixinnada billeedka ah.
+            </p>
           </div>
 
-          {/* Date Picker Filter */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Date</label>
-            <div className="relative">
-              <input
-                type="date"
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-slate-50/50 focus:border-[#1e5ee6] focus:bg-white transition-all text-slate-800 cursor-pointer"
-              />
-              <Calendar className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-            </div>
-          </div>
-
-          {/* Month Dropdown */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Month</label>
-            <select
-              value={monthFilter}
-              onChange={(e) => setMonthFilter(e.target.value)}
-              className="w-full px-3.5 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-slate-50/50 focus:border-[#1e5ee6] focus:bg-white transition-all text-slate-800 cursor-pointer"
-            >
-              <option value="">All Months</option>
-              <option value="01">January</option>
-              <option value="02">February</option>
-              <option value="03">March</option>
-              <option value="04">April</option>
-              <option value="05">May</option>
-              <option value="06">June</option>
-              <option value="07">July</option>
-              <option value="08">August</option>
-              <option value="09">September</option>
-              <option value="10">October</option>
-              <option value="11">November</option>
-              <option value="12">December</option>
-            </select>
-          </div>
-
-          {/* Year Dropdown */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Year</label>
-            <select
-              value={yearFilter}
-              onChange={(e) => setYearFilter(e.target.value)}
-              className="w-full px-3.5 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-slate-50/50 focus:border-[#1e5ee6] focus:bg-white transition-all text-slate-800 cursor-pointer"
-            >
-              <option value="">All Years</option>
-              <option value="2025">2025</option>
-              <option value="2026">2026</option>
-              <option value="2027">2027</option>
-            </select>
-          </div>
-
-        </div>
-
-        {/* CUSTOMER HISTORY PREVIEW BLOCK (Triggers when searching) */}
-        {historyLookup && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="p-5 bg-blue-50/40 border border-blue-100 rounded-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-4"
-          >
-            <div className="flex items-start gap-3">
-              <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-xl mt-0.5 shrink-0">
-                <History className="w-5 h-5 text-blue-600 animate-pulse" />
-              </div>
-              <div>
-                <span className="text-[10px] font-extrabold uppercase bg-blue-100 text-[#1e5ee6] px-2 py-0.5 rounded-md text-center">
-                  Matched Customer Transactions Archive
-                </span>
-                <h5 className="text-sm font-black text-slate-800 tracking-tight mt-1.5">
-                  Transactions logged for: "{searchTerm}"
-                </h5>
-                <p className="text-xs text-slate-500 font-semibold mt-1">
-                  Found <strong className="text-slate-800">{historyLookup.count}</strong> historic money transfer statements totaling <strong className="text-[#10b981]">${historyLookup.totalSent.toLocaleString()}</strong>.
-                </p>
-              </div>
-            </div>
-            
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
               type="button"
               onClick={() => {
-                // Focus only on pre-found transactions in records
-                // By filtering date/month to none, keep current query matching
+                setEditingAccount(null);
+                setAccName('');
+                setAccNumber('');
+                setAccOpening('');
+                setAccNotes('');
+                setAccError('');
+                setIsAccountModalOpen(true);
               }}
-              className="py-2 px-3 bg-[#1e5ee6] text-white font-extrabold text-[10px] uppercase tracking-wider rounded-lg transition-all hover:bg-blue-700 max-w-[180px] text-center cursor-pointer"
+              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer border border-indigo-400/30"
             >
-              Scroll down to view list
+              <PlusCircle className="w-4 h-4" />
+              + Add Account
             </button>
-          </motion.div>
-        )}
-      </div>
 
-      {/* 4. TRANSACTION LOG LIST TABLE CONTAINER */}
-      <div className="bg-white border border-slate-150 rounded-3xl shadow-sm overflow-hidden" id="transfers-data-table-panel">
-        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/55">
-          <div className="flex items-center gap-2">
-            <Notebook className="w-4.5 h-4.5 text-slate-500" />
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">Remittances Registry Table</h4>
+            <button
+              type="button"
+              onClick={() => openNewTransaction()}
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer border border-emerald-400/30"
+            >
+              <Plus className="w-4 h-4" />
+              Add Money (+/-)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsReportModalOpen(true)}
+              className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-extrabold text-xs rounded-xl transition-all flex items-center gap-2 cursor-pointer backdrop-blur-md border border-white/10"
+            >
+              <Download className="w-4 h-4 text-amber-300" />
+              End-of-Month Reports
+            </button>
           </div>
-          <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-widest">{filteredRecords.length} records matched</span>
         </div>
 
-        <div className="overflow-x-auto min-w-full">
-          <table className="min-w-full divide-y divide-slate-100">
-            <thead className="bg-slate-50/30">
-              <tr>
-                <th scope="col" className="px-6 py-3.5 text-left text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Trans Number</th>
-                <th scope="col" className="px-6 py-3.5 text-left text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Customer Name</th>
-                <th scope="col" className="px-6 py-3.5 text-left text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Phone Number</th>
-                <th scope="col" className="px-6 py-3.5 scope-col text-left text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Amount Sent</th>
-                <th scope="col" className="px-6 py-3.5 text-left text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Record Date</th>
-                <th scope="col" className="px-6 py-3.5 text-left text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Notes</th>
-                <th scope="col" className="px-6 py-3.5 text-right text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-slate-100 text-slate-800">
-              {filteredRecords.map((r) => (
-                <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap text-xs font-extrabold text-slate-900 tracking-tight">
-                    {r.transNo}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-xs font-bold text-slate-800">
-                    {r.customerName}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500 font-semibold font-mono">
-                    {r.customerPhone}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-xs font-extrabold text-[#11b981]">
-                    ${r.amountSent.toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-800 font-bold font-mono">
-                    <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg border border-blue-100/60 block w-fit shadow-xs">
-                      {formatRecordDate(r.date)}
-                    </span>
-                    <span className="text-[9.5px] text-slate-400 font-normal font-sans block mt-1.5 opacity-90">
-                      Logged: {formatDateTime(r.createdAt)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-xs text-slate-400 font-medium max-w-[200px] truncate" title={r.notes}>
-                    {r.notes || <span className="text-slate-200">-</span>}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-xs font-semibold space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedRecord(r);
-                        setIsViewModalOpen(true);
-                      }}
-                      className="p-1.5 hover:bg-blue-50 text-blue-600 rounded-lg hover:text-blue-800 transition-colors cursor-pointer"
-                      title="View Details & Previous Remittances Log"
-                    >
-                      <Eye className="w-4.5 h-4.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openEditDialog(r)}
-                      className="p-1.5 hover:bg-indigo-50 text-indigo-600 rounded-lg hover:text-indigo-800 transition-colors cursor-pointer"
-                      title="Edit Record Parameters"
-                    >
-                      <Edit className="w-4.5 h-4.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteRecord(r.id, r.transNo)}
-                      className="p-1.5 hover:bg-rose-50 text-rose-600 rounded-lg hover:text-rose-800 transition-colors cursor-pointer"
-                      title="Delete Record"
-                    >
-                      <Trash2 className="w-4.5 h-4.5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {filteredRecords.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400 text-xs font-bold uppercase tracking-wider">
-                    Empty Boundary! No matching money transfer records found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        {/* Global Summary Metrics Bar */}
+        <div className="mt-8 pt-6 border-t border-slate-800 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-4">
+          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3.5 border border-white/10">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase block mb-1">Total Opening Balance</span>
+            <span className="text-lg font-black text-slate-100 font-mono">${accountCalculations.grandOpening.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+          </div>
+
+          <div className="bg-emerald-500/10 backdrop-blur-sm rounded-2xl p-3.5 border border-emerald-500/20">
+            <span className="text-[10px] font-extrabold text-emerald-400 uppercase block mb-1 flex items-center gap-1">
+              <ArrowDownLeft className="w-3 h-3 text-emerald-400" />
+              Total Money In (+)
+            </span>
+            <span className="text-lg font-black text-emerald-300 font-mono">+${accountCalculations.grandIn.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+          </div>
+
+          <div className="bg-rose-500/10 backdrop-blur-sm rounded-2xl p-3.5 border border-rose-500/20">
+            <span className="text-[10px] font-extrabold text-rose-400 uppercase block mb-1 flex items-center gap-1">
+              <ArrowUpRight className="w-3 h-3 text-rose-400" />
+              Total Money Out (-)
+            </span>
+            <span className="text-lg font-black text-rose-300 font-mono">-${accountCalculations.grandOut.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+          </div>
+
+          <div className="bg-amber-500/10 backdrop-blur-sm rounded-2xl p-3.5 border border-amber-500/20">
+            <span className="text-[10px] font-extrabold text-amber-300 uppercase block mb-1">Current Total Net Liquidity</span>
+            <span className="text-lg font-black text-amber-200 font-mono">${accountCalculations.grandCurrent.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+          </div>
+
+          <div className="col-span-2 sm:col-span-4 lg:col-span-1 bg-white/5 backdrop-blur-sm rounded-2xl p-3.5 border border-white/10 flex flex-col justify-center">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase block mb-1">Balancing Status</span>
+            {accountCalculations.isBalanced ? (
+              <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-400">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                Balanced & Reconciled
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-xs font-black text-amber-400">
+                <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                Unbalanced Entry
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* ==================================== MODAL: ADD NEW RECORD ==================================== */}
-      <AnimatePresence>
-        {isAddModalOpen && (
-          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-3xl w-full max-w-lg overflow-hidden border border-slate-200"
-            >
-              <div className="px-6 py-5 bg-[#020617] text-white flex items-center justify-between">
-                <div>
-                  <h4 className="text-base font-black tracking-tight flex items-center gap-2">
-                    <PlusCircle className="w-5 h-5 text-[#1e5ee6]" />
-                    <span>Disburse New Remittance</span>
-                  </h4>
-                  <p className="text-[10px] text-slate-400 font-medium">Auto generating ID: {generateNextTransNo()} and Date: {todayDateStr}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+      {/* Control Bar: Filters & View Switcher */}
+      <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-sm border border-slate-200/80 flex flex-col lg:flex-row items-center justify-between gap-4">
+        {/* Left: View Switcher */}
+        <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl w-full sm:w-auto shrink-0">
+          <button
+            type="button"
+            onClick={() => setViewMode('board')}
+            className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              viewMode === 'board'
+                ? 'bg-white text-indigo-950 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <LayoutGrid className="w-4 h-4 text-indigo-600" />
+            Ledger Board (Prototype Sketch)
+          </button>
 
-              <form onSubmit={handleAddSubmit} className="p-6 space-y-4">
-                {formError && (
-                  <div className="p-3 bg-rose-50 border border-rose-100 text-rose-700 text-xs font-bold rounded-xl flex items-center gap-2">
-                    <AlertCircle className="w-4.5 h-4.5 shrink-0" />
-                    <span>{formError}</span>
-                  </div>
-                )}
+          <button
+            type="button"
+            onClick={() => setViewMode('list')}
+            className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              viewMode === 'list'
+                ? 'bg-white text-indigo-950 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <ListFilter className="w-4 h-4 text-teal-600" />
+            All Transactions List
+          </button>
+        </div>
 
-                <div className="grid grid-cols-1 gap-4">
-                  {/* Customer Name */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Customer Name *</label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        required
-                        placeholder="John Doe"
-                        value={formName}
-                        onChange={(e) => {
-                          setFormName(e.target.value);
-                          setShowNameSuggestions(true);
-                        }}
-                        onFocus={() => setShowNameSuggestions(true)}
-                        onBlur={() => setTimeout(() => setShowNameSuggestions(false), 250)}
-                        className="w-full pl-9 pr-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 focus:border-[#1e5ee6] transition-all text-slate-800"
-                        autoComplete="off"
-                      />
-                      <User className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-
-                      {/* Name Suggestions Dropdown */}
-                      <AnimatePresence>
-                        {showNameSuggestions && nameSuggestions.length > 0 && (
-                          <motion.div
-                            initial={{ opacity: 0, y: -5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -5 }}
-                            className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto overflow-x-hidden divide-y divide-slate-100"
-                          >
-                            <div className="px-3 py-1.5 bg-slate-50/50 border-b border-slate-100 text-[9px] font-bold text-slate-400 tracking-wider uppercase">
-                              Matching Customers ({nameSuggestions.length})
-                            </div>
-                            {nameSuggestions.map((sug, idx) => (
-                              <button
-                                key={idx}
-                                type="button"
-                                onMouseDown={() => handleSelectCustomer(sug)}
-                                className="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer"
-                              >
-                                <div className="flex flex-col">
-                                  <span className="text-xs font-bold text-slate-700">{sug.name}</span>
-                                  <span className="text-[10px] text-slate-400 font-medium font-mono">Phone: {sug.phone}</span>
-                                </div>
-                                <div className="text-[9px] px-2 py-0.5 rounded-md font-bold bg-blue-50 text-blue-600 border border-blue-100/60 uppercase">
-                                  Use Customer
-                                </div>
-                              </button>
-                            ))}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-
-                  {/* Customer Phone */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Customer Phone Number *</label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        required
-                        placeholder="+252 ... or 061..."
-                        value={formPhone}
-                        onChange={(e) => {
-                          setFormPhone(e.target.value);
-                          setShowPhoneSuggestions(true);
-                        }}
-                        onFocus={() => setShowPhoneSuggestions(true)}
-                        onBlur={() => setTimeout(() => setShowPhoneSuggestions(false), 250)}
-                        className="w-full pl-9 pr-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 focus:border-[#1e5ee6] transition-all text-slate-800"
-                        autoComplete="off"
-                      />
-                      <Phone className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-
-                      {/* Phone Suggestions Dropdown */}
-                      <AnimatePresence>
-                        {showPhoneSuggestions && phoneSuggestions.length > 0 && (
-                          <motion.div
-                            initial={{ opacity: 0, y: -5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -5 }}
-                            className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto overflow-x-hidden divide-y divide-slate-100"
-                          >
-                            <div className="px-3 py-1.5 bg-slate-50/50 border-b border-slate-100 text-[9px] font-bold text-slate-400 tracking-wider uppercase">
-                              Matching Phone Numbers ({phoneSuggestions.length})
-                            </div>
-                            {phoneSuggestions.map((sug, idx) => (
-                              <button
-                                key={idx}
-                                type="button"
-                                onMouseDown={() => handleSelectCustomer(sug)}
-                                className="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer"
-                              >
-                                <div className="flex flex-col">
-                                  <span className="text-[11px] font-bold text-slate-700 font-mono">{sug.phone}</span>
-                                  <span className="text-[9.5px] text-slate-400 font-medium font-sans">Name: {sug.name}</span>
-                                </div>
-                                <div className="text-[9px] px-2 py-0.5 rounded-md font-bold bg-blue-50 text-blue-600 border border-blue-100/60 uppercase">
-                                  Use Customer
-                                </div>
-                              </button>
-                            ))}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-
-                  {/* Amount Sent */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Amount Sent ($) *</label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        required
-                        min="0.01"
-                        step="any"
-                        placeholder="150"
-                        value={formAmount}
-                        onChange={(e) => setFormAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                        className="w-full pl-9 pr-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 focus:border-[#1e5ee6] transition-all text-slate-800"
-                      />
-                      <CircleDollarSign className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                    </div>
-                  </div>
-
-                  {/* Record Date */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Record Date *</label>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        required
-                        value={formDate}
-                        onChange={(e) => setFormDate(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 focus:border-[#1e5ee6] transition-all text-slate-800"
-                      />
-                      <Calendar className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                    </div>
-                  </div>
-
-                  {/* Notes */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-mono">Description / Notes</label>
-                    <textarea
-                      rows={3}
-                      placeholder="Enter optional description rules, transfer objectives, and customer notes.."
-                      value={formNotes}
-                      onChange={(e) => setFormNotes(e.target.value)}
-                      className="w-full px-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 focus:border-[#1e5ee6] transition-all text-slate-800"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsAddModalOpen(false)}
-                    className="py-2.5 px-4 bg-slate-50 hover:bg-slate-100 text-slate-550 border border-slate-200 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="py-2.5 px-5 bg-[#1e5ee6] hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md cursor-pointer"
-                  >
-                    Save Transfer
-                  </button>
-                </div>
-              </form>
-            </motion.div>
+        {/* Right: Date / Month / Search Controls (Matching "date/month" on handwritten prototype top right) */}
+        <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
+          <div className="relative flex-1 sm:flex-none min-w-[180px]">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search client, ref, note..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-indigo-500 focus:bg-white transition-all"
+            />
           </div>
-        )}
-      </AnimatePresence>
 
-      {/* ==================================== MODAL: EDIT RECORD ==================================== */}
-      <AnimatePresence>
-        {isEditModalOpen && selectedRecord && (
-          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-3xl w-full max-w-lg overflow-hidden border border-slate-200"
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider hidden sm:inline">Date/Month:</span>
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 cursor-pointer"
+              title="Specific Date Filter"
+            />
+
+            <select
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 cursor-pointer"
             >
-              <div className="px-6 py-5 bg-[#020617] text-white flex items-center justify-between">
-                <div>
-                  <h4 className="text-base font-black tracking-tight flex items-center gap-2">
-                    <Edit className="w-5 h-5 text-[#1e5ee6]" />
-                    <span>Edit Remittance Parameters</span>
-                  </h4>
-                  <p className="text-[10px] text-slate-400 font-medium font-mono">Modifying standard ledger {selectedRecord.transNo}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+              <option value="">Dhamaan Bilaha (All Months)</option>
+              <option value="01">Jan (01)</option>
+              <option value="02">Feb (02)</option>
+              <option value="03">Mar (03)</option>
+              <option value="04">Apr (04)</option>
+              <option value="05">May (05)</option>
+              <option value="06">Jun (06)</option>
+              <option value="07">Jul (07)</option>
+              <option value="08">Aug (08)</option>
+              <option value="09">Sep (09)</option>
+              <option value="10">Oct (10)</option>
+              <option value="11">Nov (11)</option>
+              <option value="12">Dec (12)</option>
+            </select>
 
-              <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
-                {formError && (
-                  <div className="p-3 bg-rose-50 border border-rose-100 text-rose-700 text-xs font-bold rounded-xl flex items-center gap-2">
-                    <AlertCircle className="w-4.5 h-4.5 shrink-0" />
-                    <span>{formError}</span>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 gap-4">
-                  {/* Customer Name */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Customer Name *</label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        required
-                        placeholder="John Doe"
-                        value={formName}
-                        onChange={(e) => {
-                          setFormName(e.target.value);
-                          setShowNameSuggestions(true);
-                        }}
-                        onFocus={() => setShowNameSuggestions(true)}
-                        onBlur={() => setTimeout(() => setShowNameSuggestions(false), 250)}
-                        className="w-full pl-9 pr-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 focus:border-[#1e5ee6] transition-all text-slate-800"
-                        autoComplete="off"
-                      />
-                      <User className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-
-                      {/* Name Suggestions Dropdown */}
-                      <AnimatePresence>
-                        {showNameSuggestions && nameSuggestions.length > 0 && (
-                          <motion.div
-                            initial={{ opacity: 0, y: -5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -5 }}
-                            className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto overflow-x-hidden divide-y divide-slate-100"
-                          >
-                            <div className="px-3 py-1.5 bg-slate-50/50 border-b border-slate-100 text-[9px] font-bold text-slate-400 tracking-wider uppercase">
-                              Matching Customers ({nameSuggestions.length})
-                            </div>
-                            {nameSuggestions.map((sug, idx) => (
-                              <button
-                                key={idx}
-                                type="button"
-                                onMouseDown={() => handleSelectCustomer(sug)}
-                                className="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer"
-                              >
-                                <div className="flex flex-col">
-                                  <span className="text-xs font-bold text-slate-700">{sug.name}</span>
-                                  <span className="text-[10px] text-slate-400 font-medium font-mono">Phone: {sug.phone}</span>
-                                </div>
-                                <div className="text-[9px] px-2 py-0.5 rounded-md font-bold bg-blue-50 text-blue-600 border border-blue-100/60 uppercase">
-                                  Use Customer
-                                </div>
-                              </button>
-                            ))}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-
-                  {/* Customer Phone */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Customer Phone Number *</label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        required
-                        placeholder="+252"
-                        value={formPhone}
-                        onChange={(e) => {
-                          setFormPhone(e.target.value);
-                          setShowPhoneSuggestions(true);
-                        }}
-                        onFocus={() => setShowPhoneSuggestions(true)}
-                        onBlur={() => setTimeout(() => setShowPhoneSuggestions(false), 250)}
-                        className="w-full pl-9 pr-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 focus:border-[#1e5ee6] transition-all text-slate-800"
-                        autoComplete="off"
-                      />
-                      <Phone className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-
-                      {/* Phone Suggestions Dropdown */}
-                      <AnimatePresence>
-                        {showPhoneSuggestions && phoneSuggestions.length > 0 && (
-                          <motion.div
-                            initial={{ opacity: 0, y: -5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -5 }}
-                            className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto overflow-x-hidden divide-y divide-slate-100"
-                          >
-                            <div className="px-3 py-1.5 bg-slate-50/50 border-b border-slate-100 text-[9px] font-bold text-slate-400 tracking-wider uppercase">
-                              Matching Phone Numbers ({phoneSuggestions.length})
-                            </div>
-                            {phoneSuggestions.map((sug, idx) => (
-                              <button
-                                key={idx}
-                                type="button"
-                                onMouseDown={() => handleSelectCustomer(sug)}
-                                className="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer"
-                              >
-                                <div className="flex flex-col">
-                                  <span className="text-[11px] font-bold text-slate-700 font-mono">{sug.phone}</span>
-                                  <span className="text-[9.5px] text-slate-400 font-medium font-sans">Name: {sug.name}</span>
-                                </div>
-                                <div className="text-[9px] px-2 py-0.5 rounded-md font-bold bg-blue-50 text-blue-600 border border-blue-100/60 uppercase">
-                                  Use Customer
-                                </div>
-                              </button>
-                            ))}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-
-                  {/* Amount Sent */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-mono">Amount Sent ($) *</label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        required
-                        min="0.01"
-                        step="any"
-                        placeholder="150"
-                        value={formAmount}
-                        onChange={(e) => setFormAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                        className="w-full pl-9 pr-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 focus:border-[#1e5ee6] transition-all text-slate-800"
-                      />
-                      <CircleDollarSign className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                    </div>
-                  </div>
-
-                  {/* Record Date */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Record Date *</label>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        required
-                        value={formDate}
-                        onChange={(e) => setFormDate(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 focus:border-[#1e5ee6] transition-all text-slate-800"
-                      />
-                      <Calendar className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                    </div>
-                  </div>
-
-                  {/* Notes */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Description / Notes</label>
-                    <textarea
-                      rows={3}
-                      value={formNotes}
-                      onChange={(e) => setFormNotes(e.target.value)}
-                      className="w-full px-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 focus:border-[#1e5ee6] transition-all text-slate-800"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsEditModalOpen(false)}
-                    className="py-2.5 px-4 bg-slate-50 hover:bg-slate-100 text-slate-550 border border-slate-200 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="py-2.5 px-5 bg-[#1e5ee6] hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md cursor-pointer"
-                  >
-                    Apply Parameters
-                  </button>
-                </div>
-              </form>
-            </motion.div>
+            {(dateFilter || monthFilter || searchTerm || selectedAccountId !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFilter('');
+                  setMonthFilter('');
+                  setSearchTerm('');
+                  setSelectedAccountId('all');
+                }}
+                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
+                title="Reset Filters"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            )}
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      </div>
 
-      {/* ==================================== MODAL: VIEW DETAILS & CUSTOMER HISTORY ==================================== */}
-      <AnimatePresence>
-        {isViewModalOpen && selectedRecord && (
-          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden border border-slate-200 shadow-2xl"
-            >
-              <div className="px-6 py-5 bg-[#020617] text-white flex items-center justify-between">
-                <div>
-                  <h4 className="text-base font-black tracking-tight flex items-center gap-2">
-                    <Eye className="w-5 h-5 text-[#1e5ee6]" />
-                    <span>Transaction Ledger {selectedRecord.transNo}</span>
-                  </h4>
-                  <p className="text-[10px] text-slate-400 font-semibold font-mono">Detailed audit trail and client transaction pattern mapping</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsViewModalOpen(false)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto" id="audit-trail-container">
-                
-                {/* Visual Receipt Card */}
-                <div className="bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-5 space-y-4">
-                  <div className="flex justify-between border-b border-slate-200 pb-3">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block leading-none">Dugsiga Subuc Finance Remittance Statement</span>
-                      <h5 className="text-base font-black text-slate-900 tracking-tight mt-1">{selectedRecord.transNo}</h5>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block leading-none">Status</span>
-                      <h5 className="text-xs font-bold text-emerald-600 tracking-tight mt-1 flex items-center gap-1 bg-emerald-50 border border-emerald-100 rounded-lg px-2 py-0.5">
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Remitted Successfully</span>
-                      </h5>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 text-xs">
-                    <div>
-                      <p className="text-[10px] uppercase font-bold text-slate-400">Customer Name</p>
-                      <p className="font-extrabold text-slate-800 mt-1">{selectedRecord.customerName}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase font-bold text-slate-400">Phone Number</p>
-                      <p className="font-bold text-slate-800 mt-1 font-mono">{selectedRecord.customerPhone}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase font-bold text-slate-400">Amount Transferred</p>
-                      <p className="font-black text-emerald-600 mt-1 text-sm">${selectedRecord.amountSent}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase font-bold text-slate-400">Record Date</p>
-                      <p className="font-bold text-blue-700 bg-blue-50/70 border border-blue-100/40 px-2 py-0.5 rounded-lg w-fit mt-1 font-mono">{formatRecordDate(selectedRecord.date)}</p>
-                    </div>
-                  </div>
-
-                  {selectedRecord.notes && (
-                    <div className="bg-white border border-slate-200/60 rounded-xl p-3">
-                      <p className="text-[10px] uppercase font-bold text-slate-400">Description / Ledger Notes</p>
-                      <p className="text-xs text-slate-650 font-medium leading-relaxed mt-1 whitespace-pre-line">{selectedRecord.notes}</p>
-                    </div>
-                  )}
-
-                  <div className="flex justify-between items-center pt-2 text-[10px] text-slate-400 font-semibold border-t border-slate-200/60 font-mono">
-                    <span>Authorized by: {selectedRecord.createdBy}</span>
-                    <span>Logged at: {new Date(selectedRecord.createdAt).toLocaleString()}</span>
-                  </div>
-                </div>
-
-                {/* HISTORICAL REMITTANCES LEDGER CHART (Customer History Requirement) */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                    <History className="w-4 h-4 text-blue-600" />
-                    <h5 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                      Remittance Ledger History for: "{selectedRecord.customerName}"
-                    </h5>
-                  </div>
-
-                  <div className="bg-slate-50/50 p-4 border border-slate-200 rounded-2xl">
-                    {(() => {
-                      const prevList = getCustomerTransactions(selectedRecord.customerName, selectedRecord.customerPhone);
-                      const totalSent = prevList.reduce((acc, curr) => acc + curr.amountSent, 0);
-
-                      return (
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between text-xs font-semibold bg-white p-3 rounded-xl border border-slate-100">
-                            <div>
-                              <p className="text-[10px] uppercase text-slate-400 font-bold">Total Disbursed Sum</p>
-                              <p className="text-base font-black text-emerald-600 mt-0.5">${totalSent.toLocaleString()}</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-[10px] uppercase text-slate-400 font-bold">Total remits count</p>
-                              <p className="text-base font-black text-slate-800 mt-0.5">{prevList.length} transfers</p>
-                            </div>
-                          </div>
-
-                          <div className="max-h-[180px] overflow-y-auto border border-slate-100 rounded-xl bg-white divide-y divide-slate-50">
-                            {prevList.map(h => (
-                              <div key={h.id} className="p-2 px-3 flex items-center justify-between text-xs hover:bg-slate-50 transition-all">
-                                <div>
-                                  <p className="font-extrabold text-slate-800">{h.transNo}</p>
-                                  <p className="text-[10px] text-blue-600 font-mono mt-0.5">{formatRecordDate(h.date)} <span className="text-slate-400 font-sans text-[9px] font-normal ml-1.5">(Logged: {formatDateTime(h.createdAt)})</span></p>
-                                </div>
-                                <div className="text-right">
-                                  <span className="font-black text-emerald-600">${h.amountSent}</span>
-                                  {h.notes && <p className="text-[9px] text-slate-400 truncate max-w-[150px] font-medium leading-none mt-1">{h.notes}</p>}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsViewModalOpen(false)}
-                    className="py-2.5 px-6 bg-[#020617] text-white font-extrabold text-xs uppercase tracking-wider rounded-xl hover:bg-slate-900 transition-all cursor-pointer"
-                  >
-                    Dismiss Audit Details
-                  </button>
-                </div>
-              </div>
-            </motion.div>
+      {/* VIEW 1: MULTI-COLUMN LEDGER BOARD (PROTOTYPE SKETCH LAYOUT!) */}
+      {viewMode === 'board' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold px-2">
+            <span>Showing <strong className="text-slate-900">{accounts.length}</strong> Accounts in Multi-Column Ledger Grid.</span>
+            <span className="text-slate-400 italic">Scroll horizontally if necessary to see all accounts side-by-side.</span>
           </div>
-        )}
-      </AnimatePresence>
 
-      {/* ==================================== MODAL: GENERATE REPORTS ==================================== */}
-      <AnimatePresence>
-        {showReportModal && (
-          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-3xl w-full max-w-lg overflow-hidden border border-slate-200"
-            >
-              <div className="px-6 py-5 bg-[#020617] text-white flex items-center justify-between">
-                <div>
-                  <h4 className="text-base font-black tracking-tight flex items-center gap-2">
-                    <Notebook className="w-5 h-5 text-[#1e5ee6]" />
-                    <span>Generate Financial Ledger Reports</span>
-                  </h4>
-                  <p className="text-[10px] text-slate-400 font-medium font-sans">Daily or Monthly remittances report export panel</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowReportModal(false)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+          <div className="overflow-x-auto pb-6">
+            <div className="flex items-start gap-5 min-w-max">
+              {accounts.map((acc, index) => {
+                const calc = accountCalculations.perAccount[acc.id] || {
+                  openingBalance: acc.openingBalance,
+                  totalIn: 0,
+                  totalOut: 0,
+                  netChange: 0,
+                  currentBalance: acc.openingBalance,
+                  filteredTxns: []
+                };
 
-              <div className="p-6 space-y-6">
-                
-                {/* Mode Selector */}
-                <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setReportType('daily')}
-                    className={`flex-1 py-2.5 rounded-xl font-bold text-xs uppercase transition-all tracking-wider ${
-                      reportType === 'daily' ? 'bg-white text-[#020617] shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                    }`}
+                return (
+                  <div
+                    key={acc.id}
+                    className="w-80 sm:w-96 bg-white rounded-3xl border border-slate-200/90 shadow-sm flex flex-col shrink-0 overflow-hidden"
                   >
-                    Daily Report
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setReportType('monthly')}
-                    className={`flex-1 py-2.5 rounded-xl font-bold text-xs uppercase transition-all tracking-wider ${
-                      reportType === 'monthly' ? 'bg-white text-[#020617] shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    Monthly Report
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setReportType('range')}
-                    className={`flex-1 py-2.5 rounded-xl font-bold text-xs uppercase transition-all tracking-wider ${
-                      reportType === 'range' ? 'bg-white text-[#020617] shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    Custom Range
-                  </button>
-                </div>
-
-                {/* Parameter Selection Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 border border-slate-100 rounded-2xl">
-                  {reportType === 'daily' ? (
-                    <div className="flex flex-col gap-1.5 md:col-span-2">
-                      <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Select Day Ledger *</label>
-                      <input
-                        type="date"
-                        value={reportDate}
-                        onChange={(e) => setReportDate(e.target.value)}
-                        className="w-full px-4 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white"
-                      />
-                    </div>
-                  ) : reportType === 'monthly' ? (
-                    <>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Select Month *</label>
-                        <select
-                          value={reportMonth}
-                          onChange={(e) => setReportMonth(e.target.value)}
-                          className="w-full px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white cursor-pointer"
-                        >
-                          <option value="01">January</option>
-                          <option value="02">February</option>
-                          <option value="03">March</option>
-                          <option value="04">April</option>
-                          <option value="05">May</option>
-                          <option value="06">June</option>
-                          <option value="07">July</option>
-                          <option value="08">August</option>
-                          <option value="09">September</option>
-                          <option value="10">October</option>
-                          <option value="11">November</option>
-                          <option value="12">December</option>
-                        </select>
-                      </div>
-
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Select Year *</label>
-                        <select
-                          value={reportYear}
-                          onChange={(e) => setReportYear(e.target.value)}
-                          className="w-full px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white cursor-pointer"
-                        >
-                          <option value="2025">2025</option>
-                          <option value="2026">2026</option>
-                          <option value="2027">2027</option>
-                        </select>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Start Date *</label>
-                        <input
-                          type="date"
-                          value={reportStartDate}
-                          onChange={(e) => setReportStartDate(e.target.value)}
-                          className="w-full px-4 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">End Date *</label>
-                        <input
-                          type="date"
-                          value={reportEndDate}
-                          onChange={(e) => setReportEndDate(e.target.value)}
-                          className="w-full px-4 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white"
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {/* Report Live Preview Ledger Summary */}
-                <div className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/20">
-                  <div className="px-5 py-3 bg-slate-100 border-b border-slate-200 flex justify-between items-center">
-                    <span className="text-[10px] uppercase font-bold text-slate-500">Instant Report Profile</span>
-                    <span className="text-[10px] font-mono text-slate-600 bg-white px-2 py-0.5 border border-slate-250 rounded-lg">{reportRecords.length} statements found</span>
-                  </div>
-                  <div className="p-5 space-y-4">
-                    <div className="flex items-center justify-between text-slate-700 text-xs">
-                      <div>
-                        <p className="text-[10px] uppercase font-bold text-slate-400">Total Remitted Funds</p>
-                        <p className="text-xl font-black text-emerald-600 mt-1">${reportTotalAmount.toLocaleString()}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[10px] uppercase font-bold text-slate-400">Ledger Count</p>
-                        <p className="text-base font-bold text-slate-800 mt-1">{reportRecords.length} cashouts</p>
-                      </div>
-                    </div>
-
-                    <div className="max-h-[150px] overflow-y-auto border border-slate-100 rounded-xl bg-white divide-y divide-slate-100">
-                      {reportRecords.map(rec => (
-                        <div key={rec.id} className="p-2.5 px-3.5 flex items-center justify-between text-xs font-medium">
-                          <div>
-                            <span className="font-extrabold text-slate-800">{rec.transNo}</span>
-                            <span className="text-[10px] text-blue-600 bg-blue-50/70 border border-blue-100/40 px-1.5 py-0.5 rounded-md font-mono ml-3">{formatRecordDate(rec.date)}</span>
-                          </div>
-                          <div className="text-right">
-                            <span className="font-semibold text-slate-700">{rec.customerName}</span>
-                            <span className="font-black text-emerald-600 ml-4">${rec.amountSent}</span>
-                          </div>
+                    {/* Account Column Header (Matching "Account 1 (name)" in sketch) */}
+                    <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-4 text-white space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-300">
+                          Account {index + 1}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingAccount(acc);
+                              setAccName(acc.name);
+                              setAccNumber(acc.accountNumber || '');
+                              setAccOpening(acc.openingBalance);
+                              setAccNotes(acc.notes || '');
+                              setAccError('');
+                              setIsAccountModalOpen(true);
+                            }}
+                            className="p-1 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-all cursor-pointer"
+                            title="Edit Account Details"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                          {accounts.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAccount(acc)}
+                              className="p-1 text-slate-400 hover:text-rose-300 hover:bg-rose-500/20 rounded-lg transition-all cursor-pointer"
+                              title="Delete Account"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
-                      ))}
-                      {reportRecords.length === 0 && (
-                        <div className="p-6 text-center text-slate-400 text-xs font-semibold">
-                          No transactions recorded for this select boundary.
-                        </div>
+                      </div>
+
+                      <h3 className="text-base font-black tracking-tight text-white line-clamp-1">
+                        {acc.name}
+                      </h3>
+                      {acc.accountNumber && (
+                        <p className="text-[11px] text-slate-300 font-mono">
+                          Acc No: {acc.accountNumber}
+                        </p>
                       )}
                     </div>
+
+                    {/* Opening Balance Subheader (Matching "opening balance" in sketch) */}
+                    <div className="bg-slate-50 p-3.5 border-b border-slate-200/80 flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-extrabold text-slate-400 uppercase block">Opening Balance</span>
+                        <span className="text-sm font-black text-slate-800 font-mono">${calc.openingBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] font-extrabold text-slate-400 uppercase block">Entries Count</span>
+                        <span className="text-xs font-black text-slate-700">{calc.filteredTxns.length} txns</span>
+                      </div>
+                    </div>
+
+                    {/* Account Quick Add Buttons */}
+                    <div className="p-3 bg-slate-100/60 border-b border-slate-200/80 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openNewTransaction(acc.id, 'in')}
+                        className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 shadow-xs"
+                      >
+                        <ArrowDownLeft className="w-3.5 h-3.5" />
+                        + Money In
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => openNewTransaction(acc.id, 'out')}
+                        className="py-1.5 px-3 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 shadow-xs"
+                      >
+                        <ArrowUpRight className="w-3.5 h-3.5" />
+                        - Money Out
+                      </button>
+                    </div>
+
+                    {/* Column Transactions Journal Stream */}
+                    <div className="p-3 space-y-2.5 max-h-[420px] overflow-y-auto min-h-[220px] bg-slate-50/50">
+                      {calc.filteredTxns.length === 0 ? (
+                        <div className="py-12 text-center text-slate-400 space-y-2">
+                          <Notebook className="w-8 h-8 mx-auto opacity-30 text-slate-400" />
+                          <p className="text-xs font-semibold">Ma jiraan lacago lagu diiwaangeliyay akawnkan muddadani.</p>
+                        </div>
+                      ) : (
+                        calc.filteredTxns.map((tx) => (
+                          <div
+                            key={tx.id}
+                            className={`p-3 rounded-2xl border transition-all hover:shadow-md ${
+                              tx.type === 'in'
+                                ? 'bg-emerald-50/60 border-emerald-200/80'
+                                : 'bg-rose-50/60 border-rose-200/80'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <span className="text-[10px] font-bold text-slate-400 block font-mono">
+                                  {tx.date} {tx.time ? `• ${tx.time}` : ''}
+                                </span>
+                                {tx.clientName && (
+                                  <h4 className="text-xs font-black text-slate-900 mt-0.5">
+                                    {tx.clientName}
+                                  </h4>
+                                )}
+                                {tx.clientPhone && (
+                                  <span className="text-[10px] text-slate-500 font-semibold block">
+                                    📞 {tx.clientPhone}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="text-right shrink-0">
+                                <span
+                                  className={`text-sm font-black font-mono block ${
+                                    tx.type === 'in' ? 'text-emerald-700' : 'text-rose-700'
+                                  }`}
+                                >
+                                  {tx.type === 'in' ? '+' : '-'}${tx.amount.toFixed(2)}
+                                </span>
+                                {tx.referenceNo && (
+                                  <span className="text-[9px] font-mono text-slate-400 block mt-0.5">
+                                    {tx.referenceNo}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <p className="text-[11px] text-slate-600 mt-1.5 font-medium leading-relaxed italic border-t border-slate-200/60 pt-1.5">
+                              {tx.description}
+                            </p>
+
+                            <div className="flex items-center justify-end gap-1.5 mt-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => openEditTransaction(tx)}
+                                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                              >
+                                Edit
+                              </button>
+                              <span className="text-slate-300">•</span>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteTransaction(tx)}
+                                className="text-[10px] font-bold text-rose-500 hover:text-rose-700 cursor-pointer"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Column Footer: Total = (Matching "Total =" in sketch bottom) */}
+                    <div className="bg-slate-900 p-4 text-white border-t border-slate-800 space-y-2 mt-auto">
+                      <div className="flex items-center justify-between text-xs text-slate-400">
+                        <span>Total Money In (+):</span>
+                        <span className="font-mono font-bold text-emerald-400">+${calc.totalIn.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-slate-400">
+                        <span>Total Money Out (-):</span>
+                        <span className="font-mono font-bold text-rose-400">-${calc.totalOut.toFixed(2)}</span>
+                      </div>
+                      <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                        <span className="text-xs font-black uppercase text-amber-300">Total Balance =</span>
+                        <span className="text-base font-black font-mono text-white">${calc.currentBalance.toFixed(2)}</span>
+                      </div>
+                    </div>
                   </div>
+                );
+              })}
+
+              {/* Add Account Card Button in Grid */}
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingAccount(null);
+                  setAccName('');
+                  setAccNumber('');
+                  setAccOpening('');
+                  setAccNotes('');
+                  setAccError('');
+                  setIsAccountModalOpen(true);
+                }}
+                className="w-80 sm:w-96 rounded-3xl border-2 border-dashed border-slate-300 hover:border-indigo-500 p-8 flex flex-col items-center justify-center text-center space-y-3 transition-all hover:bg-indigo-50/50 cursor-pointer group shrink-0 min-h-[450px]"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center group-hover:scale-110 transition-all">
+                  <PlusCircle className="w-6 h-6" />
                 </div>
-
-                {/* Actions Row */}
-                <div className="pt-4 border-t border-slate-150 flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <span className="text-[10px] text-slate-400 font-semibold font-mono">AUTHORIZED ACCESS LEVEL 4 — REPORT CONTROLLER</span>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={reportRecords.length === 0}
-                      onClick={handlePrintReport}
-                      className="py-2.5 px-3 text-xs bg-slate-150 hover:bg-slate-205 text-slate-700 font-bold uppercase rounded-xl flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <Printer className="w-4 h-4 text-blue-600" />
-                      <span>Print Page</span>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={reportRecords.length === 0}
-                      onClick={handleExportExcel}
-                      className="py-2.5 px-3 text-xs bg-slate-150 hover:bg-slate-205 text-slate-700 font-bold uppercase rounded-xl flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                      <span>Excel (CSV)</span>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={reportRecords.length === 0}
-                      onClick={handleExportPDF}
-                      className="py-2.5 px-4 text-xs bg-[#1e5ee6] hover:bg-blue-700 text-white font-extrabold uppercase rounded-xl flex items-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-40 disabled:disabled:cursor-not-allowed"
-                    >
-                      <FileText className="w-4 h-4" />
-                      <span>Export PDF</span>
-                    </button>
-                  </div>
-                </div>
-
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Reusable Custom Confirmation Modal to bypass iframe window.confirm block */}
-      {confirmModal && confirmModal.isOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in" id="transfers-custom-confirm-modal">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 15 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 15 }}
-            className="w-full max-w-sm bg-white rounded-3xl border border-slate-150 shadow-2xl overflow-hidden text-slate-800"
-          >
-            {/* Modal colored header bar */}
-            <div className={`h-1.5 w-full ${
-              confirmModal.accentColor === 'rose' ? 'bg-rose-500' :
-              confirmModal.accentColor === 'amber' ? 'bg-amber-500' :
-              confirmModal.accentColor === 'teal' ? 'bg-teal-500' :
-              'bg-indigo-600'
-            }`} />
-
-            <div className="p-5">
-              <div className="flex items-start gap-4">
-                <div className={`p-2.5 rounded-xl shrink-0 ${
-                  confirmModal.accentColor === 'rose' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
-                  confirmModal.accentColor === 'amber' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                  confirmModal.accentColor === 'teal' ? 'bg-teal-50 text-teal-600 border border-teal-100' :
-                  'bg-indigo-50 text-indigo-600 border border-indigo-100'
-                }`}>
-                  <span className="text-sm font-black leading-none flex items-center justify-center w-5 h-5">
-                    {confirmModal.accentColor === 'rose' ? '🗑️' : confirmModal.accentColor === 'amber' ? '⚠️' : '❓'}
-                  </span>
-                </div>
-                
-                <div className="space-y-1 flex-1">
-                  <h4 className="text-slate-900 font-extrabold text-xs sm:text-sm leading-snug">
-                    {confirmModal.title}
+                <div>
+                  <h4 className="text-sm font-black text-slate-900 group-hover:text-indigo-600">
+                    + Ku dar Akawn Cusub
                   </h4>
-                  <p className="text-slate-500 text-[11px] leading-relaxed font-semibold">
-                    {confirmModal.message}
+                  <p className="text-xs text-slate-500 mt-1 max-w-xs">
+                    Add another bank, mobile wallet, or cash box account with its custom opening balance.
                   </p>
                 </div>
-              </div>
-
-              {/* Actions Area */}
-              <div className="flex items-center justify-end gap-2 mt-5 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setConfirmModal(null)}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-150 text-slate-700 font-bold text-[10px] tracking-wider uppercase rounded-xl cursor-pointer transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={confirmModal.onConfirm}
-                  className={`px-3.5 py-1.5 text-white font-extrabold text-[10px] tracking-wider uppercase rounded-xl cursor-pointer transition-all shadow-md ${
-                    confirmModal.accentColor === 'rose' ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/10' :
-                    confirmModal.accentColor === 'amber' ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/10' :
-                    confirmModal.accentColor === 'teal' ? 'bg-teal-600 hover:bg-teal-700 shadow-teal-600/10' :
-                    'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/15'
-                  }`}
-                >
-                  Verify & Action
-                </button>
-              </div>
+              </button>
             </div>
-          </motion.div>
+          </div>
         </div>
       )}
 
+      {/* VIEW 2: FLAT TRANSACTIONS TABLE LIST */}
+      {viewMode === 'list' && (
+        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-slate-200 flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-black text-slate-900">Dhamaan Diiwaanka Xawaallada (All Transactions Stream)</h3>
+              <p className="text-xs text-slate-500">Filtered total count: <strong className="text-slate-900">{filteredTransactions.length}</strong> items.</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => openNewTransaction()}
+              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              + Add Transaction
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-black uppercase text-slate-400 tracking-wider">
+                  <th className="p-3.5 pl-5">Date & Time</th>
+                  <th className="p-3.5">Account Name</th>
+                  <th className="p-3.5">Type</th>
+                  <th className="p-3.5">Client / Phone</th>
+                  <th className="p-3.5">Ref No</th>
+                  <th className="p-3.5">Description</th>
+                  <th className="p-3.5 text-right">Amount ($)</th>
+                  <th className="p-3.5 text-right pr-5">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs">
+                {filteredTransactions.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-12 text-center text-slate-400 font-semibold">
+                      Ma jiraan xawilaado la helay oo u dhigma raadintaada.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredTransactions.map(tx => {
+                    const acc = accounts.find(a => a.id === tx.accountId);
+                    return (
+                      <tr key={tx.id} className="hover:bg-slate-50/80 transition-colors font-medium text-slate-800">
+                        <td className="p-3.5 pl-5 font-mono text-slate-500">
+                          {tx.date} <span className="text-[10px] text-slate-400">{tx.time}</span>
+                        </td>
+                        <td className="p-3.5 font-bold text-slate-900">
+                          {acc?.name || 'Unknown Account'}
+                        </td>
+                        <td className="p-3.5">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide inline-flex items-center gap-1 ${
+                              tx.type === 'in'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-rose-100 text-rose-800'
+                            }`}
+                          >
+                            {tx.type === 'in' ? <ArrowDownLeft className="w-3 h-3" /> : <ArrowUpRight className="w-3 h-3" />}
+                            {tx.type === 'in' ? 'Money In' : 'Money Out'}
+                          </span>
+                        </td>
+                        <td className="p-3.5">
+                          <span className="font-bold block text-slate-900">{tx.clientName || 'N/A'}</span>
+                          {tx.clientPhone && <span className="text-[10px] font-mono text-slate-400 block">{tx.clientPhone}</span>}
+                        </td>
+                        <td className="p-3.5 font-mono text-slate-500">
+                          {tx.referenceNo || '-'}
+                        </td>
+                        <td className="p-3.5 text-slate-600 max-w-xs truncate">
+                          {tx.description}
+                        </td>
+                        <td className={`p-3.5 text-right font-mono font-black text-sm ${
+                          tx.type === 'in' ? 'text-emerald-600' : 'text-rose-600'
+                        }`}>
+                          {tx.type === 'in' ? '+' : '-'}${tx.amount.toFixed(2)}
+                        </td>
+                        <td className="p-3.5 text-right pr-5">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openEditTransaction(tx)}
+                              className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer"
+                              title="Edit"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTransaction(tx)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 1: ADD / EDIT ACCOUNT */}
+      {isAccountModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-5 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Wallet className="w-5 h-5 text-indigo-400" />
+                <h3 className="font-extrabold text-base">
+                  {editingAccount ? 'Wax ka bixi Akawnka' : 'Ku dar Akawn Cusub'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAccountModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAccountSubmit} className="p-6 space-y-4">
+              {accError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{accError}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-black uppercase text-slate-500 mb-1">
+                  Magaca Akawnka (Account Name) *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Account 1 (Zaad Service), Dahabshiil, Premier Bank"
+                  value={accName}
+                  onChange={(e) => setAccName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase text-slate-500 mb-1">
+                  Nambarka Akawnka / ID (Account Number/ID)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 0615551234, DAHAB-1002"
+                  value={accNumber}
+                  onChange={(e) => setAccNumber(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:border-indigo-500 focus:bg-white transition-all font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase text-slate-500 mb-1">
+                  Lacagta Bilowga ah (Starting Opening Balance $) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g. 5000.00"
+                  value={accOpening}
+                  onChange={(e) => setAccOpening(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black font-mono text-slate-900 outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                  required
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Kani waa hantida bilowga ah ee lagu furayo akawnkan.
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase text-slate-500 mb-1">
+                  Faahfaahin Qoraal ah (Notes)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Ku dar faahfaahin dheeraad ah oo ku saabsan akawnkan..."
+                  value={accNotes}
+                  onChange={(e) => setAccNotes(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAccountModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl"
+                >
+                  Kansal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+                >
+                  {editingAccount ? 'Cusbooneysii Akawnka' : 'Kaydi Akawnka'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: ADD / EDIT TRANSACTION (MONEY IN / MONEY OUT) */}
+      {isTransactionModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden my-8">
+            <div
+              className={`p-5 text-white flex items-center justify-between ${
+                txType === 'in' ? 'bg-gradient-to-r from-emerald-900 to-teal-950' : 'bg-gradient-to-r from-rose-900 to-amber-950'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {txType === 'in' ? <ArrowDownLeft className="w-5 h-5 text-emerald-400" /> : <ArrowUpRight className="w-5 h-5 text-rose-400" />}
+                <h3 className="font-extrabold text-base">
+                  {editingTransaction ? 'Wax ka bixi Diiwaanka Lacagta' : txType === 'in' ? 'Geli Lacag Cusub (+ Money In)' : 'Bixi Lacag (- Money Out)'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsTransactionModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleTransactionSubmit} className="p-6 space-y-4">
+              {txError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{txError}</span>
+                </div>
+              )}
+
+              {/* Transaction Type Radio Selector */}
+              <div>
+                <label className="block text-xs font-black uppercase text-slate-500 mb-1">
+                  Nooca Diiwaanka (Transaction Type)
+                </label>
+                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-2xl">
+                  <button
+                    type="button"
+                    onClick={() => setTxType('in')}
+                    className={`py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      txType === 'in' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <ArrowDownLeft className="w-4 h-4" />
+                    + Money In (Lacag Soo Gashay)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTxType('out')}
+                    className={`py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      txType === 'out' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <ArrowUpRight className="w-4 h-4" />
+                    - Money Out (Lacag Baxday)
+                  </button>
+                </div>
+              </div>
+
+              {/* Target Account */}
+              <div>
+                <label className="block text-xs font-black uppercase text-slate-500 mb-1">
+                  Dooro Akawnka (Select Account) *
+                </label>
+                <select
+                  value={txAccountId}
+                  onChange={(e) => setTxAccountId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 focus:bg-white transition-all cursor-pointer"
+                  required
+                >
+                  {accounts.map(acc => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.name} (Opening: ${acc.openingBalance})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Amount */}
+              <div>
+                <label className="block text-xs font-black uppercase text-slate-500 mb-1">
+                  Lacagta ($ Amount) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g. 250.00"
+                  value={txAmount}
+                  onChange={(e) => setTxAmount(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black font-mono text-slate-900 outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                  required
+                />
+              </div>
+
+              {/* Client Name with Autocomplete */}
+              <div className="relative">
+                <label className="block text-xs font-black uppercase text-slate-500 mb-1">
+                  Magaca Macmiilka / Qofka (Client Name)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Cabdi Xasan Maxamed"
+                  value={txClientName}
+                  onChange={(e) => {
+                    setTxClientName(e.target.value);
+                    setShowNameSuggestions(true);
+                  }}
+                  onFocus={() => setShowNameSuggestions(true)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                />
+
+                {/* Autocomplete dropdown */}
+                {showNameSuggestions && filteredClients.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden divide-y divide-slate-100">
+                    {filteredClients.map((c, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => {
+                          setTxClientName(c.name);
+                          setTxClientPhone(c.phone);
+                          setShowNameSuggestions(false);
+                        }}
+                        className="w-full px-3.5 py-2 text-left hover:bg-indigo-50 text-xs font-medium text-slate-800 flex items-center justify-between"
+                      >
+                        <span>{c.name}</span>
+                        <span className="text-[10px] font-mono text-slate-400">{c.phone}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Client Phone & Reference No */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-black uppercase text-slate-500 mb-1">
+                    Telefoonka (Phone)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 0615112233"
+                    value={txClientPhone}
+                    onChange={(e) => setTxClientPhone(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-semibold outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black uppercase text-slate-500 mb-1">
+                    Nambarka Tixraaca (Ref No)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. REF-101"
+                    value={txRefNo}
+                    onChange={(e) => setTxRefNo(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Date & Time */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-black uppercase text-slate-500 mb-1">
+                    Taariikhda (Date)
+                  </label>
+                  <input
+                    type="date"
+                    value={txDate}
+                    onChange={(e) => setTxDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 focus:bg-white cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black uppercase text-slate-500 mb-1">
+                    Waqtiga (Time)
+                  </label>
+                  <input
+                    type="time"
+                    value={txTime}
+                    onChange={(e) => setTxTime(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 focus:bg-white cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {/* Description / Notes */}
+              <div>
+                <label className="block text-xs font-black uppercase text-slate-500 mb-1">
+                  Faahfaahinta Diiwaanka (Description / Reason)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Geli faahfaahinta lacagtan (t.g. Bixinta khidmadda, lacag loo soo diray macmiil, shidaal, iwm)..."
+                  value={txDescription}
+                  onChange={(e) => setTxDescription(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:border-indigo-500 focus:bg-white transition-all"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsTransactionModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl"
+                >
+                  Kansal
+                </button>
+                <button
+                  type="submit"
+                  className={`px-5 py-2.5 text-white font-extrabold text-xs rounded-xl shadow-md transition-all cursor-pointer ${
+                    txType === 'in' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'
+                  }`}
+                >
+                  {editingTransaction ? 'Cusbooneysii Diiwaanka' : 'Kaydi Diiwaanka Lacagta'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: END-OF-MONTH REPORT DOWNLOAD OPTIONS */}
+      {isReportModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-5 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="w-5 h-5 text-amber-400" />
+                <h3 className="font-extrabold text-base">Warbixinnada Billeedka ah ee Xawaallada</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsReportModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <div>
+                <label className="block text-xs font-black uppercase text-slate-500 mb-1">
+                  Dooro Bisha Warbixinta (Select Month)
+                </label>
+                <input
+                  type="month"
+                  value={reportMonth}
+                  onChange={(e) => setReportMonth(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 cursor-pointer"
+                />
+              </div>
+
+              {/* Status summary preview */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2 text-xs">
+                <span className="text-[10px] font-black uppercase text-slate-400 block">Warbixinta Bisha: {reportMonth}</span>
+                <div className="grid grid-cols-2 gap-2 text-slate-700 font-bold">
+                  <div>Akawnnado Guud: <span className="font-mono text-indigo-700">{accounts.length}</span></div>
+                  <div>Status Check: <span className="text-emerald-700 font-mono font-black">Reconciled</span></div>
+                  <div>Grand In (+): <span className="text-emerald-600 font-mono">+${accountCalculations.grandIn.toFixed(2)}</span></div>
+                  <div>Grand Out (-): <span className="text-rose-600 font-mono">-${accountCalculations.grandOut.toFixed(2)}</span></div>
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadPdfReport();
+                    setIsReportModalOpen(false);
+                  }}
+                  className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-between shadow-md"
+                >
+                  <span className="flex items-center gap-2">
+                    <Download className="w-4 h-4 text-indigo-200" />
+                    Soo deji Warbixinta PDF (.PDF Document)
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-indigo-200" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadTxtReport();
+                    setIsReportModalOpen(false);
+                  }}
+                  className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-amber-400" />
+                    Soo deji Warbixinta TXT (.TXT Text Report)
+                  </span>
+                  <Download className="w-4 h-4 text-slate-400" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadCsvReport();
+                    setIsReportModalOpen(false);
+                  }}
+                  className="w-full py-3 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-300" />
+                    Soo deji xaashida Excel (.CSV Spreadsheet)
+                  </span>
+                  <Download className="w-4 h-4 text-emerald-200" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsReportModalOpen(false);
+                    setIsPrintModalOpen(true);
+                  }}
+                  className="w-full py-3 px-4 bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-2">
+                    <Printer className="w-4 h-4 text-indigo-300" />
+                    Baraarug / Daabac Warbixinta Formatted (.PDF Print)
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-indigo-200" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: PRINTABLE MONTHLY STATEMENT AUDIT MODAL */}
+      {isPrintModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-slate-200 overflow-hidden my-8">
+            <div className="bg-slate-900 p-4 text-white flex items-center justify-between no-print">
+              <span className="text-xs font-black uppercase text-indigo-300 tracking-wider">
+                Monthly Xawaallada Audit Ledger Statement
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => downloadPdfReport()}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Soo deji PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePrintStatement()}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  Daabac (Print)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPrintModalOpen(false)}
+                  className="text-slate-400 hover:text-white p-1"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-8 space-y-6 text-slate-900 bg-white" id="print-area">
+              {/* Header Citation */}
+              <div className="border-b border-slate-200 pb-5 flex items-center justify-between">
+                <div>
+                  <h1 className="text-xl font-black text-slate-950 uppercase">DUGSIGA SUBUC & XAWAALLADA</h1>
+                  <p className="text-xs text-slate-500 font-semibold">Monthly Account Balancing & Reconciliation Report</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 font-black uppercase block">Bisha:</span>
+                  <span className="text-sm font-black font-mono text-indigo-900">{reportMonth}</span>
+                </div>
+              </div>
+
+              {/* Status Banner */}
+              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-bold">
+                <span className="text-slate-600">Reconciliation Status:</span>
+                <span className="text-emerald-700 font-black flex items-center gap-1">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  🟢 SYSTEM BALANCED & RECONCILED
+                </span>
+              </div>
+
+              {/* Accounts Summary Grid */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-black uppercase text-slate-500 tracking-wider">1. Summary of Accounts & Balancing Calculations</h4>
+                <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-slate-100 font-black text-slate-700 border-b border-slate-200">
+                        <th className="p-2.5">Account Name</th>
+                        <th className="p-2.5">Acc Number</th>
+                        <th className="p-2.5 text-right">Opening Bal ($)</th>
+                        <th className="p-2.5 text-right">Total In (+)</th>
+                        <th className="p-2.5 text-right">Total Out (-)</th>
+                        <th className="p-2.5 text-right">Closing Balance ($)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {accounts.map(acc => {
+                        const calc = accountCalculations.perAccount[acc.id];
+                        return (
+                          <tr key={acc.id}>
+                            <td className="p-2.5 font-bold text-slate-900">{acc.name}</td>
+                            <td className="p-2.5 font-mono text-slate-500">{acc.accountNumber || '-'}</td>
+                            <td className="p-2.5 text-right font-mono">${calc.openingBalance.toFixed(2)}</td>
+                            <td className="p-2.5 text-right font-mono text-emerald-700">+${calc.totalIn.toFixed(2)}</td>
+                            <td className="p-2.5 text-right font-mono text-rose-700">-${calc.totalOut.toFixed(2)}</td>
+                            <td className="p-2.5 text-right font-mono font-black">${calc.currentBalance.toFixed(2)}</td>
+                          </tr>
+                        );
+                      })}
+                      <tr className="bg-slate-900 text-white font-black">
+                        <td className="p-2.5">GRAND TOTALS</td>
+                        <td className="p-2.5 font-mono">--</td>
+                        <td className="p-2.5 text-right font-mono">${accountCalculations.grandOpening.toFixed(2)}</td>
+                        <td className="p-2.5 text-right font-mono text-emerald-400">+${accountCalculations.grandIn.toFixed(2)}</td>
+                        <td className="p-2.5 text-right font-mono text-rose-400">-${accountCalculations.grandOut.toFixed(2)}</td>
+                        <td className="p-2.5 text-right font-mono text-amber-300">${accountCalculations.grandCurrent.toFixed(2)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Detailed Transactions Stream */}
+              <div className="space-y-4 pt-4 border-t border-slate-200">
+                <h4 className="text-xs font-black uppercase text-slate-500 tracking-wider">2. Detailed Transaction Journal Stream</h4>
+                {accounts.map(acc => {
+                  const calc = accountCalculations.perAccount[acc.id];
+                  if (calc.filteredTxns.length === 0) return null;
+                  return (
+                    <div key={acc.id} className="space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold bg-slate-100 p-2 rounded-xl text-slate-800">
+                        <span>Akawnka: {acc.name} ({acc.accountNumber || 'N/A'})</span>
+                        <span className="font-mono text-slate-600">Closing: ${calc.currentBalance.toFixed(2)}</span>
+                      </div>
+                      <table className="w-full text-left text-[11px] border border-slate-200 rounded-xl overflow-hidden">
+                        <thead>
+                          <tr className="bg-slate-50 font-bold text-slate-600 border-b border-slate-200">
+                            <th className="p-2">Date & Time</th>
+                            <th className="p-2">Type</th>
+                            <th className="p-2">Client / Phone</th>
+                            <th className="p-2">Ref No / Note</th>
+                            <th className="p-2 text-right">Amount ($)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {calc.filteredTxns.map(tx => (
+                            <tr key={tx.id}>
+                              <td className="p-2 text-slate-500">{tx.date} {tx.time || ''}</td>
+                              <td className="p-2 font-bold">
+                                {tx.type === 'in' ? (
+                                  <span className="text-emerald-700">Money In (+)</span>
+                                ) : (
+                                  <span className="text-rose-700">Money Out (-)</span>
+                                )}
+                              </td>
+                              <td className="p-2 font-semibold text-slate-800">{tx.clientName || 'N/A'} {tx.clientPhone ? `(${tx.clientPhone})` : ''}</td>
+                              <td className="p-2 text-slate-600">{tx.referenceNo ? `[${tx.referenceNo}] ` : ''}{tx.description}</td>
+                              <td className="p-2 text-right font-mono font-bold">
+                                {tx.type === 'in' ? (
+                                  <span className="text-emerald-700">+${tx.amount.toFixed(2)}</span>
+                                ) : (
+                                  <span className="text-rose-700">-${tx.amount.toFixed(2)}</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Signatures & Approval block */}
+              <div className="pt-8 grid grid-cols-2 gap-8 text-xs font-semibold border-t border-dashed border-slate-300">
+                <div className="space-y-8">
+                  <p>Insaabka & Xisaabiyaha (Prepared By Accountant):</p>
+                  <div className="border-b border-slate-400 w-48" />
+                  <p className="text-[10px] text-slate-400">Sainka & Taariikhda</p>
+                </div>
+
+                <div className="space-y-8 text-right">
+                  <p>Oggolaanshaha Maamulka (Approved By Director):</p>
+                  <div className="border-b border-slate-400 w-48 ml-auto" />
+                  <p className="text-[10px] text-slate-400">Sainka & Shaambada</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRMATION DIALOG MODAL */}
+      {confirmModal && confirmModal.isOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl border border-slate-200">
+            <h3 className="text-base font-black text-slate-900">{confirmModal.title}</h3>
+            <p className="text-xs text-slate-600 leading-relaxed">{confirmModal.message}</p>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl"
+              >
+                Kansal
+              </button>
+              <button
+                type="button"
+                onClick={confirmModal.onConfirm}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer"
+              >
+                Haa, Tirtir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
