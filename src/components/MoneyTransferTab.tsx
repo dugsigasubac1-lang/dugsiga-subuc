@@ -404,9 +404,22 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
       triggerFeedback(`Lacagta $${txAmount} (${txType === 'in' ? 'Money In' : 'Money Out'}) waa la diiwaangeliyay!`);
     }
 
+    const updatedMoneyTransfers = updatedTxns.map(tx => ({
+      id: tx.id,
+      transNo: tx.referenceNo || tx.id,
+      customerName: tx.clientName || 'N/A',
+      customerPhone: tx.clientPhone || 'N/A',
+      amountSent: tx.amount,
+      date: tx.date,
+      notes: tx.description || '',
+      createdBy: tx.createdBy || 'yaxyecabdisalanmohamed1234@gmail.com',
+      createdAt: tx.createdAt || new Date().toISOString()
+    }));
+
     onSaveDatabase({
       ...database,
-      xawaaladaTransactions: updatedTxns
+      xawaaladaTransactions: updatedTxns,
+      moneyTransfers: updatedMoneyTransfers
     });
 
     setIsTransactionModalOpen(false);
@@ -421,9 +434,21 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
       accentColor: 'rose',
       onConfirm: () => {
         const updatedTxns = transactions.filter(t => t.id !== tx.id);
+        const updatedMoneyTransfers = updatedTxns.map(t => ({
+          id: t.id,
+          transNo: t.referenceNo || t.id,
+          customerName: t.clientName || 'N/A',
+          customerPhone: t.clientPhone || 'N/A',
+          amountSent: t.amount,
+          date: t.date,
+          notes: t.description || '',
+          createdBy: t.createdBy || 'yaxyecabdisalanmohamed1234@gmail.com',
+          createdAt: t.createdAt || new Date().toISOString()
+        }));
         onSaveDatabase({
           ...database,
-          xawaaladaTransactions: updatedTxns
+          xawaaladaTransactions: updatedTxns,
+          moneyTransfers: updatedMoneyTransfers
         });
         triggerFeedback(`Diiwaanka lacagta waa la tirtiray.`);
         setConfirmModal(null);

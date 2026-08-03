@@ -5312,6 +5312,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
               submissions: parsed.submissions || database.submissions || [],
               invoices: parsed.invoices || database.invoices || [],
               moneyTransfers: parsed.moneyTransfers || database.moneyTransfers || [],
+              xawaaladaAccounts: parsed.xawaaladaAccounts || database.xawaaladaAccounts || [],
+              xawaaladaTransactions: parsed.xawaaladaTransactions || database.xawaaladaTransactions || [],
               billing: parsed.billing || database.billing || [],
               exams: parsed.exams || database.exams || [],
               teachers: parsed.teachers || database.teachers || [],

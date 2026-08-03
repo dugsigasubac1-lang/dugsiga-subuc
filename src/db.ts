@@ -28,26 +28,26 @@ const DEFAULT_MONEY_TRANSFERS: MoneyTransferRecord[] = [];
 export const DEFAULT_XAWAALADA_ACCOUNTS: XawaaladaAccount[] = [
   {
     id: "acc-1",
-    name: "Account 1 (Zaad Service)",
-    accountNumber: "0615551234",
-    openingBalance: 5000,
-    notes: "EVC / Zaad Service main mobile wallet account",
+    name: "Higgaadda",
+    accountNumber: "516963",
+    openingBalance: 39.4,
+    notes: "akoonka higgaadda",
     createdAt: new Date().toISOString()
   },
   {
     id: "acc-2",
-    name: "Account 2 (Dahabshiil)",
-    accountNumber: "Dahab-1002",
-    openingBalance: 10000,
-    notes: "Main Dahabshiil remittance account",
+    name: "Qur,aan",
+    accountNumber: "516962",
+    openingBalance: 27.4,
+    notes: "akoonka qur'aanka",
     createdAt: new Date().toISOString()
   },
   {
     id: "acc-3",
-    name: "Account 3 (Premier Bank)",
-    accountNumber: "PB-8821",
-    openingBalance: 3500,
-    notes: "Premier Bank corporate account",
+    name: "Merchant",
+    accountNumber: "328958",
+    openingBalance: 244.34,
+    notes: "akoonka wayn ee merchantga",
     createdAt: new Date().toISOString()
   },
   {
@@ -608,6 +608,36 @@ export function mergeSeedRemittances(parsed: DatabaseState): { updated: Database
     parsed.moneyTransfers = [...DEFAULT_MONEY_TRANSFERS];
     changed = true;
   }
+  if (!parsed.xawaaladaAccounts || parsed.xawaaladaAccounts.length === 0) {
+    parsed.xawaaladaAccounts = [...DEFAULT_XAWAALADA_ACCOUNTS];
+    changed = true;
+  }
+  if (!parsed.xawaaladaTransactions) {
+    parsed.xawaaladaTransactions = [...DEFAULT_XAWAALADA_TRANSACTIONS];
+    changed = true;
+  }
+
+  // Bidirectional sync: ensure all xawaaladaTransactions are mirrored in moneyTransfers for legacy/system consistency
+  const existingTransNos = new Set((parsed.moneyTransfers || []).map(m => m.transNo || m.id));
+  (parsed.xawaaladaTransactions || []).forEach(tx => {
+    const key = tx.referenceNo || tx.id;
+    if (!existingTransNos.has(key)) {
+      parsed.moneyTransfers.push({
+        id: tx.id,
+        transNo: tx.referenceNo || tx.id,
+        customerName: tx.clientName || 'N/A',
+        customerPhone: tx.clientPhone || 'N/A',
+        amountSent: tx.amount,
+        date: tx.date,
+        notes: tx.description || '',
+        createdBy: tx.createdBy || 'yaxyecabdisalanmohamed1234@gmail.com',
+        createdAt: tx.createdAt || new Date().toISOString()
+      });
+      existingTransNos.add(key);
+      changed = true;
+    }
+  });
+
   return { updated: sanitizeLocalDatabase(parsed), changed };
 }
 

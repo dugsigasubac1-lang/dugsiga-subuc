@@ -279,6 +279,18 @@ function sanitizeDatabaseState(state: any): any {
     }
   }
 
+  if (state && typeof state === 'object') {
+    if (!Array.isArray(state.xawaaladaAccounts)) {
+      state.xawaaladaAccounts = [];
+    }
+    if (!Array.isArray(state.xawaaladaTransactions)) {
+      state.xawaaladaTransactions = [];
+    }
+    if (!Array.isArray(state.moneyTransfers)) {
+      state.moneyTransfers = [];
+    }
+  }
+
   return state;
 }
 
