@@ -57,7 +57,9 @@ import {
   Plus,
   Edit2,
   Building2,
-  Bus
+  Bus,
+  Eye,
+  Info
 } from 'lucide-react';
 import { 
   DatabaseState, 
@@ -742,6 +744,32 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [categoryModalSearch, setCategoryModalSearch] = useState<string>('');
   const [categoryModalFilter, setCategoryModalFilter] = useState<'all' | 'collected' | 'outstanding'>('all');
   const [showCollectedFeesBreakdownMonth, setShowCollectedFeesBreakdownMonth] = useState<string | null>(null);
+  const [selectedInvoiceFeeDetail, setSelectedInvoiceFeeDetail] = useState<{
+    invoiceId?: string;
+    invoiceNo: string;
+    recipientName: string;
+    recipientPhone?: string;
+    recipientType?: 'parent' | 'business';
+    recipientEmail?: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+    paidAmount: number;
+    date: string;
+    dueDate?: string;
+    status?: 'Paid' | 'Unpaid' | 'Partial';
+    studentId?: string;
+    studentName?: string;
+    className?: string;
+    teacherName?: string;
+    notes?: string;
+    invoiceTotalAmount?: number;
+    invoiceAmountPaid?: number;
+    createdBy?: string;
+    rawInvoice?: Invoice;
+    rawItem?: InvoiceItem;
+  } | null>(null);
   const [showBusCollectedBreakdownMonth, setShowBusCollectedBreakdownMonth] = useState<string | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState<BillingRecord | null>(null);
   const [selectedReceiptsMonth, setSelectedReceiptsMonth] = useState<string>('2026-06');
@@ -14202,15 +14230,30 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         });
         
         const invoicePayments: Array<{
+          invoiceId?: string;
           invoiceNo: string;
           recipientName: string;
+          recipientPhone?: string;
+          recipientType?: 'parent' | 'business';
+          recipientEmail?: string;
           description: string;
           quantity: number;
           unitPrice: number;
           total: number;
           paidAmount: number;
           date: string;
+          dueDate?: string;
+          status?: 'Paid' | 'Unpaid' | 'Partial';
           studentId?: string;
+          studentName?: string;
+          className?: string;
+          teacherName?: string;
+          notes?: string;
+          invoiceTotalAmount?: number;
+          invoiceAmountPaid?: number;
+          createdBy?: string;
+          rawInvoice?: Invoice;
+          rawItem?: InvoiceItem;
         }> = [];
         
         for (const inv of monthInvoices) {
@@ -14226,37 +14269,42 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
               continue;
             }
             
-            const isReg = desc.includes('diiwan') || desc.includes('diwan') || desc.includes('regis');
-            const isFile = desc.includes('fayl') || desc.includes('file');
-            
             const itemTotal = item.quantity * item.unitPrice;
             const itemPaid = itemTotal * paidFraction;
+
+            const matchingStudent = inv.studentId 
+              ? database.students.find(s => s.id === inv.studentId || (inv.studentId && inv.studentId.includes(s.id))) 
+              : (inv.studentName ? database.students.find(s => s.name.toLowerCase() === inv.studentName?.toLowerCase()) : null);
+            const matchingTeacher = matchingStudent?.teacherId 
+              ? database.teachers.find(t => t.id === matchingStudent.teacherId) 
+              : null;
             
-            if (isReg || isFile) {
-              invoicePayments.push({
-                invoiceNo: inv.invoiceNo,
-                recipientName: inv.recipientName || inv.studentName || 'N/A',
-                description: item.description,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-                total: itemTotal,
-                paidAmount: Number(itemPaid.toFixed(2)),
-                date: inv.date,
-                studentId: inv.studentId
-              });
-            } else {
-              invoicePayments.push({
-                invoiceNo: inv.invoiceNo,
-                recipientName: inv.recipientName || inv.studentName || 'N/A',
-                description: item.description,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-                total: itemTotal,
-                paidAmount: Number(itemPaid.toFixed(2)),
-                date: inv.date,
-                studentId: inv.studentId
-              });
-            }
+            invoicePayments.push({
+              invoiceId: inv.id,
+              invoiceNo: inv.invoiceNo,
+              recipientName: inv.recipientName || inv.studentName || 'N/A',
+              recipientPhone: inv.recipientPhone,
+              recipientType: inv.recipientType,
+              recipientEmail: inv.recipientEmail,
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              total: itemTotal,
+              paidAmount: Number(itemPaid.toFixed(2)),
+              date: inv.date || (inv.createdAt ? inv.createdAt.slice(0, 10) : 'N/A'),
+              dueDate: inv.dueDate,
+              status: inv.status,
+              studentId: inv.studentId || matchingStudent?.id,
+              studentName: inv.studentName || matchingStudent?.name,
+              className: matchingStudent?.className,
+              teacherName: matchingTeacher?.name,
+              notes: inv.notes,
+              invoiceTotalAmount: inv.totalAmount,
+              invoiceAmountPaid: inv.amountPaid,
+              createdBy: inv.createdBy,
+              rawInvoice: inv,
+              rawItem: item
+            });
           }
         }
         
@@ -14455,10 +14503,15 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 {/* Section 2: Other Custom Invoice Items */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-teal-500 inline-block" />
-                      2. Lacagaha kale ee Invoices-ka (Other Custom Invoice Fees)
-                    </h4>
+                    <div>
+                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-teal-500 inline-block" />
+                        2. Lacagaha kale ee Invoices-ka (Other Custom Invoice Fees)
+                      </h4>
+                      <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                        Guji mid kasta si aad u aragto faahfaahinta lacagta la qabtay (Click any fee to view details)
+                      </p>
+                    </div>
                     <span className="text-xs font-extrabold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg">
                       ${totalRegFilesPaid.toFixed(2)}
                     </span>
@@ -14469,25 +14522,55 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                       No other invoice payments logged for this month.
                     </p>
                   ) : (
-                    <div className="overflow-x-auto rounded-2xl border border-slate-100">
+                    <div className="overflow-x-auto rounded-2xl border border-slate-100 shadow-3xs">
                       <table className="w-full text-left border-collapse text-xs">
                         <thead>
-                          <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider">
+                          <tr className="bg-slate-50 text-slate-500 font-bold border-b border-slate-150 uppercase tracking-wider text-[10px]">
                             <th className="py-2.5 px-3">Parent Name (Waalidka)</th>
                             <th className="py-2.5 px-3">Description (Faahfaahin)</th>
                             <th className="py-2.5 px-3">Date (Taariikh)</th>
                             <th className="py-2.5 px-3">Invoice No</th>
                             <th className="py-2.5 px-3 text-right">Amount (Lacagta)</th>
+                            <th className="py-2.5 px-3 text-center">Faahfaahin</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {invoicePayments.map((item, idx) => (
-                            <tr key={idx} className="hover:bg-slate-50/40">
-                              <td className="py-2 px-3 font-bold text-slate-800">{item.recipientName}</td>
-                              <td className="py-2 px-3 font-semibold text-slate-600">{item.description}</td>
-                              <td className="py-2 px-3 text-slate-500">{item.date || 'N/A'}</td>
-                              <td className="py-2 px-3 font-mono text-[10px] text-slate-500">{item.invoiceNo}</td>
-                              <td className="py-2 px-3 text-right font-black text-teal-700">${item.paidAmount.toFixed(2)}</td>
+                            <tr 
+                              key={idx} 
+                              onClick={() => setSelectedInvoiceFeeDetail(item)}
+                              className="hover:bg-teal-50/50 cursor-pointer transition-colors group"
+                              title="Guji si aad u aragto faahfaahinta buuxda ee lacagtan"
+                            >
+                              <td className="py-2.5 px-3 font-bold text-slate-800 group-hover:text-teal-950">
+                                {item.recipientName}
+                                {item.studentName && (
+                                  <span className="block text-[10px] text-slate-400 font-medium">
+                                    Ardayga: {item.studentName}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3 font-semibold text-slate-700 max-w-[220px]">
+                                <span className="line-clamp-1 group-hover:text-teal-950">{item.description}</span>
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap">{item.date || 'N/A'}</td>
+                              <td className="py-2.5 px-3 font-mono text-[10px] text-slate-500">
+                                <span className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-semibold">{item.invoiceNo}</span>
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-black text-teal-700 whitespace-nowrap">${item.paidAmount.toFixed(2)}</td>
+                              <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedInvoiceFeeDetail(item);
+                                  }}
+                                  className="px-2 py-1 bg-teal-50 hover:bg-teal-100 text-teal-700 text-[10px] font-bold rounded-lg transition-colors border border-teal-200/60 inline-flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Eye className="w-3 h-3" />
+                                  <span>Arag</span>
+                                </button>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -14516,6 +14599,259 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
           </div>
         );
       })()}
+
+      {/* -------------------------------------------------------------
+          MODAL: COLLECTED INVOICE FEE DETAIL (FAAHFAAHINTA LACAGTA LA QABTAY)
+          ------------------------------------------------------------- */}
+      {selectedInvoiceFeeDetail && (
+        <div 
+          className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-60 animate-fade-in overflow-y-auto pointer-print-none" 
+          id="invoice-fee-detail-modal-bg"
+          onClick={(e) => {
+            if ((e.target as HTMLElement).id === 'invoice-fee-detail-modal-bg') {
+              setSelectedInvoiceFeeDetail(null);
+            }
+          }}
+        >
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh] my-auto"
+          >
+            {/* Modal Header */}
+            <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-teal-500/20 border border-teal-400/30 rounded-2xl text-teal-300">
+                  <Receipt className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black tracking-tight text-white flex items-center gap-2">
+                    Faahfaahinta Lacagta Invoices-ka
+                  </h3>
+                  <p className="text-xs text-slate-300 font-medium mt-0.5">
+                    Biil No: <span className="font-mono font-bold text-teal-300">{selectedInvoiceFeeDetail.invoiceNo}</span> • Taariikhda: <span className="font-bold text-white">{selectedInvoiceFeeDetail.date}</span>
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setSelectedInvoiceFeeDetail(null)}
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-all cursor-pointer"
+                title="Xir (Close)"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <div className="p-6 overflow-y-auto space-y-5 flex-1 scrollbar-thin text-slate-800 text-xs">
+              
+              {/* Primary Highlight Card: Collected Amount & Item Description */}
+              <div className="bg-gradient-to-br from-teal-50 via-emerald-50/40 to-slate-50 p-5 rounded-2xl border border-teal-100 shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-teal-800 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-teal-500 inline-block animate-pulse" />
+                    Lacagta La Qabtay (Amount Collected)
+                  </span>
+                  <span className="text-2xl font-black text-teal-900 font-mono">
+                    ${selectedInvoiceFeeDetail.paidAmount.toFixed(2)}
+                  </span>
+                </div>
+
+                <div className="pt-3 border-t border-teal-100">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                    Faahfaahinta Adeegga (Service / Fee Description):
+                  </span>
+                  <p className="text-sm font-black text-slate-900 bg-white p-3.5 rounded-xl border border-teal-100/80 leading-relaxed shadow-3xs">
+                    {selectedInvoiceFeeDetail.description}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 pt-1 text-[11px]">
+                  <div className="bg-white/80 p-2.5 rounded-xl border border-slate-100">
+                    <span className="text-[9px] text-slate-400 font-bold block">Tirada (Quantity)</span>
+                    <span className="font-extrabold text-slate-800">{selectedInvoiceFeeDetail.quantity}</span>
+                  </div>
+                  <div className="bg-white/80 p-2.5 rounded-xl border border-slate-100">
+                    <span className="text-[9px] text-slate-400 font-bold block">Qiimaha Xabbadii (Unit)</span>
+                    <span className="font-extrabold text-slate-800">${selectedInvoiceFeeDetail.unitPrice.toFixed(2)}</span>
+                  </div>
+                  <div className="bg-white/80 p-2.5 rounded-xl border border-slate-100">
+                    <span className="text-[9px] text-slate-400 font-bold block">Wadarta Adeegga (Total)</span>
+                    <span className="font-extrabold text-slate-900">${selectedInvoiceFeeDetail.total.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Information Cards Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                
+                {/* Payer Information */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2.5">
+                  <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200/60 pb-1.5">
+                    <Users className="w-3.5 h-3.5 text-teal-600" />
+                    Waalidka / Qofka Bixiyay (Payer)
+                  </h4>
+                  <div className="space-y-1.5 text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-medium block">Magaca:</span>
+                      <span className="font-extrabold text-slate-900">{selectedInvoiceFeeDetail.recipientName}</span>
+                    </div>
+                    {selectedInvoiceFeeDetail.recipientPhone && (
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-medium block">Telefoonka:</span>
+                        <a 
+                          href={`tel:${selectedInvoiceFeeDetail.recipientPhone}`} 
+                          className="font-mono font-bold text-teal-700 hover:underline inline-flex items-center gap-1"
+                        >
+                          <Phone className="w-3 h-3" />
+                          {selectedInvoiceFeeDetail.recipientPhone}
+                        </a>
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-medium block">Nooca Macmiilka:</span>
+                      <span className="font-bold text-slate-700">
+                        {selectedInvoiceFeeDetail.recipientType === 'business' ? 'Ganacsi (Business)' : 'Waalid (Parent)'}
+                      </span>
+                    </div>
+                    {selectedInvoiceFeeDetail.recipientEmail && (
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-medium block">Email:</span>
+                        <span className="font-mono text-slate-600">{selectedInvoiceFeeDetail.recipientEmail}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Linked Student / Class Information */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2.5">
+                  <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200/60 pb-1.5">
+                    <GraduationCap className="w-3.5 h-3.5 text-indigo-600" />
+                    Xiriirka Ardayga (Student & Class)
+                  </h4>
+                  <div className="space-y-1.5 text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-medium block">Magaca Ardayga:</span>
+                      <span className="font-extrabold text-slate-900">
+                        {selectedInvoiceFeeDetail.studentName || 'Guud / General (Aan arday gooni ah ku xirneyn)'}
+                      </span>
+                    </div>
+                    {selectedInvoiceFeeDetail.studentId && (
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-medium block">ID-ga Ardayga:</span>
+                        <span className="font-mono font-bold text-indigo-700">{selectedInvoiceFeeDetail.studentId}</span>
+                      </div>
+                    )}
+                    {selectedInvoiceFeeDetail.className && (
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-medium block">Fasalka:</span>
+                        <span className="font-bold text-slate-800">{selectedInvoiceFeeDetail.className}</span>
+                      </div>
+                    )}
+                    {selectedInvoiceFeeDetail.teacherName && (
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-medium block">Macallinka:</span>
+                        <span className="font-bold text-slate-800">{selectedInvoiceFeeDetail.teacherName}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Full Invoice Context & Status Card */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2.5">
+                <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center justify-between border-b border-slate-200/60 pb-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-slate-600" />
+                    Biilka Guud (Invoice Summary)
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${
+                    selectedInvoiceFeeDetail.status === 'Paid'
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      : selectedInvoiceFeeDetail.status === 'Partial'
+                      ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                      : 'bg-rose-100 text-rose-800 border border-rose-200'
+                  }`}>
+                    {selectedInvoiceFeeDetail.status === 'Paid' ? 'Waa la bixiyey (Paid)' : selectedInvoiceFeeDetail.status === 'Partial' ? 'Qeyb baa la bixiyey (Partial)' : 'Lama bixin (Unpaid)'}
+                  </span>
+                </h4>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
+                  <div className="bg-white p-2.5 rounded-xl border border-slate-150">
+                    <span className="text-[9px] text-slate-400 font-bold block">Lacagta Biilka Guud</span>
+                    <span className="font-black text-slate-900 font-mono">
+                      ${(selectedInvoiceFeeDetail.invoiceTotalAmount || selectedInvoiceFeeDetail.total).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-xl border border-slate-150">
+                    <span className="text-[9px] text-slate-400 font-bold block">Wadarta La Bixiyay</span>
+                    <span className="font-black text-emerald-700 font-mono">
+                      ${(selectedInvoiceFeeDetail.invoiceAmountPaid || selectedInvoiceFeeDetail.paidAmount).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-xl border border-slate-150">
+                    <span className="text-[9px] text-slate-400 font-bold block">Deynta Hartay</span>
+                    <span className={`font-black font-mono ${
+                      Math.max(0, (selectedInvoiceFeeDetail.invoiceTotalAmount || selectedInvoiceFeeDetail.total) - (selectedInvoiceFeeDetail.invoiceAmountPaid || selectedInvoiceFeeDetail.paidAmount)) > 0
+                        ? 'text-rose-600'
+                        : 'text-slate-400'
+                    }`}>
+                      ${Math.max(0, (selectedInvoiceFeeDetail.invoiceTotalAmount || selectedInvoiceFeeDetail.total) - (selectedInvoiceFeeDetail.invoiceAmountPaid || selectedInvoiceFeeDetail.paidAmount)).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-xl border border-slate-150">
+                    <span className="text-[9px] text-slate-400 font-bold block">Xilliga U Danbeeya (Due)</span>
+                    <span className="font-semibold text-slate-700 font-mono text-[11px]">
+                      {selectedInvoiceFeeDetail.dueDate || 'N/A'}
+                    </span>
+                  </div>
+                </div>
+
+                {selectedInvoiceFeeDetail.notes && (
+                  <div className="bg-amber-50/60 p-3 rounded-xl border border-amber-100 text-amber-900 mt-2">
+                    <span className="text-[9px] font-black uppercase text-amber-700 block mb-0.5">Faallo / Notes:</span>
+                    <p className="text-xs font-semibold leading-relaxed whitespace-pre-line italic">
+                      "{selectedInvoiceFeeDetail.notes}"
+                    </p>
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            {/* Modal Actions Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap pointer-print-none">
+              {selectedInvoiceFeeDetail.rawInvoice ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedInvoiceFeeDetail.rawInvoice) {
+                      setShowInvoiceReceipt(selectedInvoiceFeeDetail.rawInvoice);
+                    }
+                  }}
+                  className="px-4 py-2.5 bg-teal-700 hover:bg-teal-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-sm inline-flex items-center gap-1.5"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Arag / Daabac Biilka Rasmiga ah</span>
+                </button>
+              ) : (
+                <div />
+              )}
+              
+              <button
+                type="button"
+                onClick={() => setSelectedInvoiceFeeDetail(null)}
+                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md ml-auto"
+              >
+                Xir (Close)
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* -------------------------------------------------------------
           MODAL: ACTIVE STUDENTS DETAILED BREAKDOWN BY CLASS

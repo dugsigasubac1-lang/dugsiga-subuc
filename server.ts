@@ -317,7 +317,7 @@ function sanitizeDatabaseState(state: any): any {
       if (!existingTxRefs.has(key)) {
         state.xawaaladaTransactions.push({
           id: m.id.startsWith('TXN-') ? m.id : `TXN-${m.id.replace('MT-', '')}`,
-          accountId: 'acc-3',
+          accountId: 'acc-4',
           type: 'out',
           amount: m.amountSent,
           clientName: m.customerName || 'N/A',

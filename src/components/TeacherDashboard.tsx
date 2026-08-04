@@ -718,7 +718,6 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
   const existingProgressForDay = database.progress.filter(p => 
     p.date === selectedDate && 
     p.teacherId === teacher.id &&
-    p.className === teacher.classAssigned &&
     (p.session === currentSession || (!p.session && currentSession === 'Morning'))
   );
   const isAlreadyLoggedToday = existingProgressForDay.length > 0;

@@ -210,12 +210,6 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
     let grandCurrent = 0;
 
     accounts.forEach(acc => {
-      // All-time transactions for this account (for true current balance calculation)
-      const allAccTxns = transactions.filter(t => t.accountId === acc.id);
-      const allTimeIn = allAccTxns.filter(t => t.type === 'in').reduce((sum, t) => sum + Number(t.amount || 0), 0);
-      const allTimeOut = allAccTxns.filter(t => t.type === 'out').reduce((sum, t) => sum + Number(t.amount || 0), 0);
-      const currentBalance = acc.openingBalance + allTimeIn - allTimeOut;
-
       // Filtered transactions for this account subject to date/month filters
       const accTxns = transactions.filter(t => {
         if (t.accountId !== acc.id) return false;
@@ -230,6 +224,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
       const totalIn = accTxns.filter(t => t.type === 'in').reduce((sum, t) => sum + Number(t.amount || 0), 0);
       const totalOut = accTxns.filter(t => t.type === 'out').reduce((sum, t) => sum + Number(t.amount || 0), 0);
       const netChange = totalIn - totalOut;
+      const currentBalance = acc.openingBalance + totalIn - totalOut;
 
       map[acc.id] = {
         account: acc,
