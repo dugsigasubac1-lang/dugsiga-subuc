@@ -685,10 +685,10 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
   const [selectedWeeklyExamIds, setSelectedWeeklyExamIds] = useState<string[]>([]);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
 
-  // Get active students assigned to this teacher
+  // Get active students assigned to this teacher (either as primary teacher or secondary teacher)
   const classStudents = database.students.filter(
     (s) => 
-      s.teacherId === teacher.id &&
+      (s.teacherId === teacher.id || s.secondTeacherId === teacher.id) &&
       (s.active === true || String(s.active) === 'true')
   );
 
@@ -4398,14 +4398,28 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                       <span className="text-slate-500 font-semibold">Assigned Class / Fasalka:</span>
                       <span className="text-slate-800 font-black truncate max-w-[150px]">{showStudentDetailModal.className}</span>
                     </div>
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-start">
                       <span className="text-slate-500 font-semibold">Instructor / Macallinka:</span>
-                      <span className="text-slate-800 font-extrabold">
+                      <div className="text-right">
                         {(() => {
-                          const teach = database.teachers.find(t => t.id === showStudentDetailModal.teacherId);
-                          return teach ? teach.name : 'Unassigned';
+                          const teach1 = database.teachers.find(t => t.id === showStudentDetailModal.teacherId);
+                          const teach2 = showStudentDetailModal.secondTeacherId ? database.teachers.find(t => t.id === showStudentDetailModal.secondTeacherId) : null;
+                          return (
+                            <div className="space-y-0.5">
+                              <div>
+                                <span className="text-slate-800 font-extrabold">{teach1 ? teach1.name : 'Unassigned'}</span>
+                                <span className="text-[10px] text-slate-400 font-medium ml-1">(T1/Subax)</span>
+                              </div>
+                              {teach2 && (
+                                <div>
+                                  <span className="text-teal-700 font-extrabold">{teach2.name}</span>
+                                  <span className="text-[10px] text-teal-600 font-medium ml-1">(T2/Galab)</span>
+                                </div>
+                              )}
+                            </div>
+                          );
                         })()}
-                      </span>
+                      </div>
                     </div>
                   </div>
                 </div>

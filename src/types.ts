@@ -23,7 +23,8 @@ export interface Student {
   name: string;
   parentName: string;
   parentPhone: string;
-  teacherId: string; // The teacher assigned to them
+  teacherId: string; // The primary/morning teacher assigned to them
+  secondTeacherId?: string; // Optional second teacher (e.g., afternoon/dual session teacher)
   className: string; // Stored here for easier filtering
   monthlyFee: number; // e.g. $50
   busFee?: number; // monthly bus fare (optional, e.g. $15, $20)

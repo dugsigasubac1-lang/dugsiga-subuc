@@ -1071,6 +1071,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [newStudentFee, setNewStudentFee] = useState(35);
   const [newStudentBusFee, setNewStudentBusFee] = useState<number>(0);
   const [newStudentTeacher, setNewStudentTeacher] = useState('T-01');
+  const [newStudentSecondTeacher, setNewStudentSecondTeacher] = useState<string>('');
   const [newStudentSession, setNewStudentSession] = useState<'Morning' | 'Afternoon' | 'Both'>('Both');
   const [newStudentImage, setNewStudentImage] = useState<string>('');
   const [newStudentRegDate, setNewStudentRegDate] = useState<string>('');
@@ -1155,6 +1156,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     setNewStudentFee(student.monthlyFee);
     setNewStudentBusFee(student.busFee || 0);
     setNewStudentTeacher(student.teacherId || 'T-01');
+    setNewStudentSecondTeacher(student.secondTeacherId || '');
     setNewStudentSession(student.session || 'Both');
     setNewStudentImage(student.imageUrl || '');
     setNewStudentRegDate(student.registrationDate || '');
@@ -1170,6 +1172,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     setNewStudentFee(35);
     setNewStudentBusFee(0);
     setNewStudentTeacher('T-01');
+    setNewStudentSecondTeacher('');
     setNewStudentSession('Both');
     setNewStudentImage('');
     setNewStudentRegDate('');
@@ -1223,7 +1226,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     const sSearch = studentSearch.toLowerCase();
     const matchQuery = s.name.toLowerCase().includes(sSearch) || s.id.toLowerCase().includes(sSearch) || s.parentName.toLowerCase().includes(sSearch);
     const matchClass = studentClassFilter === 'All' ? true : s.className === studentClassFilter;
-    const matchTeacher = studentTeacherFilter === 'All' ? true : s.teacherId === studentTeacherFilter;
+    const matchTeacher = studentTeacherFilter === 'All' ? true : (s.teacherId === studentTeacherFilter || s.secondTeacherId === studentTeacherFilter);
     return matchQuery && matchClass && matchTeacher;
   });
 
@@ -1243,6 +1246,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
             parentName: newStudentParent.trim(),
             parentPhone: newStudentPhone.trim(),
             teacherId: newStudentTeacher,
+            secondTeacherId: newStudentSecondTeacher || undefined,
             className: newStudentClass,
             monthlyFee: Number(newStudentFee),
             busFee: Number(newStudentBusFee),
@@ -1293,6 +1297,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         parentName: newStudentParent.trim(),
         parentPhone: newStudentPhone.trim(),
         teacherId: newStudentTeacher,
+        secondTeacherId: newStudentSecondTeacher || undefined,
         className: newStudentClass,
         monthlyFee: Number(newStudentFee),
         busFee: Number(newStudentBusFee),
@@ -6660,7 +6665,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-0.5">Assigned Instructor *</label>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-0.5">Primary Instructor / Macallinka 1-aad (Subax) *</label>
                     <select
                       value={newStudentTeacher}
                       onChange={(e) => setNewStudentTeacher(e.target.value)}
@@ -6670,6 +6675,21 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                         <option key={t.id} value={t.id}>{t.name} ({t.classAssigned})</option>
                       ))}
                     </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-0.5">Second Instructor / Macallinka 2-aad (Galab - Dual Session)</label>
+                    <select
+                      value={newStudentSecondTeacher}
+                      onChange={(e) => setNewStudentSecondTeacher(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white outline-none cursor-pointer"
+                    >
+                      <option value="">-- Diman / No Second Instructor --</option>
+                      {database.teachers.map(t => (
+                        <option key={t.id} value={t.id}>{t.name} ({t.classAssigned})</option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-slate-400 mt-1 font-medium">Fadlan dooro macallinka 2-aad haddii ardaygu dhamaynayo laba galmaad (Subax iyo Galab).</p>
                   </div>
 
                   <div>
@@ -7135,14 +7155,25 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                               </td>
                               <td className="py-3.5 px-4">
                                 {(() => {
-                                  const teach = database.teachers.find(t => t.id === student.teacherId);
-                                  return teach ? (
-                                    <div className="flex flex-col">
-                                      <span className="font-extrabold text-slate-800">{teach.name}</span>
-                                      <span className="text-[9px] text-indigo-650 font-bold">ID: {teach.id}</span>
+                                  const teach1 = database.teachers.find(t => t.id === student.teacherId);
+                                  const teach2 = student.secondTeacherId ? database.teachers.find(t => t.id === student.secondTeacherId) : null;
+                                  return (
+                                    <div className="flex flex-col gap-1">
+                                      {teach1 ? (
+                                        <div>
+                                          <span className="font-extrabold text-slate-800">{teach1.name}</span>
+                                          <span className="text-[9px] text-indigo-600 font-bold ml-1">(T1/Subax)</span>
+                                        </div>
+                                      ) : (
+                                        <span className="text-amber-600 font-black italic bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded text-[9px]">unassigned</span>
+                                      )}
+                                      {teach2 && (
+                                        <div className="text-[10px] font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200/60 flex items-center gap-1 w-fit">
+                                          <span>2nd: {teach2.name}</span>
+                                          <span className="text-[9px] text-teal-600">(Galab)</span>
+                                        </div>
+                                      )}
                                     </div>
-                                  ) : (
-                                    <span className="text-amber-600 font-black italic bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded text-[9px]">unassigned</span>
                                   );
                                 })()}
                               </td>
@@ -14006,14 +14037,28 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                       <span className="text-slate-500 font-semibold">Assigned Class / Fasalka:</span>
                       <span className="text-slate-800 font-black truncate max-w-[150px]">{showStudentDetailModal.className}</span>
                     </div>
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-start">
                       <span className="text-slate-500 font-semibold">Instructor / Macallinka:</span>
-                      <span className="text-slate-800 font-extrabold">
+                      <div className="text-right">
                         {(() => {
-                          const teach = database.teachers.find(t => t.id === showStudentDetailModal.teacherId);
-                          return teach ? teach.name : 'Unassigned';
+                          const teach1 = database.teachers.find(t => t.id === showStudentDetailModal.teacherId);
+                          const teach2 = showStudentDetailModal.secondTeacherId ? database.teachers.find(t => t.id === showStudentDetailModal.secondTeacherId) : null;
+                          return (
+                            <div className="space-y-0.5">
+                              <div>
+                                <span className="text-slate-800 font-extrabold">{teach1 ? teach1.name : 'Unassigned'}</span>
+                                <span className="text-[10px] text-slate-400 font-medium ml-1">(T1/Subax)</span>
+                              </div>
+                              {teach2 && (
+                                <div>
+                                  <span className="text-teal-700 font-extrabold">{teach2.name}</span>
+                                  <span className="text-[10px] text-teal-600 font-medium ml-1">(T2/Galab)</span>
+                                </div>
+                              )}
+                            </div>
+                          );
                         })()}
-                      </span>
+                      </div>
                     </div>
                   </div>
                 </div>

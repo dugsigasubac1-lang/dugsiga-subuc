@@ -617,8 +617,11 @@ export function mergeSeedRemittances(parsed: DatabaseState): { updated: Database
     changed = true;
   }
 
-  // Bidirectional sync: ensure all xawaaladaTransactions are mirrored in moneyTransfers for legacy/system consistency
+  // Bidirectional sync: ensure all xawaaladaTransactions and moneyTransfers are mirrored seamlessly
   const existingTransNos = new Set((parsed.moneyTransfers || []).map(m => m.transNo || m.id));
+  const existingTxRefs = new Set((parsed.xawaaladaTransactions || []).map(x => x.referenceNo || x.id));
+
+  // 1. xawaaladaTransactions -> moneyTransfers
   (parsed.xawaaladaTransactions || []).forEach(tx => {
     const key = tx.referenceNo || tx.id;
     if (!existingTransNos.has(key)) {
@@ -634,6 +637,29 @@ export function mergeSeedRemittances(parsed: DatabaseState): { updated: Database
         createdAt: tx.createdAt || new Date().toISOString()
       });
       existingTransNos.add(key);
+      changed = true;
+    }
+  });
+
+  // 2. moneyTransfers -> xawaaladaTransactions
+  (parsed.moneyTransfers || []).forEach(m => {
+    const key = m.transNo || m.id;
+    if (!existingTxRefs.has(key)) {
+      parsed.xawaaladaTransactions.push({
+        id: m.id.startsWith('TXN-') ? m.id : `TXN-${m.id.replace('MT-', '')}`,
+        accountId: 'acc-3',
+        type: 'out',
+        amount: m.amountSent,
+        clientName: m.customerName || 'N/A',
+        clientPhone: m.customerPhone || '',
+        referenceNo: m.transNo || `REF-${m.id}`,
+        description: m.notes || 'Xawaalad / Bixin',
+        date: m.date || new Date().toISOString().split('T')[0],
+        time: '12:00',
+        createdBy: m.createdBy || 'yaxyecabdisalanmohamed1234@gmail.com',
+        createdAt: m.createdAt || new Date().toISOString()
+      });
+      existingTxRefs.add(key);
       changed = true;
     }
   });

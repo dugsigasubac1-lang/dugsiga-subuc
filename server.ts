@@ -289,6 +289,49 @@ function sanitizeDatabaseState(state: any): any {
     if (!Array.isArray(state.moneyTransfers)) {
       state.moneyTransfers = [];
     }
+
+    // Bidirectional sync between xawaaladaTransactions and moneyTransfers
+    const existingTransNos = new Set((state.moneyTransfers as any[]).map(m => m.transNo || m.id));
+    const existingTxRefs = new Set((state.xawaaladaTransactions as any[]).map(x => x.referenceNo || x.id));
+
+    (state.xawaaladaTransactions as any[]).forEach(tx => {
+      const key = tx.referenceNo || tx.id;
+      if (!existingTransNos.has(key)) {
+        state.moneyTransfers.push({
+          id: tx.id,
+          transNo: tx.referenceNo || tx.id,
+          customerName: tx.clientName || 'N/A',
+          customerPhone: tx.clientPhone || 'N/A',
+          amountSent: tx.amount,
+          date: tx.date,
+          notes: tx.description || '',
+          createdBy: tx.createdBy || 'yaxyecabdisalanmohamed1234@gmail.com',
+          createdAt: tx.createdAt || new Date().toISOString()
+        });
+        existingTransNos.add(key);
+      }
+    });
+
+    (state.moneyTransfers as any[]).forEach(m => {
+      const key = m.transNo || m.id;
+      if (!existingTxRefs.has(key)) {
+        state.xawaaladaTransactions.push({
+          id: m.id.startsWith('TXN-') ? m.id : `TXN-${m.id.replace('MT-', '')}`,
+          accountId: 'acc-3',
+          type: 'out',
+          amount: m.amountSent,
+          clientName: m.customerName || 'N/A',
+          clientPhone: m.customerPhone || '',
+          referenceNo: m.transNo || `REF-${m.id}`,
+          description: m.notes || 'Xawaalad / Bixin',
+          date: m.date || new Date().toISOString().split('T')[0],
+          time: '12:00',
+          createdBy: m.createdBy || 'yaxyecabdisalanmohamed1234@gmail.com',
+          createdAt: m.createdAt || new Date().toISOString()
+        });
+        existingTxRefs.add(key);
+      }
+    });
   }
 
   return state;
