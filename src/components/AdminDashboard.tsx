@@ -168,6 +168,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [showNotifPopup, setShowNotifPopup] = useState(false);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [exportSelectedClass, setExportSelectedClass] = useState<string>('All');
+  const [exportSelectedTeacher, setExportSelectedTeacher] = useState<string>('All');
   const [showLogoModal, setShowLogoModal] = useState(false);
 
   const handleSaveLogo = (newLogoUrl: string) => {
@@ -1662,7 +1663,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const handleDeleteTeacher = (teacherId: string) => {
     const teacher = database.teachers.find(t => t.id === teacherId);
     const teacherName = teacher ? `Sh. ${teacher.name}` : `this teacher`;
-    const assignedStudents = database.students.filter(s => s.teacherId === teacherId && s.active);
+    const assignedStudents = database.students.filter(s => (s.teacherId === teacherId || s.secondTeacherId === teacherId) && s.active);
     
     let confirmMsg = `Are you sure you want to dismiss/delete ${teacherName}? They will no longer have dashboard access.`;
     let shouldUnassign = false;
@@ -1681,10 +1682,10 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         let updatedStudents = [...database.students];
         if (shouldUnassign) {
           updatedStudents = database.students.map(s => {
-            if (s.teacherId === teacherId) {
-              return { ...s, teacherId: '' }; // safe unassigned value
-            }
-            return s;
+            let updated = { ...s };
+            if (s.teacherId === teacherId) updated.teacherId = '';
+            if (s.secondTeacherId === teacherId) updated.secondTeacherId = undefined;
+            return updated;
           });
         }
 
@@ -2427,7 +2428,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       return;
     }
     
-    const classStudents = database.students.filter(s => s.active && s.teacherId === teacherObj.id);
+    const classStudents = database.students.filter(s => s.active && (s.teacherId === teacherObj.id || s.secondTeacherId === teacherObj.id));
     
     const scoresPayload = classStudents.map(s => {
       let totalSum = 0;
@@ -2630,7 +2631,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       
       const filteredStudents = database.students.filter(s => {
         const matchC = examFilterClass === 'All' ? true : s.className === examFilterClass;
-        const matchT = examFilterTeacher === 'All' ? true : s.teacherId === examFilterTeacher;
+        const matchT = examFilterTeacher === 'All' ? true : (s.teacherId === examFilterTeacher || s.secondTeacherId === examFilterTeacher);
         return s.active && matchC && matchT;
       });
 
@@ -6987,7 +6988,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        const list = database.students.filter(s => s.className === exportSelectedClass);
+                                        const list = database.students.filter(s => s.className === exportSelectedClass && s.active);
                                         handleExportStudentsPDF(list, `Fasalka_${exportSelectedClass.replace(/\s+/g, '_')}`);
                                         setShowExportDropdown(false);
                                       }}
@@ -6999,7 +7000,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        const list = database.students.filter(s => s.className === exportSelectedClass);
+                                        const list = database.students.filter(s => s.className === exportSelectedClass && s.active);
                                         handleExportStudentsExcel(list, `Fasalka_${exportSelectedClass.replace(/\s+/g, '_')}`);
                                         setShowExportDropdown(false);
                                       }}
@@ -7011,7 +7012,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        const list = database.students.filter(s => s.className === exportSelectedClass);
+                                        const list = database.students.filter(s => s.className === exportSelectedClass && s.active);
                                         handleExportStudentsWord(list, `Fasalka_${exportSelectedClass.replace(/\s+/g, '_')}`);
                                         setShowExportDropdown(false);
                                       }}
@@ -7060,6 +7061,78 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                     </div>
                                   </div>
                                 )}
+                              </div>
+                            </div>
+
+                            {/* Section 2.5: Download by Teacher Separately (Including Mohamed and all shifts) */}
+                            <div className="space-y-2 pt-2.5 border-t border-slate-100">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black text-indigo-700 uppercase tracking-wider">
+                                  Macallin Gaar Ah (Teacher Separately)
+                                </span>
+                              </div>
+                              <div className="space-y-1.5">
+                                <select
+                                  value={exportSelectedTeacher}
+                                  onChange={(e) => setExportSelectedTeacher(e.target.value)}
+                                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none cursor-pointer"
+                                >
+                                  <option value="All">--- Dooro Macallin (Select Teacher) ---</option>
+                                  {database.teachers.map(tch => {
+                                    const count = database.students.filter(s => (s.teacherId === tch.id || s.secondTeacherId === tch.id) && s.active).length;
+                                    return (
+                                      <option key={tch.id} value={tch.id}>
+                                        {tch.name} ({count} Arday)
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+
+                                {exportSelectedTeacher !== 'All' && (() => {
+                                  const tchObj = database.teachers.find(t => t.id === exportSelectedTeacher);
+                                  const tchName = tchObj ? tchObj.name : 'Macallin';
+                                  const tchList = database.students.filter(s => (s.teacherId === exportSelectedTeacher || s.secondTeacherId === exportSelectedTeacher) && s.active);
+                                  return (
+                                    <div className="grid grid-cols-3 gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          handleExportStudentsPDF(tchList, `Macallin_${tchName.replace(/\s+/g, '_')}`);
+                                          setShowExportDropdown(false);
+                                        }}
+                                        disabled={tchList.length === 0}
+                                        className="py-2 px-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] rounded-xl border border-rose-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95 disabled:opacity-40"
+                                      >
+                                        <span className="text-xs">📕</span>
+                                        PDF ({tchList.length})
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          handleExportStudentsExcel(tchList, `Macallin_${tchName.replace(/\s+/g, '_')}`);
+                                          setShowExportDropdown(false);
+                                        }}
+                                        disabled={tchList.length === 0}
+                                        className="py-2 px-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] rounded-xl border border-emerald-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95 disabled:opacity-40"
+                                      >
+                                        <span className="text-xs">📗</span>
+                                        Excel ({tchList.length})
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          handleExportStudentsWord(tchList, `Macallin_${tchName.replace(/\s+/g, '_')}`);
+                                          setShowExportDropdown(false);
+                                        }}
+                                        disabled={tchList.length === 0}
+                                        className="py-2 px-1 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-[10px] rounded-xl border border-sky-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95 disabled:opacity-40"
+                                      >
+                                        <span className="text-xs">📘</span>
+                                        Word ({tchList.length})
+                                      </button>
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             </div>
 
@@ -7621,8 +7694,12 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {database.teachers.map((teacher, idx) => {
-                    // Count students assigned
-                    const studentCount = database.students.filter(s => s.teacherId === teacher.id && s.active).length;
+                    // Count all students assigned (both primary and secondary/afternoon/both shifts)
+                    const assignedStudents = database.students.filter(s => (s.teacherId === teacher.id || s.secondTeacherId === teacher.id) && s.active);
+                    const primaryCount = database.students.filter(s => s.teacherId === teacher.id && s.active).length;
+                    const secondaryCount = database.students.filter(s => s.secondTeacherId === teacher.id && s.active).length;
+                    const studentCount = assignedStudents.length;
+
                     // Extract initials for the avatar
                     const cleanName = teacher.name.replace(/Sh\.\s+|Malm\.\s+|Sheikh\.\s+/gi, '');
                     const nameParts = cleanName.trim().split(/\s+/);
@@ -7694,6 +7771,43 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                               <span className="shrink-0 flex items-center gap-1 text-[10px] text-emerald-600 font-extrabold bg-emerald-50/50 px-1.5 py-0.5 rounded">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Certified
                               </span>
+                            </div>
+
+                            {/* Direct Download Action Bar for this Teacher's Students */}
+                            <div className="pt-2 mt-1 border-t border-slate-200/60 flex flex-wrap items-center justify-between gap-1.5">
+                              <span className="text-[9.5px] font-extrabold text-slate-600 uppercase tracking-wider flex items-center gap-1">
+                                <Download className="w-3 h-3 text-teal-600" />
+                                Deji Ardayda ({assignedStudents.length}):
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleExportStudentsPDF(assignedStudents, `Macallin_${teacher.name.replace(/\s+/g, '_')}`)}
+                                  disabled={assignedStudents.length === 0}
+                                  className="px-2 py-1 text-[9px] bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold rounded-lg border border-rose-200 transition-colors cursor-pointer disabled:opacity-40"
+                                  title={`Soo deji ardayda ${teacher.name} oo PDF ah`}
+                                >
+                                  📕 PDF
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleExportStudentsExcel(assignedStudents, `Macallin_${teacher.name.replace(/\s+/g, '_')}`)}
+                                  disabled={assignedStudents.length === 0}
+                                  className="px-2 py-1 text-[9px] bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-extrabold rounded-lg border border-emerald-200 transition-colors cursor-pointer disabled:opacity-40"
+                                  title={`Soo deji ardayda ${teacher.name} oo Excel ah`}
+                                >
+                                  📗 Excel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleExportStudentsWord(assignedStudents, `Macallin_${teacher.name.replace(/\s+/g, '_')}`)}
+                                  disabled={assignedStudents.length === 0}
+                                  className="px-2 py-1 text-[9px] bg-sky-50 hover:bg-sky-100 text-sky-700 font-extrabold rounded-lg border border-sky-200 transition-colors cursor-pointer disabled:opacity-40"
+                                  title={`Soo deji ardayda ${teacher.name} oo Word ah`}
+                                >
+                                  📘 Word
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -11111,7 +11225,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                           {database.students
                             .filter(s => {
                               const matchC = examFilterClass === 'All' ? true : s.className === examFilterClass;
-                              const matchT = examFilterTeacher === 'All' ? true : s.teacherId === examFilterTeacher;
+                              const matchT = examFilterTeacher === 'All' ? true : (s.teacherId === examFilterTeacher || s.secondTeacherId === examFilterTeacher);
                               return s.active && matchC && matchT;
                             })
                             .map(s => {
@@ -12877,7 +12991,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
             const matchesClass = studAttClass === 'All' || stud.className === studAttClass;
             let matchesTeacher = true;
             if (studAttTeacher !== 'All') {
-              matchesTeacher = stud.teacherId === studAttTeacher;
+              matchesTeacher = stud.teacherId === studAttTeacher || stud.secondTeacherId === studAttTeacher;
             }
             const matchesSearch = studAttSearch === '' || 
               stud.name.toLowerCase().includes(studAttSearch.toLowerCase()) ||

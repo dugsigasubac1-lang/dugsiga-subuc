@@ -1331,11 +1331,52 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
         updatedSubmissions.unshift(workSubmission);
       }
 
+      // Auto check-in teacher if submitting attendance and arrival is not yet recorded for this day
+      let updatedTeacherAttendance = [...(database.teacherAttendance || [])];
+      const existingTeacherAttIdx = updatedTeacherAttendance.findIndex(
+        a => a.teacherId === teacher.id && a.date === selectedDate
+      );
+
+      if (existingTeacherAttIdx === -1 && selectedDate === todayDateStr) {
+        const now = new Date();
+        const currentHH = now.getHours();
+        const currentMM = now.getMinutes();
+        const timeStr = now.toTimeString().split(' ')[0]; // HH:MM:SS
+
+        let targetHH = 7;
+        let targetMM = 30;
+        if (teacher.requiredCheckInTime) {
+          const parts = teacher.requiredCheckInTime.split(':');
+          if (parts.length === 2) {
+            targetHH = parseInt(parts[0], 10);
+            targetMM = parseInt(parts[1], 10);
+          }
+        }
+
+        const isLate = (currentHH > targetHH || (currentHH === targetHH && currentMM > targetMM));
+        const teacherStatus: 'Present' | 'Late' = isLate ? 'Late' : 'Present';
+
+        const newTeacherLog: TeacherAttendanceRecord = {
+          id: `TAR-${Date.now()}`,
+          teacherId: teacher.id,
+          teacherName: teacher.name,
+          date: selectedDate,
+          time: timeStr,
+          latitude: schoolLoc.latitude,
+          longitude: schoolLoc.longitude,
+          distanceFromSchool: 0,
+          status: teacherStatus
+        };
+
+        updatedTeacherAttendance = [newTeacherLog, ...updatedTeacherAttendance];
+      }
+
       onSaveDatabase({
         ...database,
         progress: updatedProgressList,
         notifications: updatedNotifications,
-        submissions: updatedSubmissions
+        submissions: updatedSubmissions,
+        teacherAttendance: updatedTeacherAttendance
       });
 
       setHasJustSubmitted(true);
@@ -1738,6 +1779,56 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                 <Save className="w-4 h-4 sm:w-5 sm:h-5 py-0.5" />
                 <span>Save All</span>
               </button>
+            </div>
+
+            {/* Teacher Arrival & Check-in Status Banner */}
+            <div className={`p-4 rounded-3xl border shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+              myCheckedInLog 
+                ? 'bg-gradient-to-r from-emerald-50 via-teal-50/60 to-white border-emerald-200 text-emerald-950' 
+                : 'bg-gradient-to-r from-amber-50 via-sky-50/60 to-white border-amber-200 text-amber-950'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-2xl shrink-0 ${
+                  myCheckedInLog 
+                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20' 
+                    : 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
+                }`}>
+                  {myCheckedInLog ? <Check className="w-5 h-5" /> : <Clock className="w-5 h-5 animate-pulse" />}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black uppercase tracking-wider">
+                      {myCheckedInLog ? 'Imaanshahaaga Waa La Diiwaangeliyay (Teacher Arrival Recorded)' : 'Imaanshaha Macallinka (Teacher Arrival Check-In)'}
+                    </span>
+                    {myCheckedInLog && (
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                        myCheckedInLog.status === 'Present' 
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                          : 'bg-amber-100 text-amber-800 border border-amber-300'
+                      }`}>
+                        {myCheckedInLog.status}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs font-medium text-slate-600 mt-0.5">
+                    {myCheckedInLog 
+                      ? `Waxaad timid dugsiga xilliga: ${myCheckedInLog.time} • Taariikhda: ${myCheckedInLog.date}` 
+                      : `Weli imaanshaha maadan calaamadin maanta. Waxaad ku calaamadin kartaa 1-guji ama si toos ah ayaa loo qori doonaa marka aad Save All dhahdo.`}
+                  </p>
+                </div>
+              </div>
+
+              {!myCheckedInLog && (
+                <button
+                  type="button"
+                  onClick={handleVerifyAndCheckIn}
+                  disabled={checkInLoading}
+                  className="py-2.5 px-4 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-extrabold text-xs rounded-2xl shadow-md shadow-teal-600/20 transition-all flex items-center gap-2 cursor-pointer active:scale-95 shrink-0"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{checkInLoading ? 'Diiwaangelinaya...' : '1-Guji: Ii Qor Imaanshaha (Check-In Now)'}</span>
+                </button>
+              )}
             </div>
 
             {/* Date and Session Selection Panel based on screenshot */}
