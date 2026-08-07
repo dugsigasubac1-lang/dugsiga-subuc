@@ -744,6 +744,12 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [categoryModalSearch, setCategoryModalSearch] = useState<string>('');
   const [categoryModalFilter, setCategoryModalFilter] = useState<'all' | 'collected' | 'outstanding'>('all');
   const [showCollectedFeesBreakdownMonth, setShowCollectedFeesBreakdownMonth] = useState<string | null>(null);
+  const [showPendingFeesBreakdownMonth, setShowPendingFeesBreakdownMonth] = useState<string | null>(null);
+  const [pendingFeesSearchQuery, setPendingFeesSearchQuery] = useState<string>('');
+  const [pendingFeesClassFilter, setPendingFeesClassFilter] = useState<string>('all');
+  const [showPendingBusBreakdownMonth, setShowPendingBusBreakdownMonth] = useState<string | null>(null);
+  const [pendingBusSearchQuery, setPendingBusSearchQuery] = useState<string>('');
+  const [pendingBusClassFilter, setPendingBusClassFilter] = useState<string>('all');
   const [selectedInvoiceFeeDetail, setSelectedInvoiceFeeDetail] = useState<{
     invoiceId?: string;
     invoiceNo: string;
@@ -6255,12 +6261,21 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between" id="overview-revenue-unpaid">
+              <div 
+                onClick={() => setShowPendingFeesBreakdownMonth(currentMonthFilter)}
+                className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-rose-200 transition-all active:scale-[0.99] group" 
+                id="overview-revenue-unpaid"
+                title="Guji si aad u aragto ardayda aan bixin lacagta (Click to see students who haven't paid fees)"
+              >
                 <div>
-                  <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Pending Balance</p>
-                  <p className="text-2xl font-extrabold text-slate-500 mt-2">${Number(currentMonthUnpaidAmount).toFixed(2)}</p>
+                  <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                    Pending Balance ({currentMonthName})
+                    <span className="text-[10px] text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-rose-50 px-1.5 py-0.5 rounded-md">View unpaid 🔍</span>
+                  </p>
+                  <p className="text-2xl font-extrabold text-rose-600 mt-2">${Number(currentMonthUnpaidAmount).toFixed(2)}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Click to see who still didn't pay fee</p>
                 </div>
-                <div className="p-3.5 bg-slate-100 text-slate-600 rounded-2xl">
+                <div className="p-3.5 bg-rose-50 text-rose-600 rounded-2xl group-hover:bg-rose-600 group-hover:text-white transition-colors">
                   <Calculator className="w-6 h-6" />
                 </div>
               </div>
@@ -6337,13 +6352,20 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                <div 
+                  onClick={() => setShowPendingBusBreakdownMonth(currentMonthFilter)}
+                  className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-rose-200 transition-all active:scale-[0.99] group"
+                  title="Guji si aad u aragto ardayda aan bixin lacagta baska (Click to see students who haven't paid bus fare)"
+                >
                   <div>
-                    <p className="text-rose-605 text-[10px] font-bold uppercase tracking-wider">Pending Bus Balance</p>
+                    <p className="text-rose-605 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                      Pending Bus Balance
+                      <span className="text-[9px] text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-rose-50 px-1 rounded-sm">View unpaid 🔍</span>
+                    </p>
                     <p className="text-2xl font-black text-rose-600 mt-1">${Number(currentMonthBusPending).toFixed(2)}</p>
-                    <p className="text-[10px] text-slate-400 mt-1">Outstanding bus fees remaining</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Click to see who still didn't pay bus</p>
                   </div>
-                  <div className="p-3 bg-rose-50 text-rose-600 rounded-xl">
+                  <div className="p-3 bg-rose-50 text-rose-600 rounded-xl group-hover:bg-rose-600 group-hover:text-white transition-colors">
                     <AlertCircle className="w-5 h-5" />
                   </div>
                 </div>
@@ -6437,19 +6459,27 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 </div>
 
                 <div className="space-y-2 pt-2">
-                  <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs">
-                    <span className="flex items-center gap-2 font-semibold text-slate-600">
+                  <div 
+                    onClick={() => setShowCollectedFeesBreakdownMonth(currentMonthFilter)}
+                    className="flex justify-between items-center bg-slate-50 hover:bg-teal-50 hover:border-teal-200 p-2.5 rounded-xl border border-slate-100 text-xs cursor-pointer transition-all group"
+                    title="Guji si aad u aragto lacagta la bixiyay (Click to see collected breakdown)"
+                  >
+                    <span className="flex items-center gap-2 font-semibold text-slate-600 group-hover:text-teal-900">
                       <span className="w-2.5 h-2.5 rounded-full bg-teal-600 inline-block" />
                       Collected Fees
                     </span>
-                    <span className="font-extrabold text-slate-800">${Number(currentMonthPaidAmount).toFixed(2)}</span>
+                    <span className="font-extrabold text-slate-800 group-hover:text-teal-900">${Number(currentMonthPaidAmount).toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs">
-                    <span className="flex items-center gap-2 font-semibold text-slate-600">
-                      <span className="w-2.5 h-2.5 rounded-full bg-slate-300 inline-block" />
+                  <div 
+                    onClick={() => setShowPendingFeesBreakdownMonth(currentMonthFilter)}
+                    className="flex justify-between items-center bg-slate-50 hover:bg-rose-50 hover:border-rose-200 p-2.5 rounded-xl border border-slate-100 text-xs cursor-pointer transition-all group"
+                    title="Guji si aad u aragto ardayda aan bixin (Click to see unpaid students)"
+                  >
+                    <span className="flex items-center gap-2 font-semibold text-slate-600 group-hover:text-rose-900">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block" />
                       Unpaid Balances
                     </span>
-                    <span className="font-extrabold text-slate-800">${Number(currentMonthUnpaidAmount).toFixed(2)}</span>
+                    <span className="font-extrabold text-slate-800 group-hover:text-rose-700">${Number(currentMonthUnpaidAmount).toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -15049,6 +15079,763 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       })()}
 
       {/* -------------------------------------------------------------
+          MODAL: PENDING TUITION & SCHOOL FEES DETAILED BREAKDOWN
+          ------------------------------------------------------------- */}
+      {showPendingFeesBreakdownMonth && (() => {
+        const month = showPendingFeesBreakdownMonth;
+        const monthName = getFriendlyMonthName(month);
+        
+        // Calculate all active students with pending tuition balances
+        const allUnpaidTuitionList = (database.students || [])
+          .filter(s => s.active)
+          .map(student => {
+            const record = getBillingStatusForStudent(student, month);
+            const amountDue = Number(record.amountDue ?? student.monthlyFee ?? 0);
+            const amountPaid = Number(record.amountPaid || 0);
+            const balanceDue = Math.max(0, amountDue - amountPaid);
+            const isUnpaid = amountPaid === 0;
+            const isPartial = amountPaid > 0 && amountPaid < amountDue;
+            return {
+              student,
+              record,
+              amountDue,
+              amountPaid,
+              balanceDue,
+              status: (isUnpaid ? 'Unpaid' : (isPartial ? 'Partial' : 'Paid')) as 'Unpaid' | 'Partial' | 'Paid'
+            };
+          })
+          .filter(item => item.balanceDue > 0);
+
+        // Class list for filtering
+        const classOptions = Array.from(new Set(allUnpaidTuitionList.map(item => item.student.className).filter(Boolean))) as string[];
+
+        // Filtered list by search and class
+        const filteredUnpaidTuition = allUnpaidTuitionList.filter(item => {
+          const q = pendingFeesSearchQuery.toLowerCase();
+          const matchesSearch = !q || (
+            (item.student.name || '').toLowerCase().includes(q) ||
+            (item.student.id || '').toLowerCase().includes(q) ||
+            (item.student.className || '').toLowerCase().includes(q) ||
+            (item.student.parentName || '').toLowerCase().includes(q) ||
+            (item.student.parentPhone || '').toLowerCase().includes(q)
+          );
+          const matchesClass = pendingFeesClassFilter === 'all' || item.student.className === pendingFeesClassFilter;
+          return matchesSearch && matchesClass;
+        });
+
+        // Totals
+        const totalExpectedTuition = (database.students || []).filter(s => s.active).reduce((sum, s) => sum + Number(s.monthlyFee || 0), 0);
+        const totalTuitionPaid = (database.students || []).filter(s => s.active).map(s => getBillingStatusForStudent(s, month)).reduce((sum, r) => sum + Number(r.amountPaid || 0), 0);
+        const totalPendingDebt = allUnpaidTuitionList.reduce((sum, item) => sum + item.balanceDue, 0);
+
+        // Download CSV
+        const handleDownloadUnpaidFeesCSV = () => {
+          if (allUnpaidTuitionList.length === 0) return;
+          const headers = '\uFEFFStudent ID,Ardayga (Student Name),Fasalka (Class),Waalidka (Parent Name),Telka Waalidka (Parent Phone),Monthly Fee Due ($),Paid So Far ($),Pending Balance ($),Status\n';
+          const rows = filteredUnpaidTuition.map(item => {
+            return `"${item.student.id}","${item.student.name.replace(/"/g, '""')}","${(item.student.className || 'None').replace(/"/g, '""')}","${(item.student.parentName || 'N/A').replace(/"/g, '""')}","${(item.student.parentPhone || 'N/A').replace(/"/g, '""')}","${item.amountDue.toFixed(2)}","${item.amountPaid.toFixed(2)}","${item.balanceDue.toFixed(2)}","${item.status}"`;
+          }).join('\n');
+
+          const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.setAttribute("href", url);
+          link.setAttribute("download", `Dugsiga_Subuc_Unpaid_Fees_${month}_${new Date().toISOString().split('T')[0]}.csv`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          setFeedbackMsg("Liiska ardayda aan bixin lacagta waa la soo dejiyay (CSV Downloaded)!");
+          setTimeout(() => setFeedbackMsg(''), 4000);
+        };
+
+        // Download TXT
+        const handleDownloadUnpaidFeesTXT = () => {
+          let report = `====================================================\n`;
+          report += `DUGSIGA SUBUC - UNPAID & PENDING FEES REPORT\n`;
+          report += `Muddada (Month): ${monthName} (${month})\n`;
+          report += `Generated: ${new Date().toLocaleString()}\n`;
+          report += `Total Unpaid Students: ${allUnpaidTuitionList.length} | Total Pending Balance: $${totalPendingDebt.toFixed(2)}\n`;
+          report += `====================================================\n\n`;
+
+          filteredUnpaidTuition.forEach((item, i) => {
+            report += `${i + 1}. [${item.student.id}] ${item.student.name}\n`;
+            report += `   Fasalka: ${item.student.className || 'None'}\n`;
+            report += `   Waalidka: ${item.student.parentName || 'N/A'} (Tel: ${item.student.parentPhone || 'N/A'})\n`;
+            report += `   Fee Due: $${item.amountDue.toFixed(2)} | Paid: $${item.amountPaid.toFixed(2)} | Pending Debt: $${item.balanceDue.toFixed(2)}\n`;
+            report += `   Status: ${item.status.toUpperCase()}\n`;
+            report += `----------------------------------------------------\n`;
+          });
+
+          triggerFileDownload(`Dugsiga_Subuc_Unpaid_Fees_${month}_${new Date().toISOString().split('T')[0]}.txt`, report);
+          setFeedbackMsg("Warbixinta qoraalka ah ee ardayda dhiman waa la soo dejiyay!");
+          setTimeout(() => setFeedbackMsg(''), 4000);
+        };
+
+        return (
+          <div 
+            className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-55 animate-fade-in overflow-y-auto pointer-print-none" 
+            id="pending-fees-modal-bg"
+            onClick={(e) => {
+              if ((e.target as HTMLElement).id === 'pending-fees-modal-bg') {
+                setShowPendingFeesBreakdownMonth(null);
+              }
+            }}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-5xl w-full overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              {/* Modal Header */}
+              <div className="p-6 bg-slate-900 text-white flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="p-3 bg-rose-500/20 border border-rose-400/30 rounded-2xl text-rose-300">
+                    <AlertCircle className="w-6 h-6" />
+                  </span>
+                  <div>
+                    <h3 className="text-lg font-black text-white flex items-center gap-2">
+                      Ardayda Aan Bixin Lacagta (Pending Fees Breakdown)
+                    </h3>
+                    <p className="text-xs text-slate-300 font-medium mt-0.5">
+                      Liiska faahfaahsan ee ardayda ay ku dhimantahay lacagta waxbarashada ee <span className="font-bold text-rose-300">{monthName}</span>
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setShowPendingFeesBreakdownMonth(null)}
+                  className="p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl transition-all cursor-pointer"
+                  title="Xir (Close)"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Summary Metric Cards */}
+              <div className="bg-slate-50 p-4 border-b border-slate-200/80 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-rose-50/60 p-3.5 rounded-2xl border border-rose-200/60 shadow-xs flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-black text-rose-800 uppercase tracking-wider block">Pending Debt</span>
+                    <span className="text-xl font-black text-rose-600">${totalPendingDebt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <AlertCircle className="w-5 h-5 text-rose-500" />
+                </div>
+
+                <div className="bg-white p-3.5 rounded-2xl border border-slate-200/60 shadow-xs flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Unpaid Students</span>
+                    <span className="text-xl font-black text-slate-800">{allUnpaidTuitionList.length} Students</span>
+                  </div>
+                  <Users className="w-5 h-5 text-slate-400" />
+                </div>
+
+                <div className="bg-sky-50/60 p-3.5 rounded-2xl border border-sky-200/60 shadow-xs flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-black text-sky-800 uppercase tracking-wider block">Total Invoiced</span>
+                    <span className="text-xl font-black text-sky-900">${totalExpectedTuition.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <Calculator className="w-5 h-5 text-sky-600" />
+                </div>
+
+                <div className="bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-200/60 shadow-xs flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider block">Collected So Far</span>
+                    <span className="text-xl font-black text-emerald-700">${totalTuitionPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <Check className="w-5 h-5 text-emerald-600" />
+                </div>
+              </div>
+
+              {/* Controls Bar: Search, Class Filter, and Export */}
+              <div className="p-4 bg-white border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex flex-col sm:flex-row gap-2.5 flex-1">
+                  {/* Search */}
+                  <div className="relative flex-1">
+                    <Search className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 w-4 h-4 pointer-events-none mt-2.5" />
+                    <input
+                      type="text"
+                      placeholder="Raadi magaca ardayga, telka waalidka ama ID-ga..."
+                      value={pendingFeesSearchQuery}
+                      onChange={(e) => setPendingFeesSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-rose-500 focus:bg-white transition-all"
+                    />
+                    {pendingFeesSearchQuery && (
+                      <button 
+                        type="button" 
+                        onClick={() => setPendingFeesSearchQuery('')} 
+                        className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Class Filter */}
+                  <select
+                    value={pendingFeesClassFilter}
+                    onChange={(e) => setPendingFeesClassFilter(e.target.value)}
+                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:bg-white shrink-0"
+                  >
+                    <option value="all">Dhamaan Fasallada (All Classes)</option>
+                    {classOptions.map(cls => (
+                      <option key={cls} value={cls}>Fasalka: {cls}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Export Actions */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleDownloadUnpaidFeesTXT}
+                    disabled={allUnpaidTuitionList.length === 0}
+                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                    title="Soo deji warbixin qoraal ah (TXT Report)"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-slate-600" />
+                    TXT
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownloadUnpaidFeesCSV}
+                    disabled={allUnpaidTuitionList.length === 0}
+                    className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-50 active:scale-95"
+                    title="Soo deji liiska Excel (CSV)"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-white" />
+                    Excel (CSV)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePrintElement('printable-unpaid-fees-container')}
+                    disabled={allUnpaidTuitionList.length === 0}
+                    className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-50 active:scale-95"
+                    title="Daabac liiska ardayda aan bixin lacagta"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-white" />
+                    Daabac (Print)
+                  </button>
+                </div>
+              </div>
+
+              {/* Scrollable Table Area */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <div id="printable-unpaid-fees-container" className="space-y-4">
+                  {/* Print Only Header */}
+                  <div className="hidden print-only-block border-b-2 border-slate-900 pb-4 mb-4">
+                    <h2 className="text-xl font-black text-slate-900 text-center">Dugsiga Subuc - Banuu Jalaal</h2>
+                    <h3 className="text-base font-bold text-slate-700 text-center mt-1">Warbixinta Ardayda Aan Bixin Lacagta Waxbarashada ({monthName})</h3>
+                    <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono mt-4">
+                      <span>Taariikhda: {new Date().toLocaleDateString('so-SO', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                      <span>Ardayda Dhiman: {allUnpaidTuitionList.length} | Wadarta Deynta: ${totalPendingDebt.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {filteredUnpaidTuition.length === 0 ? (
+                    <div className="text-center py-16 text-slate-400 font-semibold bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                      <Check className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
+                      <p className="text-sm font-bold text-slate-700">Dhamaan ardaydu waa bixiyeen lacagta waxbarashada!</p>
+                      <p className="text-xs text-slate-400 mt-1">No pending unpaid tuition fees found for this selection.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto bg-white rounded-2xl border border-slate-200/80 shadow-xs">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky top-0 z-10">
+                            <th className="py-3 px-4">#</th>
+                            <th className="py-3 px-4">Ardayga (Student Name)</th>
+                            <th className="py-3 px-4">Fasalka & Macallinka</th>
+                            <th className="py-3 px-4">Waalidka & Xiriirka</th>
+                            <th className="py-3 px-4 text-right">Fee Due ($)</th>
+                            <th className="py-3 px-4 text-right">Paid ($)</th>
+                            <th className="py-3 px-4 text-right">Deynta (Debt $)</th>
+                            <th className="py-3 px-4 text-center">Status</th>
+                            <th className="py-3 px-4 text-right pointer-print-none">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-semibold">
+                          {filteredUnpaidTuition.map((item, idx) => {
+                            const waCleanPhone = (item.student.parentPhone || '').replace(/[^0-9]/g, '');
+                            const waMessage = encodeURIComponent(`Asc Walaal, waxaan ku xusuusinaynaa lacagta waxbarashada ardayga ${item.student.name} ee bisha ${monthName} oo dhan $${item.balanceDue.toFixed(2)} USD oo weli dhiman. Fadlan nala soo xiriir ama shub lacagta. Mahadsanid!`);
+
+                            return (
+                              <tr key={item.student.id || idx} className="hover:bg-rose-50/30 transition-colors">
+                                <td className="py-3 px-4 text-slate-400 font-mono text-[10px]">{idx + 1}</td>
+                                <td className="py-3 px-4 font-bold text-slate-800">
+                                  {item.student.name}
+                                  <span className="block text-[10px] font-mono text-slate-400 font-normal">{item.student.id}</span>
+                                </td>
+                                <td className="py-3 px-4 text-slate-600">
+                                  <span className="font-bold text-slate-800 block">{item.student.className || 'None'}</span>
+                                  {item.student.teacherId && (
+                                    <span className="text-[10px] text-slate-400 font-normal">
+                                      Macallin: {database.teachers.find(t => t.id === item.student.teacherId)?.name || item.student.teacherId}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span className="text-slate-800 block font-medium">{item.student.parentName || 'N/A'}</span>
+                                  <div className="flex items-center gap-2 mt-0.5 pointer-print-none">
+                                    {item.student.parentPhone ? (
+                                      <>
+                                        <a 
+                                          href={`tel:${item.student.parentPhone}`}
+                                          className="text-[10px] font-mono text-indigo-600 hover:text-indigo-800 font-bold inline-flex items-center gap-1 hover:underline"
+                                          title="Wac waalidka"
+                                        >
+                                          <Phone className="w-2.5 h-2.5" />
+                                          {item.student.parentPhone}
+                                        </a>
+                                        {waCleanPhone && (
+                                          <a
+                                            href={`https://wa.me/${waCleanPhone}?text=${waMessage}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="px-1.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[9px] font-extrabold rounded-md transition-all inline-flex items-center gap-0.5"
+                                            title="U dir fariin WhatsApp ah oo xusuusin lacag ah"
+                                          >
+                                            WhatsApp 💬
+                                          </a>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-400 font-normal italic">No Phone</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 text-right font-mono text-slate-600">${item.amountDue.toFixed(2)}</td>
+                                <td className="py-3 px-4 text-right font-mono text-teal-700 font-bold">${item.amountPaid.toFixed(2)}</td>
+                                <td className="py-3 px-4 text-right font-mono font-black text-rose-600 text-sm">
+                                  ${item.balanceDue.toFixed(2)}
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  {item.status === 'Partial' ? (
+                                    <span className="px-2 py-0.5 text-[10px] font-black bg-amber-50 text-amber-700 rounded-full border border-amber-200">
+                                      Qayb (Partial)
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 text-[10px] font-black bg-rose-50 text-rose-700 rounded-full border border-rose-200">
+                                      Lama bixin (Unpaid)
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 text-right pointer-print-none">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedBillingMonth(month);
+                                      setShowPendingFeesBreakdownMonth(null);
+                                      handleOpenPayModal(item.student);
+                                    }}
+                                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer inline-flex items-center gap-1 active:scale-95"
+                                    title="Qabo lacag-bixinta ardaygan (Log Payment)"
+                                  >
+                                    <CircleDollarSign className="w-3.5 h-3.5" />
+                                    Bixi (Pay)
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 pointer-print-none">
+                <button
+                  type="button"
+                  onClick={() => setShowPendingFeesBreakdownMonth(null)}
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
+                >
+                  Xir (Close)
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        );
+      })()}
+
+      {/* -------------------------------------------------------------
+          MODAL: PENDING BUS FARE DETAILED BREAKDOWN
+          ------------------------------------------------------------- */}
+      {showPendingBusBreakdownMonth && (() => {
+        const month = showPendingBusBreakdownMonth;
+        const monthName = getFriendlyMonthName(month);
+        
+        // Find all active bus riders who have pending bus balances for this month
+        const allUnpaidBusList = (database.students || [])
+          .filter(s => s.active && s.busFee && Number(s.busFee) > 0)
+          .map(student => {
+            const record = getBillingStatusForStudent(student, month);
+            const busFeeDue = Number(record.busFeeDue ?? student.busFee ?? 0);
+            const busFeePaid = Number(record.busFeePaid || 0);
+            const balanceDue = Math.max(0, busFeeDue - busFeePaid);
+            const isUnpaid = busFeePaid === 0;
+            const isPartial = busFeePaid > 0 && busFeePaid < busFeeDue;
+            return {
+              student,
+              record,
+              busFeeDue,
+              busFeePaid,
+              balanceDue,
+              status: (isUnpaid ? 'Unpaid' : (isPartial ? 'Partial' : 'Paid')) as 'Unpaid' | 'Partial' | 'Paid'
+            };
+          })
+          .filter(item => item.balanceDue > 0);
+
+        // Class list for filtering
+        const classOptions = Array.from(new Set(allUnpaidBusList.map(item => item.student.className).filter(Boolean))) as string[];
+
+        // Filter by search query and class
+        const filteredUnpaidBus = allUnpaidBusList.filter(item => {
+          const q = pendingBusSearchQuery.toLowerCase();
+          const matchesSearch = !q || (
+            (item.student.name || '').toLowerCase().includes(q) ||
+            (item.student.id || '').toLowerCase().includes(q) ||
+            (item.student.className || '').toLowerCase().includes(q) ||
+            (item.student.parentName || '').toLowerCase().includes(q) ||
+            (item.student.parentPhone || '').toLowerCase().includes(q)
+          );
+          const matchesClass = pendingBusClassFilter === 'all' || item.student.className === pendingBusClassFilter;
+          return matchesSearch && matchesClass;
+        });
+
+        // Totals
+        const totalExpectedBus = busRiders.reduce((sum, s) => sum + Number(s.busFee || 0), 0);
+        const totalBusPaid = currentMonthResolvedRecords.reduce((sum, r) => sum + Number(r.busFeePaid || 0), 0);
+        const totalPendingBusDebt = allUnpaidBusList.reduce((sum, item) => sum + item.balanceDue, 0);
+
+        // Download CSV
+        const handleDownloadUnpaidBusCSV = () => {
+          if (allUnpaidBusList.length === 0) return;
+          const headers = '\uFEFFStudent ID,Ardayga (Student Name),Fasalka (Class),Waalidka (Parent Name),Telka Waalidka (Parent Phone),Monthly Bus Fee Due ($),Bus Paid So Far ($),Pending Bus Balance ($),Status\n';
+          const rows = filteredUnpaidBus.map(item => {
+            return `"${item.student.id}","${item.student.name.replace(/"/g, '""')}","${(item.student.className || 'None').replace(/"/g, '""')}","${(item.student.parentName || 'N/A').replace(/"/g, '""')}","${(item.student.parentPhone || 'N/A').replace(/"/g, '""')}","${item.busFeeDue.toFixed(2)}","${item.busFeePaid.toFixed(2)}","${item.balanceDue.toFixed(2)}","${item.status}"`;
+          }).join('\n');
+
+          const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.setAttribute("href", url);
+          link.setAttribute("download", `Dugsiga_Subuc_Unpaid_Bus_${month}_${new Date().toISOString().split('T')[0]}.csv`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          setFeedbackMsg("Liiska lacagta baska dhiman waa la soo dejiyay (CSV Downloaded)!");
+          setTimeout(() => setFeedbackMsg(''), 4000);
+        };
+
+        // Download TXT
+        const handleDownloadUnpaidBusTXT = () => {
+          let report = `====================================================\n`;
+          report += `DUGSIGA SUBUC - UNPAID BUS FARE REPORT\n`;
+          report += `Muddada (Month): ${monthName} (${month})\n`;
+          report += `Generated: ${new Date().toLocaleString()}\n`;
+          report += `Total Unpaid Bus Riders: ${allUnpaidBusList.length} | Total Pending Bus Balance: $${totalPendingBusDebt.toFixed(2)}\n`;
+          report += `====================================================\n\n`;
+
+          filteredUnpaidBus.forEach((item, i) => {
+            report += `${i + 1}. [${item.student.id}] ${item.student.name}\n`;
+            report += `   Fasalka: ${item.student.className || 'None'}\n`;
+            report += `   Waalidka: ${item.student.parentName || 'N/A'} (Tel: ${item.student.parentPhone || 'N/A'})\n`;
+            report += `   Bus Due: $${item.busFeeDue.toFixed(2)} | Paid: $${item.busFeePaid.toFixed(2)} | Pending Debt: $${item.balanceDue.toFixed(2)}\n`;
+            report += `   Status: ${item.status.toUpperCase()}\n`;
+            report += `----------------------------------------------------\n`;
+          });
+
+          triggerFileDownload(`Dugsiga_Subuc_Unpaid_Bus_${month}_${new Date().toISOString().split('T')[0]}.txt`, report);
+          setFeedbackMsg("Warbixinta qoraalka ah ee baska dhiman waa la soo dejiyay!");
+          setTimeout(() => setFeedbackMsg(''), 4000);
+        };
+
+        return (
+          <div 
+            className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-55 animate-fade-in overflow-y-auto pointer-print-none" 
+            id="pending-bus-modal-bg"
+            onClick={(e) => {
+              if ((e.target as HTMLElement).id === 'pending-bus-modal-bg') {
+                setShowPendingBusBreakdownMonth(null);
+              }
+            }}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-5xl w-full overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              {/* Modal Header */}
+              <div className="p-6 bg-slate-900 text-white flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="p-3 bg-amber-500/20 border border-amber-400/30 rounded-2xl text-amber-300">
+                    <Bus className="w-6 h-6" />
+                  </span>
+                  <div>
+                    <h3 className="text-lg font-black text-white flex items-center gap-2">
+                      Lacagta Baska Ee Dhiman (Pending Bus Fare Breakdown)
+                    </h3>
+                    <p className="text-xs text-slate-300 font-medium mt-0.5">
+                      Liiska ardayda baska raacda ee ay ku dhimantahay lacagta gaadiidka ee <span className="font-bold text-amber-300">{monthName}</span>
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setShowPendingBusBreakdownMonth(null)}
+                  className="p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl transition-all cursor-pointer"
+                  title="Xir (Close)"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Summary Metric Cards */}
+              <div className="bg-slate-50 p-4 border-b border-slate-200/80 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-rose-50/60 p-3.5 rounded-2xl border border-rose-200/60 shadow-xs flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-black text-rose-800 uppercase tracking-wider block">Pending Bus Debt</span>
+                    <span className="text-xl font-black text-rose-600">${totalPendingBusDebt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <AlertCircle className="w-5 h-5 text-rose-500" />
+                </div>
+
+                <div className="bg-white p-3.5 rounded-2xl border border-slate-200/60 shadow-xs flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Unpaid Bus Riders</span>
+                    <span className="text-xl font-black text-slate-800">{allUnpaidBusList.length} Riders</span>
+                  </div>
+                  <Users className="w-5 h-5 text-slate-400" />
+                </div>
+
+                <div className="bg-sky-50/60 p-3.5 rounded-2xl border border-sky-200/60 shadow-xs flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-black text-sky-800 uppercase tracking-wider block">Total Bus Invoiced</span>
+                    <span className="text-xl font-black text-sky-900">${totalExpectedBus.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <Calculator className="w-5 h-5 text-sky-600" />
+                </div>
+
+                <div className="bg-teal-50/60 p-3.5 rounded-2xl border border-teal-200/60 shadow-xs flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-black text-teal-800 uppercase tracking-wider block">Bus Collected</span>
+                    <span className="text-xl font-black text-teal-700">${totalBusPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <Check className="w-5 h-5 text-emerald-600" />
+                </div>
+              </div>
+
+              {/* Controls Bar: Search, Class Filter, and Export */}
+              <div className="p-4 bg-white border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex flex-col sm:flex-row gap-2.5 flex-1">
+                  {/* Search */}
+                  <div className="relative flex-1">
+                    <Search className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 w-4 h-4 pointer-events-none mt-2.5" />
+                    <input
+                      type="text"
+                      placeholder="Raadi ardayga baska, telka waalidka ama ID-ga..."
+                      value={pendingBusSearchQuery}
+                      onChange={(e) => setPendingBusSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-amber-500 focus:bg-white transition-all"
+                    />
+                    {pendingBusSearchQuery && (
+                      <button 
+                        type="button" 
+                        onClick={() => setPendingBusSearchQuery('')} 
+                        className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Class Filter */}
+                  <select
+                    value={pendingBusClassFilter}
+                    onChange={(e) => setPendingBusClassFilter(e.target.value)}
+                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:bg-white shrink-0"
+                  >
+                    <option value="all">Dhamaan Fasallada (All Classes)</option>
+                    {classOptions.map(cls => (
+                      <option key={cls} value={cls}>Fasalka: {cls}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Export Actions */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleDownloadUnpaidBusTXT}
+                    disabled={allUnpaidBusList.length === 0}
+                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                    title="Soo deji warbixin qoraal ah (TXT Report)"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-slate-600" />
+                    TXT
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownloadUnpaidBusCSV}
+                    disabled={allUnpaidBusList.length === 0}
+                    className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-50 active:scale-95"
+                    title="Soo deji liiska Excel (CSV)"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-white" />
+                    Excel (CSV)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePrintElement('printable-unpaid-bus-container')}
+                    disabled={allUnpaidBusList.length === 0}
+                    className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-50 active:scale-95"
+                    title="Daabac liiska baska dhiman"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-white" />
+                    Daabac (Print)
+                  </button>
+                </div>
+              </div>
+
+              {/* Scrollable Table Area */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <div id="printable-unpaid-bus-container" className="space-y-4">
+                  {/* Print Only Header */}
+                  <div className="hidden print-only-block border-b-2 border-slate-900 pb-4 mb-4">
+                    <h2 className="text-xl font-black text-slate-900 text-center">Dugsiga Subuc - Banuu Jalaal</h2>
+                    <h3 className="text-base font-bold text-slate-700 text-center mt-1">Warbixinta Lacagta Baska Ee Dhiman ({monthName})</h3>
+                    <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono mt-4">
+                      <span>Taariikhda: {new Date().toLocaleDateString('so-SO', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                      <span>Rakaabka Dhiman: {allUnpaidBusList.length} | Wadarta Deynta Baska: ${totalPendingBusDebt.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {filteredUnpaidBus.length === 0 ? (
+                    <div className="text-center py-16 text-slate-400 font-semibold bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                      <Check className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
+                      <p className="text-sm font-bold text-slate-700">Dhamaan rakaabka baska waa bixiyeen lacagta gaadiidka!</p>
+                      <p className="text-xs text-slate-400 mt-1">No pending unpaid bus fees found for this selection.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto bg-white rounded-2xl border border-slate-200/80 shadow-xs">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky top-0 z-10">
+                            <th className="py-3 px-4">#</th>
+                            <th className="py-3 px-4">Ardayga (Student Name)</th>
+                            <th className="py-3 px-4">Fasalka</th>
+                            <th className="py-3 px-4">Waalidka & Xiriirka</th>
+                            <th className="py-3 px-4 text-right">Bus Due ($)</th>
+                            <th className="py-3 px-4 text-right">Bus Paid ($)</th>
+                            <th className="py-3 px-4 text-right">Deynta Baska ($)</th>
+                            <th className="py-3 px-4 text-center">Status</th>
+                            <th className="py-3 px-4 text-right pointer-print-none">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-semibold">
+                          {filteredUnpaidBus.map((item, idx) => {
+                            const waCleanPhone = (item.student.parentPhone || '').replace(/[^0-9]/g, '');
+                            const waMessage = encodeURIComponent(`Asc Walaal, waxaan ku xusuusinaynaa lacagta baska (gaadiidka) ee ardayga ${item.student.name} ee bisha ${monthName} oo dhan $${item.balanceDue.toFixed(2)} USD oo weli dhiman. Fadlan nala soo xiriir ama shub lacagta baska. Mahadsanid!`);
+
+                            return (
+                              <tr key={item.student.id || idx} className="hover:bg-amber-50/30 transition-colors">
+                                <td className="py-3 px-4 text-slate-400 font-mono text-[10px]">{idx + 1}</td>
+                                <td className="py-3 px-4 font-bold text-slate-800">
+                                  {item.student.name}
+                                  <span className="block text-[10px] font-mono text-slate-400 font-normal">{item.student.id}</span>
+                                </td>
+                                <td className="py-3 px-4 text-slate-600 font-bold">{item.student.className || 'None'}</td>
+                                <td className="py-3 px-4">
+                                  <span className="text-slate-800 block font-medium">{item.student.parentName || 'N/A'}</span>
+                                  <div className="flex items-center gap-2 mt-0.5 pointer-print-none">
+                                    {item.student.parentPhone ? (
+                                      <>
+                                        <a 
+                                          href={`tel:${item.student.parentPhone}`}
+                                          className="text-[10px] font-mono text-indigo-600 hover:text-indigo-800 font-bold inline-flex items-center gap-1 hover:underline"
+                                          title="Wac waalidka"
+                                        >
+                                          <Phone className="w-2.5 h-2.5" />
+                                          {item.student.parentPhone}
+                                        </a>
+                                        {waCleanPhone && (
+                                          <a
+                                            href={`https://wa.me/${waCleanPhone}?text=${waMessage}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="px-1.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[9px] font-extrabold rounded-md transition-all inline-flex items-center gap-0.5"
+                                            title="U dir fariin WhatsApp ah oo xusuusin lacagta baska ah"
+                                          >
+                                            WhatsApp 💬
+                                          </a>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-400 font-normal italic">No Phone</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 text-right font-mono text-slate-600">${item.busFeeDue.toFixed(2)}</td>
+                                <td className="py-3 px-4 text-right font-mono text-teal-700 font-bold">${item.busFeePaid.toFixed(2)}</td>
+                                <td className="py-3 px-4 text-right font-mono font-black text-rose-600 text-sm">
+                                  ${item.balanceDue.toFixed(2)}
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  {item.status === 'Partial' ? (
+                                    <span className="px-2 py-0.5 text-[10px] font-black bg-amber-50 text-amber-700 rounded-full border border-amber-200">
+                                      Qayb (Partial)
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 text-[10px] font-black bg-rose-50 text-rose-700 rounded-full border border-rose-200">
+                                      Lama bixin (Unpaid)
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 text-right pointer-print-none">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedBillingMonth(month);
+                                      setShowPendingBusBreakdownMonth(null);
+                                      handleOpenPayModal(item.student);
+                                    }}
+                                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer inline-flex items-center gap-1 active:scale-95"
+                                    title="Qabo lacagta baska ee ardaygan (Log Bus Payment)"
+                                  >
+                                    <Bus className="w-3.5 h-3.5" />
+                                    Bixi Baska (Pay Bus)
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 pointer-print-none">
+                <button
+                  type="button"
+                  onClick={() => setShowPendingBusBreakdownMonth(null)}
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
+                >
+                  Xir (Close)
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        );
+      })()}
+
+      {/* -------------------------------------------------------------
           MODAL: ACTIVE BUS RIDERS DETAIL BREAKDOWN
           ------------------------------------------------------------- */}
       {showActiveRidersModal && (() => {
@@ -15657,10 +16444,20 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                     <p className="text-xl font-black text-teal-900 mt-1">${Number(currentMonthBusCollected).toFixed(2)}</p>
                     <p className="text-[10px] text-teal-600/80 mt-0.5">Received payments</p>
                   </div>
-                  <div className="bg-rose-50/60 p-4 rounded-2xl border border-rose-100">
-                    <p className="text-[10px] font-black text-rose-700 uppercase tracking-wider">Pending Dues</p>
+                  <div 
+                    onClick={() => {
+                      setShowBusInvoicedModal(false);
+                      setShowPendingBusBreakdownMonth(currentMonthFilter);
+                    }}
+                    className="bg-rose-50/60 p-4 rounded-2xl border border-rose-100 cursor-pointer hover:bg-rose-100/80 hover:border-rose-300 transition-all group shadow-xs hover:shadow-sm"
+                    title="Guji si aad u aragto ardayda aan bixin baska (Click to view unpaid bus riders)"
+                  >
+                    <p className="text-[10px] font-black text-rose-700 uppercase tracking-wider flex items-center justify-between">
+                      <span>Pending Dues</span>
+                      <span className="text-[9px] bg-rose-200/80 px-1.5 py-0.5 rounded text-rose-900 font-bold opacity-0 group-hover:opacity-100 transition-opacity">View Unpaid →</span>
+                    </p>
                     <p className="text-xl font-black text-rose-900 mt-1">${Number(currentMonthBusPending).toFixed(2)}</p>
-                    <p className="text-[10px] text-rose-600/80 mt-0.5">Remaining balance</p>
+                    <p className="text-[10px] text-rose-600/80 mt-0.5">Click to see who still didn't pay</p>
                   </div>
                 </div>
 
