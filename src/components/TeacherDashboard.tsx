@@ -317,9 +317,9 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
     radiusMeters: 200
   };
 
-  // Find if checked-in today
+  // Find if checked-in for selected date
   const myCheckedInLog = (database.teacherAttendance || []).find(
-    a => a.teacherId === teacher.id && a.date === todayDateStr
+    a => a.teacherId === teacher.id && a.date === selectedDate
   );
 
   const handleVerifyAndCheckIn = () => {
@@ -348,10 +348,10 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
     const status: 'Present' | 'Late' = isLate ? 'Late' : 'Present';
 
     const newLog: TeacherAttendanceRecord = {
-      id: `TAR-${Date.now()}`,
+      id: `TAR-${teacher.id}-${selectedDate}`,
       teacherId: teacher.id,
       teacherName: teacher.name,
-      date: todayDateStr,
+      date: selectedDate,
       time: timeStr,
       latitude: schoolLoc.latitude,
       longitude: schoolLoc.longitude,
@@ -366,22 +366,32 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
       senderId: teacher.id,
       senderName: teacher.name,
       senderRole: 'teacher' as const,
-      message: `Arrival Logged: Teacher ${teacher.name} has checked-in successfully at ${timeStr} (status: ${status}, location check: bypassed).`,
+      message: `Arrival Logged: Teacher ${teacher.name} has checked-in successfully for ${selectedDate} at ${timeStr} (status: ${status}).`,
       timestamp: new Date().toISOString(),
       readBy: []
     };
 
+    const existingAttIndex = (database.teacherAttendance || []).findIndex(
+      a => a.teacherId === teacher.id && a.date === selectedDate
+    );
+    let updatedTeacherAttList = [...(database.teacherAttendance || [])];
+    if (existingAttIndex >= 0) {
+      updatedTeacherAttList[existingAttIndex] = newLog;
+    } else {
+      updatedTeacherAttList = [newLog, ...updatedTeacherAttList];
+    }
+
     const updatedDb: DatabaseState = {
       ...database,
-      teacherAttendance: [newLog, ...(database.teacherAttendance || [])],
+      teacherAttendance: updatedTeacherAttList,
       notifications: [newNotif, ...systemNotifs]
     };
 
     setTimeout(() => {
       onSaveDatabase(updatedDb);
-      setCheckInSuccess(`Check-in complete! You have been logged successfully as "${status}" at ${timeStr}.`);
+      setCheckInSuccess(`Check-in complete! You have been logged successfully as "${status}" at ${timeStr} for ${selectedDate}.`);
       setCheckInLoading(false);
-    }, 600);
+    }, 400);
   };
 
 
@@ -685,11 +695,28 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
   const [selectedWeeklyExamIds, setSelectedWeeklyExamIds] = useState<string[]>([]);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
 
-  // Get active students assigned to this teacher (either as primary teacher or secondary teacher)
+  // Get active students assigned to this teacher (either as primary teacher, secondary teacher, name match, or class match)
   const classStudents = database.students.filter(
-    (s) => 
-      (s.teacherId === teacher.id || s.secondTeacherId === teacher.id) &&
-      (s.active === true || String(s.active) === 'true')
+    (s) => {
+      const isAct = s.active === true || String(s.active) === 'true';
+      if (!isAct) return false;
+      const tId = teacher.id;
+      const tName = (teacher.name || '').trim().toLowerCase();
+      const tClass = (teacher.classAssigned || teacher.className || '').trim().toLowerCase();
+
+      if (s.teacherId === tId || s.secondTeacherId === tId) return true;
+      if (tName) {
+        if (s.teacherId && s.teacherId.toLowerCase() === tName) return true;
+        if (s.secondTeacherId && s.secondTeacherId.toLowerCase() === tName) return true;
+        const cleanName = tName.replace(/sh\.\s+|malm\.\s+|sheikh\.\s+|macallin\.\s+/gi, '').trim();
+        if (cleanName.length > 2) {
+          if (s.teacherId && s.teacherId.toLowerCase().includes(cleanName)) return true;
+          if (s.secondTeacherId && s.secondTeacherId.toLowerCase().includes(cleanName)) return true;
+        }
+      }
+      if (tClass && s.className && s.className.toLowerCase() === tClass) return true;
+      return false;
+    }
   );
 
   // Filter students by assigned shift / session
@@ -1331,13 +1358,13 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
         updatedSubmissions.unshift(workSubmission);
       }
 
-      // Auto check-in teacher if submitting attendance and arrival is not yet recorded for this day
+      // Auto check-in teacher if submitting attendance and arrival is not yet recorded for this selected date
       let updatedTeacherAttendance = [...(database.teacherAttendance || [])];
       const existingTeacherAttIdx = updatedTeacherAttendance.findIndex(
         a => a.teacherId === teacher.id && a.date === selectedDate
       );
 
-      if (existingTeacherAttIdx === -1 && selectedDate === todayDateStr) {
+      if (existingTeacherAttIdx === -1) {
         const now = new Date();
         const currentHH = now.getHours();
         const currentMM = now.getMinutes();
@@ -1357,7 +1384,7 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
         const teacherStatus: 'Present' | 'Late' = isLate ? 'Late' : 'Present';
 
         const newTeacherLog: TeacherAttendanceRecord = {
-          id: `TAR-${Date.now()}`,
+          id: `TAR-${teacher.id}-${selectedDate}`,
           teacherId: teacher.id,
           teacherName: teacher.name,
           date: selectedDate,
@@ -1830,6 +1857,45 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
                 </button>
               )}
             </div>
+
+            {/* Quick Logged Dates List for the teacher to quickly review and switch dates */}
+            {(database.teacherAttendance || []).filter(a => a.teacherId === teacher.id).length > 0 && (
+              <div className="p-3 bg-white rounded-2xl border border-slate-200/70 shadow-2xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-slate-700 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                    <span>📅</span> Taariikhihii Imaanshahaaga ({ (database.teacherAttendance || []).filter(a => a.teacherId === teacher.id).length } Maalmood):
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {(database.teacherAttendance || [])
+                    .filter(a => a.teacherId === teacher.id)
+                    .sort((a,b) => b.date.localeCompare(a.date))
+                    .slice(0, 10)
+                    .map(rec => (
+                      <button
+                        key={rec.id || `${rec.teacherId}-${rec.date}`}
+                        type="button"
+                        onClick={() => setSelectedDate(rec.date)}
+                        className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1 ${
+                          selectedDate === rec.date
+                            ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                        title={`Timid: ${rec.time} • Xaaladda: ${rec.status}`}
+                      >
+                        <span>{rec.date}</span>
+                        <span className={`px-1 rounded text-[9px] ${
+                          rec.status === 'Present'
+                            ? (selectedDate === rec.date ? 'bg-emerald-700 text-emerald-100' : 'bg-emerald-100 text-emerald-800')
+                            : (selectedDate === rec.date ? 'bg-amber-700 text-amber-100' : 'bg-amber-100 text-amber-800')
+                        }`}>
+                          {rec.time?.substring(0, 5) || rec.status}
+                        </span>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
 
             {/* Date and Session Selection Panel based on screenshot */}
             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-6" id="attendance-date-session-panel">

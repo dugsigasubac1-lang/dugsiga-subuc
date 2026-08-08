@@ -156,6 +156,38 @@ const storeBackupDirHandle = async (handle: FileSystemDirectoryHandle): Promise<
   });
 };
 
+export const getStudentsForTeacher = (teacher: Teacher, students: Student[]): Student[] => {
+  if (!teacher || !students) return [];
+  const tId = (teacher.id || '').trim();
+  const tName = (teacher.name || '').trim().toLowerCase();
+  const tClass = (teacher.classAssigned || teacher.className || '').trim().toLowerCase();
+  const cleanTName = tName.replace(/sh\.\s+|malm\.\s+|sheikh\.\s+|macallin\.\s+/gi, '').trim();
+
+  return students.filter(s => {
+    if (!s) return false;
+    const isAct = s.active === true || String(s.active) === 'true' || s.active === undefined;
+    if (!isAct) return false;
+
+    // Direct ID match (primary or secondary)
+    if (tId && (s.teacherId === tId || s.secondTeacherId === tId)) return true;
+
+    // Direct Name match
+    if (tName) {
+      if (s.teacherId && s.teacherId.toLowerCase() === tName) return true;
+      if (s.secondTeacherId && s.secondTeacherId.toLowerCase() === tName) return true;
+      if (cleanTName.length > 2) {
+        if (s.teacherId && s.teacherId.toLowerCase().includes(cleanTName)) return true;
+        if (s.secondTeacherId && s.secondTeacherId.toLowerCase().includes(cleanTName)) return true;
+      }
+    }
+
+    // Class assignment match
+    if (tClass && s.className && s.className.toLowerCase() === tClass) return true;
+
+    return false;
+  });
+};
+
 interface AdminDashboardProps {
   database: DatabaseState;
   onSaveDatabase: (updatedDb: DatabaseState) => void;
@@ -327,7 +359,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   }, [activeTab]);
 
   // Teacher Attendance and Geofencing reporting states
-  const [attendanceSubTab, setAttendanceSubTab] = useState<'dashboard' | 'checklist' | 'reports'>('dashboard');
+  const [attendanceSubTab, setAttendanceSubTab] = useState<'dashboard' | 'checklist' | 'reports' | 'all_logs'>('dashboard');
   const [selectedReportTeacherId, setSelectedReportTeacherId] = useState<string>('');
   const [teacherReportStartDate, setTeacherReportStartDate] = useState<string>(() => {
     const d = new Date();
@@ -335,6 +367,98 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     return d.toISOString().split('T')[0];
   });
   const [teacherReportEndDate, setTeacherReportEndDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  
+  // Teacher attendance record editing and adding state
+  const [editingTeacherAtt, setEditingTeacherAtt] = useState<{
+    id: string;
+    teacherId: string;
+    date: string;
+    time: string;
+    status: 'Present' | 'Late';
+  } | null>(null);
+  const [showAddTeacherAttModal, setShowAddTeacherAttModal] = useState(false);
+  const [newTeacherAttRecord, setNewTeacherAttRecord] = useState({
+    teacherId: '',
+    date: new Date().toISOString().split('T')[0],
+    time: '07:25',
+    status: 'Present' as 'Present' | 'Late'
+  });
+
+  const handleSaveEditedTeacherAtt = () => {
+    if (!editingTeacherAtt) return;
+    const teacher = database.teachers.find(t => t.id === editingTeacherAtt.teacherId);
+    const updated = (database.teacherAttendance || []).map(a => {
+      if (a.id === editingTeacherAtt.id) {
+        return {
+          ...a,
+          teacherId: editingTeacherAtt.teacherId,
+          teacherName: teacher ? teacher.name : a.teacherName,
+          date: editingTeacherAtt.date,
+          time: editingTeacherAtt.time,
+          status: editingTeacherAtt.status
+        };
+      }
+      return a;
+    });
+
+    onSaveDatabase({
+      ...database,
+      teacherAttendance: updated
+    });
+    setEditingTeacherAtt(null);
+    setFeedbackMsg("Diiwaanka imaanshaha macallinka si guul ah ayaa loo cusboonaysiiyay!");
+    setTimeout(() => setFeedbackMsg(''), 4000);
+  };
+
+  const handleDeleteTeacherAtt = (recId: string, teacherId: string, date: string) => {
+    if (!confirm("Ma hubtaa inaad tirtirto diiwaankan imaanshaha?")) return;
+    const updated = (database.teacherAttendance || []).filter(a => {
+      if (recId && a.id === recId) return false;
+      if (a.teacherId === teacherId && a.date === date) return false;
+      return true;
+    });
+
+    onSaveDatabase({
+      ...database,
+      teacherAttendance: updated
+    });
+    setFeedbackMsg("Diiwaanka imaanshaha macallinka waa la tirtiray!");
+    setTimeout(() => setFeedbackMsg(''), 4000);
+  };
+
+  const handleAddNewTeacherAtt = () => {
+    if (!newTeacherAttRecord.teacherId) {
+      alert("Fadlan dooro macallin!");
+      return;
+    }
+    const teacher = database.teachers.find(t => t.id === newTeacherAttRecord.teacherId);
+    const newRecord: TeacherAttendanceRecord = {
+      id: `tatt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      teacherId: newTeacherAttRecord.teacherId,
+      teacherName: teacher ? teacher.name : 'Teacher',
+      date: newTeacherAttRecord.date,
+      time: newTeacherAttRecord.time,
+      status: newTeacherAttRecord.status,
+      distanceFromSchool: 15,
+      latitude: campusLat,
+      longitude: campusLon,
+      isSimulated: false,
+      timestamp: Date.now()
+    };
+
+    // Remove any existing duplicate for that teacher on that date first
+    const filtered = (database.teacherAttendance || []).filter(
+      a => !(a.teacherId === newTeacherAttRecord.teacherId && a.date === newTeacherAttRecord.date)
+    );
+
+    onSaveDatabase({
+      ...database,
+      teacherAttendance: [newRecord, ...filtered]
+    });
+    setShowAddTeacherAttModal(false);
+    setFeedbackMsg("Diiwaanka imaanshaha cusub si guul leh ayaa loo kaydiyay!");
+    setTimeout(() => setFeedbackMsg(''), 4000);
+  };
   
   const [campusName, setCampusName] = useState<string>(database.schoolLocation?.name || "Banuu Jalaal School Campus");
   const [campusLat, setCampusLat] = useState<number>(database.schoolLocation?.latitude || 8.398573);
@@ -5004,7 +5128,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   // Excludes inactive/suspended students automatically
   // -------------------------------------------------------------
   const handleExportStudentsExcel = (list: Student[], exportTypeLabel: string) => {
-    const activeList = list.filter(s => s.active);
+    const activeList = (list || []).filter(s => s && (s.active === true || String(s.active) === 'true' || s.active === undefined));
     if (activeList.length === 0) {
       alert("Ma jiraan arday firfircoon (active) oo la soo dejiyo!");
       return;
@@ -5060,7 +5184,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   };
 
   const handleExportStudentsWord = (list: Student[], exportTypeLabel: string) => {
-    const activeList = list.filter(s => s.active);
+    const activeList = (list || []).filter(s => s && (s.active === true || String(s.active) === 'true' || s.active === undefined));
     if (activeList.length === 0) {
       alert("Ma jiraan arday firfircoon (active) oo la soo dejiyo!");
       return;
@@ -5173,7 +5297,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   };
 
   const handleExportStudentsPDF = (list: Student[], exportTypeLabel: string) => {
-    const activeList = list.filter(s => s.active);
+    const activeList = (list || []).filter(s => s && (s.active === true || String(s.active) === 'true' || s.active === undefined));
     if (activeList.length === 0) {
       alert("Ma jiraan arday firfircoon (active) oo la soo dejiyo!");
       return;

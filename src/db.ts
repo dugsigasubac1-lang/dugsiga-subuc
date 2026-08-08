@@ -281,6 +281,22 @@ export function sanitizeLocalDatabase(parsed: DatabaseState): DatabaseState {
     }
   }
 
+  // Deduplicate and sanitize teacherAttendance records so each teacher has only one clean record per date
+  if (parsed && parsed.teacherAttendance && Array.isArray(parsed.teacherAttendance)) {
+    const seenTeacherDates = new Set<string>();
+    const sanitizedTeacherAtt: any[] = [];
+    parsed.teacherAttendance.forEach((rec: any) => {
+      if (rec && rec.teacherId && rec.date) {
+        const key = `${rec.teacherId}_${rec.date}`;
+        if (!seenTeacherDates.has(key)) {
+          seenTeacherDates.add(key);
+          sanitizedTeacherAtt.push(rec);
+        }
+      }
+    });
+    parsed.teacherAttendance = sanitizedTeacherAtt;
+  }
+
   // Auto-translate old Somali item descriptions dynamically and ensure account numbers exist in invoice notes
   if (parsed && parsed.invoices && Array.isArray(parsed.invoices)) {
     parsed.invoices.forEach((inv: any) => {
