@@ -74,7 +74,8 @@ import {
   Exam,
   TeacherSubmission,
   Invoice,
-  InvoiceItem
+  InvoiceItem,
+  TeacherAttendanceRecord
 } from '../types';
 import { MoneyTransferTab } from './MoneyTransferTab';
 import { LandingControlTab } from './LandingControlTab';
@@ -383,6 +384,9 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     time: '07:25',
     status: 'Present' as 'Present' | 'Late'
   });
+  const [searchTeacherAttQuery, setSearchTeacherAttQuery] = useState('');
+  const [filterTeacherAttStatus, setFilterTeacherAttStatus] = useState<'All' | 'Present' | 'Late'>('All');
+  const [filterTeacherAttTeacherId, setFilterTeacherAttTeacherId] = useState<string>('All');
 
   const handleSaveEditedTeacherAtt = () => {
     if (!editingTeacherAtt) return;
@@ -441,9 +445,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       status: newTeacherAttRecord.status,
       distanceFromSchool: 15,
       latitude: campusLat,
-      longitude: campusLon,
-      isSimulated: false,
-      timestamp: Date.now()
+      longitude: campusLon
     };
 
     // Remove any existing duplicate for that teacher on that date first
@@ -7203,10 +7205,10 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                 >
                                   <option value="All">--- Dooro Macallin (Select Teacher) ---</option>
                                   {database.teachers.map(tch => {
-                                    const count = database.students.filter(s => (s.teacherId === tch.id || s.secondTeacherId === tch.id) && s.active).length;
+                                    const assigned = getStudentsForTeacher(tch, database.students);
                                     return (
                                       <option key={tch.id} value={tch.id}>
-                                        {tch.name} ({count} Arday)
+                                        {tch.name} ({assigned.length} Arday)
                                       </option>
                                     );
                                   })}
@@ -7215,7 +7217,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                 {exportSelectedTeacher !== 'All' && (() => {
                                   const tchObj = database.teachers.find(t => t.id === exportSelectedTeacher);
                                   const tchName = tchObj ? tchObj.name : 'Macallin';
-                                  const tchList = database.students.filter(s => (s.teacherId === exportSelectedTeacher || s.secondTeacherId === exportSelectedTeacher) && s.active);
+                                  const tchList = tchObj ? getStudentsForTeacher(tchObj, database.students) : [];
                                   return (
                                     <div className="grid grid-cols-3 gap-1.5">
                                       <button
@@ -7818,10 +7820,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {database.teachers.map((teacher, idx) => {
-                    // Count all students assigned (both primary and secondary/afternoon/both shifts)
-                    const assignedStudents = database.students.filter(s => (s.teacherId === teacher.id || s.secondTeacherId === teacher.id) && s.active);
-                    const primaryCount = database.students.filter(s => s.teacherId === teacher.id && s.active).length;
-                    const secondaryCount = database.students.filter(s => s.secondTeacherId === teacher.id && s.active).length;
+                    // Count all students assigned (both primary, secondary/afternoon/both shifts, name and class matching)
+                    const assignedStudents = getStudentsForTeacher(teacher, database.students);
                     const studentCount = assignedStudents.length;
 
                     // Extract initials for the avatar
@@ -8059,7 +8059,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   <button
                     type="button"
                     onClick={() => setAttendanceSubTab('reports')}
-                    className={`px-4 py-2 text-[10.5px] font-black uppercase tracking-wider rounded-xl transition-all duration-205 cursor-pointer flex items-center gap-1.5 ${
+                    className={`px-4 py-2 text-[10.5px] font-black uppercase tracking-wider rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
                       attendanceSubTab === 'reports'
                         ? 'bg-white text-slate-800 shadow-xs'
                         : 'text-slate-450 hover:text-slate-705'
@@ -8067,6 +8067,18 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   >
                     <Download className="w-3.5 h-3.5 text-blue-500" />
                     Range Reports
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAttendanceSubTab('all_logs')}
+                    className={`px-4 py-2 text-[10.5px] font-black uppercase tracking-wider rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
+                      attendanceSubTab === 'all_logs'
+                        ? 'bg-white text-slate-800 shadow-xs'
+                        : 'text-slate-450 hover:text-slate-705'
+                    }`}
+                  >
+                    <CalendarRange className="w-3.5 h-3.5 text-teal-600" />
+                    Dhammaan Diiwaannada (All Logs & Edit)
                   </button>
                 </div>
               </div>
@@ -8755,6 +8767,470 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                           </>
                         );
                       })()}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* SUB TAB 4: ALL TEACHER ATTENDANCE RECORDS & MANAGEMENT */}
+              {attendanceSubTab === 'all_logs' && (
+                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6 animate-fade-in" id="teacher-all-logs-view">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                    <div>
+                      <h3 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
+                        <CalendarRange className="w-4 h-4 text-teal-600" />
+                        Dhammaan Diiwaannada Imaanshaha Macallimiinta (All Teacher Attendance)
+                      </h3>
+                      <p className="text-slate-450 text-xs font-semibold mt-0.5">
+                        Diiwaanada maalin walba, wax ka bedel (edit), tirtir (delete), ama ku dar diiwaan cusub.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowAddTeacherAttModal(true)}
+                      className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                      + Ku Dar Diiwaan Cusub
+                    </button>
+                  </div>
+
+                  {/* Filters Bar */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50/75 p-4 rounded-2xl border border-slate-100">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Raadi Macallin / Search</label>
+                      <input
+                        type="text"
+                        value={searchTeacherAttQuery}
+                        onChange={(e) => setSearchTeacherAttQuery(e.target.value)}
+                        placeholder="Magaca ama ID-ga..."
+                        className="w-full text-xs py-2 px-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:border-teal-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Dooro Macallin / Teacher</label>
+                      <select
+                        value={filterTeacherAttTeacherId}
+                        onChange={(e) => setFilterTeacherAttTeacherId(e.target.value)}
+                        className="w-full text-xs py-2 px-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 outline-none cursor-pointer"
+                      >
+                        <option value="All">Dhammaan Macallimiinta (All)</option>
+                        {database.teachers.map(t => (
+                          <option key={t.id} value={t.id}>{t.name} (ID: {t.id})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Xaaladda / Status</label>
+                      <select
+                        value={filterTeacherAttStatus}
+                        onChange={(e) => setFilterTeacherAttStatus(e.target.value as 'All' | 'Present' | 'Late')}
+                        className="w-full text-xs py-2 px-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 outline-none cursor-pointer"
+                      >
+                        <option value="All">Dhammaan Xaaladaha (All)</option>
+                        <option value="Present">Waqtiga Yimid (Present/On-Time)</option>
+                        <option value="Late">Soo Dahooy (Late)</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const logs = (database.teacherAttendance || []).filter(log => {
+                            const teacher = database.teachers.find(t => t.id === log.teacherId);
+                            const tName = teacher ? teacher.name.toLowerCase() : (log.teacherName || '').toLowerCase();
+                            if (searchTeacherAttQuery && !tName.includes(searchTeacherAttQuery.toLowerCase()) && !log.teacherId.toLowerCase().includes(searchTeacherAttQuery.toLowerCase())) return false;
+                            if (filterTeacherAttTeacherId !== 'All' && log.teacherId !== filterTeacherAttTeacherId) return false;
+                            if (filterTeacherAttStatus !== 'All' && log.status !== filterTeacherAttStatus) return false;
+                            return true;
+                          });
+
+                          // Format for Excel download
+                          const headers = ["ID", "Macallin (Teacher Name)", "Teacher ID", "Taariikh (Date)", "Waqti (Time)", "Xaalad (Status)", "Masaafo (Distance meters)", "Latitude", "Longitude"];
+                          const rows = logs.map(l => {
+                            const tObj = database.teachers.find(t => t.id === l.teacherId);
+                            return [
+                              l.id,
+                              `"${(tObj ? tObj.name : l.teacherName || 'Teacher').replace(/"/g, '""')}"`,
+                              l.teacherId,
+                              l.date,
+                              l.time,
+                              l.status,
+                              Math.round(l.distanceFromSchool || 0),
+                              (l.latitude || 0).toFixed(5),
+                              (l.longitude || 0).toFixed(5)
+                            ].join(',');
+                          });
+                          const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(','), ...rows].join('\n');
+                          const encodedUri = encodeURI(csvContent);
+                          const link = document.createElement("a");
+                          link.setAttribute("href", encodedUri);
+                          link.setAttribute("download", `Diiwaanka_Imaanshaha_Macallimiinta_${new Date().toISOString().split('T')[0]}.csv`);
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        }}
+                        className="flex-1 py-2 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-extrabold text-[10px] rounded-xl border border-emerald-200 transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                        title="Soo deji Excel"
+                      >
+                        📗 Excel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const logs = (database.teacherAttendance || []).filter(log => {
+                            const teacher = database.teachers.find(t => t.id === log.teacherId);
+                            const tName = teacher ? teacher.name.toLowerCase() : (log.teacherName || '').toLowerCase();
+                            if (searchTeacherAttQuery && !tName.includes(searchTeacherAttQuery.toLowerCase()) && !log.teacherId.toLowerCase().includes(searchTeacherAttQuery.toLowerCase())) return false;
+                            if (filterTeacherAttTeacherId !== 'All' && log.teacherId !== filterTeacherAttTeacherId) return false;
+                            if (filterTeacherAttStatus !== 'All' && log.status !== filterTeacherAttStatus) return false;
+                            return true;
+                          });
+
+                          let tableRows = '';
+                          logs.forEach((l, idx) => {
+                            const tObj = database.teachers.find(t => t.id === l.teacherId);
+                            tableRows += `<tr>
+                              <td style="border:1px solid #ccc;padding:6px;text-align:center;">${idx + 1}</td>
+                              <td style="border:1px solid #ccc;padding:6px;font-weight:bold;">${tObj ? tObj.name : l.teacherName || 'Teacher'}</td>
+                              <td style="border:1px solid #ccc;padding:6px;text-align:center;">${l.date}</td>
+                              <td style="border:1px solid #ccc;padding:6px;text-align:center;">${l.time}</td>
+                              <td style="border:1px solid #ccc;padding:6px;text-align:center;">${l.status === 'Present' ? 'On-Time (Present)' : 'Late'}</td>
+                              <td style="border:1px solid #ccc;padding:6px;text-align:center;">${Math.round(l.distanceFromSchool || 0)}m</td>
+                            </tr>`;
+                          });
+
+                          const htmlContent = `<!DOCTYPE html>
+                            <html>
+                            <head>
+                              <meta charset="utf-8">
+                              <title>Diiwaanka Imaanshaha Macallimiinta</title>
+                              <style>
+                                body { font-family: Arial, sans-serif; margin: 20px; }
+                                h2 { text-align: center; color: #0d9488; }
+                                table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12px; }
+                                th { background-color: #f1f5f9; border: 1px solid #ccc; padding: 8px; font-weight: bold; }
+                              </style>
+                            </head>
+                            <body>
+                              <h2>BANUU JALAAL SCHOOL CAMPUS</h2>
+                              <h3 style="text-align:center;color:#64748b;font-size:13px;">Diiwaanka Guud Ee Imaanshaha Macallimiinta (Teacher Attendance)</h3>
+                              <p style="text-align:center;font-size:11px;color:#94a3b8;">Taariikhda: ${new Date().toLocaleDateString()}</p>
+                              <table>
+                                <thead>
+                                  <tr>
+                                    <th>#</th>
+                                    <th>Magaca Macallinka</th>
+                                    <th>Taariikhda</th>
+                                    <th>Waqtiga</th>
+                                    <th>Xaaladda</th>
+                                    <th>Masaafada</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  ${tableRows}
+                                </tbody>
+                              </table>
+                            </body>
+                            </html>`;
+
+                          const blob = new Blob(['\ufeff' + htmlContent], { type: 'application/msword' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `Diiwaanka_Imaanshaha_Macallimiinta_${new Date().toISOString().split('T')[0]}.doc`;
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                          URL.revokeObjectURL(url);
+                        }}
+                        className="flex-1 py-2 px-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-extrabold text-[10px] rounded-xl border border-sky-200 transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                        title="Soo deji Word"
+                      >
+                        📘 Word
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Filtered Logs Table */}
+                  {(() => {
+                    const allLogs = (database.teacherAttendance || []).filter(log => {
+                      const teacher = database.teachers.find(t => t.id === log.teacherId);
+                      const tName = teacher ? teacher.name.toLowerCase() : (log.teacherName || '').toLowerCase();
+                      if (searchTeacherAttQuery && !tName.includes(searchTeacherAttQuery.toLowerCase()) && !log.teacherId.toLowerCase().includes(searchTeacherAttQuery.toLowerCase())) return false;
+                      if (filterTeacherAttTeacherId !== 'All' && log.teacherId !== filterTeacherAttTeacherId) return false;
+                      if (filterTeacherAttStatus !== 'All' && log.status !== filterTeacherAttStatus) return false;
+                      return true;
+                    }).sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
+
+                    if (allLogs.length === 0) {
+                      return (
+                        <div className="text-center py-16 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                          <Clock className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                          <p className="text-xs font-bold text-slate-500">Wax diiwaan ah lama helin oo ku habboon shaandhayntaada.</p>
+                          <p className="text-[10px] text-slate-400 mt-1">Guji "+ Ku Dar Diiwaan Cusub" si aad u geliso imaanshaha macallinka.</p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-slate-50 text-slate-500 font-black border-b border-slate-100 uppercase tracking-wider text-[9.5px]">
+                              <th className="py-3 px-4">#</th>
+                              <th className="py-3 px-4">Macallinka (Teacher)</th>
+                              <th className="py-3 px-4">Fasalka</th>
+                              <th className="py-3 px-4">Taariikhda (Date)</th>
+                              <th className="py-3 px-4">Waqtiga (Time)</th>
+                              <th className="py-3 px-4 text-center">Xaaladda (Status)</th>
+                              <th className="py-3 px-4">Masaafada GPS</th>
+                              <th className="py-3 px-4 text-center">Wax Ka Bedel / Tirtir</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                            {allLogs.map((log, idx) => {
+                              const teacher = database.teachers.find(t => t.id === log.teacherId);
+                              const tName = teacher ? teacher.name : (log.teacherName || 'Teacher');
+                              const tClass = teacher ? (teacher.classAssigned || teacher.className) : 'N/A';
+                              return (
+                                <tr key={log.id} className="hover:bg-slate-50/40 transition-colors">
+                                  <td className="py-3 px-4 font-mono text-[10px] text-slate-400">{idx + 1}</td>
+                                  <td className="py-3 px-4">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-7 h-7 rounded-lg bg-teal-50 text-teal-700 font-bold flex items-center justify-center text-xs shrink-0 border border-teal-100">
+                                        {tName.charAt(0).toUpperCase()}
+                                      </div>
+                                      <div>
+                                        <span className="font-extrabold text-slate-800 block text-xs">{tName}</span>
+                                        <span className="text-[9.5px] text-slate-400 font-mono">ID: {log.teacherId}</span>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4 text-slate-600 font-medium">{tClass}</td>
+                                  <td className="py-3 px-4 font-mono font-bold text-slate-800">{log.date}</td>
+                                  <td className="py-3 px-4 font-mono text-slate-600">{log.time}</td>
+                                  <td className="py-3 px-4 text-center">
+                                    <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider border ${
+                                      log.status === 'Present'
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                                    }`}>
+                                      {log.status === 'Present' ? 'Waqtiga Yimid' : 'Soo Dahooy'}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-4 font-mono text-[10.5px] text-slate-500">
+                                    {Math.round(log.distanceFromSchool || 0)}m
+                                  </td>
+                                  <td className="py-3 px-4 text-center">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingTeacherAtt({
+                                          id: log.id,
+                                          teacherId: log.teacherId,
+                                          date: log.date,
+                                          time: log.time,
+                                          status: log.status
+                                        })}
+                                        className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-colors cursor-pointer"
+                                        title="Wax ka bedel diiwaankan"
+                                      >
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteTeacherAtt(log.id, log.teacherId, log.date)}
+                                        className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg transition-colors cursor-pointer"
+                                        title="Tirtir diiwaankan"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Modal: Edit Teacher Attendance Record */}
+                  {editingTeacherAtt && (
+                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+                      <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 space-y-4 animate-scale-up">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                          <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                            <Edit2 className="w-4 h-4 text-indigo-600" />
+                            Wax Ka Bedel Diiwaanka Imaanshaha
+                          </h4>
+                          <button
+                            type="button"
+                            onClick={() => setEditingTeacherAtt(null)}
+                            className="text-slate-400 hover:text-slate-600 text-sm font-bold cursor-pointer"
+                          >
+                            ✕
+                          </button>
+                        </div>
+
+                        <div className="space-y-3 text-xs">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Macallinka</label>
+                            <select
+                              value={editingTeacherAtt.teacherId}
+                              onChange={(e) => setEditingTeacherAtt({ ...editingTeacherAtt, teacherId: e.target.value })}
+                              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none"
+                            >
+                              {database.teachers.map(t => (
+                                <option key={t.id} value={t.id}>{t.name} (ID: {t.id})</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Taariikhda (Date)</label>
+                              <input
+                                type="date"
+                                value={editingTeacherAtt.date}
+                                onChange={(e) => setEditingTeacherAtt({ ...editingTeacherAtt, date: e.target.value })}
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold font-mono text-slate-800 outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Waqtiga (Time)</label>
+                              <input
+                                type="time"
+                                value={editingTeacherAtt.time}
+                                onChange={(e) => setEditingTeacherAtt({ ...editingTeacherAtt, time: e.target.value })}
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold font-mono text-slate-800 outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Xaaladda Imaanshaha</label>
+                            <select
+                              value={editingTeacherAtt.status}
+                              onChange={(e) => setEditingTeacherAtt({ ...editingTeacherAtt, status: e.target.value as 'Present' | 'Late' })}
+                              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none"
+                            >
+                              <option value="Present">Waqtiga Yimid (On-Time / Present)</option>
+                              <option value="Late">Soo Dahooy (Late Arrival)</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 pt-2 border-t border-slate-100">
+                          <button
+                            type="button"
+                            onClick={() => setEditingTeacherAtt(null)}
+                            className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                          >
+                            Ka Noqo (Cancel)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveEditedTeacherAtt}
+                            className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-colors cursor-pointer"
+                          >
+                            Keydi Isbedelka (Save)
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Modal: Add New Teacher Attendance Record */}
+                  {showAddTeacherAttModal && (
+                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+                      <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 space-y-4 animate-scale-up">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                          <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                            <PlusCircle className="w-4 h-4 text-teal-600" />
+                            Geli Diiwaan Imaansho Cusub (Add Teacher Attendance)
+                          </h4>
+                          <button
+                            type="button"
+                            onClick={() => setShowAddTeacherAttModal(false)}
+                            className="text-slate-400 hover:text-slate-600 text-sm font-bold cursor-pointer"
+                          >
+                            ✕
+                          </button>
+                        </div>
+
+                        <div className="space-y-3 text-xs">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Dooro Macallinka *</label>
+                            <select
+                              value={newTeacherAttRecord.teacherId}
+                              onChange={(e) => setNewTeacherAttRecord({ ...newTeacherAttRecord, teacherId: e.target.value })}
+                              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none"
+                            >
+                              <option value="">-- Dooro Macallin --</option>
+                              {database.teachers.map(t => (
+                                <option key={t.id} value={t.id}>{t.name} (ID: {t.id})</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Taariikhda (Date) *</label>
+                              <input
+                                type="date"
+                                value={newTeacherAttRecord.date}
+                                onChange={(e) => setNewTeacherAttRecord({ ...newTeacherAttRecord, date: e.target.value })}
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold font-mono text-slate-800 outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Waqtiga (Time) *</label>
+                              <input
+                                type="time"
+                                value={newTeacherAttRecord.time}
+                                onChange={(e) => setNewTeacherAttRecord({ ...newTeacherAttRecord, time: e.target.value })}
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold font-mono text-slate-800 outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Xaaladda Imaanshaha</label>
+                            <select
+                              value={newTeacherAttRecord.status}
+                              onChange={(e) => setNewTeacherAttRecord({ ...newTeacherAttRecord, status: e.target.value as 'Present' | 'Late' })}
+                              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none"
+                            >
+                              <option value="Present">Waqtiga Yimid (On-Time / Present)</option>
+                              <option value="Late">Soo Dahooy (Late Arrival)</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 pt-2 border-t border-slate-100">
+                          <button
+                            type="button"
+                            onClick={() => setShowAddTeacherAttModal(false)}
+                            className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                          >
+                            Ka Noqo (Cancel)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleAddNewTeacherAtt}
+                            className="flex-1 py-2.5 px-4 bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-colors cursor-pointer"
+                          >
+                            Kaydi Diiwaanka (Save Record)
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

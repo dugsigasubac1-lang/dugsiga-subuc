@@ -1,42 +1,49 @@
-import { initializeApp } from 'firebase/app';
-import { initializeFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { DatabaseState } from './types';
+import appConfig from '../firebase-applet-config.json';
 
 const firebaseConfig = {
-  projectId: "dugsiga-subuc-291ad",
-  appId: "1:910340654988:web:0b4ab67421e7f985b878a9",
-  apiKey: "AIzaSyCQ7WhL8DXyIqNt3FZgAutpq7FB6ySi6jc",
-  authDomain: "dugsiga-subuc-291ad.firebaseapp.com",
-  firestoreDatabaseId: "(default)",
-  storageBucket: "dugsiga-subuc-291ad.firebasestorage.app",
-  messagingSenderId: "910340654988"
+  projectId: appConfig.projectId || "dugsiga-subuc-291ad",
+  appId: appConfig.appId || "1:910340654988:web:0b4ab67421e7f985b878a9",
+  apiKey: appConfig.apiKey || "AIzaSyCQ7WhL8DXyIqNt3FZgAutpq7FB6ySi6jc",
+  authDomain: appConfig.authDomain || "dugsiga-subuc-291ad.firebaseapp.com",
+  firestoreDatabaseId: appConfig.firestoreDatabaseId || "(default)",
+  storageBucket: appConfig.storageBucket || "dugsiga-subuc-291ad.firebasestorage.app",
+  messagingSenderId: appConfig.messagingSenderId || "910340654988"
 };
 
 let app: any = null;
 let db: any = null;
 let stateDocRef: any = null;
+let coreDocRef: any = null;
+let progressDocRef: any = null;
+let financeDocRef: any = null;
+let logsDocRef: any = null;
 let initialized = false;
 
 export function isDirectFirebasePreferred(): boolean {
-  // Always prefer direct client-side Firebase Firestore connection to ensure real-time updates and prevent middle-man database overrides or data loss.
   return true;
 }
 
 export function initFirebaseClient() {
-  if (initialized) return { db, stateDocRef };
+  if (initialized && db) {
+    return { db, stateDocRef, coreDocRef, progressDocRef, financeDocRef, logsDocRef };
+  }
   try {
-    app = initializeApp(firebaseConfig);
-    db = initializeFirestore(app, {
-      experimentalForceLongPolling: true,
-      ignoreUndefinedProperties: true
-    }, firebaseConfig.firestoreDatabaseId);
+    app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
     stateDocRef = doc(db, 'system', 'state');
+    coreDocRef = doc(db, 'system', 'core');
+    progressDocRef = doc(db, 'system', 'progress');
+    financeDocRef = doc(db, 'system', 'finance');
+    logsDocRef = doc(db, 'system', 'logs');
     initialized = true;
     console.info(`[Dugsiga Subuc] Connected directly to Firestore database: "${firebaseConfig.firestoreDatabaseId}"`);
   } catch (error) {
     console.error('[Dugsiga Subuc] Failed to initialize direct Firebase Client:', error);
   }
-  return { db, stateDocRef };
+  return { db, stateDocRef, coreDocRef, progressDocRef, financeDocRef, logsDocRef };
 }
 
 function removeUndefined(obj: any): any {
@@ -57,13 +64,58 @@ function removeUndefined(obj: any): any {
 }
 
 export async function fetchRemoteDatabaseState(): Promise<DatabaseState | null> {
-  const { stateDocRef } = initFirebaseClient();
-  if (!stateDocRef) return null;
+  const { coreDocRef, progressDocRef, financeDocRef, logsDocRef, stateDocRef } = initFirebaseClient();
+  if (!coreDocRef) return null;
+
   try {
-    const snap = await getDoc(stateDocRef);
-    if (snap.exists()) {
-      const data = snap.data() as any;
-      return data?.state || null;
+    // 1. Try reading the partitioned documents in parallel (faster and stays within Firestore size limits)
+    const [coreSnap, progSnap, finSnap, logsSnap] = await Promise.all([
+      getDoc(coreDocRef).catch(() => null),
+      getDoc(progressDocRef).catch(() => null),
+      getDoc(financeDocRef).catch(() => null),
+      getDoc(logsDocRef).catch(() => null)
+    ]);
+
+    if (coreSnap && coreSnap.exists()) {
+      const coreData = coreSnap.data() as any;
+      const progData = (progSnap && progSnap.exists()) ? (progSnap.data() as any) : {};
+      const finData = (finSnap && finSnap.exists()) ? (finSnap.data() as any) : {};
+      const logsData = (logsSnap && logsSnap.exists()) ? (logsSnap.data() as any) : {};
+
+      const assembledState: DatabaseState = {
+        teachers: coreData.teachers || [],
+        students: coreData.students || [],
+        classes: coreData.classes || [],
+        schoolLocation: coreData.schoolLocation,
+        landingPageSettings: coreData.landingPageSettings,
+        contactMessages: coreData.contactMessages || [],
+        lastUpdatedTime: coreData.lastUpdatedTime || Date.now(),
+        lastBackupDownloadDate: coreData.lastBackupDownloadDate,
+
+        progress: progData.progress || [],
+
+        billing: finData.billing || [],
+        invoices: finData.invoices || [],
+        moneyTransfers: finData.moneyTransfers || [],
+        xawaaladaAccounts: finData.xawaaladaAccounts || [],
+        xawaaladaTransactions: finData.xawaaladaTransactions || [],
+
+        submissions: logsData.submissions || [],
+        teacherAttendance: logsData.teacherAttendance || [],
+        notifications: logsData.notifications || [],
+        exams: logsData.exams || []
+      };
+
+      return assembledState;
+    }
+
+    // 2. Fallback to monolithic system/state document if partitions don't exist yet
+    if (stateDocRef) {
+      const snap = await getDoc(stateDocRef);
+      if (snap.exists()) {
+        const data = snap.data() as any;
+        return data?.state || null;
+      }
     }
   } catch (error) {
     console.error('[Dugsiga Subuc] Direct Firestore fetch error:', error);
@@ -73,11 +125,60 @@ export async function fetchRemoteDatabaseState(): Promise<DatabaseState | null> 
 }
 
 export async function saveRemoteDatabaseState(state: DatabaseState): Promise<boolean> {
-  const { stateDocRef } = initFirebaseClient();
-  if (!stateDocRef) return false;
+  const { coreDocRef, progressDocRef, financeDocRef, logsDocRef, stateDocRef } = initFirebaseClient();
+  if (!coreDocRef) return false;
+
   try {
-    const sanitizedState = removeUndefined(state);
-    await setDoc(stateDocRef, { state: sanitizedState });
+    const clean = removeUndefined(state);
+
+    const coreData = {
+      teachers: clean.teachers || [],
+      students: clean.students || [],
+      classes: clean.classes || [],
+      schoolLocation: clean.schoolLocation || null,
+      landingPageSettings: clean.landingPageSettings || null,
+      contactMessages: clean.contactMessages || [],
+      lastUpdatedTime: clean.lastUpdatedTime || Date.now(),
+      lastBackupDownloadDate: clean.lastBackupDownloadDate || null
+    };
+
+    const progressData = {
+      progress: clean.progress || []
+    };
+
+    const financeData = {
+      billing: clean.billing || [],
+      invoices: clean.invoices || [],
+      moneyTransfers: clean.moneyTransfers || [],
+      xawaaladaAccounts: clean.xawaaladaAccounts || [],
+      xawaaladaTransactions: clean.xawaaladaTransactions || []
+    };
+
+    const logsData = {
+      submissions: clean.submissions || [],
+      teacherAttendance: clean.teacherAttendance || [],
+      notifications: clean.notifications || [],
+      exams: clean.exams || []
+    };
+
+    // Save all partitions in parallel
+    const writePromises: Promise<any>[] = [
+      setDoc(coreDocRef, coreData),
+      setDoc(progressDocRef, progressData),
+      setDoc(financeDocRef, financeData),
+      setDoc(logsDocRef, logsData)
+    ];
+
+    // Also update legacy single-doc if within size limit (with catch)
+    if (stateDocRef) {
+      writePromises.push(
+        setDoc(stateDocRef, { state: clean }).catch(err => {
+          console.warn('[Dugsiga Subuc] Legacy system/state write skipped (partitioned write active):', err?.message);
+        })
+      );
+    }
+
+    await Promise.all(writePromises);
     return true;
   } catch (error) {
     console.error('[Dugsiga Subuc] Direct Firestore save error:', error);
@@ -86,21 +187,58 @@ export async function saveRemoteDatabaseState(state: DatabaseState): Promise<boo
 }
 
 export function subscribeToRemoteDatabaseState(onUpdate: (state: DatabaseState) => void): () => void {
-  const { stateDocRef } = initFirebaseClient();
-  if (!stateDocRef) return () => {};
-  try {
-    return onSnapshot(stateDocRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.data() as any;
-        if (data?.state) {
-          onUpdate(data.state);
+  const { coreDocRef, stateDocRef } = initFirebaseClient();
+  if (!coreDocRef && !stateDocRef) return () => {};
+
+  let debounceTimer: any = null;
+
+  const triggerUpdate = async () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(async () => {
+      try {
+        const fullState = await fetchRemoteDatabaseState();
+        if (fullState) {
+          onUpdate(fullState);
         }
+      } catch (err) {
+        console.warn('[Dugsiga Subuc] Failed fetching full state during subscription trigger:', err);
       }
-    }, (error) => {
-      console.error('[Dugsiga Subuc] Direct Firestore sync listener error:', error);
-    });
+    }, 1500);
+  };
+
+  try {
+    const unsubs: (() => void)[] = [];
+
+    if (coreDocRef) {
+      const unsubCore = onSnapshot(coreDocRef, () => {
+        triggerUpdate();
+      }, (error) => {
+        console.warn('[Dugsiga Subuc] Core sync listener notice:', error?.message);
+      });
+      unsubs.push(unsubCore);
+    }
+
+    if (stateDocRef) {
+      const unsubState = onSnapshot(stateDocRef, (snap) => {
+        if (snap.exists()) {
+          const data = snap.data() as any;
+          if (data?.state) {
+            onUpdate(data.state);
+          }
+        }
+      }, (error) => {
+        console.warn('[Dugsiga Subuc] State sync listener notice:', error?.message);
+      });
+      unsubs.push(unsubState);
+    }
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      unsubs.forEach(fn => fn());
+    };
   } catch (error) {
     console.error('[Dugsiga Subuc] Direct Firestore subscription failed:', error);
     return () => {};
   }
 }
+

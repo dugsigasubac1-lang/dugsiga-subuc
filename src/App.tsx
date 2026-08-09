@@ -440,7 +440,6 @@ export default function App() {
         type: 'warning', 
         message: 'Aaladdaadu hadda khadka kama jirto (Offline). Xogta waxaa lagu kaydiyay gudaha aaladda waxaana loo gudbin doonaa cloud-ka marka khadku soo laabto.' 
       });
-      // Fire-and-forget background save so Firestore queues the write
       if (isDirectFirebasePreferred()) {
         saveRemoteDatabaseState(dbWithTimestamp).catch(() => {});
       }
@@ -449,103 +448,86 @@ export default function App() {
 
     setGlobalSaveStatus({ type: 'loading', message: 'La xiriiraya Firestore cloud...' });
 
-    // 2. Direct client-side Firestore flow
+    let directSaveSuccess = false;
+
+    // 1. Try Direct client-side Firestore flow
     if (isDirectFirebasePreferred()) {
       try {
-        // Data Integrity Guard: Fetch remote state first to verify nobody else saved a newer version
-        let remoteState: DatabaseState | null = null;
-        try {
-          remoteState = await fetchRemoteDatabaseState();
-        } catch (fetchErr) {
-          console.warn('[Dugsiga Subuc] Failed to verify remote version before writing:', fetchErr);
-        }
-
-        if (remoteState && remoteState.lastUpdatedTime && remoteState.lastUpdatedTime > (database?.lastUpdatedTime || 0)) {
-          // Conflict detected: remote state is newer than what we originally loaded!
-          setGlobalSaveStatus({ 
-            type: 'error', 
-            message: 'Digniin: Waxaa jira xog ka cusub tan oo qof kale uu kaydiyay server-ka. Fadlan dib u cusbooneysii (refresh) bogga si aysan xogtu u tirtirmin.' 
-          });
-          return;
-        }
-
-        // Perform the Firestore write
         const savePromise = saveRemoteDatabaseState(dbWithTimestamp);
         const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Firestore operation timed out')), 25000)
+          setTimeout(() => reject(new Error('Firestore operation timed out')), 12000)
         );
 
         const success = await Promise.race([savePromise, timeoutPromise]);
         
         if (success) {
+          directSaveSuccess = true;
           setGlobalSaveStatus({ type: 'success', message: 'Si guul leh ayaa loo kaydiyay xogta!' });
           setTimeout(() => {
             setGlobalSaveStatus(prev => prev.type === 'success' ? { type: null, message: null } : prev);
-          }, 4000);
+          }, 3500);
           lastSaveTimeRef.current = Date.now();
-        } else {
-          throw new Error('Firestore save returned failed status');
-        }
-      } catch (error) {
-        console.error('[Dugsiga Subuc] Failed to save state to Firebase Firestore.', error);
-        setGlobalSaveStatus({ 
-          type: 'error', 
-          message: 'Kaydinta waa ay guuldaraysatay. Fadlan hubi khadkaaga internet-ka oo dib u tijaabi.' 
-        });
-        throw error;
-      }
-      return;
-    }
-
-    // 3. Backend API Route Flow
-    try {
-      const currentDeviceSessionId = localStorage.getItem('dugsi_session_id') || '';
-      const savePromise = fetch(`${API_BASE}/api/database`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-User-Role': userRole || '',
-          'X-Teacher-Id': loggedTeacher?.id || '',
-          'X-Session-Id': currentDeviceSessionId
-        },
-        body: JSON.stringify(dbWithTimestamp)
-      });
-
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('API request timed out')), 35000)
-      );
-
-      const response = await Promise.race([savePromise, timeoutPromise]);
-      
-      if (!response.ok) {
-        const errResult = await response.json().catch(() => ({}));
-        if (errResult.error === 'session_expired') {
-          handleLogout();
-          setSessionExpiredMsg("Waa lagaa saaray nidaamka sababtoo ah koontadaada waxaa laga isticmaalayaa aalad kale.");
-          setShowLogin(true);
-          setGlobalSaveStatus({ type: null, message: null });
           return;
         }
-        throw new Error(errResult.message || `HTTP error ${response.status}`);
+      } catch (error) {
+        console.warn('[Dugsiga Subuc] Direct Firestore save attempt timed out or failed. Falling back to backend server...', error);
       }
+    }
 
-      const result = await response.json();
-      if (result.success) {
-        setGlobalSaveStatus({ type: 'success', message: 'Si guul leh ayaa loo kaydiyay xogta!' });
+    // 2. Fallback / Standard Backend API Route Flow
+    if (!directSaveSuccess) {
+      try {
+        const currentDeviceSessionId = localStorage.getItem('dugsi_session_id') || '';
+        const savePromise = fetch(`${API_BASE}/api/database`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-User-Role': userRole || '',
+            'X-Teacher-Id': loggedTeacher?.id || '',
+            'X-Session-Id': currentDeviceSessionId
+          },
+          body: JSON.stringify(dbWithTimestamp)
+        });
+
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('API request timed out')), 15000)
+        );
+
+        const response = await Promise.race([savePromise, timeoutPromise]);
+        
+        if (!response.ok) {
+          const errResult = await response.json().catch(() => ({}));
+          if (errResult.error === 'session_expired') {
+            handleLogout();
+            setSessionExpiredMsg("Waa lagaa saaray nidaamka sababtoo ah koontadaada waxaa laga isticmaalayaa aalad kale.");
+            setShowLogin(true);
+            setGlobalSaveStatus({ type: null, message: null });
+            return;
+          }
+          throw new Error(errResult.message || `HTTP error ${response.status}`);
+        }
+
+        const result = await response.json();
+        if (result.success) {
+          setGlobalSaveStatus({ type: 'success', message: 'Si guul leh ayaa loo kaydiyay xogta!' });
+          setTimeout(() => {
+            setGlobalSaveStatus(prev => prev.type === 'success' ? { type: null, message: null } : prev);
+          }, 3500);
+          lastSaveTimeRef.current = Date.now();
+        } else {
+          throw new Error(result.message || 'Server returned failed status');
+        }
+      } catch (error) {
+        console.error("[Dugsiga Subuc] Failed to synchronize state update with background server.", error);
+        // Even if network fails, data is safely cached in localStorage
+        setGlobalSaveStatus({ 
+          type: 'warning', 
+          message: 'Xogta waxaa lagu kaydiyay aaladdaada. Waxaa loo gudbin doonaa cloud-ka marka khadka la helo.' 
+        });
         setTimeout(() => {
-          setGlobalSaveStatus(prev => prev.type === 'success' ? { type: null, message: null } : prev);
-        }, 4000);
-        lastSaveTimeRef.current = Date.now();
-      } else {
-        throw new Error(result.message || 'Server returned failed status');
+          setGlobalSaveStatus(prev => prev.type === 'warning' ? { type: null, message: null } : prev);
+        }, 5000);
       }
-    } catch (error) {
-      console.error("[Dugsiga Subuc] Failed to synchronize state update with background database server.", error);
-      setGlobalSaveStatus({ 
-        type: 'error', 
-        message: 'Kaydinta waa ay guuldaraysatay. Fadlan hubi khadkaaga internet-ka.' 
-      });
-      throw error;
     }
   };
 

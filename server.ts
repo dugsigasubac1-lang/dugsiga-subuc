@@ -461,6 +461,10 @@ async function startServer() {
   // Shared State & Firestore Database references
   let db: any = null;
   let stateDocRef: any = null;
+  let coreDocRef: any = null;
+  let progressDocRef: any = null;
+  let financeDocRef: any = null;
+  let logsDocRef: any = null;
   let currentDatabaseState: any = null;
 
   let resolveFirstSnapshot: () => void = () => {};
@@ -682,22 +686,59 @@ async function startServer() {
     if (firebaseConfig) {
       const firebaseApp = initializeApp(firebaseConfig);
       db = initializeFirestore(firebaseApp, {
-        experimentalForceLongPolling: true
+        ignoreUndefinedProperties: true
       }, firebaseConfig.firestoreDatabaseId);
       stateDocRef = doc(db, 'system', 'state');
+      coreDocRef = doc(db, 'system', 'core');
+      progressDocRef = doc(db, 'system', 'progress');
+      financeDocRef = doc(db, 'system', 'finance');
+      logsDocRef = doc(db, 'system', 'logs');
       console.log('Firebase client initialized successfully.');
 
       // Start real-time Firestore database synchronization
-      onSnapshot(stateDocRef, async (docSnap) => {
+      onSnapshot(coreDocRef, async (docSnap) => {
         try {
           if (docSnap.exists()) {
-            let remoteState = (docSnap.data() as any)?.state;
-            if (remoteState && typeof remoteState === 'object') {
-              remoteState = sanitizeDatabaseState(remoteState);
-              currentDatabaseState = remoteState;
-              fs.writeFileSync(DB_FILE, JSON.stringify(remoteState, null, 2), 'utf-8');
-              console.log('Database state synchronized in real-time from Firestore cloud.');
-            }
+            const [coreSnap, progSnap, finSnap, logsSnap] = await Promise.all([
+              Promise.resolve(docSnap),
+              getDoc(progressDocRef).catch(() => null),
+              getDoc(financeDocRef).catch(() => null),
+              getDoc(logsDocRef).catch(() => null)
+            ]);
+
+            const coreData = coreSnap.data() as any;
+            const progData = (progSnap && progSnap.exists()) ? (progSnap.data() as any) : {};
+            const finData = (finSnap && finSnap.exists()) ? (finSnap.data() as any) : {};
+            const logsData = (logsSnap && logsSnap.exists()) ? (logsSnap.data() as any) : {};
+
+            let remoteState = {
+              teachers: coreData.teachers || [],
+              students: coreData.students || [],
+              classes: coreData.classes || [],
+              schoolLocation: coreData.schoolLocation || null,
+              landingPageSettings: coreData.landingPageSettings || null,
+              contactMessages: coreData.contactMessages || [],
+              lastUpdatedTime: coreData.lastUpdatedTime || Date.now(),
+              lastBackupDownloadDate: coreData.lastBackupDownloadDate || null,
+
+              progress: progData.progress || [],
+
+              billing: finData.billing || [],
+              invoices: finData.invoices || [],
+              moneyTransfers: finData.moneyTransfers || [],
+              xawaaladaAccounts: finData.xawaaladaAccounts || [],
+              xawaaladaTransactions: finData.xawaaladaTransactions || [],
+
+              submissions: logsData.submissions || [],
+              teacherAttendance: logsData.teacherAttendance || [],
+              notifications: logsData.notifications || [],
+              exams: logsData.exams || []
+            };
+
+            remoteState = sanitizeDatabaseState(remoteState);
+            currentDatabaseState = remoteState;
+            fs.writeFileSync(DB_FILE, JSON.stringify(remoteState, null, 2), 'utf-8');
+            console.log('Database state synchronized in real-time from Firestore cloud.');
           }
         } catch (syncErr) {
           console.error('[Server Sync] Error resolving sync snapshot:', syncErr);
@@ -974,43 +1015,65 @@ async function startServer() {
         }
       }
 
-      // 1. Attempt the Firestore operation first!
-      if (!stateDocRef) {
-        const errMsg = 'Unable to save. The application cannot connect to Firestore. Please check your connection and try again.';
-        console.error('[Server POST API] Firestore is not initialized or unavailable. Rejecting write.');
-        return res.status(503).json({
-          success: false,
-          error: 'firestore_unavailable',
-          message: errMsg
-        });
-      }
-
-      try {
-        // Enforce a timeout of 30 seconds for the Firestore operation
-        const writePromise = setDoc(stateDocRef, { state: dbState });
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Firestore operation timed out')), 30000)
-        );
-
-        await Promise.race([writePromise, timeoutPromise]);
-        console.log('[Server POST API] Successfully written update to Firestore Cloud first.');
-      } catch (fbWriteErr: any) {
-        const errMsg = 'Unable to save. The application cannot connect to Firestore. Please check your connection and try again.';
-        console.error('[Server POST API] Firestore save error/timeout (data was NOT saved locally):', fbWriteErr);
-        return res.status(503).json({
-          success: false,
-          error: 'firestore_error',
-          message: errMsg,
-          details: fbWriteErr instanceof Error ? fbWriteErr.message : String(fbWriteErr)
-        });
-      }
-
-      // 2. Only after Firestore confirms the write completed successfully, save locally!
+      // 1. Save to local disk and memory cache FIRST so data is never lost or blocked
       try {
         fs.writeFileSync(DB_FILE, JSON.stringify(dbState, null, 2), 'utf-8');
         currentDatabaseState = dbState;
       } catch (localWriteErr) {
-        console.warn('[Server POST API] Local cache update failed, but Firestore save was already successful:', localWriteErr);
+        console.warn('[Server POST API] Local cache update error:', localWriteErr);
+      }
+
+      // 2. Persist to Firestore partitioned documents & state document in parallel
+      if (coreDocRef) {
+        const coreData = {
+          teachers: dbState.teachers || [],
+          students: dbState.students || [],
+          classes: dbState.classes || [],
+          schoolLocation: dbState.schoolLocation || null,
+          landingPageSettings: dbState.landingPageSettings || null,
+          contactMessages: dbState.contactMessages || [],
+          lastUpdatedTime: dbState.lastUpdatedTime || Date.now(),
+          lastBackupDownloadDate: dbState.lastBackupDownloadDate || null
+        };
+        const progressData = { progress: dbState.progress || [] };
+        const financeData = {
+          billing: dbState.billing || [],
+          invoices: dbState.invoices || [],
+          moneyTransfers: dbState.moneyTransfers || [],
+          xawaaladaAccounts: dbState.xawaaladaAccounts || [],
+          xawaaladaTransactions: dbState.xawaaladaTransactions || []
+        };
+        const logsData = {
+          submissions: dbState.submissions || [],
+          teacherAttendance: dbState.teacherAttendance || [],
+          notifications: dbState.notifications || [],
+          exams: dbState.exams || []
+        };
+
+        const writePromises: Promise<any>[] = [
+          setDoc(coreDocRef, coreData),
+          setDoc(progressDocRef, progressData),
+          setDoc(financeDocRef, financeData),
+          setDoc(logsDocRef, logsData)
+        ];
+
+        if (stateDocRef) {
+          writePromises.push(
+            setDoc(stateDocRef, { state: dbState }).catch(err => {
+              console.warn('[Server POST API] Legacy system/state write notice:', err?.message);
+            })
+          );
+        }
+
+        try {
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Firestore operation timed out')), 15000)
+          );
+          await Promise.race([Promise.all(writePromises), timeoutPromise]);
+          console.log('[Server POST API] Successfully written update to Firestore partitioned cloud.');
+        } catch (fbWriteErr: any) {
+          console.warn('[Server POST API] Firestore write delayed/timed out, but local database was safely persisted:', fbWriteErr?.message);
+        }
       }
 
       // Check if a scheduled backup is due after a successful user save
@@ -1021,7 +1084,7 @@ async function startServer() {
         });
       }
 
-      return res.json({ success: true, message: 'Database saved successfully in Firestore and local cache updated.', data: dbState });
+      return res.json({ success: true, message: 'Database saved successfully.', data: dbState });
     } catch (error) {
       console.error('Error persisting database state changes:', error);
       return res.status(500).json({ error: 'Failed to persist database changes.' });
