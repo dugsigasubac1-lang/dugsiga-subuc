@@ -1023,7 +1023,7 @@ async function startServer() {
         console.warn('[Server POST API] Local cache update error:', localWriteErr);
       }
 
-      // 2. Persist to Firestore partitioned documents & state document in parallel
+      // 2. Persist to Firestore partitioned documents in parallel (background async)
       if (coreDocRef) {
         const coreData = {
           teachers: dbState.teachers || [],
@@ -1065,15 +1065,12 @@ async function startServer() {
           );
         }
 
-        try {
-          const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Firestore operation timed out')), 15000)
-          );
-          await Promise.race([Promise.all(writePromises), timeoutPromise]);
+        // Fire-and-forget background cloud sync to guarantee instant API response
+        Promise.all(writePromises).then(() => {
           console.log('[Server POST API] Successfully written update to Firestore partitioned cloud.');
-        } catch (fbWriteErr: any) {
-          console.warn('[Server POST API] Firestore write delayed/timed out, but local database was safely persisted:', fbWriteErr?.message);
-        }
+        }).catch((fbWriteErr: any) => {
+          console.warn('[Server POST API] Background Firestore write warning:', fbWriteErr?.message);
+        });
       }
 
       // Check if a scheduled backup is due after a successful user save

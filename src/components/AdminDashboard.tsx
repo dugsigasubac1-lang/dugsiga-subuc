@@ -863,6 +863,10 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   
   // Dynamic State Modals
   const [showActiveStudentsModal, setShowActiveStudentsModal] = useState<boolean>(false);
+  const [showTuitionInvoicedModal, setShowTuitionInvoicedModal] = useState<boolean>(false);
+  const [tuitionInvoicedSearchQuery, setTuitionInvoicedSearchQuery] = useState<string>('');
+  const [tuitionInvoicedClassFilter, setTuitionInvoicedClassFilter] = useState<string>('all');
+  const [tuitionInvoicedStatusFilter, setTuitionInvoicedStatusFilter] = useState<'all' | 'paid' | 'partial' | 'pending'>('all');
   const [showActiveRidersModal, setShowActiveRidersModal] = useState<boolean>(false);
   const [activeRidersSearchQuery, setActiveRidersSearchQuery] = useState<string>('');
   const [showBusInvoicedModal, setShowBusInvoicedModal] = useState<boolean>(false);
@@ -1193,21 +1197,40 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     return Array.from(monthsSet).sort((a, b) => b.localeCompare(a)); // Sort descending (newest first)
   };
 
-  const currentMonthInvoiced = database.students.filter(s => s.active).reduce((sum, s) => sum + s.monthlyFee, 0) + getInvoiceInvoicedForMonth(currentMonthFilter).total;
+  // Student Tuition Fee Statistics Calculations
+  const currentMonthTuitionInvoiced = activeStudents.reduce((sum, s) => sum + Number(s.monthlyFee || 0), 0);
   const currentMonthResolvedRecords = (database.students || []).map(s => getBillingStatusForStudent(s, currentMonthFilter));
-  const currentMonthPaidAmount = currentMonthResolvedRecords.reduce((sum, r) => sum + Number(r.amountPaid || 0), 0) + getInvoicePaymentsForMonth(currentMonthFilter).total;
+  const currentMonthTuitionCollected = currentMonthResolvedRecords.reduce((sum, r) => sum + Number(r.amountPaid || 0), 0);
+  const currentMonthTuitionPending = Math.max(0, currentMonthTuitionInvoiced - currentMonthTuitionCollected);
+
+  // General Invoices Totals
+  const currentMonthInvoiceData = getInvoiceInvoicedForMonth(currentMonthFilter);
+  const currentMonthInvoicePayments = getInvoicePaymentsForMonth(currentMonthFilter);
+
+  // Total Invoiced & Collections (Tuition + General Invoices)
+  const currentMonthInvoiced = currentMonthTuitionInvoiced + currentMonthInvoiceData.total;
+  const currentMonthPaidAmount = currentMonthTuitionCollected + currentMonthInvoicePayments.total;
   const currentMonthUnpaidAmount = Math.max(0, currentMonthInvoiced - currentMonthPaidAmount);
 
   // Bus Fare Statistics Calculations
-  const busRiders = database.students.filter(s => s.active && s.busFee && Number(s.busFee) > 0);
+  const busRiders = (database.students || []).filter(s => s.active && s.busFee && Number(s.busFee) > 0);
   const totalBusRidersCount = busRiders.length;
   const currentMonthBusInvoiced = busRiders.reduce((sum, s) => sum + Number(s.busFee || 0), 0);
   const currentMonthBusCollected = currentMonthResolvedRecords.reduce((sum, r) => sum + Number(r.busFeePaid || 0), 0);
   const currentMonthBusPending = Math.max(0, currentMonthBusInvoiced - currentMonthBusCollected);
 
-  const allTimeBusInvoiced = database.billing.reduce((sum, r) => sum + Number(r.busFeeDue || 0), 0);
-  const allTimeBusCollected = database.billing.reduce((sum, r) => sum + Number(r.busFeePaid || 0), 0);
+  const allTimeBusInvoiced = (database.billing || []).reduce((sum, r) => sum + Number(r.busFeeDue || 0), 0);
+  const allTimeBusCollected = (database.billing || []).reduce((sum, r) => sum + Number(r.busFeePaid || 0), 0);
   const allTimeBusOutstanding = Math.max(0, allTimeBusInvoiced - allTimeBusCollected);
+
+  // All-time Tuition Invoiced & Collected
+  const allTimeTuitionInvoiced = (database.billing || []).reduce((sum, r) => sum + Number(r.amountDue || 0), 0);
+  const allTimeTuitionCollected = (database.billing || []).reduce((sum, r) => sum + Number(r.amountPaid || 0), 0);
+
+  // Total Combined Expected Revenue (Student Tuition Fees + Bus Fare)
+  const currentMonthTotalExpectedRevenue = currentMonthTuitionInvoiced + currentMonthBusInvoiced;
+  const currentMonthTotalCombinedCollected = currentMonthTuitionCollected + currentMonthBusCollected;
+  const currentMonthTotalCombinedPending = Math.max(0, currentMonthTotalExpectedRevenue - currentMonthTotalCombinedCollected);
 
   const billingOverviewData = [
     { name: 'Collected Fees', value: currentMonthPaidAmount, color: '#0d9488' }, // Teal 600
@@ -6339,74 +6362,208 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
             </div>
 
             {/* Core Stats Counter Deck */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
               
               <div 
                 onClick={() => setShowActiveStudentsModal(true)}
-                className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-emerald-200 transition-all active:scale-[0.99] group"
+                className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-emerald-200 transition-all active:scale-[0.99] group"
                 title="Guji si aad u aragto faahfaahinta fasallada (Click to view class breakdown)"
               >
                 <div>
                   <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
                     Active Students
-                    <span className="text-[10px] text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-emerald-50 px-1.5 py-0.5 rounded-md">View details 🔍</span>
+                    <span className="text-[10px] text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-emerald-50 px-1.5 py-0.5 rounded-md">View 🔍</span>
                   </p>
-                  <p className="text-3xl font-extrabold text-slate-900 mt-2">{activeStudents.length}</p>
-                  <p className="text-[10px] text-slate-400 mt-1">Guji si aad u aragto fasal kasta inta dhigata</p>
+                  <p className="text-2xl lg:text-3xl font-extrabold text-slate-900 mt-2">{activeStudents.length}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Enrolled students</p>
                 </div>
-                <div className="p-3.5 bg-emerald-50 text-emerald-600 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                <div className="p-3.5 bg-emerald-50 text-emerald-600 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-colors shrink-0">
                   <UserCheck className="w-6 h-6" />
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
+              <div 
+                onClick={() => setShowTuitionInvoicedModal(true)}
+                className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-emerald-300 transition-all active:scale-[0.99] group"
+                title="Guji si aad u aragto kashifida lacagta waxbarashada ee ardayda (Click to view expected student tuition dues)"
+              >
                 <div>
-                  <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Teachers Engaged</p>
-                  <p className="text-3xl font-extrabold text-slate-900 mt-2">{totalTeachers}</p>
+                  <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                    Tuition Invoiced
+                    <span className="text-[10px] text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-emerald-50 px-1.5 py-0.5 rounded-md">Details 🔍</span>
+                  </p>
+                  <p className="text-2xl lg:text-3xl font-extrabold text-emerald-700 mt-2">${Number(currentMonthTuitionInvoiced).toFixed(2)}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Expected student fees ({currentMonthName})</p>
                 </div>
-                <div className="p-3.5 bg-sky-50 text-sky-600 rounded-2xl">
-                  <GraduationCap className="w-6 h-6" />
+                <div className="p-3.5 bg-emerald-50 text-emerald-600 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-colors shrink-0">
+                  <BookOpen className="w-6 h-6" />
+                </div>
+              </div>
+
+              <div 
+                onClick={() => setShowBusInvoicedModal(true)}
+                className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-sky-300 transition-all active:scale-[0.99] group"
+                title="Guji si aad u aragto faahfaahinta kashifida baska (Click to view expected bus dues)"
+              >
+                <div>
+                  <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                    Bus Invoiced
+                    <span className="text-[10px] text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-sky-50 px-1.5 py-0.5 rounded-md">Details 🔍</span>
+                  </p>
+                  <p className="text-2xl lg:text-3xl font-extrabold text-sky-700 mt-2">${Number(currentMonthBusInvoiced).toFixed(2)}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Expected bus fare ({currentMonthName})</p>
+                </div>
+                <div className="p-3.5 bg-sky-50 text-sky-600 rounded-2xl group-hover:bg-sky-600 group-hover:text-white transition-colors shrink-0">
+                  <Bus className="w-6 h-6" />
                 </div>
               </div>
 
               <div 
                 onClick={() => setShowCollectedFeesBreakdownMonth(currentMonthFilter)}
-                className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-teal-200 transition-all active:scale-[0.99] group" 
+                className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-teal-200 transition-all active:scale-[0.99] group" 
                 id="overview-revenue-paid"
                 title="Guji si aad u aragto halka ay lacagtu ka timid (Click to view breakdown)"
               >
                 <div>
                   <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
-                    Collected Fees ({currentMonthName})
-                    <span className="text-[10px] text-teal-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-teal-50 px-1.5 py-0.5 rounded-md">View details 🔍</span>
+                    Collected Fees
+                    <span className="text-[10px] text-teal-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-teal-50 px-1.5 py-0.5 rounded-md">Details 🔍</span>
                   </p>
-                  <p className="text-3xl font-extrabold text-teal-700 mt-2">${Number(currentMonthPaidAmount).toFixed(2)}</p>
-                  <p className="text-[10px] text-slate-400 mt-1">Click to see detail transaction breakdown</p>
+                  <p className="text-2xl lg:text-3xl font-extrabold text-teal-700 mt-2">${Number(currentMonthPaidAmount).toFixed(2)}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Total deposited ({currentMonthName})</p>
                 </div>
-                <div className="p-3.5 bg-teal-50 text-teal-600 rounded-2xl group-hover:bg-teal-600 group-hover:text-white transition-colors">
+                <div className="p-3.5 bg-teal-50 text-teal-600 rounded-2xl group-hover:bg-teal-600 group-hover:text-white transition-colors shrink-0">
                   <CircleDollarSign className="w-6 h-6" />
                 </div>
               </div>
 
               <div 
                 onClick={() => setShowPendingFeesBreakdownMonth(currentMonthFilter)}
-                className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-rose-200 transition-all active:scale-[0.99] group" 
+                className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-rose-200 transition-all active:scale-[0.99] group" 
                 id="overview-revenue-unpaid"
                 title="Guji si aad u aragto ardayda aan bixin lacagta (Click to see students who haven't paid fees)"
               >
                 <div>
                   <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
-                    Pending Balance ({currentMonthName})
-                    <span className="text-[10px] text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-rose-50 px-1.5 py-0.5 rounded-md">View unpaid 🔍</span>
+                    Pending Balance
+                    <span className="text-[10px] text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-rose-50 px-1.5 py-0.5 rounded-md">Unpaid 🔍</span>
                   </p>
-                  <p className="text-2xl font-extrabold text-rose-600 mt-2">${Number(currentMonthUnpaidAmount).toFixed(2)}</p>
-                  <p className="text-[10px] text-slate-400 mt-1">Click to see who still didn't pay fee</p>
+                  <p className="text-2xl lg:text-3xl font-extrabold text-rose-600 mt-2">${Number(currentMonthUnpaidAmount).toFixed(2)}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Outstanding dues ({currentMonthName})</p>
                 </div>
-                <div className="p-3.5 bg-rose-50 text-rose-600 rounded-2xl group-hover:bg-rose-600 group-hover:text-white transition-colors">
-                  <Calculator className="w-6 h-6" />
+                <div className="p-3.5 bg-rose-50 text-rose-600 rounded-2xl group-hover:bg-rose-600 group-hover:text-white transition-colors shrink-0">
+                  <AlertCircle className="w-6 h-6" />
                 </div>
               </div>
 
+            </div>
+
+            {/* Student Tuition & Fees Statistics Deck */}
+            <div className="bg-gradient-to-r from-emerald-50/50 via-teal-50/40 to-slate-50 p-6 rounded-3xl border border-emerald-100 shadow-sm space-y-5" id="student-tuition-statistics-deck">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-100/60 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-emerald-700 text-white rounded-xl">
+                    <BookOpen className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-slate-900 text-base">Adeegga Lacagta Waxbarashada (Student Tuition & Fees Services)</h3>
+                    <p className="text-slate-500 text-xs mt-0.5">Statistical insights for monthly student tuition fees, invoices, and revenue realization</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase font-black text-emerald-800 bg-white border border-emerald-200 px-3 py-1 rounded-full">{currentMonthName}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                
+                <div 
+                  onClick={() => setShowActiveStudentsModal(true)}
+                  className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-emerald-200 transition-all active:scale-[0.99] group"
+                  title="Guji si aad u aragto faahfaahinta fasallada (Click to view class breakdown)"
+                >
+                  <div>
+                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider group-hover:text-emerald-600 transition-colors">Active Enrolled Students</p>
+                    <p className="text-2xl font-black text-slate-900 mt-1">{activeStudents.length}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Students registered in classes</p>
+                  </div>
+                  <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                    <Users className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div 
+                  onClick={() => setShowTuitionInvoicedModal(true)}
+                  className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-emerald-300 transition-all active:scale-[0.99] group"
+                  title="Guji si aad u aragto kashifida lacagta waxbarashada (Click to view expected tuition dues breakdown)"
+                >
+                  <div>
+                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider group-hover:text-emerald-600 transition-colors">Tuition Invoiced ({currentMonthName})</p>
+                    <p className="text-2xl font-black text-slate-900 mt-1">${Number(currentMonthTuitionInvoiced).toFixed(2)}</p>
+                    <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                      Total expected student dues
+                      <span className="text-[9px] text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-emerald-50 px-1 rounded-sm">View details 🔍</span>
+                    </p>
+                  </div>
+                  <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                    <Calculator className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div 
+                  onClick={() => setShowCollectedFeesBreakdownMonth(currentMonthFilter)}
+                  className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-teal-200 transition-all active:scale-[0.99] group"
+                  title="Guji si aad u aragto faahfaahinta lacagta waxbarashada ee la qabtay (Click to view breakdown)"
+                >
+                  <div>
+                    <p className="text-teal-605 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                      Tuition Collected ({currentMonthName})
+                      <span className="text-[9px] text-teal-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-teal-50 px-1 rounded-sm">View details 🔍</span>
+                    </p>
+                    <p className="text-2xl font-black text-teal-700 mt-1">${Number(currentMonthTuitionCollected).toFixed(2)}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Click to see detail transaction breakdown</p>
+                  </div>
+                  <div className="p-3 bg-teal-50 text-teal-600 rounded-xl group-hover:bg-teal-600 group-hover:text-white transition-colors">
+                    <CircleDollarSign className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div 
+                  onClick={() => setShowPendingFeesBreakdownMonth(currentMonthFilter)}
+                  className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-rose-200 transition-all active:scale-[0.99] group"
+                  title="Guji si aad u aragto ardayda aan bixin lacagta waxbarashada (Click to see students who haven't paid fees)"
+                >
+                  <div>
+                    <p className="text-rose-605 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                      Pending Tuition Balance
+                      <span className="text-[9px] text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-rose-50 px-1 rounded-sm">View unpaid 🔍</span>
+                    </p>
+                    <p className="text-2xl font-black text-rose-600 mt-1">${Number(currentMonthTuitionPending).toFixed(2)}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Click to see who still didn't pay</p>
+                  </div>
+                  <div className="p-3 bg-rose-50 text-rose-600 rounded-xl group-hover:bg-rose-600 group-hover:text-white transition-colors">
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Progress and lifetime insights */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/70 p-4 rounded-2xl border border-emerald-100/30 text-xs">
+                <div className="space-y-1">
+                  <span className="font-extrabold text-slate-700 block text-xs">Heerka Realization-ka ee Waxbarashada (Tuition Collection Efficiency):</span>
+                  <p className="text-slate-500 text-[10.5px]">
+                    Current month tuition realization rate is <span className="font-extrabold text-emerald-700">{currentMonthTuitionInvoiced > 0 ? Math.round((currentMonthTuitionCollected / currentMonthTuitionInvoiced) * 100) : 0}%</span>. 
+                    Total expected monthly revenue (Tuition + Bus) is <span className="font-bold text-slate-900">${Number(currentMonthTotalExpectedRevenue).toFixed(2)}</span> (${Number(currentMonthTuitionInvoiced).toFixed(2)} Tuition + ${Number(currentMonthBusInvoiced).toFixed(2)} Bus).
+                  </p>
+                </div>
+                <div className="w-full sm:w-48 bg-slate-100 rounded-full h-2 overflow-hidden shrink-0">
+                  <div 
+                    className="bg-emerald-600 h-full rounded-full transition-all duration-500" 
+                    style={{ width: `${currentMonthTuitionInvoiced > 0 ? Math.round((currentMonthTuitionCollected / currentMonthTuitionInvoiced) * 100) : 0}%` }}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Bus Fare Statistics Deck */}
@@ -15601,9 +15758,28 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
           MODAL: ACTIVE STUDENTS DETAILED BREAKDOWN BY CLASS
           ------------------------------------------------------------- */}
       {showActiveStudentsModal && (() => {
-        const activeHiggaad = activeStudents.filter(s => s.className?.toLowerCase().includes('higg'));
-        const activeQuraan = activeStudents.filter(s => s.className?.toLowerCase().includes('qur'));
-        const activeOther = activeStudents.filter(s => !s.className?.toLowerCase().includes('higg') && !s.className?.toLowerCase().includes('qur'));
+        // Group students strictly by distinct class to prevent double-counting
+        const classGroups: { name: string; students: Student[]; color: string }[] = [];
+        
+        // Collect unique classes in order
+        const knownClasses = Array.from(new Set(activeStudents.map(s => s.className || 'Fasal La\'aan (Unassigned)'))).sort();
+        
+        const palette = [
+          { bg: 'bg-emerald-50/50', border: 'border-emerald-100/60', text: 'text-emerald-800', countText: 'text-emerald-900', badge: 'bg-emerald-100/60 text-emerald-700', dot: 'bg-emerald-500' },
+          { bg: 'bg-indigo-50/50', border: 'border-indigo-100/60', text: 'text-indigo-800', countText: 'text-indigo-900', badge: 'bg-indigo-100/60 text-indigo-700', dot: 'bg-indigo-500' },
+          { bg: 'bg-purple-50/50', border: 'border-purple-100/60', text: 'text-purple-800', countText: 'text-purple-900', badge: 'bg-purple-100/60 text-purple-700', dot: 'bg-purple-500' },
+          { bg: 'bg-sky-50/50', border: 'border-sky-100/60', text: 'text-sky-800', countText: 'text-sky-900', badge: 'bg-sky-100/60 text-sky-700', dot: 'bg-sky-500' },
+        ];
+
+        knownClasses.forEach((cName, idx) => {
+          const studs = activeStudents.filter(s => (s.className || 'Fasal La\'aan (Unassigned)') === cName);
+          const styling = palette[idx % palette.length];
+          classGroups.push({
+            name: cName,
+            students: studs,
+            color: styling.dot
+          });
+        });
 
         return (
           <div 
@@ -15632,7 +15808,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 <button 
                   type="button"
                   onClick={() => setShowActiveStudentsModal(false)}
-                  className="p-1 px-2 text-xs font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
+                  className="p-1 px-2.5 text-xs font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
                 >
                   Xir (Close)
                 </button>
@@ -15641,140 +15817,68 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
               {/* Scrollable Body */}
               <div className="p-6 overflow-y-auto space-y-6 flex-1 scrollbar-thin">
                 {/* Class Distribution Visual Summary */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100/60 flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] text-emerald-800 uppercase font-bold block mb-1">Fasalka Higgaad / Higgaadda</span>
-                      <span className="block text-3xl font-extrabold text-emerald-900">{activeHiggaad.length} <span className="text-xs font-semibold text-emerald-700">Arday</span></span>
-                      <p className="text-[10px] text-emerald-600/80 mt-1 font-semibold">{((activeHiggaad.length / (activeStudents.length || 1)) * 100).toFixed(0)}% of active students</p>
-                    </div>
-                    <div className="p-3 bg-emerald-100/60 text-emerald-700 rounded-xl">
-                      <BookOpen className="w-6 h-6" />
-                    </div>
-                  </div>
-
-                  <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/60 flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] text-indigo-800 uppercase font-bold block mb-1">Fasalka Quraan / Quraanka</span>
-                      <span className="block text-3xl font-extrabold text-indigo-900">{activeQuraan.length} <span className="text-xs font-semibold text-indigo-700">Arday</span></span>
-                      <p className="text-[10px] text-indigo-600/80 mt-1 font-semibold">{((activeQuraan.length / (activeStudents.length || 1)) * 100).toFixed(0)}% of active students</p>
-                    </div>
-                    <div className="p-3 bg-indigo-100/60 text-indigo-700 rounded-xl">
-                      <Users className="w-6 h-6" />
-                    </div>
-                  </div>
+                <div className={`grid grid-cols-1 sm:grid-cols-${Math.min(classGroups.length, 3)} gap-4`}>
+                  {classGroups.map((group, idx) => {
+                    const styling = palette[idx % palette.length];
+                    const percent = activeStudents.length > 0 ? Math.round((group.students.length / activeStudents.length) * 100) : 0;
+                    return (
+                      <div key={group.name} className={`${styling.bg} p-4 rounded-2xl border ${styling.border} flex items-center justify-between`}>
+                        <div>
+                          <span className={`text-[10px] ${styling.text} uppercase font-bold block mb-1`}>Fasalka {group.name}</span>
+                          <span className={`block text-2xl font-extrabold ${styling.countText}`}>{group.students.length} <span className="text-xs font-semibold">Arday</span></span>
+                          <p className="text-[10px] text-slate-500 mt-1 font-semibold">{percent}% of active students</p>
+                        </div>
+                        <div className={`p-3 ${styling.badge} rounded-xl`}>
+                          <BookOpen className="w-5 h-5" />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
 
-                {/* Section 1: Higgaad Class Students */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                      1. Liiska Fasalka Higgaad ({activeHiggaad.length} Students)
-                    </h4>
-                  </div>
+                {/* Class Student Lists */}
+                {classGroups.map((group, idx) => {
+                  const styling = palette[idx % palette.length];
+                  return (
+                    <div key={group.name} className="space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                          <span className={`w-2 h-2 rounded-full ${styling.dot} inline-block`} />
+                          {idx + 1}. Liiska Fasalka {group.name} ({group.students.length} Students)
+                        </h4>
+                      </div>
 
-                  {activeHiggaad.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 rounded-2xl border border-dashed border-slate-150">
-                      No active students in Higgaad class.
-                    </p>
-                  ) : (
-                    <div className="overflow-x-auto rounded-2xl border border-slate-100 max-h-[250px] overflow-y-auto scrollbar-thin">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider sticky top-0 z-10">
-                            <th className="py-2 px-3">Student Name (Ardayga)</th>
-                            <th className="py-2 px-3">Student ID</th>
-                            <th className="py-2 px-3">Class (Fasalka)</th>
-                            <th className="py-2 px-3 text-right">Monthly Fee (Lacagta)</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {activeHiggaad.map((s, idx) => (
-                            <tr key={s.id || idx} className="hover:bg-slate-50/40">
-                              <td className="py-2 px-3 font-bold text-slate-800">{s.name}</td>
-                              <td className="py-2 px-3 font-mono text-[10px] text-slate-500">{s.id}</td>
-                              <td className="py-2 px-3 text-slate-600 font-semibold">{s.className}</td>
-                              <td className="py-2 px-3 text-right font-black text-slate-700">${Number(s.monthlyFee || 0).toFixed(2)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      {group.students.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 rounded-2xl border border-dashed border-slate-150">
+                          No active students in {group.name} class.
+                        </p>
+                      ) : (
+                        <div className="overflow-x-auto rounded-2xl border border-slate-100 max-h-[250px] overflow-y-auto scrollbar-thin">
+                          <table className="w-full text-left border-collapse text-xs">
+                            <thead>
+                              <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider sticky top-0 z-10">
+                                <th className="py-2 px-3">Student Name (Ardayga)</th>
+                                <th className="py-2 px-3">Student ID</th>
+                                <th className="py-2 px-3">Class (Fasalka)</th>
+                                <th className="py-2 px-3 text-right">Monthly Fee (Lacagta)</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {group.students.map((s, sIdx) => (
+                                <tr key={s.id || sIdx} className="hover:bg-slate-50/40">
+                                  <td className="py-2 px-3 font-bold text-slate-800">{s.name}</td>
+                                  <td className="py-2 px-3 font-mono text-[10px] text-slate-500">{s.id}</td>
+                                  <td className="py-2 px-3 text-slate-600 font-semibold">{s.className}</td>
+                                  <td className="py-2 px-3 text-right font-black text-slate-700">${Number(s.monthlyFee || 0).toFixed(2)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-
-                {/* Section 2: Quraan Class Students */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-indigo-500 inline-block" />
-                      2. Liiska Fasalka Quraan ({activeQuraan.length} Students)
-                    </h4>
-                  </div>
-
-                  {activeQuraan.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 rounded-2xl border border-dashed border-slate-150">
-                      No active students in Quraan class.
-                    </p>
-                  ) : (
-                    <div className="overflow-x-auto rounded-2xl border border-slate-100 max-h-[250px] overflow-y-auto scrollbar-thin">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider sticky top-0 z-10">
-                            <th className="py-2 px-3">Student Name (Ardayga)</th>
-                            <th className="py-2 px-3">Student ID</th>
-                            <th className="py-2 px-3">Class (Fasalka)</th>
-                            <th className="py-2 px-3 text-right">Monthly Fee (Lacagta)</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {activeQuraan.map((s, idx) => (
-                            <tr key={s.id || idx} className="hover:bg-slate-50/40">
-                              <td className="py-2 px-3 font-bold text-slate-800">{s.name}</td>
-                              <td className="py-2 px-3 font-mono text-[10px] text-slate-500">{s.id}</td>
-                              <td className="py-2 px-3 text-slate-600 font-semibold">{s.className}</td>
-                              <td className="py-2 px-3 text-right font-black text-slate-700">${Number(s.monthlyFee || 0).toFixed(2)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-                {activeOther.length > 0 && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-slate-400 inline-block" />
-                        3. Fasallada Kale / Unassigned ({activeOther.length} Students)
-                      </h4>
-                    </div>
-                    <div className="overflow-x-auto rounded-2xl border border-slate-100 max-h-[150px] overflow-y-auto scrollbar-thin">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider sticky top-0 z-10">
-                            <th className="py-2 px-3">Student Name</th>
-                            <th className="py-2 px-3">Student ID</th>
-                            <th className="py-2 px-3">Class</th>
-                            <th className="py-2 px-3 text-right">Fee</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {activeOther.map((s, idx) => (
-                            <tr key={s.id || idx} className="hover:bg-slate-50/40">
-                              <td className="py-2 px-3 font-bold text-slate-800">{s.name}</td>
-                              <td className="py-2 px-3 font-mono text-[10px] text-slate-500">{s.id}</td>
-                              <td className="py-2 px-3 text-slate-600">{s.className || 'None'}</td>
-                              <td className="py-2 px-3 text-right font-black text-slate-700">${Number(s.monthlyFee || 0).toFixed(2)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
+                  );
+                })}
               </div>
 
               {/* Modal Footer */}
@@ -16865,6 +16969,512 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 <button
                   type="button"
                   onClick={() => setShowActiveRidersModal(false)}
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
+                >
+                  Xir (Close)
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        );
+      })()}
+
+      {/* -------------------------------------------------------------
+          MODAL: STUDENT TUITION INVOICED EXPECTED DUES BREAKDOWN
+          ------------------------------------------------------------- */}
+      {showTuitionInvoicedModal && (() => {
+        // Unique classes for filtering
+        const uniqueTuitionClasses = Array.from(new Set(activeStudents.map(s => s.className).filter(Boolean))).sort();
+
+        // Filter active students by search query, class, and payment status
+        const filteredTuitionStudents = activeStudents.filter(s => {
+          const q = tuitionInvoicedSearchQuery.toLowerCase();
+          const matchesSearch = (
+            (s.name || '').toLowerCase().includes(q) ||
+            (s.id || '').toLowerCase().includes(q) ||
+            (s.className || '').toLowerCase().includes(q) ||
+            (s.parentName || '').toLowerCase().includes(q) ||
+            (s.parentPhone || '').toLowerCase().includes(q)
+          );
+          const matchesClass = tuitionInvoicedClassFilter === 'all' || s.className === tuitionInvoicedClassFilter;
+
+          if (!matchesSearch || !matchesClass) return false;
+
+          if (tuitionInvoicedStatusFilter === 'all') return true;
+          const billingStatus = getBillingStatusForStudent(s, currentMonthFilter);
+          const tuitionPaid = Number(billingStatus?.amountPaid || 0);
+          const tuitionFee = Number(s.monthlyFee || 0);
+          if (tuitionInvoicedStatusFilter === 'paid') return tuitionPaid >= tuitionFee && tuitionFee > 0;
+          if (tuitionInvoicedStatusFilter === 'partial') return tuitionPaid > 0 && tuitionPaid < tuitionFee;
+          if (tuitionInvoicedStatusFilter === 'pending') return tuitionPaid === 0 && tuitionFee > 0;
+          return true;
+        });
+
+        const handleDownloadTuitionInvoicedCSV = () => {
+          if (activeStudents.length === 0) return;
+          const headers = '\uFEFFStudent ID,Ardayga (Student Name),Fasalka (Class),Waalidka (Parent Name),Telka Waalidka (Parent Phone),Monthly Tuition Fee ($),Paid So Far ($),Pending Balance ($),Status\n';
+          const rows = activeStudents.map(s => {
+            const billingStatus = getBillingStatusForStudent(s, currentMonthFilter);
+            const tuitionPaid = Number(billingStatus?.amountPaid || 0);
+            const tuitionFee = Number(s.monthlyFee || 0);
+            const tuitionPending = Math.max(0, tuitionFee - tuitionPaid);
+            const status = tuitionPaid >= tuitionFee ? 'Paid' : (tuitionPaid > 0 ? 'Partial' : 'Pending');
+            
+            return `"${s.id || ''}","${(s.name || '').replace(/"/g, '""')}","${(s.className || '').replace(/"/g, '""')}","${(s.parentName || '').replace(/"/g, '""')}","${(s.parentPhone || '').replace(/"/g, '""')}","${tuitionFee}","${tuitionPaid}","${tuitionPending}","${status}"`;
+          }).join('\n');
+          
+          const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.setAttribute("href", url);
+          link.setAttribute("download", `dugsiga_subuc_tuition_invoiced_${currentMonthFilter}_${new Date().toISOString().slice(0, 10)}.csv`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          setFeedbackMsg("Faahfaahinta lacagta waxbarashada ee la kashifay waa la soo dejiyay (Tuition Invoiced CSV downloaded)!");
+          setTimeout(() => setFeedbackMsg(''), 4000);
+        };
+
+        const handleDownloadTuitionInvoicedWord = () => {
+          if (activeStudents.length === 0) return;
+          let html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+  <meta charset="utf-8">
+  <title>Dugsiga Subuc - Tuition Invoiced Breakdown (${currentMonthName})</title>
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; color: #334155; }
+    h2 { color: #047857; font-size: 18pt; margin-bottom: 2px; }
+    p { font-size: 10pt; color: #64748b; margin-top: 0; }
+    table { border-collapse: collapse; width: 100%; margin-top: 15px; }
+    th { background-color: #059669; color: #ffffff; text-align: left; font-weight: bold; font-size: 10pt; padding: 8px; border: 1px solid #cbd5e1; }
+    td { padding: 8px; border: 1px solid #cbd5e1; font-size: 9.5pt; }
+    .text-right { text-align: right; }
+  </style>
+</head>
+<body>
+  <h2>DUGSIGA SUBUC</h2>
+  <p><b>WARBIXINTA KASHIFIDA LACAGTA WAXBARASHADA / TUITION INVOICED BREAKDOWN (${currentMonthName})</b><br/>
+  Total Tuition Invoiced: $${Number(currentMonthTuitionInvoiced).toFixed(2)} | Total Active Students: ${activeStudents.length}<br/>
+  Total Collected So Far: $${Number(currentMonthTuitionCollected).toFixed(2)} | Total Pending Dues: $${Number(currentMonthTuitionPending).toFixed(2)}<br/>
+  Taariikhda: ${new Date().toLocaleDateString()}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Ardayga (Student)</th>
+        <th>Class</th>
+        <th>Waalidka (Parent)</th>
+        <th>Telka</th>
+        <th class="text-right">Tuition Fee ($)</th>
+        <th class="text-right">Paid ($)</th>
+        <th class="text-right">Pending ($)</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+          activeStudents.forEach(s => {
+            const billingStatus = getBillingStatusForStudent(s, currentMonthFilter);
+            const tuitionPaid = Number(billingStatus?.amountPaid || 0);
+            const tuitionFee = Number(s.monthlyFee || 0);
+            const tuitionPending = Math.max(0, tuitionFee - tuitionPaid);
+            const statusText = tuitionPaid >= tuitionFee ? 'Paid' : (tuitionPaid > 0 ? 'Partial' : 'Pending');
+
+            html += `
+              <tr>
+                <td><b>${s.id || ''}</b></td>
+                <td>${s.name || ''}</td>
+                <td>${s.className || 'None'}</td>
+                <td>${s.parentName || 'N/A'}</td>
+                <td>${s.parentPhone || 'N/A'}</td>
+                <td class="text-right">$${tuitionFee.toFixed(2)}</td>
+                <td class="text-right">$${tuitionPaid.toFixed(2)}</td>
+                <td class="text-right">$${tuitionPending.toFixed(2)}</td>
+                <td>${statusText}</td>
+              </tr>`;
+          });
+
+          html += `
+            </tbody>
+          </table>
+        </body>
+        </html>`;
+
+          const blob = new Blob(['\ufeff' + html], { type: 'application/msword;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.setAttribute("href", url);
+          link.setAttribute("download", `dugsiga_subuc_tuition_invoiced_${currentMonthFilter}_${new Date().toISOString().slice(0, 10)}.doc`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          setFeedbackMsg("Faahfaahinta lacagta waxbarashada waa la soo dejiyay Word (.doc) ahaan!");
+          setTimeout(() => setFeedbackMsg(''), 4000);
+        };
+
+        const handleDownloadTuitionInvoicedPDF = () => {
+          if (activeStudents.length === 0) return;
+
+          const doc = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+          });
+
+          doc.setProperties({
+            title: `Dugsiga Subuc - Tuition Invoiced Breakdown ${currentMonthName}`,
+            subject: 'Student Tuition Invoiced Dues Breakdown',
+            author: 'Dugsiga Subuc'
+          });
+
+          let pageNum = 1;
+
+          const drawHeader = (pageNumber: number) => {
+            doc.setTextColor(5, 150, 105); // emerald green
+            doc.setFont("Helvetica", "bold");
+            doc.setFontSize(20);
+            doc.text("DUGSIGA SUBUC", 15, 20);
+
+            doc.setFontSize(9);
+            doc.setTextColor(16, 185, 129); // emerald-500
+            doc.text(`STUDENT TUITION INVOICED DUES BREAKDOWN (${currentMonthName.toUpperCase()})`, 15, 26);
+
+            doc.setDrawColor(203, 213, 225);
+            doc.setLineWidth(0.5);
+            doc.line(15, 30, 195, 30);
+
+            doc.setFont("Helvetica", "normal");
+            doc.setFontSize(8);
+            doc.setTextColor(100, 116, 139);
+            doc.text(`Total Expected Tuition Dues: $${Number(currentMonthTuitionInvoiced).toFixed(2)}  |  Students: ${activeStudents.length}  |  Collected: $${Number(currentMonthTuitionCollected).toFixed(2)}`, 15, 35);
+            doc.text(`Page ${pageNumber}`, 195, 35, { align: 'right' });
+          };
+
+          drawHeader(pageNum);
+
+          let y = 42;
+
+          const drawTableHeaders = (startY: number) => {
+            doc.setFillColor(236, 253, 245); // emerald-50
+            doc.rect(15, startY, 180, 8, "F");
+            doc.setDrawColor(167, 243, 208);
+            doc.rect(15, startY, 180, 8, "S");
+
+            doc.setFont("Helvetica", "bold");
+            doc.setFontSize(8);
+            doc.setTextColor(4, 120, 87);
+
+            doc.text("ID", 17, startY + 5.5);
+            doc.text("Student Name (Ardayga)", 32, startY + 5.5);
+            doc.text("Class", 85, startY + 5.5);
+            doc.text("Parent Name", 110, startY + 5.5);
+            doc.text("Phone", 145, startY + 5.5);
+            doc.text("Tuition Fee", 182, startY + 5.5, { align: 'right' });
+          };
+
+          drawTableHeaders(y);
+          y += 8;
+
+          doc.setFont("Helvetica", "normal");
+          doc.setFontSize(8);
+          doc.setTextColor(30, 41, 59);
+
+          activeStudents.forEach((s, idx) => {
+            if (y > 275) {
+              doc.addPage();
+              pageNum++;
+              drawHeader(pageNum);
+              y = 42;
+              drawTableHeaders(y);
+              y += 8;
+            }
+
+            if (idx % 2 === 1) {
+              doc.setFillColor(248, 250, 252);
+              doc.rect(15, y, 180, 8, "F");
+            }
+
+            doc.setDrawColor(241, 245, 249);
+            doc.setLineWidth(0.3);
+            doc.line(15, y + 8, 195, y + 8);
+
+            doc.setFont("Helvetica", "bold");
+            doc.text(s.id || '', 17, y + 5.5);
+
+            doc.setFont("Helvetica", "normal");
+            let displayName = s.name || '';
+            if (displayName.length > 28) displayName = displayName.substring(0, 26) + '..';
+            doc.text(displayName, 32, y + 5.5);
+
+            doc.text(s.className || 'None', 85, y + 5.5);
+
+            let displayParent = s.parentName || 'N/A';
+            if (displayParent.length > 18) displayParent = displayParent.substring(0, 16) + '..';
+            doc.text(displayParent, 110, y + 5.5);
+
+            doc.text(s.parentPhone || 'N/A', 145, y + 5.5);
+
+            doc.setFont("Helvetica", "bold");
+            doc.text(`$${Number(s.monthlyFee || 0).toFixed(2)}`, 182, y + 5.5, { align: 'right' });
+
+            y += 8;
+          });
+
+          doc.save(`dugsiga_subuc_tuition_invoiced_${currentMonthFilter}_${new Date().toISOString().slice(0, 10)}.pdf`);
+          
+          setFeedbackMsg("Faahfaahinta lacagta waxbarashada waa la soo dejiyay PDF ahaan!");
+          setTimeout(() => setFeedbackMsg(''), 4000);
+        };
+
+        return (
+          <div 
+            className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-55 animate-fade-in overflow-y-auto pointer-print-none" 
+            id="tuition-invoiced-modal-bg"
+            onClick={(e) => {
+              if ((e.target as HTMLElement).id === 'tuition-invoiced-modal-bg') {
+                setShowTuitionInvoicedModal(false);
+              }
+            }}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-3xl shadow-xl border border-slate-100 max-w-5xl w-full overflow-hidden flex flex-col max-h-[88vh]"
+            >
+              {/* Modal Header */}
+              <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-emerald-600" />
+                    Student Tuition Invoiced Breakdown ({currentMonthName})
+                  </h3>
+                  <p className="text-xs text-slate-500 font-semibold mt-1">Faahfaahinta oo dhan oo ku saabsan lacagta waxbarashada ee la kashifay / Expected student tuition dues breakdown</p>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setShowTuitionInvoicedModal(false)}
+                  className="p-1 px-2.5 text-xs font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
+                >
+                  Xir (Close)
+                </button>
+              </div>
+
+              {/* Scrollable Body */}
+              <div className="p-6 overflow-y-auto space-y-6 flex-1 scrollbar-thin">
+                
+                {/* Summary Stat Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100">
+                    <p className="text-[10px] font-black text-emerald-700 uppercase tracking-wider">Total Tuition Invoiced</p>
+                    <p className="text-xl font-black text-emerald-900 mt-1">${Number(currentMonthTuitionInvoiced).toFixed(2)}</p>
+                    <p className="text-[10px] text-emerald-600/80 mt-0.5">Expected dues ({currentMonthName})</p>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Enrolled Students</p>
+                    <p className="text-xl font-black text-slate-800 mt-1">{activeStudents.length}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Active students</p>
+                  </div>
+                  <div className="bg-teal-50/60 p-4 rounded-2xl border border-teal-100">
+                    <p className="text-[10px] font-black text-teal-700 uppercase tracking-wider">Collected So Far</p>
+                    <p className="text-xl font-black text-teal-900 mt-1">${Number(currentMonthTuitionCollected).toFixed(2)}</p>
+                    <p className="text-[10px] text-teal-600/80 mt-0.5">Received tuition</p>
+                  </div>
+                  <div 
+                    onClick={() => {
+                      setShowTuitionInvoicedModal(false);
+                      setShowPendingFeesBreakdownMonth(currentMonthFilter);
+                    }}
+                    className="bg-rose-50/60 p-4 rounded-2xl border border-rose-100 cursor-pointer hover:bg-rose-100/80 hover:border-rose-300 transition-all group shadow-xs hover:shadow-sm"
+                    title="Guji si aad u aragto ardayda aan bixin lacagta (Click to view unpaid students)"
+                  >
+                    <p className="text-[10px] font-black text-rose-700 uppercase tracking-wider flex items-center justify-between">
+                      <span>Pending Dues</span>
+                      <span className="text-[9px] bg-rose-200/80 px-1.5 py-0.5 rounded text-rose-900 font-bold opacity-0 group-hover:opacity-100 transition-opacity">View Unpaid →</span>
+                    </p>
+                    <p className="text-xl font-black text-rose-900 mt-1">${Number(currentMonthTuitionPending).toFixed(2)}</p>
+                    <p className="text-[10px] text-rose-600/80 mt-0.5">Click to see who still didn't pay</p>
+                  </div>
+                </div>
+
+                {/* Search, Filter & Export Actions */}
+                <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-150">
+                  <div className="flex flex-col sm:flex-row gap-3 flex-1">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                      <input 
+                        type="text"
+                        placeholder="Raadi arday, ID, fasal ama telka waalidka..."
+                        value={tuitionInvoicedSearchQuery}
+                        onChange={(e) => setTuitionInvoicedSearchQuery(e.target.value)}
+                        className="pl-9 pr-4 py-2 w-full bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      />
+                      {tuitionInvoicedSearchQuery && (
+                        <button 
+                          onClick={() => setTuitionInvoicedSearchQuery('')}
+                          className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    
+                    {/* Class Filter */}
+                    <select
+                      value={tuitionInvoicedClassFilter}
+                      onChange={(e) => setTuitionInvoicedClassFilter(e.target.value)}
+                      className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                    >
+                      <option value="all">Dhammaan Fasallada (All Classes)</option>
+                      {uniqueTuitionClasses.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+
+                    {/* Status Filter */}
+                    <select
+                      value={tuitionInvoicedStatusFilter}
+                      onChange={(e) => setTuitionInvoicedStatusFilter(e.target.value as any)}
+                      className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                    >
+                      <option value="all">Dhammaan Xaaladaha (All Statuses)</option>
+                      <option value="paid">Shubay (Paid)</option>
+                      <option value="partial">Qayb Bixiyay (Partial)</option>
+                      <option value="pending">Deyn / Aan Bixin (Pending)</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleDownloadTuitionInvoicedCSV}
+                      disabled={activeStudents.length === 0}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-extrabold text-xs uppercase rounded-xl transition-all cursor-pointer disabled:opacity-50 active:scale-95"
+                      title="Download full invoiced tuition dues in Excel CSV format"
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      Excel (CSV)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadTuitionInvoicedPDF}
+                      disabled={activeStudents.length === 0}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs uppercase rounded-xl transition-all cursor-pointer disabled:opacity-50 active:scale-95"
+                      title="Download in PDF format"
+                    >
+                      <FileText className="w-4 h-4" />
+                      PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadTuitionInvoicedWord}
+                      disabled={activeStudents.length === 0}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-extrabold text-xs uppercase rounded-xl transition-all cursor-pointer disabled:opacity-50 active:scale-95"
+                      title="Download in Word (.doc) format"
+                    >
+                      <FileText className="w-4 h-4" />
+                      Word
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePrintElement('printable-tuition-invoiced-container')}
+                      disabled={activeStudents.length === 0}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase rounded-xl transition-all shadow-sm cursor-pointer disabled:opacity-50 active:scale-95"
+                      title="Print the tuition invoiced list"
+                    >
+                      <Printer className="w-4 h-4" />
+                      Daabac (Print)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Printable Table Container */}
+                <div id="printable-tuition-invoiced-container" className="space-y-4">
+                  {/* Print Only Header */}
+                  <div className="hidden print-only-block border-b-2 border-slate-900 pb-4 mb-4">
+                    <h2 className="text-xl font-black text-slate-900 text-center">Dugsiga Subuc - Banuu Jalaal</h2>
+                    <h3 className="text-base font-bold text-slate-700 text-center mt-1">Student Tuition Invoiced Breakdown ({currentMonthName})</h3>
+                    <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono mt-4">
+                      <span>Taariikhda Daabacaadda: {new Date().toLocaleDateString('so-SO', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                      <span>Total Tuition Invoiced: ${Number(currentMonthTuitionInvoiced).toFixed(2)} | Students: {activeStudents.length}</span>
+                    </div>
+                  </div>
+
+                  {filteredTuitionStudents.length === 0 ? (
+                    <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-150">
+                      <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                      <p className="text-xs text-slate-500 font-bold">Lama helin wax arday ah oo buuxiya shuruudaha raadinta.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-2xl border border-slate-100 max-h-[50vh] overflow-y-auto scrollbar-thin">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider sticky top-0 z-10">
+                            <th className="py-3 px-4">#</th>
+                            <th className="py-3 px-4">Ardayga (Student Name)</th>
+                            <th className="py-3 px-4">Fasalka (Class)</th>
+                            <th className="py-3 px-4">Waalidka (Parent Name)</th>
+                            <th className="py-3 px-4">Telka Waalidka</th>
+                            <th className="py-3 px-4 text-right">Tuition Fee Due ($)</th>
+                            <th className="py-3 px-4 text-right">Paid So Far ($)</th>
+                            <th className="py-3 px-4 text-right">Pending ($)</th>
+                            <th className="py-3 px-4 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {filteredTuitionStudents.map((s, idx) => {
+                            const billingStatus = getBillingStatusForStudent(s, currentMonthFilter);
+                            const tuitionPaid = Number(billingStatus?.amountPaid || 0);
+                            const tuitionFee = Number(s.monthlyFee || 0);
+                            const tuitionPending = Math.max(0, tuitionFee - tuitionPaid);
+                            const isPaid = tuitionPaid >= tuitionFee && tuitionFee > 0;
+                            const isPartial = tuitionPaid > 0 && tuitionPaid < tuitionFee;
+
+                            return (
+                              <tr key={s.id || idx} className="hover:bg-slate-50/40">
+                                <td className="py-3 px-4 text-slate-400 font-mono text-[10px]">{idx + 1}</td>
+                                <td className="py-3 px-4 font-bold text-slate-800">
+                                  {s.name}
+                                  <span className="block text-[10px] text-slate-400 font-mono font-normal">{s.id}</span>
+                                </td>
+                                <td className="py-3 px-4 text-slate-600 font-semibold">{s.className || 'None'}</td>
+                                <td className="py-3 px-4 text-slate-700 font-medium">{s.parentName || 'N/A'}</td>
+                                <td className="py-3 px-4 text-slate-600 font-semibold">{s.parentPhone || 'N/A'}</td>
+                                <td className="py-3 px-4 text-right font-black text-emerald-700">${tuitionFee.toFixed(2)}</td>
+                                <td className="py-3 px-4 text-right font-black text-teal-700">${tuitionPaid.toFixed(2)}</td>
+                                <td className="py-3 px-4 text-right font-black text-rose-600">${tuitionPending.toFixed(2)}</td>
+                                <td className="py-3 px-4 text-center">
+                                  {isPaid ? (
+                                    <span className="px-2 py-0.5 text-[10px] font-extrabold bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100">
+                                      Shubay (Paid)
+                                    </span>
+                                  ) : isPartial ? (
+                                    <span className="px-2 py-0.5 text-[10px] font-extrabold bg-amber-50 text-amber-700 rounded-full border border-amber-100">
+                                      Qayb (Partial)
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 text-[10px] font-extrabold bg-rose-50 text-rose-700 rounded-full border border-rose-100">
+                                      Deyn (Pending)
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 pointer-print-none">
+                <button
+                  type="button"
+                  onClick={() => setShowTuitionInvoicedModal(false)}
                   className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
                 >
                   Xir (Close)
