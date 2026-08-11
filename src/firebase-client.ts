@@ -187,7 +187,7 @@ export async function saveRemoteDatabaseState(state: DatabaseState): Promise<boo
 }
 
 export function subscribeToRemoteDatabaseState(onUpdate: (state: DatabaseState) => void): () => void {
-  const { coreDocRef, stateDocRef } = initFirebaseClient();
+  const { coreDocRef, progressDocRef, financeDocRef, logsDocRef, stateDocRef } = initFirebaseClient();
   if (!coreDocRef && !stateDocRef) return () => {};
 
   let debounceTimer: any = null;
@@ -203,34 +203,21 @@ export function subscribeToRemoteDatabaseState(onUpdate: (state: DatabaseState) 
       } catch (err) {
         console.warn('[Dugsiga Subuc] Failed fetching full state during subscription trigger:', err);
       }
-    }, 1500);
+    }, 400);
   };
 
   try {
     const unsubs: (() => void)[] = [];
 
-    if (coreDocRef) {
-      const unsubCore = onSnapshot(coreDocRef, () => {
+    const refsToListen = [coreDocRef, progressDocRef, financeDocRef, logsDocRef, stateDocRef].filter(Boolean);
+    refsToListen.forEach((docRef) => {
+      const unsub = onSnapshot(docRef, () => {
         triggerUpdate();
       }, (error) => {
-        console.warn('[Dugsiga Subuc] Core sync listener notice:', error?.message);
+        console.warn('[Dugsiga Subuc] Firestore sync listener notice:', error?.message);
       });
-      unsubs.push(unsubCore);
-    }
-
-    if (stateDocRef) {
-      const unsubState = onSnapshot(stateDocRef, (snap) => {
-        if (snap.exists()) {
-          const data = snap.data() as any;
-          if (data?.state) {
-            onUpdate(data.state);
-          }
-        }
-      }, (error) => {
-        console.warn('[Dugsiga Subuc] State sync listener notice:', error?.message);
-      });
-      unsubs.push(unsubState);
-    }
+      unsubs.push(unsub);
+    });
 
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);

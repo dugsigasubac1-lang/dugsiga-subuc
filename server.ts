@@ -695,17 +695,17 @@ async function startServer() {
       logsDocRef = doc(db, 'system', 'logs');
       console.log('Firebase client initialized successfully.');
 
-      // Start real-time Firestore database synchronization
-      onSnapshot(coreDocRef, async (docSnap) => {
+      // Start real-time Firestore database synchronization across all partitions
+      const triggerServerStateSync = async () => {
         try {
-          if (docSnap.exists()) {
-            const [coreSnap, progSnap, finSnap, logsSnap] = await Promise.all([
-              Promise.resolve(docSnap),
-              getDoc(progressDocRef).catch(() => null),
-              getDoc(financeDocRef).catch(() => null),
-              getDoc(logsDocRef).catch(() => null)
-            ]);
+          const [coreSnap, progSnap, finSnap, logsSnap] = await Promise.all([
+            getDoc(coreDocRef).catch(() => null),
+            getDoc(progressDocRef).catch(() => null),
+            getDoc(financeDocRef).catch(() => null),
+            getDoc(logsDocRef).catch(() => null)
+          ]);
 
+          if (coreSnap && coreSnap.exists()) {
             const coreData = coreSnap.data() as any;
             const progData = (progSnap && progSnap.exists()) ? (progSnap.data() as any) : {};
             const finData = (finSnap && finSnap.exists()) ? (finSnap.data() as any) : {};
@@ -748,12 +748,19 @@ async function startServer() {
             resolveFirstSnapshot();
           }
         }
-      }, (err) => {
-        console.error('Error in Firestore real-time listener:', err);
-        if (!isSnapshotLoaded) {
-          isSnapshotLoaded = true;
-          resolveFirstSnapshot();
-        }
+      };
+
+      const serverRefsToListen = [coreDocRef, progressDocRef, financeDocRef, logsDocRef, stateDocRef].filter(Boolean);
+      serverRefsToListen.forEach((ref) => {
+        onSnapshot(ref, () => {
+          triggerServerStateSync();
+        }, (err) => {
+          console.error('Error in Firestore real-time listener:', err);
+          if (!isSnapshotLoaded) {
+            isSnapshotLoaded = true;
+            resolveFirstSnapshot();
+          }
+        });
       });
     } else {
       console.warn('Firebase configuration (JSON file or environment variables) not found. Falling back to simple file-based storage.');

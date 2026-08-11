@@ -462,6 +462,16 @@ export default function App() {
         
         if (success) {
           directSaveSuccess = true;
+          // Also sync to server in background so server-side cache and file remain identical
+          fetch(`${API_BASE}/api/database`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Session-Id': localStorage.getItem('dugsi_session_id') || ''
+            },
+            body: JSON.stringify(dbWithTimestamp)
+          }).catch(() => {});
+
           setGlobalSaveStatus({ type: 'success', message: 'Si guul leh ayaa loo kaydiyay xogta!' });
           setTimeout(() => {
             setGlobalSaveStatus(prev => prev.type === 'success' ? { type: null, message: null } : prev);
