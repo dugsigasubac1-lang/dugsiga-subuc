@@ -1366,7 +1366,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
 
       {/* MODAL 1: ADD / EDIT ACCOUNT */}
       {isAccountModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-[20000] animate-fade-in">
           <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
             <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-5 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1472,7 +1472,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
 
       {/* MODAL 2: ADD / EDIT TRANSACTION (MONEY IN / MONEY OUT) */}
       {isTransactionModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-[20000] animate-fade-in overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden my-8">
             <div
               className={`p-5 text-white flex items-center justify-between ${
@@ -1700,7 +1700,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
 
       {/* MODAL 3: END-OF-MONTH REPORT DOWNLOAD OPTIONS */}
       {isReportModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-[20000] animate-fade-in">
           <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden">
             <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-5 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1808,7 +1808,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
 
       {/* MODAL 4: PRINTABLE MONTHLY STATEMENT AUDIT MODAL */}
       {isPrintModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-[20000] animate-fade-in overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-slate-200 overflow-hidden my-8">
             <div className="bg-slate-900 p-4 text-white flex items-center justify-between no-print">
               <span className="text-xs font-black uppercase text-indigo-300 tracking-wider">
@@ -1977,7 +1977,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
 
       {/* CONFIRMATION DIALOG MODAL */}
       {confirmModal && confirmModal.isOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-[20000] animate-fade-in">
           <div className="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl border border-slate-200">
             <h3 className="text-base font-black text-slate-900">{confirmModal.title}</h3>
             <p className="text-xs text-slate-600 leading-relaxed">{confirmModal.message}</p>

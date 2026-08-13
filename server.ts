@@ -1177,6 +1177,39 @@ async function startServer() {
     }
   });
 
+  // API Route: Get a specific cloud backup details and state for previewing
+  app.get('/api/backups/:id', async (req, res) => {
+    if (!db) {
+      return res.status(503).json({ error: 'Firestore connection not initialized.' });
+    }
+    const backupId = req.params.id;
+    try {
+      const backupDocRef = doc(db, 'backups', backupId);
+      const docSnap = await getDoc(backupDocRef);
+      if (!docSnap.exists()) {
+        return res.status(404).json({ error: 'Backup not found in Cloud Firestore.' });
+      }
+      const backupData = docSnap.data();
+      const sanitizedState = sanitizeDatabaseState(backupData.state || {});
+      return res.json({
+        success: true,
+        backup: {
+          id: backupData.id || backupId,
+          timestamp: backupData.timestamp,
+          studentCount: backupData.studentCount || (sanitizedState.students || []).length,
+          teacherCount: backupData.teacherCount || (sanitizedState.teachers || []).length,
+          invoiceCount: backupData.invoiceCount || (sanitizedState.invoices || []).length,
+          size: backupData.size || 0,
+          storageType: backupData.storageType || 'Google Cloud Storage & Firestore Cloud',
+          state: sanitizedState
+        }
+      });
+    } catch (err: any) {
+      console.error(`[API GET backup by ID] Fail for ${backupId}:`, err);
+      return res.status(500).json({ error: 'Failed to fetch backup: ' + err.message });
+    }
+  });
+
   // API Route: Delete a specific backup
   app.delete('/api/backups/:id', async (req, res) => {
     if (!db) {

@@ -967,11 +967,21 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [selectedWeeklyExamIds, setSelectedWeeklyExamIds] = useState<string[]>([]);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
 
-  // Cache Recovery & CSV Importer states
+  // Cache Recovery, Backup Preview & CSV Importer states
   const [foundCacheBackups, setFoundCacheBackups] = useState<Array<{ key: string, origin: 'localStorage' | 'sessionStorage', studentCount: number, timestamp: string, state: DatabaseState }>>([]);
   const [hasScannedCache, setHasScannedCache] = useState(false);
   const [csvPreviewStudents, setCsvPreviewStudents] = useState<Array<any>>([]);
   const [csvError, setCsvError] = useState<string>('');
+
+  // Backup Inspection & Safe Preview States
+  const [previewBackupData, setPreviewBackupData] = useState<{
+    sourceName: string;
+    timestamp?: string;
+    state: DatabaseState;
+  } | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState<boolean>(false);
+  const [previewActiveTab, setPreviewActiveTab] = useState<'overview' | 'students' | 'teachers' | 'billing' | 'xawaalada'>('overview');
+  const [previewSearchTerm, setPreviewSearchTerm] = useState<string>('');
 
   // Payment Collector states
   const [showPayModal, setShowPayModal] = useState<Student | null>(null);
@@ -5484,6 +5494,112 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     });
     setFeedbackMsg(`Successfully generated backup and logged save event to D:\\system_updates!`);
     setTimeout(() => setFeedbackMsg(''), 5000);
+  };
+
+  // Preview a JSON backup file uploaded by user without altering live database
+  const handlePreviewJsonFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const fileReader = new FileReader();
+    fileReader.readAsText(file, "UTF-8");
+    fileReader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        if (parsed && (parsed.students || parsed.teachers || parsed.classes)) {
+          const sanitized: DatabaseState = {
+            classes: parsed.classes || [],
+            progress: parsed.progress || [],
+            teacherAttendance: parsed.teacherAttendance || [],
+            submissions: parsed.submissions || [],
+            invoices: parsed.invoices || [],
+            moneyTransfers: parsed.moneyTransfers || [],
+            xawaaladaAccounts: parsed.xawaaladaAccounts || [],
+            xawaaladaTransactions: parsed.xawaaladaTransactions || [],
+            billing: parsed.billing || [],
+            exams: parsed.exams || [],
+            teachers: parsed.teachers || [],
+            schoolLocation: parsed.schoolLocation || null,
+            landingPageSettings: parsed.landingPageSettings || {},
+            contactMessages: parsed.contactMessages || [],
+            students: parsed.students || [],
+            notifications: parsed.notifications || []
+          };
+          setPreviewBackupData({
+            sourceName: `Uploaded File: ${file.name}`,
+            timestamp: file.lastModified ? new Date(file.lastModified).toLocaleString() : new Date().toLocaleString(),
+            state: sanitized
+          });
+          setPreviewActiveTab('overview');
+          setPreviewSearchTerm('');
+        } else {
+          alert("Faylka aad soo dooratay ma laha xogta ardayda ama macallimiinta. (Uploaded file does not contain valid database tables.)");
+        }
+      } catch (error) {
+        alert("Cilad ayaa ka dhacday akhrinta faylka JSON. (Error parsing JSON backup file.)");
+      }
+      e.target.value = '';
+    };
+  };
+
+  // Preview an automated Cloud Backup snapshot
+  const handlePreviewCloudBackup = async (backupId: string) => {
+    setIsPreviewLoading(true);
+    try {
+      const res = await fetch(`/api/backups/${backupId}`);
+      const data = await res.json();
+      if (data.success && data.backup && data.backup.state) {
+        setPreviewBackupData({
+          sourceName: `Cloud Snapshot: ${backupId}`,
+          timestamp: data.backup.timestamp ? new Date(data.backup.timestamp).toLocaleString() : undefined,
+          state: data.backup.state
+        });
+        setPreviewActiveTab('overview');
+        setPreviewSearchTerm('');
+      } else {
+        alert("Cilad ayaa ka dhacday soo helida backup-ka cloud-ka: " + (data.error || 'Unknown error'));
+      }
+    } catch (err: any) {
+      alert("Xiriirka waa uu fashilmay: " + err.message);
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
+
+  // Preview a Browser Cache backup snapshot
+  const handlePreviewCacheBackup = (b: any) => {
+    if (!b || !b.state) return;
+    setPreviewBackupData({
+      sourceName: `Browser Cache: ${b.key} (${b.origin})`,
+      timestamp: b.timestamp,
+      state: b.state
+    });
+    setPreviewActiveTab('overview');
+    setPreviewSearchTerm('');
+  };
+
+  // Confirm and Restore the previewed backup
+  const handleRestoreFromPreview = () => {
+    if (!previewBackupData) return;
+    setConfirmModal({
+      isOpen: true,
+      title: "Waafaqidda dib u soo celinta Backup-ka",
+      message: `Ma hubtaa inaad rabto inaad dib u soo celiso backup-kan (${previewBackupData.sourceName})? Tani waxay gabi ahaanba beddeli doontaa xogta hadda ee live-ka ah ku dhowaad ${previewBackupData.state.students?.length || 0} arday. (Are you sure you want to restore this backup snapshot to your live database?)`,
+      accentColor: 'teal',
+      confirmText: 'Haa, Dib U Soo Celi Now 🔄',
+      onConfirm: async () => {
+        setConfirmModal(null);
+        setFeedbackMsg("Xogta dib ayaa loo soo celinayaa, fadlan sug... (Restoring backup state...)");
+        try {
+          await onSaveDatabase(previewBackupData.state);
+          setPreviewBackupData(null);
+          alert("Xogta si guul leh ayaa loo soo celiyay! (Database successfully restored and synchronized!)");
+          window.location.reload();
+        } catch (saveErr) {
+          console.error("Cloud save failed during preview restoration:", saveErr);
+          alert("Cilad ayaa ka dhacday kaydinta xogta: " + String(saveErr));
+        }
+      }
+    });
   };
 
   const handleBackupImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -13140,7 +13256,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <button
                     type="button"
                     onClick={handleBackupExport}
@@ -13154,13 +13270,27 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                     <input
                       type="file"
                       accept=".json"
+                      onChange={handlePreviewJsonFile}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      id="db-backup-preview-file-picker"
+                    />
+                    <div className="w-full h-full py-4 bg-amber-50 hover:bg-amber-100 text-amber-800 font-extrabold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all border border-amber-200 cursor-pointer active:scale-95 shadow-xs">
+                      <Eye className="w-4 h-4 text-amber-600" />
+                      Preview Backup File 👁️
+                    </div>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="file"
+                      accept=".json"
                       onChange={handleBackupImport}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                       id="db-backup-file-picker"
                     />
                     <div className="w-full h-full py-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all border border-indigo-100 cursor-pointer active:scale-95">
                       <UploadCloud className="w-4 h-4" />
-                      Upload JSON Backup File
+                      Direct Restore JSON File
                     </div>
                   </div>
                 </div>
@@ -13248,6 +13378,15 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                               <div className="flex items-center justify-end gap-2">
                                 <button
                                   type="button"
+                                  onClick={() => handlePreviewCloudBackup(backup.id)}
+                                  disabled={isPreviewLoading}
+                                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-[10px] uppercase rounded-xl cursor-pointer active:scale-95 transition-all flex items-center gap-1 shadow-xs"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  Preview 👁️
+                                </button>
+                                <button
+                                  type="button"
                                   onClick={() => handleRestoreCloudBackup(backup.id)}
                                   className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-[10px] uppercase rounded-xl cursor-pointer active:scale-95 transition-all"
                                 >
@@ -13308,13 +13447,23 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                               <span className="font-bold text-slate-800 text-xs block">{b.key} ({b.origin})</span>
                               <span className="text-[10px] text-slate-400 block">Found: {b.studentCount} Students | Updated: {b.timestamp}</span>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => handleRestoreCacheBackup(b.state)}
-                              className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-[10px] font-bold rounded-lg cursor-pointer"
-                            >
-                              Restore
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handlePreviewCacheBackup(b)}
+                                className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-lg cursor-pointer flex items-center gap-1"
+                              >
+                                <Eye className="w-3 h-3" />
+                                Preview 👁️
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRestoreCacheBackup(b.state)}
+                                className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-[10px] font-bold rounded-lg cursor-pointer"
+                              >
+                                Restore
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -20390,6 +20539,437 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 >
                   <Save className="w-3.5 h-3.5" />
                   Save Changes
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Backup Safe Inspection & Preview Modal */}
+      {previewBackupData && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-md animate-fade-in overflow-y-auto" id="portal-backup-preview-modal">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 20 }}
+            className="w-full max-w-5xl my-auto bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden text-left flex flex-col max-h-[90vh]"
+          >
+            {/* Header Banner */}
+            <div className="bg-slate-900 text-white px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-3">
+                <span className="p-3 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-2xl shrink-0">
+                  <Eye className="w-6 h-6 animate-pulse" />
+                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="bg-amber-500/20 text-amber-300 font-mono font-black text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-amber-500/30">
+                      Preview Mode — Safe Inspection
+                    </span>
+                    <span className="bg-emerald-500/20 text-emerald-300 font-mono font-bold text-[10px] px-2.5 py-0.5 rounded-full uppercase">
+                      Live Data Untouched
+                    </span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-extrabold tracking-tight mt-1 text-white flex items-center gap-2">
+                    <span>{previewBackupData.sourceName}</span>
+                  </h3>
+                  {previewBackupData.timestamp && (
+                    <p className="text-xs text-slate-400 font-mono mt-0.5">
+                      Snapshot Timestamp: <span className="text-slate-200">{previewBackupData.timestamp}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleRestoreFromPreview}
+                  className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-emerald-600/20 cursor-pointer flex items-center gap-2"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Restore This Backup Now
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewBackupData(null)}
+                  className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition-colors cursor-pointer"
+                  title="Close Preview Window"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* KPI Summary Banner */}
+            <div className="bg-slate-50 border-b border-slate-200/80 p-4 sm:p-5 grid grid-cols-2 sm:grid-cols-5 gap-3 shrink-0">
+              <div className="bg-white p-3.5 rounded-2xl border border-slate-200/60 shadow-xs">
+                <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Students</span>
+                <span className="text-lg font-black text-slate-900 mt-0.5 block">
+                  {previewBackupData.state.students?.length || 0}
+                </span>
+                <span className="text-[10px] font-semibold text-emerald-600 block">
+                  {previewBackupData.state.students?.filter(s => s.active).length || 0} Active
+                </span>
+              </div>
+
+              <div className="bg-white p-3.5 rounded-2xl border border-slate-200/60 shadow-xs">
+                <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Teachers & Classes</span>
+                <span className="text-lg font-black text-slate-900 mt-0.5 block">
+                  {previewBackupData.state.teachers?.length || 0} Teachers
+                </span>
+                <span className="text-[10px] font-semibold text-indigo-600 block">
+                  {previewBackupData.state.classes?.length || 0} Classes
+                </span>
+              </div>
+
+              <div className="bg-white p-3.5 rounded-2xl border border-slate-200/60 shadow-xs">
+                <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Tuition Receipts</span>
+                <span className="text-lg font-black text-slate-900 mt-0.5 block">
+                  {previewBackupData.state.billing?.length || 0} Records
+                </span>
+                <span className="text-[10px] font-bold text-emerald-700 block">
+                  ${(previewBackupData.state.billing || []).reduce((sum, b) => sum + Number(b.amountPaid || 0), 0).toFixed(0)} Paid
+                </span>
+              </div>
+
+              <div className="bg-white p-3.5 rounded-2xl border border-slate-200/60 shadow-xs">
+                <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Xawaalada Txns</span>
+                <span className="text-lg font-black text-slate-900 mt-0.5 block">
+                  {previewBackupData.state.xawaaladaTransactions?.length || 0} Txns
+                </span>
+                <span className="text-[10px] font-semibold text-purple-600 block">
+                  {previewBackupData.state.xawaaladaAccounts?.length || 0} Accounts
+                </span>
+              </div>
+
+              <div className="bg-white p-3.5 rounded-2xl border border-slate-200/60 shadow-xs col-span-2 sm:col-span-1">
+                <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Money Transfers</span>
+                <span className="text-lg font-black text-slate-900 mt-0.5 block">
+                  {previewBackupData.state.moneyTransfers?.length || 0} Transfers
+                </span>
+                <span className="text-[10px] font-semibold text-teal-600 block">
+                  {previewBackupData.state.invoices?.length || 0} Invoices
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Sub-Navigation & Search */}
+            <div className="bg-white border-b border-slate-200 px-6 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                {[
+                  { id: 'overview', label: '📊 Summary Comparison', count: null },
+                  { id: 'students', label: '🎓 Students', count: previewBackupData.state.students?.length || 0 },
+                  { id: 'teachers', label: '👨‍🏫 Teachers', count: previewBackupData.state.teachers?.length || 0 },
+                  { id: 'billing', label: '💵 Tuition Receipts', count: previewBackupData.state.billing?.length || 0 },
+                  { id: 'xawaalada', label: '💳 Xawaalada & Transfers', count: (previewBackupData.state.xawaaladaTransactions?.length || 0) + (previewBackupData.state.moneyTransfers?.length || 0) }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setPreviewActiveTab(tab.id as any)}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                      previewActiveTab === tab.id
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/15'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    {tab.count !== null && (
+                      <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-black ${
+                        previewActiveTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {tab.count}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {previewActiveTab !== 'overview' && (
+                <div className="relative min-w-[220px]">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search inside this backup..."
+                    value={previewSearchTerm}
+                    onChange={(e) => setPreviewSearchTerm(e.target.value)}
+                    className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl pl-9 pr-3 py-2 outline-none transition-all"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-6">
+              
+              {/* TAB 1: OVERVIEW & COMPARISON */}
+              {previewActiveTab === 'overview' && (
+                <div className="space-y-6">
+                  <div className="bg-indigo-50/60 border border-indigo-100 rounded-2xl p-5 flex items-start gap-4">
+                    <span className="p-3 bg-indigo-600 text-white rounded-xl shrink-0"><Info className="w-5 h-5" /></span>
+                    <div>
+                      <h4 className="font-extrabold text-indigo-950 text-sm">Previewing Backup vs Live Database</h4>
+                      <p className="text-xs text-indigo-800/80 mt-1 leading-relaxed">
+                        Below is a direct comparison between your current live database and the selected backup snapshot. Reviewing this ensures you do not lose any newer records accidentally before restoring.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Live State Column */}
+                    <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                        <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping" />
+                          Current Live System Data
+                        </h4>
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-md uppercase">Active</span>
+                      </div>
+                      <div className="space-y-2 text-xs font-semibold text-slate-600">
+                        <div className="flex justify-between py-1 border-b border-slate-200/60">
+                          <span>Total Registered Students:</span>
+                          <span className="font-black text-slate-900">{database.students?.length || 0}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-200/60">
+                          <span>Active Students:</span>
+                          <span className="font-black text-emerald-700">{database.students?.filter(s => s.active).length || 0}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-200/60">
+                          <span>Teachers Count:</span>
+                          <span className="font-black text-slate-900">{database.teachers?.length || 0}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-200/60">
+                          <span>Tuition Billing Records:</span>
+                          <span className="font-black text-slate-900">{database.billing?.length || 0}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-200/60">
+                          <span>Xawaalada Transactions:</span>
+                          <span className="font-black text-slate-900">{database.xawaaladaTransactions?.length || 0}</span>
+                        </div>
+                        <div className="flex justify-between py-1">
+                          <span>Money Transfers:</span>
+                          <span className="font-black text-slate-900">{database.moneyTransfers?.length || 0}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Backup File State Column */}
+                    <div className="bg-amber-50/50 rounded-2xl p-5 border border-amber-200 space-y-4">
+                      <div className="flex items-center justify-between border-b border-amber-200 pb-3">
+                        <h4 className="font-extrabold text-amber-950 text-sm flex items-center gap-2">
+                          <Eye className="w-4 h-4 text-amber-600" />
+                          Backup File Content
+                        </h4>
+                        <span className="text-[10px] bg-amber-200 text-amber-900 font-bold px-2 py-0.5 rounded-md uppercase">Inspection Target</span>
+                      </div>
+                      <div className="space-y-2 text-xs font-semibold text-slate-700">
+                        <div className="flex justify-between py-1 border-b border-amber-200/60">
+                          <span>Total Registered Students:</span>
+                          <span className="font-black text-slate-900">{previewBackupData.state.students?.length || 0}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-amber-200/60">
+                          <span>Active Students:</span>
+                          <span className="font-black text-emerald-700">{previewBackupData.state.students?.filter(s => s.active).length || 0}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-amber-200/60">
+                          <span>Teachers Count:</span>
+                          <span className="font-black text-slate-900">{previewBackupData.state.teachers?.length || 0}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-amber-200/60">
+                          <span>Tuition Billing Records:</span>
+                          <span className="font-black text-slate-900">{previewBackupData.state.billing?.length || 0}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-amber-200/60">
+                          <span>Xawaalada Transactions:</span>
+                          <span className="font-black text-slate-900">{previewBackupData.state.xawaaladaTransactions?.length || 0}</span>
+                        </div>
+                        <div className="flex justify-between py-1">
+                          <span>Money Transfers:</span>
+                          <span className="font-black text-slate-900">{previewBackupData.state.moneyTransfers?.length || 0}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: STUDENTS LIST */}
+              {previewActiveTab === 'students' && (
+                <div className="space-y-4">
+                  <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                          <th className="py-3 px-4">Student Name</th>
+                          <th className="py-3 px-4">Class</th>
+                          <th className="py-3 px-4">Parent Phone</th>
+                          <th className="py-3 px-4">Monthly Fee</th>
+                          <th className="py-3 px-4">Bus Fee</th>
+                          <th className="py-3 px-4">Shift</th>
+                          <th className="py-3 px-4">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                        {(previewBackupData.state.students || [])
+                          .filter(s => !previewSearchTerm || s.name.toLowerCase().includes(previewSearchTerm.toLowerCase()) || (s.className && s.className.toLowerCase().includes(previewSearchTerm.toLowerCase())))
+                          .slice(0, 100)
+                          .map((student, i) => (
+                            <tr key={student.id || i} className="hover:bg-slate-50/80">
+                              <td className="py-3 px-4 font-bold text-slate-900">{student.name}</td>
+                              <td className="py-3 px-4 font-semibold text-slate-600">{student.className || 'N/A'}</td>
+                              <td className="py-3 px-4 font-mono">{student.parentPhone || 'N/A'}</td>
+                              <td className="py-3 px-4 font-bold text-slate-800">${student.monthlyFee}</td>
+                              <td className="py-3 px-4 font-bold text-indigo-600">${student.busFee || 0}</td>
+                              <td className="py-3 px-4 uppercase text-[10px] font-bold text-slate-500">{student.session || 'Both'}</td>
+                              <td className="py-3 px-4">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                  student.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                                }`}>
+                                  {student.active ? 'Active' : 'Suspended'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: TEACHERS LIST */}
+              {previewActiveTab === 'teachers' && (
+                <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                        <th className="py-3 px-4">Teacher Name</th>
+                        <th className="py-3 px-4">Phone</th>
+                        <th className="py-3 px-4">Monthly Salary</th>
+                        <th className="py-3 px-4">Subject</th>
+                        <th className="py-3 px-4">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                      {(previewBackupData.state.teachers || [])
+                        .filter(t => !previewSearchTerm || t.name.toLowerCase().includes(previewSearchTerm.toLowerCase()))
+                        .map((teacher, i) => (
+                          <tr key={teacher.id || i} className="hover:bg-slate-50/80">
+                            <td className="py-3 px-4 font-bold text-slate-900">{teacher.name}</td>
+                            <td className="py-3 px-4 font-mono">{teacher.phone || 'N/A'}</td>
+                            <td className="py-3 px-4 font-bold text-emerald-700">${teacher.monthlySalary}</td>
+                            <td className="py-3 px-4">{teacher.subject || 'Quran & Islamic Studies'}</td>
+                            <td className="py-3 px-4">
+                              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full uppercase">Active</span>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* TAB 4: BILLING & RECEIPT RECORDS */}
+              {previewActiveTab === 'billing' && (
+                <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                        <th className="py-3 px-4">Month</th>
+                        <th className="py-3 px-4">Student ID</th>
+                        <th className="py-3 px-4">Amount Due</th>
+                        <th className="py-3 px-4">Amount Paid</th>
+                        <th className="py-3 px-4">Status</th>
+                        <th className="py-3 px-4">Paid Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                      {(previewBackupData.state.billing || [])
+                        .filter(b => !previewSearchTerm || b.month.includes(previewSearchTerm) || b.studentId.includes(previewSearchTerm))
+                        .slice(0, 150)
+                        .map((bill, i) => {
+                          const student = (previewBackupData.state.students || []).find(s => s.id === bill.studentId);
+                          return (
+                            <tr key={bill.id || i} className="hover:bg-slate-50/80">
+                              <td className="py-3 px-4 font-mono font-bold text-slate-800">{bill.month}</td>
+                              <td className="py-3 px-4">
+                                <span className="font-bold text-slate-900 block">{student ? student.name : bill.studentId}</span>
+                                <span className="text-[10px] text-slate-400 font-mono">ID: {bill.studentId}</span>
+                              </td>
+                              <td className="py-3 px-4 font-bold text-slate-700">${bill.amountDue ?? 35}</td>
+                              <td className="py-3 px-4 font-bold text-emerald-700">${bill.amountPaid}</td>
+                              <td className="py-3 px-4">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                  bill.status === 'Paid' ? 'bg-emerald-100 text-emerald-800' :
+                                  bill.status === 'Partial' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                                }`}>
+                                  {bill.status}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-slate-400 font-mono text-[10px]">{bill.paidDate || 'N/A'}</td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* TAB 5: XAWAALADA & MONEY TRANSFERS */}
+              {previewActiveTab === 'xawaalada' && (
+                <div className="space-y-4">
+                  <div className="bg-purple-50/80 border border-purple-200/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className="p-2.5 bg-purple-600 text-white rounded-xl shrink-0">
+                        <Building2 className="w-5 h-5" />
+                      </span>
+                      <div>
+                        <h4 className="font-extrabold text-purple-950 text-xs sm:text-sm">
+                          Xawaaladda & Merchant Accounts Ledger (Backup Inspection)
+                        </h4>
+                        <p className="text-[11px] text-purple-800/80 mt-0.5">
+                          Full interactive history and 3 merchant accounts (Salaam, EVC Plus, Dahabshiil) loaded from this backup snapshot.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="bg-purple-200/80 text-purple-900 text-[10px] font-black uppercase px-2.5 py-1 rounded-lg shrink-0">
+                      {previewBackupData.state.xawaaladaAccounts?.length || 3} Accounts Loaded
+                    </span>
+                  </div>
+
+                  <MoneyTransferTab
+                    database={previewBackupData.state}
+                    onSaveDatabase={(updatedDb) => {
+                      setPreviewBackupData(prev => prev ? { ...prev, state: updatedDb } : null);
+                      setFeedbackMsg("Preview data updated locally in memory. To apply changes to the live system, click 'Restore This Backup Now'.");
+                    }}
+                  />
+                </div>
+              )}
+
+            </div>
+
+            {/* Footer Control Buttons */}
+            <div className="bg-slate-100 px-6 py-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Closing this preview discards the preview window safely with zero impact on live data.</span>
+              </div>
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setPreviewBackupData(null)}
+                  className="flex-1 sm:flex-initial px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold text-xs uppercase rounded-xl transition-colors cursor-pointer"
+                >
+                  Close Preview Safe ❌
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRestoreFromPreview}
+                  className="flex-1 sm:flex-initial px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-emerald-600/20 cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Restore This Backup Now 🔄
                 </button>
               </div>
             </div>
