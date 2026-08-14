@@ -150,27 +150,48 @@ export default function App() {
       const existingFavicons = document.querySelectorAll(selector);
       existingFavicons.forEach(el => el.remove());
 
-      // 2. Insert fresh link elements with proper rel, type, and href
+      // 2. Insert fresh link elements with proper rel, type, sizes, and href
       const linkConfigs = [
-        { rel: 'icon', type: mimeType },
+        { rel: 'icon', type: mimeType, sizes: '16x16' },
+        { rel: 'icon', type: mimeType, sizes: '32x32' },
+        { rel: 'icon', type: mimeType, sizes: '48x48' },
+        { rel: 'icon', type: mimeType, sizes: '96x96' },
+        { rel: 'icon', type: mimeType, sizes: '144x144' },
+        { rel: 'icon', type: mimeType, sizes: '192x192' },
         { rel: 'shortcut icon', type: mimeType },
-        { rel: 'apple-touch-icon', type: mimeType }
+        { rel: 'apple-touch-icon', sizes: '180x180' }
       ];
 
-      linkConfigs.forEach(({ rel, type }) => {
+      linkConfigs.forEach(({ rel, type, sizes }) => {
         const link = document.createElement('link');
         link.rel = rel;
-        link.type = type;
+        if (type) link.type = type;
+        if (sizes) link.setAttribute('sizes', sizes);
         link.href = faviconHref;
         document.head.appendChild(link);
       });
 
-      // 3. Update meta images for search engines and social sharing
+      // 3. Update meta images for search engines (Google, Bing) and social sharing
       const ogImg = document.querySelector('meta[property="og:image"]');
       if (ogImg) ogImg.setAttribute('content', activeLogo);
 
       const twImg = document.querySelector('meta[property="twitter:image"]');
       if (twImg) twImg.setAttribute('content', activeLogo);
+
+      // 4. Update JSON-LD structured data schema
+      try {
+        const schemaScripts = document.querySelectorAll('script[type="application/ld+json"]');
+        schemaScripts.forEach(script => {
+          try {
+            const data = JSON.parse(script.textContent || '{}');
+            if (data['@type'] === 'EducationalOrganization' || data.name === 'Dugsiga Subuc') {
+              data.logo = activeLogo;
+              data.image = activeLogo;
+              script.textContent = JSON.stringify(data);
+            }
+          } catch (e) {}
+        });
+      } catch (err) {}
     }
   }, [database?.landingPageSettings?.logoUrl]);
 

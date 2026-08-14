@@ -266,6 +266,11 @@ export interface Invoice {
   createdAt: string; // ISO string
 }
 
+export interface XawaaladaSettings {
+  reportComment?: string; // General/latest report remarks
+  reportComments?: Record<string, string>; // Per-month report remarks (e.g. "2026-08" -> comment)
+}
+
 export interface DatabaseState {
   teachers: Teacher[];
   students: Student[];
@@ -277,6 +282,7 @@ export interface DatabaseState {
   moneyTransfers?: MoneyTransferRecord[];
   xawaaladaAccounts?: XawaaladaAccount[];
   xawaaladaTransactions?: XawaaladaTransaction[];
+  xawaaladaSettings?: XawaaladaSettings;
   submissions?: TeacherSubmission[];
   teacherAttendance?: TeacherAttendanceRecord[];
   schoolLocation?: SchoolLocationSettings;

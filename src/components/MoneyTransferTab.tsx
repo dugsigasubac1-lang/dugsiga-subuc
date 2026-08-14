@@ -116,6 +116,49 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
   const [reportStartDate, setReportStartDate] = useState(todayDateStr);
   const [reportEndDate, setReportEndDate] = useState(todayDateStr);
 
+  // Report custom comment / remarks state with monthly sync and persistence
+  const [reportComment, setReportComment] = useState<string>(() => {
+    const currentKey = `${currentYearStr}-${currentMonthStr}`;
+    return database.xawaaladaSettings?.reportComments?.[currentKey] || 
+           database.xawaaladaSettings?.reportComment || 
+           localStorage.getItem(`xawaalada_comment_${currentKey}`) || 
+           '';
+  });
+
+  // Keep reportComment synchronized whenever selected reportMonth or database changes
+  React.useEffect(() => {
+    if (reportMonth) {
+      const saved = database.xawaaladaSettings?.reportComments?.[reportMonth] ?? 
+                    database.xawaaladaSettings?.reportComment ?? 
+                    localStorage.getItem(`xawaalada_comment_${reportMonth}`) ?? 
+                    '';
+      setReportComment(saved);
+    }
+  }, [reportMonth, database.xawaaladaSettings]);
+
+  const handleSaveReportComment = (newComment: string) => {
+    setReportComment(newComment);
+    const targetKey = reportMonth || `${currentYearStr}-${currentMonthStr}`;
+    try {
+      localStorage.setItem(`xawaalada_comment_${targetKey}`, newComment);
+    } catch (e) {}
+
+    const updatedSettings = {
+      ...(database.xawaaladaSettings || {}),
+      reportComment: newComment,
+      reportComments: {
+        ...(database.xawaaladaSettings?.reportComments || {}),
+        [targetKey]: newComment
+      }
+    };
+
+    onSaveDatabase({
+      ...database,
+      xawaaladaSettings: updatedSettings
+    });
+    triggerFeedback('Faallada / Qoraalka Warbixinta waa la kaydiyay!');
+  };
+
   // Feedback notifications
   const [feedback, setFeedback] = useState('');
   const triggerFeedback = (msg: string) => {
@@ -510,6 +553,14 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
       }
     });
 
+    if (reportComment && reportComment.trim()) {
+      text += `========================================================================\n`;
+      text += `3. FAALLADA MAAMULKA / AUDITOR REMARKS & NOTES (REPORT COMMENT):\n`;
+      text += `------------------------------------------------------------------------\n`;
+      text += `${reportComment.trim()}\n`;
+      text += `========================================================================\n\n`;
+    }
+
     triggerFileDownload(`xawaallada_monthly_report_${reportMonth}.txt`, text);
     triggerFeedback('Warbixinta Billeedka ah ee Xawaallada waa la soo dejiyay (.TXT)!');
   };
@@ -532,6 +583,10 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
       const accName = acc ? acc.name : 'Unknown';
       csv += `"${tx.id}","${accName.replace(/"/g, '""')}","${tx.date}","${tx.time || ''}","${tx.type === 'in' ? 'Money In (+)' : 'Money Out (-)'}",${tx.amount.toFixed(2)},"${(tx.clientName || '').replace(/"/g, '""')}","${(tx.clientPhone || '').replace(/"/g, '""')}","${(tx.referenceNo || '').replace(/"/g, '""')}","${(tx.description || '').replace(/"/g, '""')}"\n`;
     });
+
+    if (reportComment && reportComment.trim()) {
+      csv += `\n"FAALLADA MAAMULKA / AUDITOR REMARKS & NOTES","${reportComment.replace(/"/g, '""')}"\n`;
+    }
 
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -735,6 +790,33 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
         }
       });
 
+      // Section 3: Faallada & Qoraalka Maamulka (Report Remarks / Auditor Notes)
+      if (reportComment && reportComment.trim()) {
+        checkAddPage(25);
+        y += 4;
+        doc.setFontSize(9.5);
+        doc.setFont('Helvetica', 'bold');
+        doc.setTextColor(33, 84, 61);
+        doc.text("3. FAALLADA MAAMULKA & XISAABIYAHA / AUDITOR REMARKS & NOTES", 14, y);
+        y += 5;
+
+        const commentLines = doc.splitTextToSize(reportComment.trim(), pageWidth - 36);
+        const boxHeight = Math.max(14, commentLines.length * 4.5 + 8);
+        checkAddPage(boxHeight + 5);
+
+        doc.setFillColor(254, 243, 199); // light amber box
+        doc.roundedRect(14, y, pageWidth - 28, boxHeight, 2, 2, 'F');
+        doc.setDrawColor(245, 158, 11);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(14, y, pageWidth - 28, boxHeight, 2, 2, 'S');
+
+        doc.setTextColor(120, 53, 15);
+        doc.setFontSize(8.5);
+        doc.setFont('Helvetica', 'normal');
+        doc.text(commentLines, 18, y + 6);
+        y += boxHeight + 8;
+      }
+
       // Signatures Section
       checkAddPage(30);
       y += 5;
@@ -791,9 +873,17 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                 .text-emerald-700 { color: #047857; }
                 .text-rose-700 { color: #be123c; }
                 .bg-slate-900 { background-color: #0f172a; color: white; }
+                .bg-amber-50 { background-color: #fffbeb !important; }
+                .border-amber-200 { border: 1px solid #fde68a !important; }
+                .text-amber-900, .text-amber-950 { color: #78350f !important; }
+                .rounded-2xl { border-radius: 12px; }
+                .p-4 { padding: 14px; }
+                .whitespace-pre-wrap { white-space: pre-wrap; }
+                .break-inside-avoid { break-inside: avoid; }
                 @media print {
                   @page { size: A4; margin: 12mm; }
                   body { padding: 0; }
+                  .no-print { display: none !important; }
                 }
               </style>
             </head>
@@ -1024,6 +1114,41 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
             )}
           </div>
         </div>
+      </div>
+
+      {/* Quick Report Comment / Auditor Remarks Banner */}
+      <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2.5 flex-1 w-full">
+          <div className="p-2 bg-amber-100 rounded-xl text-amber-800 shrink-0">
+            <FileText className="w-4 h-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-amber-950 uppercase text-[10px] tracking-wider">
+                Faallada Warbixinta Billeedka ah ({reportMonth}):
+              </span>
+              {reportComment ? (
+                <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
+                  Active
+                </span>
+              ) : (
+                <span className="text-[9px] bg-slate-200 text-slate-600 font-bold px-1.5 py-0.5 rounded">
+                  Empty
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-amber-900 truncate font-medium">
+              {reportComment || 'Wax faallo ah laguma darin wali (Qor faallo si ay ugu soo baxdo gunta PDF-ka iyo Print-ka).'}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsReportModalOpen(true)}
+          className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs rounded-xl transition-all cursor-pointer whitespace-nowrap shadow-xs"
+        >
+          {reportComment ? 'Beddel Faallada' : '+ Ku dar Faallo'}
+        </button>
       </div>
 
       {/* VIEW 1: MULTI-COLUMN LEDGER BOARD (PROTOTYPE SKETCH LAYOUT!) */}
@@ -1740,6 +1865,51 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                 </div>
               </div>
 
+              {/* Report Comment / Auditor Remarks Input */}
+              <div className="space-y-2 bg-amber-50/60 p-4 rounded-2xl border border-amber-200/80">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black uppercase text-amber-900 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-amber-700" />
+                    Faallada / Qoraalka Warbixinta (Report Comment)
+                  </label>
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md">
+                    Waxay ka soo muuqanaysaa hoose (PDF/Print/TXT/CSV)
+                  </span>
+                </div>
+                <textarea
+                  rows={3}
+                  value={reportComment}
+                  onChange={(e) => setReportComment(e.target.value)}
+                  placeholder="Geli faallo ama qoraal rasmi ah oo ku saabsan xisaab-xirka bishan (t.g. Dhammaan xisaabaadka bishan waa la xaqiijiyay oo waa sax)..."
+                  className="w-full px-3.5 py-2 bg-white border border-amber-300 rounded-xl text-xs font-medium text-slate-900 outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                />
+                <div className="flex items-center justify-between pt-1">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => handleSaveReportComment("Dhammaan xisaabaadka bishan waa la xaqiijiyay, xisaab-xir rasmi ah oo sax ah.")}
+                      className="text-[10px] font-bold text-amber-800 bg-amber-100/80 hover:bg-amber-200 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                    >
+                      + Xisaab-xir Sax Ah
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveReportComment("Xisaab-xirka bishan waa la dhammaystiray, wax farqi ah ama cillad ah lama helin.")}
+                      className="text-[10px] font-bold text-amber-800 bg-amber-100/80 hover:bg-amber-200 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                    >
+                      + La Dhammaystiray
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveReportComment(reportComment)}
+                    className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs rounded-lg transition-all cursor-pointer shadow-xs"
+                  >
+                    Kaydi Faallada
+                  </button>
+                </div>
+              </div>
+
               <div className="space-y-3 pt-2">
                 <button
                   type="button"
@@ -1839,6 +2009,30 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                   <X className="w-5 h-5" />
                 </button>
               </div>
+            </div>
+
+            {/* Quick Comment Bar (Visible in UI before printing) */}
+            <div className="p-4 bg-amber-50/80 border-b border-amber-200 no-print flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs">
+              <div className="flex-1 w-full space-y-1">
+                <label className="font-extrabold text-amber-950 flex items-center gap-1.5 uppercase text-[11px]">
+                  <FileText className="w-3.5 h-3.5 text-amber-700" />
+                  Qor ama Beddel Faallada Warbixinta (Report Comment / Remarks)
+                </label>
+                <input
+                  type="text"
+                  value={reportComment}
+                  onChange={(e) => setReportComment(e.target.value)}
+                  placeholder="Geli qoraal ama faallo rasmi ah oo ka soo muuqanaya gunta warbixinta..."
+                  className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-xl text-xs font-medium text-slate-900 outline-none focus:border-amber-500"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => handleSaveReportComment(reportComment)}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-black rounded-xl text-xs whitespace-nowrap cursor-pointer shadow-xs self-end md:self-auto"
+              >
+                Kaydi Faallada
+              </button>
             </div>
 
             <div className="p-8 space-y-6 text-slate-900 bg-white" id="print-area">
@@ -1955,6 +2149,21 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                   );
                 })}
               </div>
+
+              {/* 3. Faallada & Qoraalka Maamulka (Report Remarks / Auditor Notes) */}
+              {reportComment && reportComment.trim() && (
+                <div className="space-y-2 pt-4 border-t border-slate-200 break-inside-avoid">
+                  <h4 className="text-xs font-black uppercase text-amber-900 tracking-wider flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-amber-700" />
+                    <span>3. Faallada Maamulka & Xisaabiyaha (Report Remarks & Auditor Notes)</span>
+                  </h4>
+                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950">
+                    <p className="text-xs whitespace-pre-wrap font-medium leading-relaxed">
+                      {reportComment}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Signatures & Approval block */}
               <div className="pt-8 grid grid-cols-2 gap-8 text-xs font-semibold border-t border-dashed border-slate-300">

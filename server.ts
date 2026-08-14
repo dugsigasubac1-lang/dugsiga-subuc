@@ -488,12 +488,63 @@ async function startServer() {
   // Intercept primary static branding files to serve them directly as pristine binary streams from Cloudflare R2 or dynamic website profile logo
   const STATIC_BRANDING_FILES = [
     'logo.png', 'logo.jpg', 
-    'favicon.png', 'favicon.ico', 
+    'favicon.png', 'favicon.ico', 'favicon.svg',
     'school-preview.jpg',
+    'favicon-16x16.png', 'favicon-32x32.png',
     'favicon-48x48.png', 'favicon-96x96.png', 
-    'favicon-144x144.png', 'favicon-192x192.png',
-    'apple-touch-icon.png'
+    'favicon-144x144.png', 'favicon-192x192.png', 'favicon-512x512.png',
+    'apple-touch-icon.png', 'apple-touch-icon-precomposed.png'
   ];
+
+  // Helper to persist custom website profile logo to physical static files on disk and R2
+  function syncStaticBrandingFiles(logoUrl: string | undefined | null) {
+    if (!logoUrl || typeof logoUrl !== 'string') return;
+    const trimmed = logoUrl.trim();
+    if (!trimmed.startsWith('data:image/')) return;
+    const match = trimmed.match(/^data:(image\/[a-zA-Z0-9+\-+.]+);base64,(.+)$/);
+    if (!match) return;
+
+    try {
+      const mimeType = match[1];
+      const base64Data = match[2];
+      const imgBuffer = Buffer.from(base64Data, 'base64');
+
+      const publicDir = path.join(process.cwd(), 'public');
+      const distDir = path.join(process.cwd(), 'dist');
+
+      if (fs.existsSync(publicDir)) {
+        for (const file of STATIC_BRANDING_FILES) {
+          try {
+            fs.writeFileSync(path.join(publicDir, file), imgBuffer);
+          } catch (e) {}
+        }
+      }
+
+      if (fs.existsSync(distDir)) {
+        for (const file of STATIC_BRANDING_FILES) {
+          try {
+            fs.writeFileSync(path.join(distDir, file), imgBuffer);
+          } catch (e) {}
+        }
+      }
+
+      const r2 = getR2Client();
+      if (r2) {
+        const bucketName = process.env.R2_BUCKET_NAME || 'subuc';
+        for (const file of STATIC_BRANDING_FILES) {
+          r2.send(new PutObjectCommand({
+            Bucket: bucketName,
+            Key: `static/${file}`,
+            Body: imgBuffer,
+            ContentType: mimeType,
+            CacheControl: 'no-cache, no-store, must-revalidate'
+          })).catch(() => {});
+        }
+      }
+    } catch (syncErr) {
+      console.warn('[Branding Sync] Error updating static files:', syncErr);
+    }
+  }
 
   app.get('/:filename', async (req, res, next) => {
     const filename = req.params.filename;
@@ -517,7 +568,9 @@ async function startServer() {
             const imgBuffer = Buffer.from(base64Data, 'base64');
             res.setHeader('Content-Type', mimeType);
             res.setHeader('Access-Control-Allow-Origin', '*');
-            res.setHeader('Cache-Control', 'public, max-age=86400');
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
             res.setHeader('Content-Length', imgBuffer.length);
             return res.send(imgBuffer);
           }
@@ -1048,7 +1101,8 @@ async function startServer() {
           invoices: dbState.invoices || [],
           moneyTransfers: dbState.moneyTransfers || [],
           xawaaladaAccounts: dbState.xawaaladaAccounts || [],
-          xawaaladaTransactions: dbState.xawaaladaTransactions || []
+          xawaaladaTransactions: dbState.xawaaladaTransactions || [],
+          xawaaladaSettings: dbState.xawaaladaSettings || null
         };
         const logsData = {
           submissions: dbState.submissions || [],
@@ -1056,6 +1110,11 @@ async function startServer() {
           notifications: dbState.notifications || [],
           exams: dbState.exams || []
         };
+
+        // If landingPageSettings logoUrl changed, sync static branding files to disk and R2
+        if (dbState.landingPageSettings?.logoUrl) {
+          syncStaticBrandingFiles(dbState.landingPageSettings.logoUrl);
+        }
 
         const writePromises: Promise<any>[] = [
           setDoc(coreDocRef, coreData),
@@ -1308,9 +1367,14 @@ async function startServer() {
     modified = modified.replace(/<link[^>]*rel="apple-touch-icon"[^>]*>/gi, '');
 
     const newFaviconTags = `
-    <link rel="icon" type="${mimeType}" href="${logoUrl}" />
+    <link rel="icon" type="${mimeType}" sizes="16x16" href="${logoUrl}" />
+    <link rel="icon" type="${mimeType}" sizes="32x32" href="${logoUrl}" />
+    <link rel="icon" type="${mimeType}" sizes="48x48" href="${logoUrl}" />
+    <link rel="icon" type="${mimeType}" sizes="96x96" href="${logoUrl}" />
+    <link rel="icon" type="${mimeType}" sizes="144x144" href="${logoUrl}" />
+    <link rel="icon" type="${mimeType}" sizes="192x192" href="${logoUrl}" />
     <link rel="shortcut icon" type="${mimeType}" href="${logoUrl}" />
-    <link rel="apple-touch-icon" href="${logoUrl}" />`;
+    <link rel="apple-touch-icon" sizes="180x180" href="${logoUrl}" />`;
 
     modified = modified.replace('</head>', `${newFaviconTags}\n</head>`);
 
