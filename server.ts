@@ -546,6 +546,23 @@ async function startServer() {
     }
   }
 
+  app.get(['/site.webmanifest', '/manifest.json'], (req, res) => {
+    const manifestPath = path.join(process.cwd(), 'public', 'site.webmanifest');
+    if (fs.existsSync(manifestPath)) {
+      res.setHeader('Content-Type', 'application/manifest+json');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 'no-cache');
+      return res.sendFile(manifestPath);
+    }
+    res.json({
+      name: "Dugsiga Subuc",
+      short_name: "Dugsiga Subuc",
+      start_url: "/",
+      display: "standalone",
+      icons: [{ src: "/favicon-192x192.png", sizes: "192x192", type: "image/png" }]
+    });
+  });
+
   app.get('/:filename', async (req, res, next) => {
     const filename = req.params.filename;
     if (STATIC_BRANDING_FILES.includes(filename)) {
