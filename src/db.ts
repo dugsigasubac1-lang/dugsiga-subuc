@@ -141,6 +141,7 @@ export const DEFAULT_INVOICE_ACCOUNTS_NOTE = "Account Numbers: 516963 Higgaad an
 
 export const DEFAULT_LANDING_SETTINGS: LandingPageSettings = {
   schoolName: "Dugsiga Subuc",
+  logoUrl: "/logo.png",
   heroTitle: "Ku Korinta Maskaxda Nuurka Qur'aanka Kariimka ah",
   heroSub: "Ku soo dhowow Dugsiga Subuc & Akadeemiyada Tajweedka. Waxaan dhiirigelinaynaa xifdin tayo sare leh, dabeecad suuban (Dhaqan), iyo akhris aqoon ku dhabaysan.",
   aboutText: "Dugsiga Subuc waxaa loo aas-aasay inuu u adeego bulshada ardayda ah isagoo siinaya waxbarasho Qur'aan oo heerkeedu sarreeyo. Warbixinnada maalinlaha ah, xiriirka waalidiinta, iyo nidaamka joogitaanka ardayda waxay xaqiijinayaan hufnaan buuxda.",

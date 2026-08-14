@@ -205,24 +205,27 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [showLogoModal, setShowLogoModal] = useState(false);
 
   const handleSaveLogo = (newLogoUrl: string) => {
+    const cleanUrl = newLogoUrl ? newLogoUrl.trim() : "";
+    const updatedSettings = {
+      ...(database.landingPageSettings || {
+        schoolName: "Dugsiga Subuc",
+        heroTitle: "",
+        heroSub: "",
+        aboutText: "",
+        whatWeDo: "",
+        contactEmail: "",
+        contactPhone: "",
+        contactAddress: "",
+        cards: [],
+        pictures: []
+      }),
+      logoUrl: cleanUrl
+    };
     onSaveDatabase({
       ...database,
-      landingPageSettings: {
-        ...(database.landingPageSettings || {
-          schoolName: "Dugsiga Subuc",
-          heroTitle: "",
-          heroSub: "",
-          aboutText: "",
-          whatWeDo: "",
-          contactEmail: "",
-          contactPhone: "",
-          contactAddress: "",
-          cards: [],
-          pictures: []
-        }),
-        logoUrl: newLogoUrl
-      }
+      landingPageSettings: updatedSettings
     });
+    setFeedbackMsg("Astaanta cusub ee website-ka si toos ah ayaa loo kaydiyay!");
   };
   
   // Student Attendance filter and details states

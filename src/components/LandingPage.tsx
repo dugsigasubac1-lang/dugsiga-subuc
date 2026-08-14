@@ -918,6 +918,11 @@ export function LandingPage({ database, onEnterLogin, onSaveDatabase }: LandingP
       <footer className={`py-10 border-t transition-all duration-300 ${isNightMode ? "bg-[#020617] text-slate-500 border-[#21543d]/10" : "bg-[#dfd9ce] text-[#21543d] border-slate-300"}`} id="landing-footer">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
+            <DugsigaSubucLogo 
+              className="w-9 h-9" 
+              logoUrl={settings.logoUrl}
+              editable={false}
+            />
             <div className="flex flex-col">
               <span className={`font-extrabold text-xs tracking-tight ${isNightMode ? 'text-white' : 'text-[#21543d]'}`} style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                 {settings.schoolName}

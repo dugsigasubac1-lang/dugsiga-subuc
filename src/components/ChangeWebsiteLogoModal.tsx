@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Upload, Link as LinkIcon, RefreshCw, Check, X, Camera, Sparkles, AlertCircle } from 'lucide-react';
+import { Upload, Link as LinkIcon, RefreshCw, Check, X, Camera, Sparkles, AlertCircle, CheckCircle2, Image as ImageIcon } from 'lucide-react';
+import { DugsigaSubucEmblemSvg } from './Logo';
 
 interface ChangeWebsiteLogoModalProps {
   isOpen: boolean;
@@ -15,8 +16,8 @@ export function ChangeWebsiteLogoModal({
   currentLogoUrl,
   onSaveLogo
 }: ChangeWebsiteLogoModalProps) {
-  const defaultLogo = "/logo.png?v=3";
-  const initialLogo = currentLogoUrl || defaultLogo;
+  const defaultLogo = "/logo.png";
+  const initialLogo = currentLogoUrl && currentLogoUrl.trim() ? currentLogoUrl.trim() : defaultLogo;
 
   const [activeTab, setActiveTab] = useState<'upload' | 'url'>('upload');
   const [previewUrl, setPreviewUrl] = useState<string>(initialLogo);
@@ -24,14 +25,16 @@ export function ChangeWebsiteLogoModal({
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [successMsg, setSuccessMsg] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [previewError, setPreviewError] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync state when modal opens
-  React.useEffect(() => {
+  // Sync state whenever modal opens or currentLogoUrl changes
+  useEffect(() => {
     if (isOpen) {
-      const activeLogo = currentLogoUrl || defaultLogo;
+      const activeLogo = currentLogoUrl && currentLogoUrl.trim() ? currentLogoUrl.trim() : defaultLogo;
       setPreviewUrl(activeLogo);
+      setPreviewError(false);
       if (currentLogoUrl && currentLogoUrl.startsWith('http')) {
         setUrlInput(currentLogoUrl);
       } else {
@@ -44,106 +47,156 @@ export function ChangeWebsiteLogoModal({
 
   if (!isOpen) return null;
 
-  // Handle device file upload with image compression
+  // Process and optimize image file to base64 DataURL (high quality, safe for storage)
+  const processImageFile = (file: File, autoSave: boolean = false) => {
+    setIsProcessing(true);
+    setErrorMsg('');
+    setPreviewError(false);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const rawResult = event.target?.result as string;
+      if (!rawResult) {
+        setErrorMsg('Faylka lama akhrin karo.');
+        setIsProcessing(false);
+        return;
+      }
+
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const MAX_DIM = 400; // Optimal 400x400 for ultra-sharp rendering on Retina displays & fast loading
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_DIM) {
+              height *= MAX_DIM / width;
+              width = MAX_DIM;
+            }
+          } else {
+            if (height > MAX_DIM) {
+              width *= MAX_DIM / height;
+              height = MAX_DIM;
+            }
+          }
+
+          canvas.width = Math.round(width);
+          canvas.height = Math.round(height);
+          const ctx = canvas.getContext('2d');
+
+          if (ctx) {
+            // Keep transparent background for PNG/WebP or draw smooth transparent background
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            
+            // Generate PNG data url if transparent or JPEG if solid
+            const outputDataUrl = canvas.toDataURL('image/png', 0.95);
+            setPreviewUrl(outputDataUrl);
+            setSuccessMsg('Sawirka waa la habeeyay! Guji "Kaydi Sawirka Cusub" si aad u xaqiijiso.');
+
+            if (autoSave) {
+              onSaveLogo(outputDataUrl);
+              setSuccessMsg('Astaanta website-ka si toos ah ayaa loo beddelay oo loo kaydiyay!');
+              setTimeout(() => {
+                onClose();
+              }, 600);
+            }
+          } else {
+            setPreviewUrl(rawResult);
+            if (autoSave) {
+              onSaveLogo(rawResult);
+              onClose();
+            }
+          }
+        } catch (canvasErr) {
+          // If canvas tainted or fails, fallback to direct data url
+          setPreviewUrl(rawResult);
+          if (autoSave) {
+            onSaveLogo(rawResult);
+            onClose();
+          }
+        } finally {
+          setIsProcessing(false);
+        }
+      };
+
+      img.onerror = () => {
+        setErrorMsg('Sawirka lama furi karo. Fadlan hubi inuu yahay fayl sawir sax ah.');
+        setIsProcessing(false);
+      };
+
+      img.src = rawResult;
+    };
+
+    reader.onerror = () => {
+      setErrorMsg('Khalad ayaa dhacay intii lagu guda jiray akhrinta faylka.');
+      setIsProcessing(false);
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+  // Handle device file upload
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      setErrorMsg('Fadlan soo geli fayl sawir ah oo keliya (JPEG, PNG, WEBP, GIF)');
+    if (file.size > 15 * 1024 * 1024) {
+      setErrorMsg('Xajmiga sawirka waa inuu ka yaryahay 15MB');
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setErrorMsg('Xajmiga sawirka waa inuu ka yaryahay 10MB');
-      return;
-    }
-
-    setIsProcessing(true);
-    setErrorMsg('');
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        // Compress and resize image to optimal size (max 300x300) for fast loading & small Firestore footprint
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 300;
-        const MAX_HEIGHT = 300;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
-          }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
-          }
-        }
-
-        canvas.width = Math.round(width);
-        canvas.height = Math.round(height);
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-          setPreviewUrl(compressedDataUrl);
-          setSuccessMsg('Sawirka waa la habeeyay! Guji "Kaydi Sawirka" si aad u xaqiijiso.');
-        } else {
-          setPreviewUrl(event.target?.result as string);
-        }
-        setIsProcessing(false);
-      };
-      img.onerror = () => {
-        setErrorMsg('Waa lagu guuldarraystay akhrinta sawirka.');
-        setIsProcessing(false);
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.onerror = () => {
-      setErrorMsg('Faylka lama akhrin karo.');
-      setIsProcessing(false);
-    };
-    reader.readAsDataURL(file);
+    processImageFile(file, false);
+    e.target.value = ''; // Reset input for re-selection
   };
 
   // Handle image URL input submission
-  const handleApplyUrl = () => {
+  const handleApplyUrl = (autoSave: boolean = false) => {
     const trimmed = urlInput.trim();
     if (!trimmed) {
-      setErrorMsg('Fadlan geli Link-ka sawirka.');
+      setErrorMsg('Fadlan geli Link-ka sawirka (URL).');
       return;
     }
     if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://') && !trimmed.startsWith('data:image/')) {
-      setErrorMsg('Fadlan geli Link sax ah (ee ka bilaabma https:// ama http://)');
+      setErrorMsg('Fadlan geli Link sax ah (oo ka bilaabma https:// ama http://)');
       return;
     }
     setErrorMsg('');
+    setPreviewError(false);
     setPreviewUrl(trimmed);
-    setSuccessMsg('Link-ka sawirka waa la diyaariyay! Guji "Kaydi Sawirka" si aad u xaqiijiso.');
+    setSuccessMsg('Link-ka sawirka waa la diyaariyay! Guji "Kaydi Sawirka Cusub" si aad u xaqiijiso.');
+
+    if (autoSave) {
+      onSaveLogo(trimmed);
+      setSuccessMsg('Astaanta website-ka waa la kaydiyay!');
+      setTimeout(() => {
+        onClose();
+      }, 500);
+    }
   };
 
   // Handle resetting back to default logo
   const handleResetToDefault = () => {
     setPreviewUrl(defaultLogo);
+    setPreviewError(false);
     setUrlInput('');
     setErrorMsg('');
-    setSuccessMsg('Astaantii hore waa lagu soo celiyay. Guji "Kaydi Sawirka" si aad u xaqiijiso.');
+    setSuccessMsg('Astaantii asalka ahayd waa la soo celiyay. Guji "Kaydi Sawirka Cusub" si aad u xaqiijiso.');
   };
 
   // Save the new logo URL to database
   const handleSave = () => {
-    onSaveLogo(previewUrl);
-    setSuccessMsg('Astaanta website-ka waa la beddelay oo waa la kaydiyay!');
+    if (!previewUrl || previewUrl.trim() === '') {
+      setErrorMsg('Fadlan dooro ama soo geli sawir marka hore.');
+      return;
+    }
+    onSaveLogo(previewUrl.trim());
+    setSuccessMsg('Astaanta website-ka waa la beddelay oo si sugan ayaa loo kaydiyay!');
     setTimeout(() => {
       onClose();
-    }, 400);
+    }, 450);
   };
 
   return (
@@ -161,17 +214,17 @@ export function ChangeWebsiteLogoModal({
           initial={{ scale: 0.95, opacity: 0, y: 10 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.95, opacity: 0, y: 10 }}
-          className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-lg w-full overflow-hidden flex flex-col"
+          className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh]"
         >
           {/* Header */}
-          <div className="p-6 bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-900 text-white flex items-center justify-between">
+          <div className="p-5 bg-gradient-to-r from-[#143d2f] via-[#1b503e] to-[#0f3125] text-white flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-emerald-700/50 rounded-2xl border border-emerald-500/30">
                 <Camera className="w-5 h-5 text-amber-300" />
               </div>
               <div>
                 <h3 className="text-base font-extrabold tracking-tight">Beddel Sawirka Astaanta Website-ka</h3>
-                <p className="text-[11px] text-emerald-200 mt-0.5">Change Website Profile Photo / Logo</p>
+                <p className="text-[11px] text-emerald-200 mt-0.5 font-medium">Website Profile Photo / Official School Logo</p>
               </div>
             </div>
             <button
@@ -182,40 +235,52 @@ export function ChangeWebsiteLogoModal({
             </button>
           </div>
 
-          {/* Modal Content */}
-          <div className="p-6 space-y-6">
+          {/* Modal Scrollable Body */}
+          <div className="p-6 space-y-5 overflow-y-auto">
 
             {/* Live Interactive Preview Card */}
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-150 flex flex-col items-center justify-center gap-3">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-amber-500" />
-                Daawo Muuqaalka Cusub (Live Preview)
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 flex flex-col items-center justify-center gap-3">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                Muuqaalka Astaanta Hadda (Live Preview)
               </span>
 
               <div className="flex items-center justify-center gap-6 py-2">
-                {/* Circular Badge Preview */}
+                {/* Circular Badge Preview (Header style) */}
                 <div className="flex flex-col items-center gap-1.5">
-                  <div className="relative p-1 bg-white rounded-full shadow-md border border-emerald-500/30">
-                    <img 
-                      src={previewUrl} 
-                      alt="Logo Circular Preview" 
-                      className="w-16 h-16 rounded-full object-cover bg-white"
-                      onError={() => setErrorMsg('Muuqaalka sawirka la geliyay ma shaqaynayo. Fadlan hubi link-ka ama faylka.')}
-                    />
+                  <div className="relative p-1 bg-white rounded-full shadow-md border border-emerald-500/30 w-18 h-18 flex items-center justify-center overflow-hidden">
+                    {previewError ? (
+                      <DugsigaSubucEmblemSvg size={64} className="w-full h-full" />
+                    ) : (
+                      <img 
+                        src={previewUrl} 
+                        alt="Logo Circular Preview" 
+                        className="w-16 h-16 rounded-full object-cover bg-white"
+                        onError={() => setPreviewError(true)}
+                      />
+                    )}
                   </div>
-                  <span className="text-[10px] font-bold text-slate-500">Astaanta Yar (Header)</span>
+                  <span className="text-[10px] font-bold text-slate-600">Header / Navbar</span>
                 </div>
 
-                {/* Full Branding Preview */}
+                {/* Full Branding Preview (Dark background style) */}
                 <div className="flex flex-col items-center gap-1.5">
-                  <div className="p-3 bg-emerald-950 rounded-2xl shadow-md border border-emerald-800 flex items-center justify-center w-28 h-20">
-                    <img 
-                      src={previewUrl} 
-                      alt="Logo Full Preview" 
-                      className="max-h-14 max-w-full object-contain rounded-lg"
-                    />
+                  <div className="p-3 bg-[#0d281e] rounded-2xl shadow-md border border-[#ca9258]/40 flex items-center justify-center w-32 h-20 overflow-hidden">
+                    {previewError ? (
+                      <div className="flex items-center gap-2 text-white">
+                        <DugsigaSubucEmblemSvg size={40} className="w-10 h-10" />
+                        <span className="text-[10px] font-extrabold text-[#ca9258]">Dugsiga Subuc</span>
+                      </div>
+                    ) : (
+                      <img 
+                        src={previewUrl} 
+                        alt="Logo Full Preview" 
+                        className="max-h-14 max-w-full object-contain rounded-lg"
+                        onError={() => setPreviewError(true)}
+                      />
+                    )}
                   </div>
-                  <span className="text-[10px] font-bold text-slate-500">Astaanta Buuxda (Dark Mode)</span>
+                  <span className="text-[10px] font-bold text-slate-600">Dark Mode / Portal</span>
                 </div>
               </div>
             </div>
@@ -229,7 +294,7 @@ export function ChangeWebsiteLogoModal({
             )}
             {successMsg && (
               <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-2 animate-fade-in">
-                <Check className="w-4 h-4 shrink-0 text-emerald-600" />
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
                 <span>{successMsg}</span>
               </div>
             )}
@@ -246,7 +311,7 @@ export function ChangeWebsiteLogoModal({
                 }`}
               >
                 <Upload className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Soo Geli Device-ka</span>
+                <span>Soo Geli Device-ka (Upload File)</span>
               </button>
               <button
                 type="button"
@@ -258,7 +323,7 @@ export function ChangeWebsiteLogoModal({
                 }`}
               >
                 <LinkIcon className="w-3.5 h-3.5 text-sky-600" />
-                <span>Link-ka Sawirka (URL)</span>
+                <span>Link-ka Sawirka (URL Link)</span>
               </button>
             </div>
 
@@ -275,16 +340,16 @@ export function ChangeWebsiteLogoModal({
                 
                 <div 
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/40 hover:bg-emerald-50 p-6 rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all text-center group"
+                  className="border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/40 hover:bg-emerald-50/80 p-6 rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all text-center group"
                 >
-                  <div className="p-3 bg-white rounded-full shadow-sm border border-emerald-100 text-emerald-600 group-hover:scale-110 transition-transform">
-                    <Upload className="w-6 h-6" />
+                  <div className="p-3.5 bg-white rounded-full shadow-md border border-emerald-100 text-emerald-600 group-hover:scale-110 transition-transform">
+                    <Upload className="w-7 h-7" />
                   </div>
-                  <p className="text-xs font-extrabold text-slate-800 mt-1">
-                    Guji si aad sawir uga soo xorayso Device-kaaga
+                  <p className="text-xs font-black text-slate-800 mt-1">
+                    Guji halkan si aad sawir uga soo doorato Taleefankaaga ama Computer-kaaga
                   </p>
-                  <p className="text-[10px] text-slate-400 font-medium">
-                    (Supports PNG, JPG, WEBP, GIF - Max 10MB)
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Waxay taageertaa dhammaan noocyada sawirrada (PNG, JPG, JPEG, WEBP)
                   </p>
                 </div>
               </div>
@@ -294,20 +359,20 @@ export function ChangeWebsiteLogoModal({
             {activeTab === 'url' && (
               <div className="space-y-3">
                 <label className="block text-xs font-bold text-slate-700">
-                  Geli ama soo dhaan Link-ka sawirka (Image URL):
+                  Geli Link-ka tooska ah ee sawirka (Direct Image URL):
                 </label>
                 <div className="flex gap-2">
                   <input 
                     type="url"
-                    placeholder="https://example.com/logo.png"
+                    placeholder="https://example.com/school-logo.png"
                     value={urlInput}
                     onChange={(e) => setUrlInput(e.target.value)}
-                    className="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 focus:border-sky-500 font-mono"
+                    className="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 focus:border-sky-500 font-mono text-slate-800"
                   />
                   <button
                     type="button"
-                    onClick={handleApplyUrl}
-                    className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
+                    onClick={() => handleApplyUrl(false)}
+                    className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer shadow-sm active:scale-95 whitespace-nowrap"
                   >
                     Daawo (Apply)
                   </button>
@@ -320,20 +385,20 @@ export function ChangeWebsiteLogoModal({
               <button
                 type="button"
                 onClick={handleResetToDefault}
-                className="text-xs font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="text-xs font-bold text-amber-800 hover:text-amber-900 flex items-center gap-1.5 transition-colors cursor-pointer bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200"
                 title="Soo celi sawirkii hore ee asalka ahaa"
               >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>Soo celi Sawirkii Hore (Reset)</span>
+                <RefreshCw className="w-3.5 h-3.5 text-amber-700" />
+                <span>Soo celi Sawirkii Asalka ahaa (Reset Default)</span>
               </button>
 
-              <span className="text-[10px] text-slate-400 font-mono">Auto-fit & optimized</span>
+              <span className="text-[10px] text-slate-400 font-mono">Auto-crop & optimized</span>
             </div>
 
           </div>
 
           {/* Footer Buttons */}
-          <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+          <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
             <button
               type="button"
               onClick={onClose}
@@ -345,10 +410,10 @@ export function ChangeWebsiteLogoModal({
               type="button"
               onClick={handleSave}
               disabled={isProcessing}
-              className="px-5 py-2.5 bg-gradient-to-r from-emerald-800 to-teal-800 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-2 active:scale-95 disabled:opacity-50"
+              className="px-6 py-2.5 bg-gradient-to-r from-emerald-800 to-teal-800 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-2 active:scale-95 disabled:opacity-50"
             >
-              <Check className="w-4 h-4" />
-              <span>Kaydi Sawirka Cusub</span>
+              <Check className="w-4 h-4 text-amber-300" />
+              <span>Kaydi Sawirka Cusub (Save Logo Now)</span>
             </button>
           </div>
 

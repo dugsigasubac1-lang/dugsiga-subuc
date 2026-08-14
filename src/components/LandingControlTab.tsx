@@ -59,6 +59,17 @@ export function LandingControlTab({ database, onSaveDatabase }: LandingControlTa
   const [contactPhone, setContactPhone] = useState(settings.contactPhone);
   const [contactAddress, setContactAddress] = useState(settings.contactAddress);
 
+  // Sync state if settings update from external source or database state change
+  React.useEffect(() => {
+    if (settings.logoUrl !== undefined && settings.logoUrl !== logoUrl) {
+      setLogoUrl(settings.logoUrl || '');
+    }
+  }, [settings.logoUrl]);
+
+  React.useEffect(() => {
+    if (settings.schoolName) setSchoolName(settings.schoolName);
+  }, [settings.schoolName]);
+
   // Cards List States
   const [cards, setCards] = useState<LandingCard[]>(settings.cards || []);
   const [newCardTitle, setNewCardTitle] = useState('');
@@ -300,9 +311,10 @@ Fariintaan waxaa la tirtirayaa 24 saac ka dib si loo ilaaliyo bedqabka iyo fudey
   };
 
   const getCurrentSettings = (overrides?: Partial<LandingPageSettings>): LandingPageSettings => {
+    const activeLogo = (overrides?.logoUrl !== undefined ? overrides.logoUrl : logoUrl) || '';
     return {
       schoolName: schoolName.trim(),
-      logoUrl: logoUrl.trim(),
+      logoUrl: activeLogo.trim(),
       heroTitle: heroTitle.trim(),
       heroSub: heroSub.trim(),
       aboutText: aboutText.trim(),
@@ -409,7 +421,8 @@ Fariintaan waxaa la tirtirayaa 24 saac ka dib si loo ilaaliyo bedqabka iyo fudey
           regStep2Text: DEFAULT_LANDING_SETTINGS.regStep2Text,
           regStep3Title: DEFAULT_LANDING_SETTINGS.regStep3Title,
           regStep3Text: DEFAULT_LANDING_SETTINGS.regStep3Text,
-          regOfficeHours: DEFAULT_LANDING_SETTINGS.regOfficeHours
+          regOfficeHours: DEFAULT_LANDING_SETTINGS.regOfficeHours,
+          logoUrl: logoUrl || database.landingPageSettings?.logoUrl || ""
         };
 
         onSaveDatabase({
