@@ -59,7 +59,8 @@ import {
   Building2,
   Bus,
   Eye,
-  Info
+  Info,
+  CheckCircle2
 } from 'lucide-react';
 import { 
   DatabaseState, 
@@ -247,6 +248,17 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   } | null>(null);
 
   // Cloud Backups States
+  interface BackupChanges {
+    summary: string;
+    newStudents?: any[];
+    removedStudents?: any[];
+    updatedStudents?: any[];
+    newBilling?: any[];
+    newInvoices?: any[];
+    newTeachers?: any[];
+    newTransfers?: any[];
+  }
+
   interface CloudBackupMeta {
     id: string;
     timestamp: string;
@@ -256,6 +268,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     size: number;
     status: 'success' | 'failed';
     storageType: string;
+    changes?: BackupChanges | null;
   }
   const [cloudBackups, setCloudBackups] = useState<CloudBackupMeta[]>([]);
   const [isLoadingBackups, setIsLoadingBackups] = useState<boolean>(false);
@@ -982,9 +995,10 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     sourceName: string;
     timestamp?: string;
     state: DatabaseState;
+    changes?: BackupChanges | null;
   } | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState<boolean>(false);
-  const [previewActiveTab, setPreviewActiveTab] = useState<'overview' | 'students' | 'teachers' | 'billing' | 'xawaalada'>('overview');
+  const [previewActiveTab, setPreviewActiveTab] = useState<'changes' | 'overview' | 'students' | 'teachers' | 'billing' | 'xawaalada'>('changes');
   const [previewSearchTerm, setPreviewSearchTerm] = useState<string>('');
 
   // Payment Collector states
@@ -5555,9 +5569,10 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         setPreviewBackupData({
           sourceName: `Cloud Snapshot: ${backupId}`,
           timestamp: data.backup.timestamp ? new Date(data.backup.timestamp).toLocaleString() : undefined,
-          state: data.backup.state
+          state: data.backup.state,
+          changes: data.backup.changes || null
         });
-        setPreviewActiveTab('overview');
+        setPreviewActiveTab('changes');
         setPreviewSearchTerm('');
       } else {
         alert("Cilad ayaa ka dhacday soo helida backup-ka cloud-ka: " + (data.error || 'Unknown error'));
@@ -13343,6 +13358,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                     <thead>
                       <tr className="bg-slate-50/70 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">
                         <th className="py-4 px-5">Backup ID & Taariikhda (Date)</th>
+                        <th className="py-4 px-5">What Changed (Isbeddellada)</th>
                         <th className="py-4 px-5">Storage Location</th>
                         <th className="py-4 px-5">Size</th>
                         <th className="py-4 px-5">Students</th>
@@ -13362,12 +13378,28 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                         }) + ' ' + dateObj.toLocaleTimeString('so-SO', { hour: '2-digit', minute: '2-digit' });
 
                         const sizeKb = (backup.size / 1024).toFixed(1);
+                        const changesSummary = backup.changes?.summary || "Routine snapshot";
+                        const hasNewStudents = backup.changes?.newStudents && backup.changes.newStudents.length > 0;
+                        const hasUpdatedStudents = backup.changes?.updatedStudents && backup.changes.updatedStudents.length > 0;
 
                         return (
                           <tr key={backup.id} className="hover:bg-slate-50/40 transition-colors">
                             <td className="py-4 px-5 font-bold text-slate-800">
                               <span className="block font-mono text-[11px] text-slate-500">{backup.id}</span>
                               <span className="text-[10px] text-slate-400 font-normal">{formattedDate}</span>
+                            </td>
+                            <td className="py-4 px-5">
+                              <div className="flex flex-col gap-1 max-w-xs">
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold ${
+                                  hasNewStudents
+                                    ? 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+                                    : hasUpdatedStudents
+                                    ? 'bg-blue-50 text-blue-800 border border-blue-100'
+                                    : 'bg-slate-100 text-slate-600'
+                                }`}>
+                                  {hasNewStudents ? '✨ ' : ''}{changesSummary}
+                                </span>
+                              </div>
                             </td>
                             <td className="py-4 px-5 font-semibold text-slate-500 font-mono text-[10px]">
                               <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded border border-emerald-100/50">
@@ -20801,6 +20833,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
             <div className="bg-white border-b border-slate-200 px-6 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
                 {[
+                  { id: 'changes', label: '📝 What Changed (Isbeddellada)', count: (previewBackupData.changes?.newStudents?.length || 0) + (previewBackupData.changes?.updatedStudents?.length || 0) + (previewBackupData.changes?.newBilling?.length || 0) + (previewBackupData.changes?.newInvoices?.length || 0) },
                   { id: 'overview', label: '📊 Summary Comparison', count: null },
                   { id: 'students', label: '🎓 Students', count: previewBackupData.state.students?.length || 0 },
                   { id: 'teachers', label: '👨‍🏫 Teachers', count: previewBackupData.state.teachers?.length || 0 },
@@ -20829,7 +20862,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 ))}
               </div>
 
-              {previewActiveTab !== 'overview' && (
+              {previewActiveTab !== 'overview' && previewActiveTab !== 'changes' && (
                 <div className="relative min-w-[220px]">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
@@ -20845,6 +20878,157 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
 
             {/* Modal Scrollable Body */}
             <div className="p-6 overflow-y-auto flex-1 space-y-6">
+
+              {/* TAB 0: WHAT CHANGED (DIFF LOG) */}
+              {previewActiveTab === 'changes' && (
+                <div className="space-y-6">
+                  {/* Banner */}
+                  <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-200/80 rounded-2xl p-5 flex items-start gap-4 shadow-xs">
+                    <span className="p-3 bg-emerald-600 text-white rounded-xl shrink-0"><CheckCircle2 className="w-5 h-5" /></span>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="bg-emerald-600 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full">Snapshot Changelog</span>
+                        <span className="text-xs text-slate-500 font-mono">{previewBackupData.sourceName}</span>
+                      </div>
+                      <h4 className="font-extrabold text-slate-900 text-base">
+                        {previewBackupData.changes?.summary || "Routine snapshot with no new records"}
+                      </h4>
+                      <p className="text-xs text-slate-600">
+                        This view shows all specific records added, registered, or updated in this exact cloud backup snapshot.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 1. New Students Added */}
+                  {previewBackupData.changes?.newStudents && previewBackupData.changes.newStudents.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                          New Students Registered in this Backup ({previewBackupData.changes.newStudents.length})
+                        </h4>
+                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full uppercase">
+                          + Added Records
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {previewBackupData.changes.newStudents.map((st: any, idx: number) => (
+                          <div key={st.id || idx} className="bg-emerald-50/40 border border-emerald-200/70 p-4 rounded-2xl space-y-2 relative overflow-hidden">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <span className="font-black text-slate-900 text-sm block">{st.name}</span>
+                                <span className="font-mono text-[11px] text-emerald-700 font-bold">ID: {st.id} • Class: {st.className || 'N/A'}</span>
+                              </div>
+                              <span className="px-2 py-0.5 bg-emerald-600 text-white font-mono font-bold text-[10px] rounded-lg uppercase">
+                                ${st.monthlyFee}/mo
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 pt-1 border-t border-emerald-100 font-medium">
+                              <div>Parent: <span className="font-bold text-slate-800">{st.parentName || 'N/A'}</span></div>
+                              <div>Phone: <span className="font-mono font-bold text-slate-800">{st.parentPhone || 'N/A'}</span></div>
+                              <div>Session: <span className="font-bold text-slate-800">{st.session || 'Morning'}</span></div>
+                              <div>Reg Date: <span className="font-mono font-bold text-slate-800">{st.registrationDate || 'N/A'}</span></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2. Updated Students */}
+                  {previewBackupData.changes?.updatedStudents && previewBackupData.changes.updatedStudents.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                          Students with Modified Details ({previewBackupData.changes.updatedStudents.length})
+                        </h4>
+                        <span className="text-[10px] font-bold text-blue-800 bg-blue-100 px-2.5 py-0.5 rounded-full uppercase">
+                          ✏️ Modified Records
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {previewBackupData.changes.updatedStudents.map((st: any, idx: number) => (
+                          <div key={st.id || idx} className="bg-blue-50/40 border border-blue-200/70 p-4 rounded-2xl space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="font-black text-slate-900 text-sm">{st.name}</span>
+                              <span className="font-mono text-[10px] text-blue-700 font-bold">ID: {st.id}</span>
+                            </div>
+                            <p className="text-xs text-slate-600">Class: <strong>{st.className}</strong> • Shift: <strong>{st.session}</strong> • Status: <strong>{st.active ? 'Active' : 'Suspended'}</strong></p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3. New Payments Logged */}
+                  {previewBackupData.changes?.newBilling && previewBackupData.changes.newBilling.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                          New Tuition Payments Recorded ({previewBackupData.changes.newBilling.length})
+                        </h4>
+                        <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full uppercase">
+                          💵 Tuition Receipts
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {previewBackupData.changes.newBilling.slice(0, 9).map((b: any, idx: number) => (
+                          <div key={b.id || idx} className="bg-amber-50/40 border border-amber-200/70 p-3 rounded-xl space-y-1 text-xs">
+                            <div className="flex justify-between font-bold text-slate-900">
+                              <span>Student: {b.studentId}</span>
+                              <span className="text-emerald-700 font-black">${b.amountPaid}</span>
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-mono">Month: {b.month} • Status: {b.status}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 4. New Transfers or Invoices */}
+                  {((previewBackupData.changes?.newInvoices && previewBackupData.changes.newInvoices.length > 0) || (previewBackupData.changes?.newTransfers && previewBackupData.changes.newTransfers.length > 0)) && (
+                    <div className="space-y-3">
+                      <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
+                        Financial Invoices & Transfers
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {previewBackupData.changes.newInvoices?.map((inv: any, idx: number) => (
+                          <div key={inv.id || idx} className="bg-purple-50/40 border border-purple-200/70 p-3 rounded-xl space-y-1 text-xs">
+                            <div className="flex justify-between font-bold text-slate-900">
+                              <span>{inv.title || 'Invoice'}</span>
+                              <span className="text-rose-700 font-black">${inv.amount}</span>
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-mono">Category: {inv.category} • Date: {inv.date}</div>
+                          </div>
+                        ))}
+                        {previewBackupData.changes.newTransfers?.map((tr: any, idx: number) => (
+                          <div key={tr.id || idx} className="bg-teal-50/40 border border-teal-200/70 p-3 rounded-xl space-y-1 text-xs">
+                            <div className="flex justify-between font-bold text-slate-900">
+                              <span>{tr.description || 'Transfer'}</span>
+                              <span className="text-teal-700 font-black">${tr.amount}</span>
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-mono">Account: {tr.accountName || tr.accountId} • Date: {tr.date}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 5. Fallback if no specific additions */}
+                  {(!previewBackupData.changes?.newStudents?.length && !previewBackupData.changes?.updatedStudents?.length && !previewBackupData.changes?.newBilling?.length && !previewBackupData.changes?.newInvoices?.length && !previewBackupData.changes?.newTransfers?.length) && (
+                    <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                      <span className="p-3 bg-emerald-100 text-emerald-800 rounded-2xl inline-flex"><CheckCircle2 className="w-6 h-6" /></span>
+                      <h4 className="font-extrabold text-slate-900 text-sm">Automated Routine Snapshot</h4>
+                      <p className="text-xs text-slate-500 max-w-md mx-auto">
+                        All {previewBackupData.state.students?.length || 0} students and school records are completely intact and match the previous backup snapshot.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
               
               {/* TAB 1: OVERVIEW & COMPARISON */}
               {previewActiveTab === 'overview' && (

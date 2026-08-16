@@ -341,6 +341,81 @@ async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
+  function computeBackupDiff(currentState: any, previousState: any) {
+    const currentStudents = Array.isArray(currentState?.students) ? currentState.students : [];
+    const prevStudents = Array.isArray(previousState?.students) ? previousState.students : [];
+
+    const prevStudentIds = new Set(prevStudents.map((s: any) => s.id));
+    const currentStudentIds = new Set(currentStudents.map((s: any) => s.id));
+
+    const newStudents = currentStudents.filter((s: any) => !prevStudentIds.has(s.id));
+    const removedStudents = prevStudents.filter((s: any) => !currentStudentIds.has(s.id));
+    const updatedStudents = currentStudents.filter((s: any) => {
+      if (!prevStudentIds.has(s.id)) return false;
+      const old = prevStudents.find((ps: any) => ps.id === s.id);
+      if (!old) return false;
+      return old.className !== s.className || old.active !== s.active || old.monthlyFee !== s.monthlyFee || old.busFee !== s.busFee || old.session !== s.session;
+    });
+
+    const currentBilling = Array.isArray(currentState?.billing) ? currentState.billing : [];
+    const prevBilling = Array.isArray(previousState?.billing) ? previousState.billing : [];
+    const prevBillKeys = new Set(prevBilling.map((b: any) => b.id || `${b.studentId}_${b.month}_${b.amountPaid}`));
+    const newBilling = currentBilling.filter((b: any) => !prevBillKeys.has(b.id || `${b.studentId}_${b.month}_${b.amountPaid}`));
+
+    const currentInvoices = Array.isArray(currentState?.invoices) ? currentState.invoices : [];
+    const prevInvoices = Array.isArray(previousState?.invoices) ? previousState.invoices : [];
+    const prevInvIds = new Set(prevInvoices.map((inv: any) => inv.id));
+    const newInvoices = currentInvoices.filter((inv: any) => !prevInvIds.has(inv.id));
+
+    const currentTransfers = Array.isArray(currentState?.moneyTransfers) ? currentState.moneyTransfers : [];
+    const prevTransfers = Array.isArray(previousState?.moneyTransfers) ? previousState.moneyTransfers : [];
+    const prevTransIds = new Set(prevTransfers.map((t: any) => t.id));
+    const newTransfers = currentTransfers.filter((t: any) => !prevTransIds.has(t.id));
+
+    const currentTeachers = Array.isArray(currentState?.teachers) ? currentState.teachers : [];
+    const prevTeachers = Array.isArray(previousState?.teachers) ? previousState.teachers : [];
+    const prevTeacherIds = new Set(prevTeachers.map((t: any) => t.id));
+    const newTeachers = currentTeachers.filter((t: any) => !prevTeacherIds.has(t.id));
+
+    const summaryParts: string[] = [];
+    if (newStudents.length > 0) {
+      const names = newStudents.map((s: any) => s.name || s.id).slice(0, 2).join(', ');
+      const more = newStudents.length > 2 ? ` +${newStudents.length - 2} more` : '';
+      summaryParts.push(`+${newStudents.length} New Student${newStudents.length > 1 ? 's' : ''} (${names}${more})`);
+    }
+    if (updatedStudents.length > 0) {
+      summaryParts.push(`${updatedStudents.length} Student${updatedStudents.length > 1 ? 's' : ''} Updated`);
+    }
+    if (removedStudents.length > 0) {
+      summaryParts.push(`-${removedStudents.length} Student${removedStudents.length > 1 ? 's' : ''} Removed`);
+    }
+    if (newBilling.length > 0) {
+      summaryParts.push(`+${newBilling.length} Payment${newBilling.length > 1 ? 's' : ''}`);
+    }
+    if (newInvoices.length > 0) {
+      summaryParts.push(`+${newInvoices.length} Invoice${newInvoices.length > 1 ? 's' : ''}`);
+    }
+    if (newTeachers.length > 0) {
+      summaryParts.push(`+${newTeachers.length} Teacher${newTeachers.length > 1 ? 's' : ''}`);
+    }
+    if (newTransfers.length > 0) {
+      summaryParts.push(`+${newTransfers.length} Transfer${newTransfers.length > 1 ? 's' : ''}`);
+    }
+
+    const summary = summaryParts.length > 0 ? summaryParts.join(' • ') : 'Routine snapshot (No new records added)';
+
+    return {
+      summary,
+      newStudents,
+      removedStudents,
+      updatedStudents,
+      newBilling,
+      newInvoices,
+      newTeachers,
+      newTransfers
+    };
+  }
+
   async function triggerCloudBackupInternal(statePayload: any): Promise<any> {
     if (!db || !statePayload) {
       throw new Error('Database or state payload not initialized.');
@@ -357,6 +432,35 @@ async function startServer() {
     const jsonString = JSON.stringify(statePayload);
     const sizeBytes = Buffer.byteLength(jsonString, 'utf8');
 
+    // Check latest previous backup to calculate diff
+    let changes: any = null;
+    try {
+      const backupsCol = collection(db, 'backups');
+      const q = query(backupsCol, orderBy('timestamp', 'desc'), limit(1));
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        const latestDoc = querySnapshot.docs[0].data();
+        if (latestDoc && latestDoc.state) {
+          changes = computeBackupDiff(statePayload, latestDoc.state);
+        }
+      }
+    } catch (e) {
+      // Ignored
+    }
+
+    if (!changes) {
+      changes = {
+        summary: `Initial snapshot with ${studentCount} students and ${teacherCount} teachers`,
+        newStudents: statePayload.students || [],
+        removedStudents: [],
+        updatedStudents: [],
+        newBilling: statePayload.billing || [],
+        newInvoices: statePayload.invoices || [],
+        newTeachers: statePayload.teachers || [],
+        newTransfers: statePayload.moneyTransfers || []
+      };
+    }
+
     const backupMeta = {
       id: backupId,
       timestamp,
@@ -365,7 +469,8 @@ async function startServer() {
       invoiceCount,
       size: sizeBytes,
       status: 'success',
-      storageType: 'Google Cloud Storage & Firestore Cloud'
+      storageType: 'Google Cloud Storage & Firestore Cloud',
+      changes
     };
 
     // 1. Store backup with full state in Firestore collection `/backups`
@@ -1202,17 +1307,39 @@ async function startServer() {
       const backupsCol = collection(db, 'backups');
       const q = query(backupsCol, orderBy('timestamp', 'desc'));
       const querySnapshot = await getDocs(q);
-      const backupsList = querySnapshot.docs.map(docSnap => {
-        const d = docSnap.data();
+      const docsData = querySnapshot.docs.map(docSnap => docSnap.data());
+
+      const backupsList = docsData.map((d, index) => {
+        let changes = d.changes;
+        // If changes wasn't stored at creation time, compute on the fly by comparing with previous chronologically older backup
+        if (!changes || typeof changes !== 'object' || !changes.summary) {
+          const previousOlderDoc = index < docsData.length - 1 ? docsData[index + 1] : null;
+          if (previousOlderDoc && previousOlderDoc.state && d.state) {
+            changes = computeBackupDiff(d.state, previousOlderDoc.state);
+          } else if (d.state) {
+            changes = {
+              summary: `Initial snapshot with ${d.studentCount || d.state.students?.length || 0} students`,
+              newStudents: d.state.students || [],
+              removedStudents: [],
+              updatedStudents: [],
+              newBilling: d.state.billing || [],
+              newInvoices: d.state.invoices || [],
+              newTeachers: d.state.teachers || [],
+              newTransfers: d.state.moneyTransfers || []
+            };
+          }
+        }
+
         return {
           id: d.id,
           timestamp: d.timestamp,
-          studentCount: d.studentCount || 0,
-          teacherCount: d.teacherCount || 0,
-          invoiceCount: d.invoiceCount || 0,
+          studentCount: d.studentCount || (d.state?.students || []).length || 0,
+          teacherCount: d.teacherCount || (d.state?.teachers || []).length || 0,
+          invoiceCount: d.invoiceCount || (d.state?.invoices || []).length || 0,
           size: d.size || 0,
           status: d.status || 'success',
-          storageType: d.storageType || 'Google Cloud Storage & Firestore Cloud'
+          storageType: d.storageType || 'Google Cloud Storage & Firestore Cloud',
+          changes: changes || null
         };
       });
       return res.json({ success: true, backups: backupsList });
@@ -1289,6 +1416,37 @@ async function startServer() {
       }
       const backupData = docSnap.data();
       const sanitizedState = sanitizeDatabaseState(backupData.state || {});
+
+      // Calculate diff against previous backup if not attached
+      let changes = backupData.changes;
+      if (!changes || typeof changes !== 'object' || !changes.summary) {
+        try {
+          const backupsCol = collection(db, 'backups');
+          const q = query(backupsCol, orderBy('timestamp', 'desc'));
+          const allBackups = await getDocs(q);
+          const allDocs = allBackups.docs.map(ds => ds.data());
+          const currentIndex = allDocs.findIndex(docD => docD.id === (backupData.id || backupId));
+          const prevOlder = (currentIndex !== -1 && currentIndex < allDocs.length - 1) ? allDocs[currentIndex + 1] : null;
+          if (prevOlder && prevOlder.state) {
+            changes = computeBackupDiff(sanitizedState, prevOlder.state);
+          }
+        } catch (diffErr) {
+          // fallback
+        }
+      }
+      if (!changes) {
+        changes = {
+          summary: `Snapshot with ${sanitizedState.students?.length || 0} students`,
+          newStudents: sanitizedState.students || [],
+          removedStudents: [],
+          updatedStudents: [],
+          newBilling: sanitizedState.billing || [],
+          newInvoices: sanitizedState.invoices || [],
+          newTeachers: sanitizedState.teachers || [],
+          newTransfers: sanitizedState.moneyTransfers || []
+        };
+      }
+
       return res.json({
         success: true,
         backup: {
@@ -1299,7 +1457,8 @@ async function startServer() {
           invoiceCount: backupData.invoiceCount || (sanitizedState.invoices || []).length,
           size: backupData.size || 0,
           storageType: backupData.storageType || 'Google Cloud Storage & Firestore Cloud',
-          state: sanitizedState
+          state: sanitizedState,
+          changes
         }
       });
     } catch (err: any) {
