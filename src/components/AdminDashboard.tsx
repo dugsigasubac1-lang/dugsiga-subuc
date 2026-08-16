@@ -233,6 +233,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [studAttTeacher, setStudAttTeacher] = useState<string>('All');
   const [studAttDate, setStudAttDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [studAttSearch, setStudAttSearch] = useState<string>('');
+  const [studAttStatusFilter, setStudAttStatusFilter] = useState<'All' | 'Present' | 'Late' | 'Absent' | 'Unlogged'>('All');
   const [selectedAttendanceDetail, setSelectedAttendanceDetail] = useState<DailyProgress | null>(null);
   
   // Custom confirmation modal state to bypass iframe modal blockages
@@ -13908,7 +13909,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
             return matchesClass && matchesTeacher && matchesSearch && stud.active;
           });
 
-          // Calculate stats dynamically for selected day
+          // Calculate stats dynamically for selected day across all filtered students
           let presentCount = 0;
           let lateCount = 0;
           let absentCount = 0;
@@ -13925,6 +13926,16 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
             } else if (prog.attendance === 'Absent') {
               absentCount++;
             }
+          });
+
+          // Filter displayed students based on the interactive status filter button selected
+          const displayedStudentsForAttendance = filteredStudentsForAttendance.filter(stud => {
+            if (studAttStatusFilter === 'All') return true;
+            const prog = (database.progress || []).find(p => p.studentId === stud.id && p.date === studAttDate);
+            if (studAttStatusFilter === 'Unlogged') {
+              return !prog;
+            }
+            return prog?.attendance === studAttStatusFilter;
           });
 
           const handleRowDoubleClick = (student: Student, progressRecord?: DailyProgress) => {
@@ -13961,7 +13972,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   <div>
                     <h3 className="font-extrabold text-slate-900 text-xl tracking-tight">Joogitaanka Ardayda (Student Attendance Explorer)</h3>
                     <p className="text-slate-400 text-xs mt-1">
-                      Monitor classroom attendance histories, check lesson submissions, and verify specific teacher remarks and notes.
+                      Kormeer joogitaanka fasallada, hubi casharrada la qaatay, guji badhamada hoose si aad u kala shaandhayso ardayda.
                     </p>
                   </div>
                   <div className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl self-start flex items-center gap-1.5 animate-pulse">
@@ -13969,59 +13980,148 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   </div>
                 </div>
 
-                {/* Quick Metrics Cards */}
+                {/* Quick Metrics Cards / Interactive Filter Buttons */}
                 <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5 mt-6">
-                  <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col justify-between" id="metric-class-students">
-                    <span className="text-[10px] uppercase font-bold text-slate-430 tracking-wider">Ardayda Fasalka</span>
-                    <div className="flex items-baseline gap-1.5 mt-1">
+                  {/* Card 1: Total Students */}
+                  <button
+                    type="button"
+                    onClick={() => setStudAttStatusFilter('All')}
+                    className={`p-4 rounded-2xl flex flex-col justify-between text-left transition-all duration-200 cursor-pointer relative overflow-hidden group active:scale-[0.98] ${
+                      studAttStatusFilter === 'All'
+                        ? 'bg-indigo-50/90 border-2 border-indigo-600 shadow-sm ring-2 ring-indigo-500/20'
+                        : 'bg-slate-50 border border-slate-200/80 hover:bg-indigo-50/40 hover:border-indigo-200 hover:shadow-xs'
+                    }`}
+                    id="metric-class-students"
+                    title="Guji si aad u aragto dhammaan ardayda (Click to view all students)"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[10px] uppercase font-bold tracking-wider ${
+                        studAttStatusFilter === 'All' ? 'text-indigo-800' : 'text-slate-500'
+                      }`}>Ardayda Fasalka</span>
+                      {studAttStatusFilter === 'All' ? (
+                        <span className="text-[9px] bg-indigo-600 text-white font-extrabold px-1.5 py-0.5 rounded-md">Shaandho</span>
+                      ) : (
+                        <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">👥</span>
+                      )}
+                    </div>
+                    <div className="flex items-baseline gap-1.5 mt-2">
                       <span className="text-2xl font-black text-slate-900">{filteredStudentsForAttendance.length}</span>
                       <span className="text-[10px] font-bold text-slate-400">Total</span>
                     </div>
-                  </div>
+                    <div className={`text-[10px] font-bold mt-1.5 flex items-center gap-1 ${
+                      studAttStatusFilter === 'All' ? 'text-indigo-700' : 'text-slate-400 group-hover:text-indigo-600'
+                    }`}>
+                      {studAttStatusFilter === 'All' ? '✓ Dhammaan ardayda' : 'Guji si aad u aragto'}
+                    </div>
+                  </button>
                   
-                  <div className="p-4 bg-emerald-50/50 border border-emerald-100/50 rounded-2xl flex flex-col justify-between" id="metric-class-present">
+                  {/* Card 2: Present */}
+                  <button
+                    type="button"
+                    onClick={() => setStudAttStatusFilter(prev => prev === 'Present' ? 'All' : 'Present')}
+                    className={`p-4 rounded-2xl flex flex-col justify-between text-left transition-all duration-200 cursor-pointer relative overflow-hidden group active:scale-[0.98] ${
+                      studAttStatusFilter === 'Present'
+                        ? 'bg-emerald-100/90 border-2 border-emerald-600 shadow-sm ring-2 ring-emerald-500/20'
+                        : 'bg-emerald-50/50 border border-emerald-100 hover:bg-emerald-100/60 hover:border-emerald-300 hover:shadow-xs'
+                    }`}
+                    id="metric-class-present"
+                    title="Guji si aad u aragto kuwa jooga oo keliya (Click to filter Present)"
+                  >
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] uppercase font-bold text-emerald-700 tracking-wider">Halka Jooga</span>
+                      <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider">Halka Jooga</span>
                       <span className="text-xs">🟢</span>
                     </div>
-                    <div className="flex items-baseline gap-1.5 mt-1">
-                      <span className="text-2xl font-black text-emerald-700">{presentCount}</span>
+                    <div className="flex items-baseline gap-1.5 mt-2">
+                      <span className="text-2xl font-black text-emerald-800">{presentCount}</span>
                       <span className="text-[10px] font-bold text-emerald-600">Present</span>
                     </div>
-                  </div>
+                    <div className={`text-[10px] font-bold mt-1.5 flex items-center gap-1 ${
+                      studAttStatusFilter === 'Present' ? 'text-emerald-800' : 'text-emerald-600 group-hover:text-emerald-700'
+                    }`}>
+                      {studAttStatusFilter === 'Present' ? '✓ Kuwa jooga (Active)' : 'Guji si aad u aragto'}
+                    </div>
+                  </button>
 
-                  <div className="p-4 bg-amber-50/50 border border-amber-100/50 rounded-2xl flex flex-col justify-between" id="metric-class-late">
+                  {/* Card 3: Late */}
+                  <button
+                    type="button"
+                    onClick={() => setStudAttStatusFilter(prev => prev === 'Late' ? 'All' : 'Late')}
+                    className={`p-4 rounded-2xl flex flex-col justify-between text-left transition-all duration-200 cursor-pointer relative overflow-hidden group active:scale-[0.98] ${
+                      studAttStatusFilter === 'Late'
+                        ? 'bg-amber-100/90 border-2 border-amber-600 shadow-sm ring-2 ring-amber-500/20'
+                        : 'bg-amber-50/50 border border-amber-100 hover:bg-amber-100/60 hover:border-amber-300 hover:shadow-xs'
+                    }`}
+                    id="metric-class-late"
+                    title="Guji si aad u aragto kuwa soo daahay oo keliya (Click to filter Late)"
+                  >
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] uppercase font-bold text-amber-700 tracking-wider">Soo Daahay</span>
+                      <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider">Soo Daahay</span>
                       <span className="text-xs">🟡</span>
                     </div>
-                    <div className="flex items-baseline gap-1.5 mt-1">
-                      <span className="text-2xl font-black text-amber-700">{lateCount}</span>
+                    <div className="flex items-baseline gap-1.5 mt-2">
+                      <span className="text-2xl font-black text-amber-800">{lateCount}</span>
                       <span className="text-[10px] font-bold text-amber-600">Late</span>
                     </div>
-                  </div>
+                    <div className={`text-[10px] font-bold mt-1.5 flex items-center gap-1 ${
+                      studAttStatusFilter === 'Late' ? 'text-amber-800' : 'text-amber-600 group-hover:text-amber-700'
+                    }`}>
+                      {studAttStatusFilter === 'Late' ? '✓ Kuwa soo daahay' : 'Guji si aad u aragto'}
+                    </div>
+                  </button>
 
-                  <div className="p-4 bg-rose-50/50 border border-rose-100/50 rounded-2xl flex flex-col justify-between" id="metric-class-absent">
+                  {/* Card 4: Absent */}
+                  <button
+                    type="button"
+                    onClick={() => setStudAttStatusFilter(prev => prev === 'Absent' ? 'All' : 'Absent')}
+                    className={`p-4 rounded-2xl flex flex-col justify-between text-left transition-all duration-200 cursor-pointer relative overflow-hidden group active:scale-[0.98] ${
+                      studAttStatusFilter === 'Absent'
+                        ? 'bg-rose-100/90 border-2 border-rose-600 shadow-sm ring-2 ring-rose-500/20'
+                        : 'bg-rose-50/50 border border-rose-100 hover:bg-rose-100/60 hover:border-rose-300 hover:shadow-xs'
+                    }`}
+                    id="metric-class-absent"
+                    title="Guji si aad u aragto kuwa maqan oo keliya (Click to filter Absent)"
+                  >
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] uppercase font-bold text-rose-700 tracking-wider">Ma Jogo</span>
+                      <span className="text-[10px] uppercase font-bold text-rose-800 tracking-wider">Ma Jogo</span>
                       <span className="text-xs">🔴</span>
                     </div>
-                    <div className="flex items-baseline gap-1.5 mt-1">
-                      <span className="text-2xl font-black text-rose-700">{absentCount}</span>
+                    <div className="flex items-baseline gap-1.5 mt-2">
+                      <span className="text-2xl font-black text-rose-800">{absentCount}</span>
                       <span className="text-[10px] font-bold text-rose-600">Absent</span>
                     </div>
-                  </div>
+                    <div className={`text-[10px] font-bold mt-1.5 flex items-center gap-1 ${
+                      studAttStatusFilter === 'Absent' ? 'text-rose-800' : 'text-rose-600 group-hover:text-rose-700'
+                    }`}>
+                      {studAttStatusFilter === 'Absent' ? '✓ Kuwa maqan' : 'Guji si aad u aragto'}
+                    </div>
+                  </button>
 
-                  <div className="p-4 bg-slate-100 border border-slate-200/50 rounded-2xl col-span-2 lg:col-span-1 flex flex-col justify-between" id="metric-class-unlogged">
+                  {/* Card 5: Unlogged */}
+                  <button
+                    type="button"
+                    onClick={() => setStudAttStatusFilter(prev => prev === 'Unlogged' ? 'All' : 'Unlogged')}
+                    className={`p-4 rounded-2xl col-span-2 lg:col-span-1 flex flex-col justify-between text-left transition-all duration-200 cursor-pointer relative overflow-hidden group active:scale-[0.98] ${
+                      studAttStatusFilter === 'Unlogged'
+                        ? 'bg-slate-200/90 border-2 border-slate-600 shadow-sm ring-2 ring-slate-500/20'
+                        : 'bg-slate-100 border border-slate-200/60 hover:bg-slate-200/60 hover:border-slate-300 hover:shadow-xs'
+                    }`}
+                    id="metric-class-unlogged"
+                    title="Guji si aad u aragto kuwa aan weli la diiwaangelin (Click to filter Unlogged)"
+                  >
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Aon Diiwaangashanayn</span>
+                      <span className="text-[10px] uppercase font-bold text-slate-700 tracking-wider">Aan Diiwaangashanayn</span>
                       <span className="text-xs">🔘</span>
                     </div>
-                    <div className="flex items-baseline gap-1.5 mt-1">
-                      <span className="text-2xl font-black text-slate-600">{unloggedCount}</span>
+                    <div className="flex items-baseline gap-1.5 mt-2">
+                      <span className="text-2xl font-black text-slate-700">{unloggedCount}</span>
                       <span className="text-[10px] font-bold text-slate-500">Unlogged</span>
                     </div>
-                  </div>
+                    <div className={`text-[10px] font-bold mt-1.5 flex items-center gap-1 ${
+                      studAttStatusFilter === 'Unlogged' ? 'text-slate-800' : 'text-slate-500 group-hover:text-slate-700'
+                    }`}>
+                      {studAttStatusFilter === 'Unlogged' ? '✓ Aan la diiwaangelin' : 'Guji si aad u aragto'}
+                    </div>
+                  </button>
                 </div>
               </div>
 
@@ -14112,8 +14212,35 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
               <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden" id="attendance-tracking-workspace-table">
                 <div className="p-5 border-b border-slate-100 bg-slate-50/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-slate-800">
                    <div>
-                     <h4 className="font-extrabold text-sm text-slate-900">Diiwaanka Casharka & Joogitaanka</h4>
-                     <p className="text-[11px] text-slate-450">Total filtered: <span className="font-black text-slate-700">{filteredStudentsForAttendance.length}</span> students. Laba-jeer guji magaca si aad u aragto macluumaadka oo dhan.</p>
+                     <div className="flex items-center flex-wrap gap-2">
+                       <h4 className="font-extrabold text-sm text-slate-900">Diiwaanka Casharka & Joogitaanka</h4>
+                       {studAttStatusFilter !== 'All' && (
+                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1.5 shadow-xs ${
+                           studAttStatusFilter === 'Present' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
+                           studAttStatusFilter === 'Late' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                           studAttStatusFilter === 'Absent' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
+                           'bg-slate-200 text-slate-800 border border-slate-300'
+                         }`}>
+                           <span>
+                             {studAttStatusFilter === 'Present' ? '🟢 Halka Jooga (Present)' :
+                              studAttStatusFilter === 'Late' ? '🟡 Soo Daahay (Late)' :
+                              studAttStatusFilter === 'Absent' ? '🔴 Ma Jogo (Absent)' :
+                              '🔘 Aan Diiwaangashanayn (Unlogged)'}
+                           </span>
+                           <button
+                             type="button"
+                             onClick={() => setStudAttStatusFilter('All')}
+                             className="hover:bg-black/10 px-1 py-0.2 rounded font-extrabold cursor-pointer transition-colors"
+                             title="Tir-tir shaandhaynta (Show All)"
+                           >
+                             ✕
+                           </button>
+                         </span>
+                       )}
+                     </div>
+                     <p className="text-[11px] text-slate-450 mt-1">
+                       Waxaa la muujinayaa: <span className="font-black text-slate-800">{displayedStudentsForAttendance.length}</span> arday (Wadarta: {filteredStudentsForAttendance.length}). Laba-jeer guji magaca si aad u aragto macluumaadka oo dhan.
+                     </p>
                    </div>
                    <div className="flex items-center gap-2 shrink-0">
                      <button
@@ -14154,10 +14281,23 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                    </div>
                 </div>
 
-                {filteredStudentsForAttendance.length === 0 ? (
+                {displayedStudentsForAttendance.length === 0 ? (
                   <div className="text-center py-16 text-slate-400 italic text-xs font-bold bg-slate-50/20 flex flex-col items-center gap-2">
                     <AlertCircle className="w-8 h-8 text-slate-300" />
-                    Eeg shaandheynta: Ma jiraan arday buuxiya shuruudaha shaandheynta ee hadda.
+                    <span>
+                      {studAttStatusFilter !== 'All'
+                        ? `Ma jiraan arday ku jira heerka "${studAttStatusFilter}" ee taariikhda la doortay.`
+                        : 'Eeg shaandheynta: Ma jiraan arday buuxiya shuruudaha shaandheynta ee hadda.'}
+                    </span>
+                    {studAttStatusFilter !== 'All' && (
+                      <button
+                        type="button"
+                        onClick={() => setStudAttStatusFilter('All')}
+                        className="mt-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold rounded-xl transition-all cursor-pointer not-italic"
+                      >
+                        Muuji Dhammaan Ardayda (Show All)
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -14174,7 +14314,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {filteredStudentsForAttendance.map(stud => {
+                        {displayedStudentsForAttendance.map(stud => {
                           const prog = (database.progress || []).find(p => p.studentId === stud.id && p.date === studAttDate);
                           const teacherName = teachers.find(t => t.id === stud.teacherId)?.name || 'Unassigned';
                           

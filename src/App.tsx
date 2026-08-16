@@ -294,9 +294,24 @@ export default function App() {
               setDatabase(currentDb => {
                 if (!currentDb) return remoteDb;
                 
-                // Avoid recursive loops or overwrites if we are actively saving on this device
-                if (Date.now() - lastSaveTimeRef.current < 2500) {
+                // Guard: Do not overwrite if we recently saved or if remote is older
+                const isRecentlySaved = Date.now() - lastSaveTimeRef.current < 6000;
+                const remoteTime = remoteDb.lastUpdatedTime || 0;
+                const localTime = currentDb.lastUpdatedTime || 0;
+
+                if (isRecentlySaved && remoteTime <= localTime) {
                   return currentDb;
+                }
+
+                if (remoteTime > 0 && localTime > 0 && remoteTime < localTime) {
+                  return currentDb;
+                }
+
+                // If remote has fewer students than local while we recently modified, do not drop students
+                if (isRecentlySaved && Array.isArray(remoteDb.students) && Array.isArray(currentDb.students)) {
+                  if (remoteDb.students.length < currentDb.students.length) {
+                    return currentDb;
+                  }
                 }
 
                 if (JSON.stringify(currentDb) !== JSON.stringify(remoteDb)) {
@@ -367,8 +382,22 @@ export default function App() {
                   setDatabase(currentDb => {
                     if (!currentDb) return remoteDb;
                     
-                    if (Date.now() - lastSaveTimeRef.current < 2500) {
+                    const isRecentlySaved = Date.now() - lastSaveTimeRef.current < 6000;
+                    const remoteTime = remoteDb.lastUpdatedTime || 0;
+                    const localTime = currentDb.lastUpdatedTime || 0;
+
+                    if (isRecentlySaved && remoteTime <= localTime) {
                       return currentDb;
+                    }
+
+                    if (remoteTime > 0 && localTime > 0 && remoteTime < localTime) {
+                      return currentDb;
+                    }
+
+                    if (isRecentlySaved && Array.isArray(remoteDb.students) && Array.isArray(currentDb.students)) {
+                      if (remoteDb.students.length < currentDb.students.length) {
+                        return currentDb;
+                      }
                     }
 
                     if (JSON.stringify(currentDb) !== JSON.stringify(remoteDb)) {
@@ -422,6 +451,18 @@ export default function App() {
           
           setDatabase(currentDb => {
             if (!currentDb) return serverResult.data;
+            const remoteDb = serverResult.data;
+            const remoteTime = remoteDb.lastUpdatedTime || 0;
+            const localTime = currentDb.lastUpdatedTime || 0;
+
+            if (Date.now() - lastSaveTimeRef.current < 6000 && remoteTime <= localTime) {
+              return currentDb;
+            }
+
+            if (remoteTime > 0 && localTime > 0 && remoteTime < localTime) {
+              return currentDb;
+            }
+
             const currentDbStr = JSON.stringify(currentDb);
             if (currentDbStr !== serverStateStr) {
               saveDatabase(serverResult.data);
@@ -449,10 +490,10 @@ export default function App() {
       lastUpdatedTime: now
     };
 
-    // 2. Lock the listener from overwriting immediately
+    // 2. Lock the listener from overwriting immediately for the next 6 seconds
     lastSaveTimeRef.current = now;
 
-    // Optimistically save locally to localStorage and update component state
+    // Optimistically save locally to localStorage and update component state immediately
     saveDatabase(dbWithTimestamp);
     setDatabase(dbWithTimestamp);
 
@@ -467,99 +508,47 @@ export default function App() {
       return;
     }
 
-    setGlobalSaveStatus({ type: 'loading', message: 'La xiriiraya Firestore cloud...' });
+    // Show brief quick confirmation
+    setGlobalSaveStatus({ type: 'success', message: 'Si guul leh ayaa loo kaydiyay xogta!' });
+    setTimeout(() => {
+      setGlobalSaveStatus(prev => prev.type === 'success' ? { type: null, message: null } : prev);
+    }, 2500);
 
-    let directSaveSuccess = false;
+    const currentDeviceSessionId = localStorage.getItem('dugsi_session_id') || '';
 
-    // 1. Try Direct client-side Firestore flow
+    // Fire dual persistence in background:
+    // 1) Fast backend server write (atomic memory + disk + server-side partitioned Firestore)
+    const serverSavePromise = fetch(`${API_BASE}/api/database`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-User-Role': userRole || '',
+        'X-Teacher-Id': loggedTeacher?.id || '',
+        'X-Session-Id': currentDeviceSessionId
+      },
+      body: JSON.stringify(dbWithTimestamp)
+    }).then(async (res) => {
+      if (!res.ok) {
+        const errResult = await res.json().catch(() => ({}));
+        if (errResult.error === 'session_expired') {
+          handleLogout();
+          setSessionExpiredMsg("Waa lagaa saaray nidaamka sababtoo ah koontadaada waxaa laga isticmaalayaa aalad kale.");
+          setShowLogin(true);
+          setGlobalSaveStatus({ type: null, message: null });
+        }
+      }
+    }).catch(err => {
+      console.warn('[Dugsiga Subuc] Server sync background warning:', err);
+    });
+
+    // 2) Direct client-side Firestore partitioned save (if online & enabled)
     if (isDirectFirebasePreferred()) {
-      try {
-        const savePromise = saveRemoteDatabaseState(dbWithTimestamp);
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Firestore operation timed out')), 12000)
-        );
-
-        const success = await Promise.race([savePromise, timeoutPromise]);
-        
-        if (success) {
-          directSaveSuccess = true;
-          // Also sync to server in background so server-side cache and file remain identical
-          fetch(`${API_BASE}/api/database`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Session-Id': localStorage.getItem('dugsi_session_id') || ''
-            },
-            body: JSON.stringify(dbWithTimestamp)
-          }).catch(() => {});
-
-          setGlobalSaveStatus({ type: 'success', message: 'Si guul leh ayaa loo kaydiyay xogta!' });
-          setTimeout(() => {
-            setGlobalSaveStatus(prev => prev.type === 'success' ? { type: null, message: null } : prev);
-          }, 3500);
-          lastSaveTimeRef.current = Date.now();
-          return;
-        }
-      } catch (error) {
-        console.warn('[Dugsiga Subuc] Direct Firestore save attempt timed out or failed. Falling back to backend server...', error);
-      }
+      saveRemoteDatabaseState(dbWithTimestamp).catch(err => {
+        console.warn('[Dugsiga Subuc] Direct client Firestore background write notice:', err);
+      });
     }
 
-    // 2. Fallback / Standard Backend API Route Flow
-    if (!directSaveSuccess) {
-      try {
-        const currentDeviceSessionId = localStorage.getItem('dugsi_session_id') || '';
-        const savePromise = fetch(`${API_BASE}/api/database`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'X-User-Role': userRole || '',
-            'X-Teacher-Id': loggedTeacher?.id || '',
-            'X-Session-Id': currentDeviceSessionId
-          },
-          body: JSON.stringify(dbWithTimestamp)
-        });
-
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('API request timed out')), 15000)
-        );
-
-        const response = await Promise.race([savePromise, timeoutPromise]);
-        
-        if (!response.ok) {
-          const errResult = await response.json().catch(() => ({}));
-          if (errResult.error === 'session_expired') {
-            handleLogout();
-            setSessionExpiredMsg("Waa lagaa saaray nidaamka sababtoo ah koontadaada waxaa laga isticmaalayaa aalad kale.");
-            setShowLogin(true);
-            setGlobalSaveStatus({ type: null, message: null });
-            return;
-          }
-          throw new Error(errResult.message || `HTTP error ${response.status}`);
-        }
-
-        const result = await response.json();
-        if (result.success) {
-          setGlobalSaveStatus({ type: 'success', message: 'Si guul leh ayaa loo kaydiyay xogta!' });
-          setTimeout(() => {
-            setGlobalSaveStatus(prev => prev.type === 'success' ? { type: null, message: null } : prev);
-          }, 3500);
-          lastSaveTimeRef.current = Date.now();
-        } else {
-          throw new Error(result.message || 'Server returned failed status');
-        }
-      } catch (error) {
-        console.error("[Dugsiga Subuc] Failed to synchronize state update with background server.", error);
-        // Even if network fails, data is safely cached in localStorage
-        setGlobalSaveStatus({ 
-          type: 'warning', 
-          message: 'Xogta waxaa lagu kaydiyay aaladdaada. Waxaa loo gudbin doonaa cloud-ka marka khadka la helo.' 
-        });
-        setTimeout(() => {
-          setGlobalSaveStatus(prev => prev.type === 'warning' ? { type: null, message: null } : prev);
-        }, 5000);
-      }
-    }
+    await serverSavePromise;
   };
 
   const handleLoginSuccess = (role: 'admin' | 'teacher', userEntity?: any) => {
