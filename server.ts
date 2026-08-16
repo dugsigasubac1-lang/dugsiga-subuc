@@ -1003,47 +1003,69 @@ async function startServer() {
         return res.json({ initialized: true, data: currentDatabaseState });
       }
 
-      // 2. Secondary Fallback: Fetch direct document from Cloud Firestore if memory state is not populated yet
-      if (stateDocRef) {
+      // 2. Secondary Fallback: Fetch partitioned documents from Cloud Firestore if memory state is not populated yet
+      if (coreDocRef) {
         try {
-          const docSnap = await getDoc(stateDocRef);
-          if (docSnap.exists()) {
-            let remoteState = (docSnap.data() as any)?.state;
-            if (remoteState && typeof remoteState === 'object') {
-              remoteState = sanitizeDatabaseState(remoteState);
-              currentDatabaseState = remoteState;
-              fs.writeFileSync(DB_FILE, JSON.stringify(remoteState, null, 2), 'utf-8');
-              console.log('[Server API] Successfully fetched remote Firestore state directly.');
-              return res.json({ initialized: true, data: remoteState });
-            } else {
-              throw new Error('Firestore state document is empty or invalid format.');
-            }
-          } else {
-            // Document does NOT exist in Firestore yet! We need to seed it.
-            console.log('[Server API] Firestore state document does not exist. Seeding from local database.json...');
-            if (fs.existsSync(DB_FILE)) {
-              const fileContent = fs.readFileSync(DB_FILE, 'utf-8');
-              let dbState = JSON.parse(fileContent);
-              dbState = sanitizeDatabaseState(dbState);
-              currentDatabaseState = dbState;
-              
-              await setDoc(stateDocRef, { state: dbState });
-              console.log('[Server API] Successfully seeded empty Firestore with local database.json dataset.');
-              return res.json({ initialized: true, data: dbState });
-            } else {
-              return res.status(500).json({ error: 'no_database_source', message: 'No local database file found to seed Firestore.' });
+          const [coreSnap, progSnap, finSnap, logsSnap] = await Promise.all([
+            getDoc(coreDocRef).catch(() => null),
+            getDoc(progressDocRef).catch(() => null),
+            getDoc(financeDocRef).catch(() => null),
+            getDoc(logsDocRef).catch(() => null)
+          ]);
+
+          if (coreSnap && coreSnap.exists()) {
+            const coreData = coreSnap.data() as any;
+            const progData = (progSnap && progSnap.exists()) ? (progSnap.data() as any) : {};
+            const finData = (finSnap && finSnap.exists()) ? (finSnap.data() as any) : {};
+            const logsData = (logsSnap && logsSnap.exists()) ? (logsSnap.data() as any) : {};
+
+            let remoteState = {
+              teachers: coreData.teachers || [],
+              students: coreData.students || [],
+              classes: coreData.classes || [],
+              schoolLocation: coreData.schoolLocation || null,
+              landingPageSettings: coreData.landingPageSettings || null,
+              contactMessages: coreData.contactMessages || [],
+              lastUpdatedTime: coreData.lastUpdatedTime || Date.now(),
+              lastBackupDownloadDate: coreData.lastBackupDownloadDate || null,
+
+              progress: progData.progress || [],
+
+              billing: finData.billing || [],
+              invoices: finData.invoices || [],
+              moneyTransfers: finData.moneyTransfers || [],
+              xawaaladaAccounts: finData.xawaaladaAccounts || [],
+              xawaaladaTransactions: finData.xawaaladaTransactions || [],
+
+              submissions: logsData.submissions || [],
+              teacherAttendance: logsData.teacherAttendance || [],
+              notifications: logsData.notifications || [],
+              exams: logsData.exams || []
+            };
+
+            remoteState = sanitizeDatabaseState(remoteState);
+            currentDatabaseState = remoteState;
+            fs.writeFileSync(DB_FILE, JSON.stringify(remoteState, null, 2), 'utf-8');
+            console.log('[Server API] Successfully fetched partitioned Firestore state directly.');
+            return res.json({ initialized: true, data: remoteState });
+          } else if (stateDocRef) {
+            const docSnap = await getDoc(stateDocRef);
+            if (docSnap.exists()) {
+              let legacyState = (docSnap.data() as any)?.state;
+              if (legacyState && typeof legacyState === 'object') {
+                legacyState = sanitizeDatabaseState(legacyState);
+                currentDatabaseState = legacyState;
+                fs.writeFileSync(DB_FILE, JSON.stringify(legacyState, null, 2), 'utf-8');
+                return res.json({ initialized: true, data: legacyState });
+              }
             }
           }
         } catch (fbError: any) {
-          console.error('[Server API] Error reading/verifying Firestore database:', fbError);
-          // CRITICAL: We failed to contact Firestore, but Firebase IS configured.
-          // Do NOT serve the default 20-student local database.json, because doing so would
-          // cause the client to overwrite its local state and eventually overwrite Firestore.
-          // Instead, return a 503 error.
+          console.error('[Server API] Error reading Firestore database partitions:', fbError);
           return res.status(503).json({
             initialized: false,
             error: 'firestore_unavailable',
-            message: 'Firestore is currently unavailable. Please check your connection or Firestore status.',
+            message: 'Firestore is currently unavailable.',
             details: fbError instanceof Error ? fbError.message : String(fbError)
           });
         }
