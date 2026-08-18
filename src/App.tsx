@@ -66,6 +66,63 @@ export default function App() {
     };
   }, []);
 
+  // Multi-tab synchronization (BroadcastChannel + storage event)
+  // Ensures that whenever any tab modifies or saves student/teacher/billing records,
+  // all other open tabs in the same browser receive and update their state instantly (<10ms).
+  useEffect(() => {
+    let channel: BroadcastChannel | null = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        channel = new BroadcastChannel('dugsiga_subuc_tab_sync');
+        channel.onmessage = (event) => {
+          if (event.data && event.data.type === 'DB_UPDATED' && event.data.state) {
+            const newState: DatabaseState = event.data.state;
+            setDatabase(currentDb => {
+              const incomingTime = newState.lastUpdatedTime || 0;
+              const localTime = currentDb?.lastUpdatedTime || 0;
+              if (incomingTime >= localTime) {
+                console.info('[Multi-Tab Sync] Updated state from another active browser tab.');
+                return newState;
+              }
+              return currentDb;
+            });
+          }
+        };
+      }
+    } catch (e) {
+      console.warn('[Multi-Tab Sync] BroadcastChannel not supported:', e);
+    }
+
+    // Fallback: standard localStorage 'storage' event listener (cross-tab)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'banuu_jalaal_db' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          setDatabase(currentDb => {
+            const incomingTime = parsed.lastUpdatedTime || 0;
+            const localTime = currentDb?.lastUpdatedTime || 0;
+            if (incomingTime >= localTime) {
+              console.info('[Multi-Tab Storage] Synced state across tabs from localStorage.');
+              return parsed;
+            }
+            return currentDb;
+          });
+        } catch (err) {
+          console.warn('[Multi-Tab Storage] Error parsing shared localStorage update:', err);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      if (channel) {
+        channel.close();
+      }
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
   // Auto-sync when connection is restored
   useEffect(() => {
     if (!isOffline && database) {
@@ -496,6 +553,17 @@ export default function App() {
     // Optimistically save locally to localStorage and update component state immediately
     saveDatabase(dbWithTimestamp);
     setDatabase(dbWithTimestamp);
+
+    // Instant cross-tab broadcast notification
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        const channel = new BroadcastChannel('dugsiga_subuc_tab_sync');
+        channel.postMessage({ type: 'DB_UPDATED', state: dbWithTimestamp });
+        channel.close();
+      }
+    } catch (bcErr) {
+      // Ignored
+    }
 
     if (isOffline) {
       setGlobalSaveStatus({ 
