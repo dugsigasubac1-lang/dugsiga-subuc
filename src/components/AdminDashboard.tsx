@@ -60,7 +60,10 @@ import {
   Bus,
   Eye,
   Info,
-  CheckCircle2
+  CheckCircle2,
+  Sun,
+  Moon,
+  Sunrise
 } from 'lucide-react';
 import { 
   DatabaseState, 
@@ -880,6 +883,10 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   
   // Dynamic State Modals
   const [showActiveStudentsModal, setShowActiveStudentsModal] = useState<boolean>(false);
+  const [showParentsModal, setShowParentsModal] = useState<boolean>(false);
+  const [parentsModalSearchQuery, setParentsModalSearchQuery] = useState<string>('');
+  const [parentsModalStatusFilter, setParentsModalStatusFilter] = useState<'all' | 'active' | 'suspended' | 'partial'>('all');
+  const [parentsModalSessionFilter, setParentsModalSessionFilter] = useState<'all' | 'morning' | 'afternoon' | 'both'>('all');
   const [showTuitionInvoicedModal, setShowTuitionInvoicedModal] = useState<boolean>(false);
   const [tuitionInvoicedSearchQuery, setTuitionInvoicedSearchQuery] = useState<string>('');
   const [tuitionInvoicedClassFilter, setTuitionInvoicedClassFilter] = useState<string>('all');
@@ -3122,6 +3129,100 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     });
     return Object.values(parentMap).sort((a, b) => a.name.localeCompare(b.name));
   }, [activeStudents]);
+
+  // Master parents list including all students (active, suspended, partial)
+  const allParentsWithStatus = React.useMemo(() => {
+    const parentMap: { 
+      [key: string]: { 
+        id: string;
+        name: string; 
+        phone: string; 
+        students: Student[];
+        activeCount: number;
+        suspendedCount: number;
+        status: 'Active' | 'Suspended';
+        isPartiallySuspended: boolean;
+        totalMonthlyFee: number;
+        morningCount: number;
+        afternoonCount: number;
+        bothCount: number;
+        parentSessionCategory: 'Morning' | 'Afternoon' | 'Both';
+      } 
+    } = {};
+
+    (database.students || []).forEach(student => {
+      const pName = (student.parentName || '').trim();
+      const pPhone = (student.parentPhone || '').trim();
+      // Generate clean grouping key
+      const key = pPhone ? `${pPhone.toLowerCase()}|||${pName.toLowerCase()}` : (pName ? pName.toLowerCase() : student.id);
+      
+      if (!parentMap[key]) {
+        parentMap[key] = {
+          id: key,
+          name: pName || `Waalidka (${student.name})`,
+          phone: pPhone || 'Lama hayo',
+          students: [],
+          activeCount: 0,
+          suspendedCount: 0,
+          status: 'Suspended',
+          isPartiallySuspended: false,
+          totalMonthlyFee: 0,
+          morningCount: 0,
+          afternoonCount: 0,
+          bothCount: 0,
+          parentSessionCategory: 'Morning'
+        };
+      }
+
+      parentMap[key].students.push(student);
+      if (student.active) {
+        parentMap[key].activeCount += 1;
+        parentMap[key].totalMonthlyFee += Number(student.monthlyFee || 0);
+      } else {
+        parentMap[key].suspendedCount += 1;
+      }
+
+      // Track session distribution
+      const rawSession = (student.session || 'Morning').toLowerCase();
+      if (rawSession === 'afternoon') {
+        parentMap[key].afternoonCount += 1;
+      } else if (rawSession === 'both') {
+        parentMap[key].bothCount += 1;
+      } else {
+        parentMap[key].morningCount += 1;
+      }
+    });
+
+    return Object.values(parentMap).map(p => {
+      // RULE: if at least ONE student is active, parent is ACTIVE.
+      // If ALL students are suspended (activeCount === 0), parent is SUSPENDED.
+      // isPartiallySuspended = true when parent has >1 students AND activeCount > 0 AND suspendedCount > 0
+      const isActive = p.activeCount > 0;
+      const isPartial = p.activeCount > 0 && p.suspendedCount > 0;
+
+      // Determine parent's overall session category:
+      // 'Both' if:
+      //   - Parent has any student enrolled with session === 'Both', OR
+      //   - Parent has students in both Morning AND Afternoon shifts
+      // 'Morning' if parent only has Morning students
+      // 'Afternoon' if parent only has Afternoon students
+      let sessionCategory: 'Morning' | 'Afternoon' | 'Both' = 'Morning';
+      if (p.bothCount > 0 || (p.morningCount > 0 && p.afternoonCount > 0)) {
+        sessionCategory = 'Both';
+      } else if (p.afternoonCount > 0 && p.morningCount === 0) {
+        sessionCategory = 'Afternoon';
+      } else {
+        sessionCategory = 'Morning';
+      }
+
+      return {
+        ...p,
+        status: (isActive ? 'Active' : 'Suspended') as 'Active' | 'Suspended',
+        isPartiallySuspended: isPartial,
+        parentSessionCategory: sessionCategory
+      };
+    }).sort((a, b) => a.name.localeCompare(b.name));
+  }, [database.students]);
 
   const invoiceMonths = React.useMemo(() => {
     const monthsSet = new Set<string>();
@@ -6497,7 +6598,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
             </div>
 
             {/* Core Stats Counter Deck */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5">
               
               <div 
                 onClick={() => setShowActiveStudentsModal(true)}
@@ -6514,6 +6615,32 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 </div>
                 <div className="p-3.5 bg-emerald-50 text-emerald-600 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-colors shrink-0">
                   <UserCheck className="w-6 h-6" />
+                </div>
+              </div>
+
+              <div 
+                onClick={() => {
+                  setParentsModalStatusFilter('all');
+                  setParentsModalSessionFilter('all');
+                  setParentsModalSearchQuery('');
+                  setShowParentsModal(true);
+                }}
+                className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-indigo-300 transition-all active:scale-[0.99] group"
+                title="Guji si aad u aragto dhammaan waalidiinta iyo xaaladdooda (Click to view all parents & status)"
+                id="overview-parents-card"
+              >
+                <div>
+                  <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                    Parents (Waalidiinta)
+                    <span className="text-[10px] text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-indigo-50 px-1.5 py-0.5 rounded-md">View 🔍</span>
+                  </p>
+                  <p className="text-2xl lg:text-3xl font-extrabold text-indigo-700 mt-2">{allParentsWithStatus.length}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    <strong className="text-emerald-600 font-bold">{allParentsWithStatus.filter(p => p.status === 'Active').length} Active</strong> • {allParentsWithStatus.filter(p => p.status === 'Suspended').length} Suspended
+                  </p>
+                </div>
+                <div className="p-3.5 bg-indigo-50 text-indigo-600 rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-colors shrink-0">
+                  <Users className="w-6 h-6" />
                 </div>
               </div>
 
@@ -16211,6 +16338,495 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   type="button"
                   onClick={() => setShowActiveStudentsModal(false)}
                   className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
+                >
+                  Xir (Close)
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        );
+      })()}
+
+      {/* -------------------------------------------------------------
+          MODAL: ALL PARENTS & GUARDIANS BREAKDOWN (ACTIVE / SUSPENDED & SHIFTS)
+          ------------------------------------------------------------- */}
+      {showParentsModal && (() => {
+        // Filter logic:
+        // Status filter:
+        // 'all' -> all parents
+        // 'active' -> parent has at least one active student (includes partially suspended)
+        // 'suspended' -> ALL students are suspended (activeCount === 0)
+        // 'partial' -> has both active and suspended students
+        // Session filter:
+        // 'all' -> any shift
+        // 'morning' -> parent's students are Morning (or student has Morning)
+        // 'afternoon' -> parent's students are Afternoon (or student has Afternoon)
+        // 'both' -> parent has students in Both shifts (or dual-session student)
+        const filteredParents = allParentsWithStatus.filter(parent => {
+          // Status filter
+          if (parentsModalStatusFilter === 'active' && parent.status !== 'Active') return false;
+          if (parentsModalStatusFilter === 'suspended' && parent.status !== 'Suspended') return false;
+          if (parentsModalStatusFilter === 'partial' && !parent.isPartiallySuspended) return false;
+
+          // Session/Shift filter
+          if (parentsModalSessionFilter === 'morning') {
+            if (parent.parentSessionCategory !== 'Morning') return false;
+          } else if (parentsModalSessionFilter === 'afternoon') {
+            if (parent.parentSessionCategory !== 'Afternoon') return false;
+          } else if (parentsModalSessionFilter === 'both') {
+            if (parent.parentSessionCategory !== 'Both') return false;
+          }
+
+          // Search query filter
+          if (parentsModalSearchQuery.trim()) {
+            const query = parentsModalSearchQuery.toLowerCase();
+            const matchName = parent.name.toLowerCase().includes(query);
+            const matchPhone = parent.phone.toLowerCase().includes(query);
+            const matchStudent = parent.students.some(st => 
+              st.name.toLowerCase().includes(query) || 
+              (st.className && st.className.toLowerCase().includes(query)) ||
+              (st.id && st.id.toLowerCase().includes(query)) ||
+              (st.session && st.session.toLowerCase().includes(query))
+            );
+            return matchName || matchPhone || matchStudent;
+          }
+
+          return true;
+        });
+
+        const totalParentsCount = allParentsWithStatus.length;
+        const activeParentsCount = allParentsWithStatus.filter(p => p.status === 'Active').length;
+        const suspendedParentsCount = allParentsWithStatus.filter(p => p.status === 'Suspended').length;
+        const partialParentsCount = allParentsWithStatus.filter(p => p.isPartiallySuspended).length;
+        const totalChildrenCount = allParentsWithStatus.reduce((acc, p) => acc + p.students.length, 0);
+
+        // Shift distribution statistics
+        const morningParentsCount = allParentsWithStatus.filter(p => p.parentSessionCategory === 'Morning').length;
+        const afternoonParentsCount = allParentsWithStatus.filter(p => p.parentSessionCategory === 'Afternoon').length;
+        const bothShiftParentsCount = allParentsWithStatus.filter(p => p.parentSessionCategory === 'Both').length;
+
+        return (
+          <div 
+            className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 md:p-6 z-55 animate-fade-in pointer-print-none" 
+            id="parents-modal-bg"
+            onClick={(e) => {
+              if ((e.target as HTMLElement).id === 'parents-modal-bg') {
+                setShowParentsModal(false);
+              }
+            }}
+          >
+            <motion.div 
+              initial={{ scale: 0.96, opacity: 0, y: 8 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              transition={{ duration: 0.15 }}
+              className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200/80 w-full max-w-5xl h-[92vh] max-h-[900px] flex flex-col overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="px-5 py-4 sm:px-6 sm:py-5 bg-slate-900 text-white border-b border-slate-800 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-indigo-600/30 border border-indigo-400/30 text-indigo-300 rounded-xl shrink-0">
+                    <Users className="w-5 h-5 sm:w-6 sm:h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                      Liiska Waalidiinta (Parents & Guardians Registry)
+                    </h3>
+                    <p className="text-[11px] sm:text-xs text-slate-300 font-medium">
+                      Guud ahaan: <strong className="text-white">{totalParentsCount} Waalid</strong> ({totalChildrenCount} Arday) • Subax: <strong className="text-amber-300">{morningParentsCount}</strong> • Galab: <strong className="text-sky-300">{afternoonParentsCount}</strong> • Labadaba: <strong className="text-purple-300">{bothShiftParentsCount}</strong>
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setShowParentsModal(false)}
+                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
+                  title="Xir (Close)"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Quick Summary KPI Counters Bar */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 px-4 py-3 sm:px-6 sm:py-3.5 bg-slate-50 border-b border-slate-200 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setParentsModalStatusFilter('all')}
+                  className={`p-2.5 sm:p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                    parentsModalStatusFilter === 'all'
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[10px] uppercase font-black ${parentsModalStatusFilter === 'all' ? 'text-slate-300' : 'text-slate-400'}`}>Dhammaan (Total)</span>
+                    <Users className="w-3.5 h-3.5 opacity-60" />
+                  </div>
+                  <div className="text-lg sm:text-xl font-black mt-0.5">{totalParentsCount}</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setParentsModalStatusFilter('active')}
+                  className={`p-2.5 sm:p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                    parentsModalStatusFilter === 'active'
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm ring-2 ring-emerald-600/20'
+                      : 'bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-50/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[10px] uppercase font-black ${parentsModalStatusFilter === 'active' ? 'text-emerald-100' : 'text-emerald-600'}`}>Active (Firfircoon)</span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  </div>
+                  <div className="text-lg sm:text-xl font-black mt-0.5">{activeParentsCount}</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setParentsModalStatusFilter('suspended')}
+                  className={`p-2.5 sm:p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                    parentsModalStatusFilter === 'suspended'
+                      ? 'bg-rose-600 text-white border-rose-600 shadow-sm ring-2 ring-rose-600/20'
+                      : 'bg-white text-rose-800 border-rose-200 hover:bg-rose-50/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[10px] uppercase font-black ${parentsModalStatusFilter === 'suspended' ? 'text-rose-100' : 'text-rose-600'}`}>All Suspended</span>
+                    <span className="w-2 h-2 rounded-full bg-rose-400" />
+                  </div>
+                  <div className="text-lg sm:text-xl font-black mt-0.5">{suspendedParentsCount}</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setParentsModalStatusFilter('partial')}
+                  className={`p-2.5 sm:p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                    parentsModalStatusFilter === 'partial'
+                      ? 'bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-600/20'
+                      : 'bg-white text-amber-800 border-amber-200 hover:bg-amber-50/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[10px] uppercase font-black ${parentsModalStatusFilter === 'partial' ? 'text-amber-100' : 'text-amber-600'}`}>Partially Suspended</span>
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                  </div>
+                  <div className="text-lg sm:text-xl font-black mt-0.5">{partialParentsCount}</div>
+                </button>
+              </div>
+
+              {/* Shift Filter Tabs & Search Bar */}
+              <div className="px-4 py-3 sm:px-6 sm:py-3 bg-white border-b border-slate-200 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 shrink-0">
+                {/* Session Shift Filter Pills */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider mr-1 shrink-0">
+                    Wakhtiga (Shift):
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setParentsModalSessionFilter('all')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      parentsModalSessionFilter === 'all'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    Dhammaan Shiftyada
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-extrabold ${parentsModalSessionFilter === 'all' ? 'bg-indigo-700 text-white' : 'bg-white text-slate-700'}`}>
+                      {totalParentsCount}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setParentsModalSessionFilter('morning')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      parentsModalSessionFilter === 'morning'
+                        ? 'bg-amber-500 text-white shadow-xs'
+                        : 'bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100'
+                    }`}
+                  >
+                    <Sunrise className="w-3.5 h-3.5" />
+                    Subax Kaliya (Morning)
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-extrabold ${parentsModalSessionFilter === 'morning' ? 'bg-amber-600 text-white' : 'bg-amber-200 text-amber-900'}`}>
+                      {morningParentsCount}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setParentsModalSessionFilter('afternoon')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      parentsModalSessionFilter === 'afternoon'
+                        ? 'bg-sky-600 text-white shadow-xs'
+                        : 'bg-sky-50 text-sky-900 border border-sky-200 hover:bg-sky-100'
+                    }`}
+                  >
+                    <Sun className="w-3.5 h-3.5" />
+                    Galab Kaliya (Afternoon)
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-extrabold ${parentsModalSessionFilter === 'afternoon' ? 'bg-sky-700 text-white' : 'bg-sky-200 text-sky-900'}`}>
+                      {afternoonParentsCount}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setParentsModalSessionFilter('both')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      parentsModalSessionFilter === 'both'
+                        ? 'bg-purple-600 text-white shadow-xs'
+                        : 'bg-purple-50 text-purple-900 border border-purple-200 hover:bg-purple-100'
+                    }`}
+                  >
+                    <ArrowLeftRight className="w-3.5 h-3.5" />
+                    Labada Shift (Both Shifts)
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-extrabold ${parentsModalSessionFilter === 'both' ? 'bg-purple-700 text-white' : 'bg-purple-200 text-purple-900'}`}>
+                      {bothShiftParentsCount}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Search Bar */}
+                <div className="relative min-w-[240px] max-w-sm">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={parentsModalSearchQuery}
+                    onChange={(e) => setParentsModalSearchQuery(e.target.value)}
+                    placeholder="Raadi magaca, taleefanka, shift-ka..."
+                    className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all"
+                  />
+                  {parentsModalSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setParentsModalSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs font-bold cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Active Filter Reminder & Count Bar */}
+              <div className="px-4 sm:px-6 py-2 bg-indigo-50/70 border-b border-indigo-100 text-[11px] text-indigo-900 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2 truncate">
+                  <span>
+                    📌 <strong>Xulashada Firfircoon:</strong> Xaalad: <strong className="capitalize">{parentsModalStatusFilter}</strong> • Shift: <strong className="capitalize">{parentsModalSessionFilter === 'all' ? 'Dhammaan' : parentsModalSessionFilter}</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="font-semibold text-slate-600">
+                    Waxaa la muujinayaa: <strong className="text-slate-900">{filteredParents.length}</strong> / {totalParentsCount}
+                  </span>
+                  {(parentsModalStatusFilter !== 'all' || parentsModalSessionFilter !== 'all' || parentsModalSearchQuery) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setParentsModalStatusFilter('all');
+                        setParentsModalSessionFilter('all');
+                        setParentsModalSearchQuery('');
+                      }}
+                      className="text-indigo-700 hover:text-indigo-900 font-black underline cursor-pointer ml-1"
+                    >
+                      Dib u celi (Reset All)
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Scrollable Parent Cards / Table */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/60 divide-y divide-slate-100 scrollbar-thin">
+                {filteredParents.length === 0 ? (
+                  <div className="py-16 text-center bg-white rounded-2xl border border-dashed border-slate-200">
+                    <Users className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                    <p className="text-sm font-bold text-slate-700">Waalid laguma helin shuruudahan</p>
+                    <p className="text-xs text-slate-400 mt-1">Isku day inaad beddesho shaandhada shift-ka (Morning, Afternoon, Both) ama nadiifiso raadinta.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-3.5">
+                    {filteredParents.map((parent, idx) => {
+                      const isActive = parent.status === 'Active';
+                      const isPartial = parent.isPartiallySuspended;
+                      const sessionCat = parent.parentSessionCategory;
+
+                      return (
+                        <div 
+                          key={parent.id || idx}
+                          className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
+                            isActive 
+                              ? isPartial
+                                ? 'bg-white border-amber-200 hover:border-amber-300 shadow-xs ring-1 ring-amber-100'
+                                : 'bg-white border-slate-200 hover:border-indigo-300 shadow-xs'
+                              : 'bg-rose-50/40 border-rose-200/80 hover:border-rose-300'
+                          }`}
+                        >
+                          <div>
+                            {/* Parent Top Row */}
+                            <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
+                              <div className="flex items-start gap-2.5 min-w-0">
+                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
+                                  isActive 
+                                    ? isPartial 
+                                      ? 'bg-amber-100 text-amber-800' 
+                                      : 'bg-emerald-100 text-emerald-800' 
+                                    : 'bg-rose-100 text-rose-800'
+                                }`}>
+                                  {parent.name ? parent.name.charAt(0).toUpperCase() : 'W'}
+                                </div>
+                                <div className="min-w-0">
+                                  <h4 className="font-extrabold text-slate-900 text-sm capitalize truncate">
+                                    {parent.name}
+                                  </h4>
+                                  <a 
+                                    href={`tel:${parent.phone}`}
+                                    className="text-xs text-slate-500 hover:text-indigo-600 font-mono font-medium inline-flex items-center gap-1 mt-0.5 transition-colors"
+                                  >
+                                    <Phone className="w-3 h-3 text-slate-400" />
+                                    {parent.phone}
+                                  </a>
+                                </div>
+                              </div>
+
+                              {/* Status & Shift Badges */}
+                              <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                <div className="flex items-center gap-1.5">
+                                  {/* Shift Badge */}
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${
+                                    sessionCat === 'Both'
+                                      ? 'bg-purple-100 text-purple-900 border border-purple-200'
+                                      : sessionCat === 'Afternoon'
+                                        ? 'bg-sky-100 text-sky-900 border border-sky-200'
+                                        : 'bg-amber-100 text-amber-900 border border-amber-200'
+                                  }`}>
+                                    {sessionCat === 'Both' ? (
+                                      <>
+                                        <ArrowLeftRight className="w-3 h-3 text-purple-700" />
+                                        Both Shifts
+                                      </>
+                                    ) : sessionCat === 'Afternoon' ? (
+                                      <>
+                                        <Sun className="w-3 h-3 text-sky-700" />
+                                        Galab (PM)
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Sunrise className="w-3 h-3 text-amber-700" />
+                                        Subax (AM)
+                                      </>
+                                    )}
+                                  </span>
+
+                                  {/* Status Tag */}
+                                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wide ${
+                                    isActive 
+                                      ? isPartial
+                                        ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                                        : 'bg-emerald-100 text-emerald-900 border border-emerald-200' 
+                                      : 'bg-rose-100 text-rose-900 border border-rose-200'
+                                  }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${
+                                      isActive 
+                                        ? isPartial ? 'bg-amber-500' : 'bg-emerald-600' 
+                                        : 'bg-rose-600'
+                                    }`} />
+                                    {isActive ? (isPartial ? 'Active (Partial)' : 'Active') : 'Suspended'}
+                                  </span>
+                                </div>
+                                
+                                {isPartial && (
+                                  <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                    1+ Child Suspended
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Children Summary Mini Deck */}
+                            <div className="mt-3 space-y-2">
+                              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+                                <span className="flex items-center gap-1 text-slate-600">
+                                  <GraduationCap className="w-3.5 h-3.5 text-slate-400" />
+                                  Ardayda ({parent.students.length}):
+                                </span>
+                                <span className="text-[10px] font-mono">
+                                  <strong className="text-emerald-700">{parent.activeCount} Firfircoon</strong>
+                                  {parent.suspendedCount > 0 && (
+                                    <> • <strong className="text-rose-600">{parent.suspendedCount} Xayiran</strong></>
+                                  )}
+                                </span>
+                              </div>
+
+                              <div className="space-y-1.5 max-h-36 overflow-y-auto pr-0.5">
+                                {parent.students.map(st => {
+                                  const stShift = st.session || 'Morning';
+                                  return (
+                                    <div 
+                                      key={st.id} 
+                                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl border text-xs ${
+                                        st.active 
+                                          ? 'bg-slate-50/80 border-slate-100 text-slate-800' 
+                                          : 'bg-rose-50/70 border-rose-100 text-rose-800'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <span className={`w-2 h-2 rounded-full shrink-0 ${st.active ? 'bg-emerald-500' : 'bg-rose-400'}`} />
+                                        <span className="font-bold truncate capitalize">{st.name}</span>
+                                        <span className="text-[10px] text-slate-400 font-medium shrink-0">
+                                          ({st.className || 'Fasal La\'aan'})
+                                        </span>
+                                      </div>
+
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        {/* Shift Badge on each student */}
+                                        <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded flex items-center gap-0.5 ${
+                                          stShift === 'Both'
+                                            ? 'bg-purple-100 text-purple-800'
+                                            : stShift === 'Afternoon'
+                                              ? 'bg-sky-100 text-sky-800'
+                                              : 'bg-amber-100 text-amber-800'
+                                        }`}>
+                                          {stShift === 'Both' ? 'Both' : stShift === 'Afternoon' ? 'Galab' : 'Subax'}
+                                        </span>
+
+                                        <span className="font-mono font-bold text-[11px] text-slate-700">
+                                          ${st.monthlyFee || 0}
+                                        </span>
+                                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
+                                          st.active 
+                                            ? 'bg-emerald-100 text-emerald-800' 
+                                            : 'bg-rose-100 text-rose-800'
+                                        }`}>
+                                          {st.active ? 'Active' : 'Suspended'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Card Footer Info */}
+                          <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                            <span className="font-medium">Total Monthly:</span>
+                            <span className="font-mono font-bold text-slate-900">${parent.totalMonthlyFee}/bilo</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-4 py-3 sm:px-6 sm:py-4 bg-white border-t border-slate-200 flex items-center justify-between gap-3 shrink-0 pointer-print-none">
+                <div className="text-xs text-slate-600 font-medium">
+                  Isku gayn: <strong>{filteredParents.length}</strong> waalid (Subax: <strong className="text-amber-600">{morningParentsCount}</strong>, Galab: <strong className="text-sky-600">{afternoonParentsCount}</strong>, Labadaba: <strong className="text-purple-600">{bothShiftParentsCount}</strong>)
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowParentsModal(false)}
+                  className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md active:scale-98"
                 >
                   Xir (Close)
                 </button>
