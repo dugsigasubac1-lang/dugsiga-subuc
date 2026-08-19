@@ -488,15 +488,9 @@ export function sanitizeLocalDatabase(parsed: DatabaseState): DatabaseState {
 
 export function getDatabase(): DatabaseState {
   try {
-    // Force a absolute reset of old test seeds to ensure a starting clean state as requested
-    if (localStorage.getItem('did_clear_test_data_v5') !== 'true') {
-      localStorage.removeItem(LOCAL_STORAGE_KEY);
-      localStorage.setItem('did_clear_test_data_v5', 'true');
-    }
-
     const data = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (!data) {
-      // First initiation: Save defaults (completely empty starting state!)
+      // First initiation: Return default starting state
       const initial: DatabaseState = {
         teachers: [],
         students: [],

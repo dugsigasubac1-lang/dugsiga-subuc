@@ -1277,9 +1277,14 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   // -------------------------------------------------------------
   // TAB 2: STUDENT MANAGEMENT DATASTORE
   // -------------------------------------------------------------
+  const classSelectionList = database.classes && database.classes.length > 0
+    ? database.classes
+    : ['Al-Baqarah Memorization', 'Juz Amma Preparatory', 'Advanced Quran Tajweed'];
+
   const [studentSearch, setStudentSearch] = useState('');
   const [studentClassFilter, setStudentClassFilter] = useState('All');
   const [studentTeacherFilter, setStudentTeacherFilter] = useState('All');
+  const [studentSessionFilter, setStudentSessionFilter] = useState<'All' | 'Morning' | 'Afternoon' | 'Both'>('All');
   const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
   
   // Register Student Fields
@@ -1443,10 +1448,15 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   // Registered Student Filter logic
   const filteredStudents = database.students.filter(s => {
     const sSearch = studentSearch.toLowerCase();
-    const matchQuery = s.name.toLowerCase().includes(sSearch) || s.id.toLowerCase().includes(sSearch) || s.parentName.toLowerCase().includes(sSearch);
+    const matchQuery = s.name.toLowerCase().includes(sSearch) || 
+      s.id.toLowerCase().includes(sSearch) || 
+      s.parentName.toLowerCase().includes(sSearch) ||
+      (s.parentPhone && s.parentPhone.toLowerCase().includes(sSearch));
     const matchClass = studentClassFilter === 'All' ? true : s.className === studentClassFilter;
     const matchTeacher = studentTeacherFilter === 'All' ? true : (s.teacherId === studentTeacherFilter || s.secondTeacherId === studentTeacherFilter);
-    return matchQuery && matchClass && matchTeacher;
+    const sSession = s.session || 'Both';
+    const matchSession = studentSessionFilter === 'All' ? true : sSession === studentSessionFilter;
+    return matchQuery && matchClass && matchTeacher && matchSession;
   });
 
   const handleRegisterStudent = (e: React.FormEvent) => {
@@ -2099,9 +2109,6 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     if (!q) return true;
     return s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q);
   });
-
-  // Unique listed classes in configuration state
-  const classSelectionList = database.classes || Array.from(new Set(database.students.map(s => s.className)));
 
   // Filter progress entries in the date range
   const rangeProgress = database.progress.filter(p => p.date >= reportStartDate && p.date <= reportEndDate);
@@ -7427,6 +7434,18 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                             {teach.name}
                           </option>
                         ))}
+                      </select>
+
+                      <select
+                        value={studentSessionFilter}
+                        onChange={(e) => setStudentSessionFilter(e.target.value as 'All' | 'Morning' | 'Afternoon' | 'Both')}
+                        className="px-3 py-2 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl text-xs font-bold text-purple-900 outline-none cursor-pointer"
+                        title="Filter students and parents by shift/session"
+                      >
+                        <option value="All">All Shifts / Waqtiyada</option>
+                        <option value="Morning">Morning Shift (Subax 🌅)</option>
+                        <option value="Afternoon">Afternoon Shift (Galab 🌙)</option>
+                        <option value="Both">Both Shifts (Labada Galin ☀️🌙)</option>
                       </select>
 
                       {/* --- DOWNLOAD DIRECTORY MULTI-FORMAT TRIGGER --- */}
