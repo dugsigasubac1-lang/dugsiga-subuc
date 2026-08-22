@@ -11,6 +11,32 @@ import { S3Client, PutObjectCommand, GetObjectCommand, CreateBucketCommand, List
 const DB_FILE = path.join(process.cwd(), 'database.json');
 const CONFIG_FILE = path.join(process.cwd(), 'firebase-applet-config.json');
 
+function readLocalDatabaseState(): any {
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      const data = fs.readFileSync(DB_FILE, 'utf-8');
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.warn('[Server] Error reading local DB_FILE:', err);
+  }
+  return {
+    students: [],
+    teachers: [],
+    classes: [],
+    progress: [],
+    billing: [],
+    invoices: [],
+    moneyTransfers: [],
+    xawaaladaAccounts: [],
+    xawaaladaTransactions: [],
+    submissions: [],
+    teacherAttendance: [],
+    notifications: [],
+    exams: []
+  };
+}
+
 let s3Client: S3Client | null = null;
 let bucketInitialized = false;
 
@@ -335,6 +361,219 @@ function sanitizeDatabaseState(state: any): any {
   }
 
   return state;
+}
+
+interface ServerMergeOptions {
+  userRole?: 'admin' | 'teacher' | string | null;
+  explicitDeletedStudentIds?: string[];
+  explicitDeletedTeacherIds?: string[];
+  explicitDeletedExamIds?: string[];
+  explicitDeletedInvoiceIds?: string[];
+}
+
+function safeMergeServerDatabaseStates(
+  current: any,
+  incoming: any,
+  options: ServerMergeOptions = {}
+): any {
+  if (!current && !incoming) return null;
+  if (!current) return sanitizeDatabaseState(incoming);
+  if (!incoming) return sanitizeDatabaseState(current);
+
+  const isTeacher = options.userRole === 'teacher';
+
+  // 1. STUDENTS:
+  // Teachers NEVER modify students list. Always preserve current students from server/master.
+  // Admins merge students by ID, keeping all current students unless explicitly marked in deleted list.
+  let mergedStudents: any[] = [];
+  if (isTeacher) {
+    mergedStudents = Array.isArray(current.students) ? [...current.students] : [];
+  } else {
+    const deletedSet = new Set(options.explicitDeletedStudentIds || []);
+    const incomingMap = new Map<string, any>();
+    (incoming.students || []).forEach((s: any) => {
+      if (s && s.id && !deletedSet.has(s.id)) incomingMap.set(s.id, s);
+    });
+
+    const currentMap = new Map<string, any>();
+    (current.students || []).forEach((s: any) => {
+      if (s && s.id && !deletedSet.has(s.id)) currentMap.set(s.id, s);
+    });
+
+    const allIds = new Set([...Array.from(currentMap.keys()), ...Array.from(incomingMap.keys())]);
+    allIds.forEach(id => {
+      if (deletedSet.has(id)) return;
+      const inc = incomingMap.get(id);
+      const cur = currentMap.get(id);
+      if (inc && cur) mergedStudents.push({ ...cur, ...inc });
+      else if (inc) mergedStudents.push(inc);
+      else if (cur) mergedStudents.push(cur);
+    });
+  }
+
+  // 2. TEACHERS:
+  let mergedTeachers: any[] = [];
+  if (isTeacher) {
+    mergedTeachers = (current.teachers || []).map((t: any) => {
+      const inc = (incoming.teachers || []).find((it: any) => it && it.id === t.id);
+      if (inc) {
+        return {
+          ...t,
+          sessionDeviceInfo: inc.sessionDeviceInfo || t.sessionDeviceInfo,
+          currentSessionId: inc.currentSessionId || t.currentSessionId,
+          sessionLoginTime: inc.sessionLoginTime || t.sessionLoginTime
+        };
+      }
+      return t;
+    });
+  } else {
+    const deletedTeacherSet = new Set(options.explicitDeletedTeacherIds || []);
+    const incMap = new Map<string, any>();
+    (incoming.teachers || []).forEach((t: any) => {
+      if (t && t.id && !deletedTeacherSet.has(t.id)) incMap.set(t.id, t);
+    });
+    const curMap = new Map<string, any>();
+    (current.teachers || []).forEach((t: any) => {
+      if (t && t.id && !deletedTeacherSet.has(t.id)) curMap.set(t.id, t);
+    });
+    const allTIds = new Set([...Array.from(curMap.keys()), ...Array.from(incMap.keys())]);
+    allTIds.forEach(id => {
+      if (deletedTeacherSet.has(id)) return;
+      const inc = incMap.get(id);
+      const cur = curMap.get(id);
+      if (inc && cur) mergedTeachers.push({ ...cur, ...inc });
+      else if (inc) mergedTeachers.push(inc);
+      else if (cur) mergedTeachers.push(cur);
+    });
+  }
+
+  // 3. CLASSES:
+  const mergedClasses = Array.from(new Set([
+    ...(current.classes || []),
+    ...(isTeacher ? [] : (incoming.classes || []))
+  ])).filter(Boolean);
+
+  // 4. PROGRESS: Union & Update by ID
+  const progressMap = new Map<string, any>();
+  (current.progress || []).forEach((p: any) => { if (p && p.id) progressMap.set(p.id, p); });
+  (incoming.progress || []).forEach((p: any) => {
+    if (p && p.id) {
+      const curP = progressMap.get(p.id);
+      progressMap.set(p.id, curP ? { ...curP, ...p } : p);
+    }
+  });
+  const mergedProgress = Array.from(progressMap.values());
+
+  // 5. EXAMS: Union by ID
+  const deletedExamSet = new Set(options.explicitDeletedExamIds || []);
+  const examMap = new Map<string, any>();
+  (current.exams || []).forEach((ex: any) => { if (ex && ex.id && !deletedExamSet.has(ex.id)) examMap.set(ex.id, ex); });
+  (incoming.exams || []).forEach((ex: any) => {
+    if (ex && ex.id && !deletedExamSet.has(ex.id)) examMap.set(ex.id, ex);
+  });
+  const mergedExams = Array.from(examMap.values());
+
+  // 6. SUBMISSIONS: Union by ID
+  const subMap = new Map<string, any>();
+  (current.submissions || []).forEach((s: any) => { if (s && s.id) subMap.set(s.id, s); });
+  (incoming.submissions || []).forEach((s: any) => { if (s && s.id) subMap.set(s.id, s); });
+  const mergedSubmissions = Array.from(subMap.values());
+
+  // 7. TEACHER ATTENDANCE: Union by ID / teacherId+date
+  const tAttMap = new Map<string, any>();
+  (current.teacherAttendance || []).forEach((ta: any) => {
+    if (ta) {
+      const key = ta.id || `${ta.teacherId}_${ta.date}`;
+      tAttMap.set(key, ta);
+    }
+  });
+  (incoming.teacherAttendance || []).forEach((ta: any) => {
+    if (ta) {
+      const key = ta.id || `${ta.teacherId}_${ta.date}`;
+      tAttMap.set(key, ta);
+    }
+  });
+  const mergedTeacherAttendance = Array.from(tAttMap.values());
+
+  // 8. BILLING & INVOICES & FINANCIALS:
+  let mergedBilling = current.billing || [];
+  let mergedInvoices = current.invoices || [];
+  let mergedMoneyTransfers = current.moneyTransfers || [];
+  let mergedXawaaladaAccounts = current.xawaaladaAccounts || [];
+  let mergedXawaaladaTransactions = current.xawaaladaTransactions || [];
+  let mergedXawaaladaSettings = current.xawaaladaSettings || null;
+
+  if (!isTeacher) {
+    const deletedInvSet = new Set(options.explicitDeletedInvoiceIds || []);
+    const invMap = new Map<string, any>();
+    (current.invoices || []).forEach((inv: any) => { if (inv && inv.id && !deletedInvSet.has(inv.id)) invMap.set(inv.id, inv); });
+    (incoming.invoices || []).forEach((inv: any) => { if (inv && inv.id && !deletedInvSet.has(inv.id)) invMap.set(inv.id, inv); });
+    mergedInvoices = Array.from(invMap.values());
+
+    const billMap = new Map<string, any>();
+    (current.billing || []).forEach((b: any) => { if (b && b.id) billMap.set(b.id, b); });
+    (incoming.billing || []).forEach((b: any) => { if (b && b.id) billMap.set(b.id, b); });
+    mergedBilling = Array.from(billMap.values());
+
+    const mtMap = new Map<string, any>();
+    (current.moneyTransfers || []).forEach((m: any) => { if (m && m.id) mtMap.set(m.id, m); });
+    (incoming.moneyTransfers || []).forEach((m: any) => { if (m && m.id) mtMap.set(m.id, m); });
+    mergedMoneyTransfers = Array.from(mtMap.values());
+
+    const xAccMap = new Map<string, any>();
+    (current.xawaaladaAccounts || []).forEach((a: any) => { if (a && a.id) xAccMap.set(a.id, a); });
+    (incoming.xawaaladaAccounts || []).forEach((a: any) => { if (a && a.id) xAccMap.set(a.id, a); });
+    mergedXawaaladaAccounts = Array.from(xAccMap.values());
+
+    const xTxMap = new Map<string, any>();
+    (current.xawaaladaTransactions || []).forEach((t: any) => { if (t && t.id) xTxMap.set(t.id, t); });
+    (incoming.xawaaladaTransactions || []).forEach((t: any) => { if (t && t.id) xTxMap.set(t.id, t); });
+    mergedXawaaladaTransactions = Array.from(xTxMap.values());
+
+    mergedXawaaladaSettings = incoming.xawaaladaSettings || current.xawaaladaSettings || null;
+  }
+
+  // 9. NOTIFICATIONS: Union by ID & merge readBy
+  const notifMap = new Map<string, any>();
+  (current.notifications || []).forEach((n: any) => { if (n && n.id) notifMap.set(n.id, n); });
+  (incoming.notifications || []).forEach((n: any) => {
+    if (n && n.id) {
+      const curN = notifMap.get(n.id);
+      if (curN) {
+        const readByUnion = Array.from(new Set([...(curN.readBy || []), ...(n.readBy || [])]));
+        notifMap.set(n.id, { ...curN, ...n, readBy: readByUnion });
+      } else {
+        notifMap.set(n.id, n);
+      }
+    }
+  });
+  const mergedNotifications = Array.from(notifMap.values());
+
+  const lastUpdatedTime = Math.max(current.lastUpdatedTime || 0, incoming.lastUpdatedTime || 0, Date.now());
+
+  const result = {
+    teachers: mergedTeachers,
+    students: mergedStudents,
+    classes: mergedClasses,
+    schoolLocation: isTeacher ? current.schoolLocation : (incoming.schoolLocation || current.schoolLocation),
+    landingPageSettings: isTeacher ? current.landingPageSettings : (incoming.landingPageSettings || current.landingPageSettings),
+    contactMessages: Array.from(new Set([...(current.contactMessages || []), ...(incoming.contactMessages || [])])),
+    lastUpdatedTime,
+    lastBackupDownloadDate: incoming.lastBackupDownloadDate || current.lastBackupDownloadDate,
+    progress: mergedProgress,
+    billing: mergedBilling,
+    invoices: mergedInvoices,
+    moneyTransfers: mergedMoneyTransfers,
+    xawaaladaAccounts: mergedXawaaladaAccounts,
+    xawaaladaTransactions: mergedXawaaladaTransactions,
+    xawaaladaSettings: mergedXawaaladaSettings,
+    submissions: mergedSubmissions,
+    teacherAttendance: mergedTeacherAttendance,
+    notifications: mergedNotifications,
+    exams: mergedExams
+  };
+
+  return sanitizeDatabaseState(result);
 }
 
 async function startServer() {
@@ -911,9 +1150,10 @@ async function startServer() {
             };
 
             remoteState = sanitizeDatabaseState(remoteState);
-            currentDatabaseState = remoteState;
-            fs.writeFileSync(DB_FILE, JSON.stringify(remoteState, null, 2), 'utf-8');
-            console.log('Database state synchronized in real-time from Firestore cloud.');
+            const mergedWithLocal = safeMergeServerDatabaseStates(currentDatabaseState || readLocalDatabaseState(), remoteState);
+            currentDatabaseState = mergedWithLocal;
+            fs.writeFileSync(DB_FILE, JSON.stringify(mergedWithLocal, null, 2), 'utf-8');
+            console.log(`Database state synchronized in real-time from Firestore cloud (Students: ${mergedWithLocal.students?.length || 0}).`);
           }
         } catch (syncErr) {
           console.error('[Server Sync] Error resolving sync snapshot:', syncErr);
@@ -1202,9 +1442,13 @@ async function startServer() {
       dbState = sanitizeDatabaseState(dbState);
 
       // Check active sessions for protected client requests (Teacher)
-      const userRole = req.headers['x-user-role'];
+      const userRole = (req.headers['x-user-role'] as string) || '';
       const teacherId = req.headers['x-teacher-id'];
       const sessionId = req.headers['x-session-id'];
+      const deletedStudentId = req.headers['x-deleted-student-id'] as string;
+      const deletedTeacherId = req.headers['x-deleted-teacher-id'] as string;
+      const deletedExamId = req.headers['x-deleted-exam-id'] as string;
+      const deletedInvoiceId = req.headers['x-deleted-invoice-id'] as string;
 
       if (userRole === 'teacher' && teacherId && sessionId) {
         if (currentDatabaseState) {
@@ -1219,79 +1463,101 @@ async function startServer() {
         }
       }
 
+      // Safe conflict-free merge!
+      // Guarantees that students, teachers, billing and invoices are NEVER dropped when teachers sync
+      // or when multiple clients write concurrently.
+      const mergedDbState = safeMergeServerDatabaseStates(
+        currentDatabaseState || readLocalDatabaseState(),
+        dbState,
+        {
+          userRole,
+          explicitDeletedStudentIds: deletedStudentId ? [deletedStudentId] : [],
+          explicitDeletedTeacherIds: deletedTeacherId ? [deletedTeacherId] : [],
+          explicitDeletedExamIds: deletedExamId ? [deletedExamId] : [],
+          explicitDeletedInvoiceIds: deletedInvoiceId ? [deletedInvoiceId] : []
+        }
+      );
+
       // 1. Save to local disk and memory cache FIRST so data is never lost or blocked
       try {
-        fs.writeFileSync(DB_FILE, JSON.stringify(dbState, null, 2), 'utf-8');
-        currentDatabaseState = dbState;
+        fs.writeFileSync(DB_FILE, JSON.stringify(mergedDbState, null, 2), 'utf-8');
+        currentDatabaseState = mergedDbState;
       } catch (localWriteErr) {
         console.warn('[Server POST API] Local cache update error:', localWriteErr);
       }
 
       // 2. Persist to Firestore partitioned documents in parallel (background async)
       if (coreDocRef) {
-        const coreData = {
-          teachers: dbState.teachers || [],
-          students: dbState.students || [],
-          classes: dbState.classes || [],
-          schoolLocation: dbState.schoolLocation || null,
-          landingPageSettings: dbState.landingPageSettings || null,
-          contactMessages: dbState.contactMessages || [],
-          lastUpdatedTime: dbState.lastUpdatedTime || Date.now(),
-          lastBackupDownloadDate: dbState.lastBackupDownloadDate || null
-        };
-        const progressData = { progress: dbState.progress || [] };
-        const financeData = {
-          billing: dbState.billing || [],
-          invoices: dbState.invoices || [],
-          moneyTransfers: dbState.moneyTransfers || [],
-          xawaaladaAccounts: dbState.xawaaladaAccounts || [],
-          xawaaladaTransactions: dbState.xawaaladaTransactions || [],
-          xawaaladaSettings: dbState.xawaaladaSettings || null
-        };
-        const logsData = {
-          submissions: dbState.submissions || [],
-          teacherAttendance: dbState.teacherAttendance || [],
-          notifications: dbState.notifications || [],
-          exams: dbState.exams || []
-        };
+        const isTeacher = userRole === 'teacher';
 
-        // If landingPageSettings logoUrl changed, sync static branding files to disk and R2
-        if (dbState.landingPageSettings?.logoUrl) {
-          syncStaticBrandingFiles(dbState.landingPageSettings.logoUrl);
-        }
+        const progressData = { progress: mergedDbState.progress || [] };
+        const logsData = {
+          submissions: mergedDbState.submissions || [],
+          teacherAttendance: mergedDbState.teacherAttendance || [],
+          notifications: mergedDbState.notifications || [],
+          exams: mergedDbState.exams || []
+        };
 
         const writePromises: Promise<any>[] = [
-          setDoc(coreDocRef, coreData),
           setDoc(progressDocRef, progressData),
-          setDoc(financeDocRef, financeData),
           setDoc(logsDocRef, logsData)
         ];
 
-        if (stateDocRef) {
-          writePromises.push(
-            setDoc(stateDocRef, { state: dbState }).catch(err => {
-              console.warn('[Server POST API] Legacy system/state write notice:', err?.message);
-            })
-          );
+        // ONLY NON-TEACHERS (ADMINS) CAN WRITE CORE AND FINANCE TO FIRESTORE
+        if (!isTeacher) {
+          const coreData = {
+            teachers: mergedDbState.teachers || [],
+            students: mergedDbState.students || [],
+            classes: mergedDbState.classes || [],
+            schoolLocation: mergedDbState.schoolLocation || null,
+            landingPageSettings: mergedDbState.landingPageSettings || null,
+            contactMessages: mergedDbState.contactMessages || [],
+            lastUpdatedTime: mergedDbState.lastUpdatedTime || Date.now(),
+            lastBackupDownloadDate: mergedDbState.lastBackupDownloadDate || null
+          };
+          const financeData = {
+            billing: mergedDbState.billing || [],
+            invoices: mergedDbState.invoices || [],
+            moneyTransfers: mergedDbState.moneyTransfers || [],
+            xawaaladaAccounts: mergedDbState.xawaaladaAccounts || [],
+            xawaaladaTransactions: mergedDbState.xawaaladaTransactions || [],
+            xawaaladaSettings: mergedDbState.xawaaladaSettings || null
+          };
+
+          // If landingPageSettings logoUrl changed, sync static branding files to disk and R2
+          if (mergedDbState.landingPageSettings?.logoUrl) {
+            syncStaticBrandingFiles(mergedDbState.landingPageSettings.logoUrl);
+          }
+
+          writePromises.push(setDoc(coreDocRef, coreData));
+          writePromises.push(setDoc(financeDocRef, financeData));
+
+          if (stateDocRef) {
+            writePromises.push(
+              setDoc(stateDocRef, { state: mergedDbState }).catch(err => {
+                console.warn('[Server POST API] Legacy system/state write notice:', err?.message);
+              })
+            );
+          }
         }
 
         // Fire-and-forget background cloud sync to guarantee instant API response
         Promise.all(writePromises).then(() => {
-          console.log('[Server POST API] Successfully written update to Firestore partitioned cloud.');
+          console.log(`[Server POST API] Successfully written update to Firestore (User: ${userRole || 'admin'}, Students: ${mergedDbState.students?.length || 0})`);
         }).catch((fbWriteErr: any) => {
           console.warn('[Server POST API] Background Firestore write warning:', fbWriteErr?.message);
         });
       }
 
       // Check if a scheduled backup is due after a successful user save
-      if (dbState) {
+      if (mergedDbState) {
         // Run in background without blocking the response
-        checkAndRunScheduledBackup(dbState).catch(err => {
+        checkAndRunScheduledBackup(mergedDbState).catch(err => {
           console.error('[POST API Database] Scheduled backup check failed:', err);
         });
       }
 
-      return res.json({ success: true, message: 'Database saved successfully.', data: dbState });
+      return res.json({ success: true, message: 'Database saved successfully.', data: mergedDbState });
     } catch (error) {
       console.error('Error persisting database state changes:', error);
       return res.status(500).json({ error: 'Failed to persist database changes.' });

@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { getDatabase, saveDatabase, mergeSeedRemittances } from './db';
+import { getDatabase, saveDatabase, mergeSeedRemittances, safeMergeDatabaseStates } from './db';
 import { DatabaseState, Teacher } from './types';
 import { LoginScreen } from './components/LoginScreen';
 import { AdminDashboard } from './components/AdminDashboard';
@@ -351,30 +351,18 @@ export default function App() {
               setDatabase(currentDb => {
                 if (!currentDb) return remoteDb;
                 
-                // Guard: Do not overwrite if we recently saved or if remote is older
-                const isRecentlySaved = Date.now() - lastSaveTimeRef.current < 6000;
-                const remoteTime = remoteDb.lastUpdatedTime || 0;
-                const localTime = currentDb.lastUpdatedTime || 0;
-
-                if (isRecentlySaved && remoteTime <= localTime) {
+                // Guard: Do not overwrite if we recently saved locally
+                const isRecentlySaved = Date.now() - lastSaveTimeRef.current < 4000;
+                if (isRecentlySaved) {
                   return currentDb;
                 }
 
-                if (remoteTime > 0 && localTime > 0 && remoteTime < localTime) {
-                  return currentDb;
-                }
-
-                // If remote has fewer students than local while we recently modified, do not drop students
-                if (isRecentlySaved && Array.isArray(remoteDb.students) && Array.isArray(currentDb.students)) {
-                  if (remoteDb.students.length < currentDb.students.length) {
-                    return currentDb;
-                  }
-                }
-
-                if (JSON.stringify(currentDb) !== JSON.stringify(remoteDb)) {
-                  console.info('[Dugsiga Subuc] Real-time Firestore update received.');
-                  saveDatabase(remoteDb);
-                  return remoteDb;
+                // Safe merge prevents any accidental loss of students or teacher entries
+                const merged = safeMergeDatabaseStates(currentDb, remoteDb, { preferIncomingMeta: true });
+                if (JSON.stringify(currentDb) !== JSON.stringify(merged)) {
+                  console.info(`[Dugsiga Subuc] Real-time Firestore update safely synced (Students: ${merged.students?.length || 0}).`);
+                  saveDatabase(merged);
+                  return merged;
                 }
                 return currentDb;
               });
@@ -430,8 +418,10 @@ export default function App() {
           try {
             const directData = await fetchRemoteDatabaseState();
             if (active && directData) {
-              setDatabase(directData);
-              saveDatabase(directData);
+              const currentLocal = getDatabase();
+              const mergedInitial = safeMergeDatabaseStates(currentLocal, directData, { preferIncomingMeta: true });
+              setDatabase(mergedInitial);
+              saveDatabase(mergedInitial);
               
               // Subscribe as fallback
               unsubscribe = subscribeToRemoteDatabaseState((remoteDb) => {
@@ -439,28 +429,16 @@ export default function App() {
                   setDatabase(currentDb => {
                     if (!currentDb) return remoteDb;
                     
-                    const isRecentlySaved = Date.now() - lastSaveTimeRef.current < 6000;
-                    const remoteTime = remoteDb.lastUpdatedTime || 0;
-                    const localTime = currentDb.lastUpdatedTime || 0;
-
-                    if (isRecentlySaved && remoteTime <= localTime) {
+                    const isRecentlySaved = Date.now() - lastSaveTimeRef.current < 4000;
+                    if (isRecentlySaved) {
                       return currentDb;
                     }
 
-                    if (remoteTime > 0 && localTime > 0 && remoteTime < localTime) {
-                      return currentDb;
-                    }
-
-                    if (isRecentlySaved && Array.isArray(remoteDb.students) && Array.isArray(currentDb.students)) {
-                      if (remoteDb.students.length < currentDb.students.length) {
-                        return currentDb;
-                      }
-                    }
-
-                    if (JSON.stringify(currentDb) !== JSON.stringify(remoteDb)) {
-                      console.info('[Dugsiga Subuc] Real-time Firestore fallback update received.');
-                      saveDatabase(remoteDb);
-                      return remoteDb;
+                    const merged = safeMergeDatabaseStates(currentDb, remoteDb, { preferIncomingMeta: true });
+                    if (JSON.stringify(currentDb) !== JSON.stringify(merged)) {
+                      console.info(`[Dugsiga Subuc] Real-time Firestore fallback update safely synced (Students: ${merged.students?.length || 0}).`);
+                      saveDatabase(merged);
+                      return merged;
                     }
                     return currentDb;
                   });
@@ -504,26 +482,14 @@ export default function App() {
           if (Date.now() - lastSaveTimeRef.current < 4000) {
             return;
           }
-          const serverStateStr = JSON.stringify(serverResult.data);
           
           setDatabase(currentDb => {
             if (!currentDb) return serverResult.data;
             const remoteDb = serverResult.data;
-            const remoteTime = remoteDb.lastUpdatedTime || 0;
-            const localTime = currentDb.lastUpdatedTime || 0;
-
-            if (Date.now() - lastSaveTimeRef.current < 6000 && remoteTime <= localTime) {
-              return currentDb;
-            }
-
-            if (remoteTime > 0 && localTime > 0 && remoteTime < localTime) {
-              return currentDb;
-            }
-
-            const currentDbStr = JSON.stringify(currentDb);
-            if (currentDbStr !== serverStateStr) {
-              saveDatabase(serverResult.data);
-              return serverResult.data;
+            const merged = safeMergeDatabaseStates(currentDb, remoteDb, { preferIncomingMeta: true });
+            if (JSON.stringify(currentDb) !== JSON.stringify(merged)) {
+              saveDatabase(merged);
+              return merged;
             }
             return currentDb;
           });
@@ -539,7 +505,17 @@ export default function App() {
     };
   }, []);
 
-  const handleSaveDatabaseState = async (updatedDb: DatabaseState) => {
+  const handleSaveDatabaseState = async (
+    updatedDb: DatabaseState,
+    options?: {
+      userRole?: 'admin' | 'teacher' | null;
+      explicitDeletedStudentIds?: string[];
+      explicitDeletedTeacherIds?: string[];
+      explicitDeletedExamIds?: string[];
+      explicitDeletedInvoiceIds?: string[];
+    }
+  ) => {
+    const activeRole = options?.userRole || userRole || (loggedTeacher ? 'teacher' : 'admin');
     // 1. Assign new timestamp to track modifications
     const now = Date.now();
     const dbWithTimestamp = {
@@ -571,7 +547,7 @@ export default function App() {
         message: 'Aaladdaadu hadda khadka kama jirto (Offline). Xogta waxaa lagu kaydiyay gudaha aaladda waxaana loo gudbin doonaa cloud-ka marka khadku soo laabto.' 
       });
       if (isDirectFirebasePreferred()) {
-        saveRemoteDatabaseState(dbWithTimestamp).catch(() => {});
+        saveRemoteDatabaseState(dbWithTimestamp, { userRole: activeRole as any }).catch(() => {});
       }
       return;
     }
@@ -584,16 +560,31 @@ export default function App() {
 
     const currentDeviceSessionId = localStorage.getItem('dugsi_session_id') || '';
 
+    const headers: Record<string, string> = { 
+      'Content-Type': 'application/json',
+      'X-User-Role': activeRole || '',
+      'X-Teacher-Id': loggedTeacher?.id || '',
+      'X-Session-Id': currentDeviceSessionId
+    };
+
+    if (options?.explicitDeletedStudentIds?.[0]) {
+      headers['X-Deleted-Student-Id'] = options.explicitDeletedStudentIds[0];
+    }
+    if (options?.explicitDeletedTeacherIds?.[0]) {
+      headers['X-Deleted-Teacher-Id'] = options.explicitDeletedTeacherIds[0];
+    }
+    if (options?.explicitDeletedExamIds?.[0]) {
+      headers['X-Deleted-Exam-Id'] = options.explicitDeletedExamIds[0];
+    }
+    if (options?.explicitDeletedInvoiceIds?.[0]) {
+      headers['X-Deleted-Invoice-Id'] = options.explicitDeletedInvoiceIds[0];
+    }
+
     // Fire dual persistence in background:
     // 1) Fast backend server write (atomic memory + disk + server-side partitioned Firestore)
     const serverSavePromise = fetch(`${API_BASE}/api/database`, {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'X-User-Role': userRole || '',
-        'X-Teacher-Id': loggedTeacher?.id || '',
-        'X-Session-Id': currentDeviceSessionId
-      },
+      headers,
       body: JSON.stringify(dbWithTimestamp)
     }).then(async (res) => {
       if (!res.ok) {
@@ -611,7 +602,7 @@ export default function App() {
 
     // 2) Direct client-side Firestore partitioned save (if online & enabled)
     if (isDirectFirebasePreferred()) {
-      saveRemoteDatabaseState(dbWithTimestamp).catch(err => {
+      saveRemoteDatabaseState(dbWithTimestamp, { userRole: activeRole as any }).catch(err => {
         console.warn('[Dugsiga Subuc] Direct client Firestore background write notice:', err);
       });
     }

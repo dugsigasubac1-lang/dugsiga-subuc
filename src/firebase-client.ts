@@ -124,58 +124,74 @@ export async function fetchRemoteDatabaseState(): Promise<DatabaseState | null> 
   return null;
 }
 
-export async function saveRemoteDatabaseState(state: DatabaseState): Promise<boolean> {
+export async function saveRemoteDatabaseState(
+  state: DatabaseState,
+  options?: { userRole?: 'admin' | 'teacher' | null; explicitDeletedStudentIds?: string[] }
+): Promise<boolean> {
   const { coreDocRef, progressDocRef, financeDocRef, logsDocRef, stateDocRef } = initFirebaseClient();
   if (!coreDocRef) return false;
 
   try {
+    const isTeacher = options?.userRole === 'teacher';
     const clean = removeUndefined(state);
 
-    const coreData = {
-      teachers: clean.teachers || [],
-      students: clean.students || [],
-      classes: clean.classes || [],
-      schoolLocation: clean.schoolLocation || null,
-      landingPageSettings: clean.landingPageSettings || null,
-      contactMessages: clean.contactMessages || [],
-      lastUpdatedTime: clean.lastUpdatedTime || Date.now(),
-      lastBackupDownloadDate: clean.lastBackupDownloadDate || null
-    };
+    const writePromises: Promise<any>[] = [];
 
-    const progressData = {
-      progress: clean.progress || []
-    };
+    // Always update progress partition (daily work, revisions, attendance)
+    if (progressDocRef) {
+      const progressData = {
+        progress: clean.progress || []
+      };
+      writePromises.push(setDoc(progressDocRef, progressData));
+    }
 
-    const financeData = {
-      billing: clean.billing || [],
-      invoices: clean.invoices || [],
-      moneyTransfers: clean.moneyTransfers || [],
-      xawaaladaAccounts: clean.xawaaladaAccounts || [],
-      xawaaladaTransactions: clean.xawaaladaTransactions || []
-    };
+    // Always update logs partition (teacher attendance, submissions, exams, notifications)
+    if (logsDocRef) {
+      const logsData = {
+        submissions: clean.submissions || [],
+        teacherAttendance: clean.teacherAttendance || [],
+        notifications: clean.notifications || [],
+        exams: clean.exams || []
+      };
+      writePromises.push(setDoc(logsDocRef, logsData));
+    }
 
-    const logsData = {
-      submissions: clean.submissions || [],
-      teacherAttendance: clean.teacherAttendance || [],
-      notifications: clean.notifications || [],
-      exams: clean.exams || []
-    };
+    // CRITICAL: ONLY ADMIN CAN MODIFY CORE ROSTER & FINANCIAL PARTITIONS!
+    // Teachers are NEVER allowed to write core or finance documents, preventing any possible student drops.
+    if (!isTeacher) {
+      if (coreDocRef) {
+        const coreData = {
+          teachers: clean.teachers || [],
+          students: clean.students || [],
+          classes: clean.classes || [],
+          schoolLocation: clean.schoolLocation || null,
+          landingPageSettings: clean.landingPageSettings || null,
+          contactMessages: clean.contactMessages || [],
+          lastUpdatedTime: clean.lastUpdatedTime || Date.now(),
+          lastBackupDownloadDate: clean.lastBackupDownloadDate || null
+        };
+        writePromises.push(setDoc(coreDocRef, coreData));
+      }
 
-    // Save all partitions in parallel
-    const writePromises: Promise<any>[] = [
-      setDoc(coreDocRef, coreData),
-      setDoc(progressDocRef, progressData),
-      setDoc(financeDocRef, financeData),
-      setDoc(logsDocRef, logsData)
-    ];
+      if (financeDocRef) {
+        const financeData = {
+          billing: clean.billing || [],
+          invoices: clean.invoices || [],
+          moneyTransfers: clean.moneyTransfers || [],
+          xawaaladaAccounts: clean.xawaaladaAccounts || [],
+          xawaaladaTransactions: clean.xawaaladaTransactions || []
+        };
+        writePromises.push(setDoc(financeDocRef, financeData));
+      }
 
-    // Also update legacy single-doc if within size limit (with catch)
-    if (stateDocRef) {
-      writePromises.push(
-        setDoc(stateDocRef, { state: clean }).catch(err => {
-          console.warn('[Dugsiga Subuc] Legacy system/state write skipped (partitioned write active):', err?.message);
-        })
-      );
+      // Also update legacy single-doc if within size limit (with catch)
+      if (stateDocRef) {
+        writePromises.push(
+          setDoc(stateDocRef, { state: clean }).catch(err => {
+            console.warn('[Dugsiga Subuc] Legacy system/state write skipped (partitioned write active):', err?.message);
+          })
+        );
+      }
     }
 
     await Promise.all(writePromises);

@@ -990,3 +990,241 @@ export function triggerBackupDownload(db: DatabaseState) {
   downloadAnchor.click();
   downloadAnchor.removeChild(downloadAnchor);
 }
+
+export interface MergeOptions {
+  userRole?: 'admin' | 'teacher' | null;
+  explicitDeletedStudentIds?: string[];
+  explicitDeletedTeacherIds?: string[];
+  explicitDeletedExamIds?: string[];
+  explicitDeletedInvoiceIds?: string[];
+  preferIncomingMeta?: boolean;
+}
+
+/**
+ * Intelligent conflict-free state merge:
+ * 1. Guarantees that students, teachers, billing and invoices are NEVER lost or dropped when
+ *    a teacher logs in, submits attendance, or syncs from another device.
+ * 2. Merges progress records, submissions, teacher attendance and exams by ID without wiping existing entries.
+ * 3. Honors intentional admin deletions only when explicitly requested in options.
+ */
+export function safeMergeDatabaseStates(
+  current: DatabaseState | null | undefined,
+  incoming: DatabaseState | null | undefined,
+  options: MergeOptions = {}
+): DatabaseState {
+  if (!current && !incoming) return getDatabase();
+  if (!current) return sanitizeLocalDatabase(incoming!);
+  if (!incoming) return sanitizeLocalDatabase(current);
+
+  const isTeacher = options.userRole === 'teacher';
+
+  // 1. STUDENTS:
+  // If incoming is from a teacher, NEVER allow modification of students array. Always preserve current students!
+  // If incoming is from an admin, union students by ID, preserving any existing students in current
+  // unless explicitly listed in explicitDeletedStudentIds.
+  let mergedStudents: Student[] = [];
+  if (isTeacher) {
+    mergedStudents = Array.isArray(current.students) ? [...current.students] : [];
+  } else {
+    const deletedSet = new Set(options.explicitDeletedStudentIds || []);
+    const incomingStudentMap = new Map<string, Student>();
+    (incoming.students || []).forEach(s => {
+      if (s && s.id && !deletedSet.has(s.id)) {
+        incomingStudentMap.set(s.id, s);
+      }
+    });
+
+    const currentStudentMap = new Map<string, Student>();
+    (current.students || []).forEach(s => {
+      if (s && s.id && !deletedSet.has(s.id)) {
+        currentStudentMap.set(s.id, s);
+      }
+    });
+
+    const allStudentIds = new Set([...Array.from(currentStudentMap.keys()), ...Array.from(incomingStudentMap.keys())]);
+    allStudentIds.forEach(id => {
+      if (deletedSet.has(id)) return;
+      const inc = incomingStudentMap.get(id);
+      const cur = currentStudentMap.get(id);
+      if (inc && cur) {
+        mergedStudents.push({ ...cur, ...inc });
+      } else if (inc) {
+        mergedStudents.push(inc);
+      } else if (cur) {
+        mergedStudents.push(cur);
+      }
+    });
+  }
+
+  // 2. TEACHERS:
+  let mergedTeachers: Teacher[] = [];
+  if (isTeacher) {
+    // Preserve teacher roster, only allow session meta update for the active teacher
+    mergedTeachers = (current.teachers || []).map(t => {
+      const inc = (incoming.teachers || []).find(it => it && it.id === t.id);
+      if (inc) {
+        return {
+          ...t,
+          sessionDeviceInfo: inc.sessionDeviceInfo || t.sessionDeviceInfo,
+          currentSessionId: inc.currentSessionId || t.currentSessionId,
+          sessionLoginTime: inc.sessionLoginTime || t.sessionLoginTime
+        };
+      }
+      return t;
+    });
+  } else {
+    const deletedTeacherSet = new Set(options.explicitDeletedTeacherIds || []);
+    const incTeacherMap = new Map<string, Teacher>();
+    (incoming.teachers || []).forEach(t => {
+      if (t && t.id && !deletedTeacherSet.has(t.id)) incTeacherMap.set(t.id, t);
+    });
+    const curTeacherMap = new Map<string, Teacher>();
+    (current.teachers || []).forEach(t => {
+      if (t && t.id && !deletedTeacherSet.has(t.id)) curTeacherMap.set(t.id, t);
+    });
+    const allTIds = new Set([...Array.from(curTeacherMap.keys()), ...Array.from(incTeacherMap.keys())]);
+    allTIds.forEach(id => {
+      if (deletedTeacherSet.has(id)) return;
+      const inc = incTeacherMap.get(id);
+      const cur = curTeacherMap.get(id);
+      if (inc && cur) mergedTeachers.push({ ...cur, ...inc });
+      else if (inc) mergedTeachers.push(inc);
+      else if (cur) mergedTeachers.push(cur);
+    });
+  }
+
+  // 3. CLASSES:
+  const mergedClasses = Array.from(new Set([
+    ...(current.classes || []),
+    ...(isTeacher ? [] : (incoming.classes || []))
+  ])).filter(Boolean);
+
+  // 4. PROGRESS: Union & Update by ID
+  const progressMap = new Map<string, DailyProgress>();
+  (current.progress || []).forEach(p => { if (p && p.id) progressMap.set(p.id, p); });
+  (incoming.progress || []).forEach(p => {
+    if (p && p.id) {
+      const curP = progressMap.get(p.id);
+      progressMap.set(p.id, curP ? { ...curP, ...p } : p);
+    }
+  });
+  const mergedProgress = Array.from(progressMap.values());
+
+  // 5. EXAMS: Union by ID
+  const deletedExamSet = new Set(options.explicitDeletedExamIds || []);
+  const examMap = new Map<string, Exam>();
+  (current.exams || []).forEach(ex => { if (ex && ex.id && !deletedExamSet.has(ex.id)) examMap.set(ex.id, ex); });
+  (incoming.exams || []).forEach(ex => {
+    if (ex && ex.id && !deletedExamSet.has(ex.id)) {
+      examMap.set(ex.id, ex);
+    }
+  });
+  const mergedExams = Array.from(examMap.values());
+
+  // 6. SUBMISSIONS: Union by ID
+  const subMap = new Map<string, any>();
+  (current.submissions || []).forEach(sub => { if (sub && sub.id) subMap.set(sub.id, sub); });
+  (incoming.submissions || []).forEach(sub => { if (sub && sub.id) subMap.set(sub.id, sub); });
+  const mergedSubmissions = Array.from(subMap.values());
+
+  // 7. TEACHER ATTENDANCE: Union by ID / teacher+date key
+  const tAttMap = new Map<string, TeacherAttendanceRecord>();
+  (current.teacherAttendance || []).forEach(ta => {
+    if (ta) {
+      const key = ta.id || `${ta.teacherId}_${ta.date}`;
+      tAttMap.set(key, ta);
+    }
+  });
+  (incoming.teacherAttendance || []).forEach(ta => {
+    if (ta) {
+      const key = ta.id || `${ta.teacherId}_${ta.date}`;
+      tAttMap.set(key, ta);
+    }
+  });
+  const mergedTeacherAttendance = Array.from(tAttMap.values());
+
+  // 8. BILLING & INVOICES & FINANCIALS:
+  let mergedBilling = current.billing || [];
+  let mergedInvoices = current.invoices || [];
+  let mergedMoneyTransfers = current.moneyTransfers || [];
+  let mergedXawaaladaAccounts = current.xawaaladaAccounts || [];
+  let mergedXawaaladaTransactions = current.xawaaladaTransactions || [];
+  let mergedXawaaladaSettings = current.xawaaladaSettings || null;
+
+  if (!isTeacher) {
+    const deletedInvSet = new Set(options.explicitDeletedInvoiceIds || []);
+    // Invoices merge
+    const invMap = new Map<string, Invoice>();
+    (current.invoices || []).forEach(inv => { if (inv && inv.id && !deletedInvSet.has(inv.id)) invMap.set(inv.id, inv); });
+    (incoming.invoices || []).forEach(inv => { if (inv && inv.id && !deletedInvSet.has(inv.id)) invMap.set(inv.id, inv); });
+    mergedInvoices = Array.from(invMap.values());
+
+    // Billing merge
+    const billMap = new Map<string, BillingRecord>();
+    (current.billing || []).forEach(b => { if (b && b.id) billMap.set(b.id, b); });
+    (incoming.billing || []).forEach(b => { if (b && b.id) billMap.set(b.id, b); });
+    mergedBilling = Array.from(billMap.values());
+
+    // Money transfers merge
+    const mtMap = new Map<string, MoneyTransferRecord>();
+    (current.moneyTransfers || []).forEach(m => { if (m && m.id) mtMap.set(m.id, m); });
+    (incoming.moneyTransfers || []).forEach(m => { if (m && m.id) mtMap.set(m.id, m); });
+    mergedMoneyTransfers = Array.from(mtMap.values());
+
+    // Xawaalada accounts merge
+    const xAccMap = new Map<string, XawaaladaAccount>();
+    (current.xawaaladaAccounts || []).forEach(a => { if (a && a.id) xAccMap.set(a.id, a); });
+    (incoming.xawaaladaAccounts || []).forEach(a => { if (a && a.id) xAccMap.set(a.id, a); });
+    mergedXawaaladaAccounts = Array.from(xAccMap.values());
+
+    // Xawaalada transactions merge
+    const xTxMap = new Map<string, XawaaladaTransaction>();
+    (current.xawaaladaTransactions || []).forEach(t => { if (t && t.id) xTxMap.set(t.id, t); });
+    (incoming.xawaaladaTransactions || []).forEach(t => { if (t && t.id) xTxMap.set(t.id, t); });
+    mergedXawaaladaTransactions = Array.from(xTxMap.values());
+
+    mergedXawaaladaSettings = incoming.xawaaladaSettings || current.xawaaladaSettings || null;
+  }
+
+  // 9. NOTIFICATIONS: Union by ID & merge readBy
+  const notifMap = new Map<string, any>();
+  (current.notifications || []).forEach(n => { if (n && n.id) notifMap.set(n.id, n); });
+  (incoming.notifications || []).forEach(n => {
+    if (n && n.id) {
+      const curN = notifMap.get(n.id);
+      if (curN) {
+        const readByUnion = Array.from(new Set([...(curN.readBy || []), ...(n.readBy || [])]));
+        notifMap.set(n.id, { ...curN, ...n, readBy: readByUnion });
+      } else {
+        notifMap.set(n.id, n);
+      }
+    }
+  });
+  const mergedNotifications = Array.from(notifMap.values());
+
+  const lastUpdatedTime = Math.max(current.lastUpdatedTime || 0, incoming.lastUpdatedTime || 0, Date.now());
+
+  const mergedResult: DatabaseState = {
+    teachers: mergedTeachers,
+    students: mergedStudents,
+    classes: mergedClasses,
+    schoolLocation: isTeacher ? current.schoolLocation : (incoming.schoolLocation || current.schoolLocation),
+    landingPageSettings: isTeacher ? current.landingPageSettings : (incoming.landingPageSettings || current.landingPageSettings),
+    contactMessages: Array.from(new Set([...(current.contactMessages || []), ...(incoming.contactMessages || [])])),
+    lastUpdatedTime,
+    lastBackupDownloadDate: incoming.lastBackupDownloadDate || current.lastBackupDownloadDate,
+    progress: mergedProgress,
+    billing: mergedBilling,
+    invoices: mergedInvoices,
+    moneyTransfers: mergedMoneyTransfers,
+    xawaaladaAccounts: mergedXawaaladaAccounts,
+    xawaaladaTransactions: mergedXawaaladaTransactions,
+    xawaaladaSettings: mergedXawaaladaSettings,
+    submissions: mergedSubmissions,
+    teacherAttendance: mergedTeacherAttendance,
+    notifications: mergedNotifications,
+    exams: mergedExams
+  };
+
+  return sanitizeLocalDatabase(mergedResult);
+}
