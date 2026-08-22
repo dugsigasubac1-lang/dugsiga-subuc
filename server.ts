@@ -400,14 +400,60 @@ function safeMergeServerDatabaseStates(
       if (s && s.id && !deletedSet.has(s.id)) currentMap.set(s.id, s);
     });
 
+    const allUsedIds = new Set<string>();
     const allIds = new Set([...Array.from(currentMap.keys()), ...Array.from(incomingMap.keys())]);
+
     allIds.forEach(id => {
       if (deletedSet.has(id)) return;
       const inc = incomingMap.get(id);
       const cur = currentMap.get(id);
-      if (inc && cur) mergedStudents.push({ ...cur, ...inc });
-      else if (inc) mergedStudents.push(inc);
-      else if (cur) mergedStudents.push(cur);
+
+      if (inc && cur) {
+        const curName = (cur.name || '').trim().toLowerCase();
+        const incName = (inc.name || '').trim().toLowerCase();
+        const curParent = (cur.parentName || '').trim().toLowerCase();
+        const incParent = (inc.parentName || '').trim().toLowerCase();
+        const curPhone = (cur.parentPhone || '').replace(/\D/g, '');
+        const incPhone = (inc.parentPhone || '').replace(/\D/g, '');
+
+        const isSameStudent = 
+          !curName || !incName || 
+          curName === incName || 
+          (curPhone && incPhone && curPhone === incPhone) ||
+          (curParent && incParent && curParent === incParent && curName.includes(incName.split(' ')[0]));
+
+        if (isSameStudent) {
+          mergedStudents.push({ ...cur, ...inc });
+          allUsedIds.add(id);
+        } else {
+          // ID Collision: Two distinct students were registered concurrently on different devices with the same auto-generated sequential ID!
+          mergedStudents.push(cur);
+          allUsedIds.add(cur.id);
+
+          let counter = 1;
+          let newId = `DS${String(counter).padStart(3, '0')}`;
+          while (
+            allUsedIds.has(newId) || 
+            incomingMap.has(newId) || 
+            currentMap.has(newId) ||
+            allIds.has(newId)
+          ) {
+            counter++;
+            newId = `DS${String(counter).padStart(3, '0')}`;
+          }
+
+          const rekeyedStudent = { ...inc, id: newId };
+          mergedStudents.push(rekeyedStudent);
+          allUsedIds.add(newId);
+          console.warn(`[Server SafeMerge] Resolved student ID collision for "${inc.name}". Assigned: ${newId} (was ${id}).`);
+        }
+      } else if (inc) {
+        mergedStudents.push(inc);
+        allUsedIds.add(inc.id);
+      } else if (cur) {
+        mergedStudents.push(cur);
+        allUsedIds.add(cur.id);
+      }
     });
   }
 

@@ -138,16 +138,67 @@ export async function saveRemoteDatabaseState(
 
     const writePromises: Promise<any>[] = [];
 
-    // Always update progress partition (daily work, revisions, attendance)
+    // Pre-merge with latest progress partition
     if (progressDocRef) {
+      try {
+        const liveProgSnap = await getDoc(progressDocRef);
+        if (liveProgSnap && liveProgSnap.exists()) {
+          const liveProg = liveProgSnap.data() as any;
+          const tempProgMerged = safeMergeDatabaseStates(
+            {
+              teachers: [],
+              students: [],
+              progress: liveProg.progress || [],
+              billing: []
+            },
+            state,
+            { userRole: isTeacher ? 'teacher' : 'admin', preferIncomingMeta: true }
+          );
+          clean.progress = tempProgMerged.progress || clean.progress;
+        }
+      } catch (pErr) {
+        console.warn('[Firestore] Pre-save live progress merge warning:', pErr);
+      }
+
       const progressData = {
         progress: clean.progress || []
       };
       writePromises.push(setDoc(progressDocRef, progressData));
     }
 
-    // Always update logs partition (teacher attendance, submissions, exams, notifications)
+    // Pre-merge with latest logs partition (teacher attendance, submissions, exams, notifications)
     if (logsDocRef) {
+      try {
+        const liveLogsSnap = await getDoc(logsDocRef);
+        if (liveLogsSnap && liveLogsSnap.exists()) {
+          const liveLogs = liveLogsSnap.data() as any;
+          const tempLogsMerged = safeMergeDatabaseStates(
+            {
+              teachers: [],
+              students: [],
+              progress: [],
+              billing: [],
+              submissions: liveLogs.submissions || [],
+              teacherAttendance: liveLogs.teacherAttendance || [],
+              notifications: liveLogs.notifications || [],
+              exams: liveLogs.exams || []
+            },
+            state,
+            {
+              userRole: isTeacher ? 'teacher' : 'admin',
+              explicitDeletedExamIds: options?.explicitDeletedExamIds,
+              preferIncomingMeta: true
+            }
+          );
+          clean.submissions = tempLogsMerged.submissions || clean.submissions;
+          clean.teacherAttendance = tempLogsMerged.teacherAttendance || clean.teacherAttendance;
+          clean.notifications = tempLogsMerged.notifications || clean.notifications;
+          clean.exams = tempLogsMerged.exams || clean.exams;
+        }
+      } catch (lErr) {
+        console.warn('[Firestore] Pre-save live logs merge warning:', lErr);
+      }
+
       const logsData = {
         submissions: clean.submissions || [],
         teacherAttendance: clean.teacherAttendance || [],
@@ -183,12 +234,14 @@ export async function saveRemoteDatabaseState(
               {
                 userRole: 'admin',
                 explicitDeletedStudentIds: options?.explicitDeletedStudentIds,
-                preferIncomingMeta: false
+                preferIncomingMeta: true
               }
             );
             clean.students = tempMerged.students || clean.students;
             clean.teachers = tempMerged.teachers || clean.teachers;
             clean.classes = tempMerged.classes || clean.classes;
+            clean.schoolLocation = tempMerged.schoolLocation || clean.schoolLocation;
+            clean.landingPageSettings = tempMerged.landingPageSettings || clean.landingPageSettings;
           }
         } catch (mErr) {
           console.warn('[Firestore] Pre-save live core merge warning:', mErr);
@@ -227,7 +280,7 @@ export async function saveRemoteDatabaseState(
                 xawaaladaTransactions: liveFin.xawaaladaTransactions || []
               },
               state,
-              { userRole: 'admin', preferIncomingMeta: false }
+              { userRole: 'admin', preferIncomingMeta: true }
             );
             clean.billing = tempFinMerged.billing || clean.billing;
             clean.invoices = tempFinMerged.invoices || clean.invoices;
@@ -280,18 +333,18 @@ export function subscribeToRemoteDatabaseState(onUpdate: (state: DatabaseState) 
   const emitLiveState = () => {
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
-      if (!latestCore) return;
+      if (!latestCore && !latestProg && !latestFin && !latestLogs) return;
       const assembled: DatabaseState = {
-        teachers: latestCore.teachers || [],
-        students: latestCore.students || [],
-        classes: latestCore.classes || [],
-        schoolLocation: latestCore.schoolLocation || null,
-        landingPageSettings: latestCore.landingPageSettings || null,
-        contactMessages: latestCore.contactMessages || [],
-        adminAllowedSessionId: latestCore.adminAllowedSessionId,
-        adminRevokeTime: latestCore.adminRevokeTime,
-        lastUpdatedTime: latestCore.lastUpdatedTime || Date.now(),
-        lastBackupDownloadDate: latestCore.lastBackupDownloadDate || null,
+        teachers: latestCore?.teachers || [],
+        students: latestCore?.students || [],
+        classes: latestCore?.classes || [],
+        schoolLocation: latestCore?.schoolLocation || null,
+        landingPageSettings: latestCore?.landingPageSettings || null,
+        contactMessages: latestCore?.contactMessages || [],
+        adminAllowedSessionId: latestCore?.adminAllowedSessionId,
+        adminRevokeTime: latestCore?.adminRevokeTime,
+        lastUpdatedTime: latestCore?.lastUpdatedTime || Date.now(),
+        lastBackupDownloadDate: latestCore?.lastBackupDownloadDate || null,
 
         progress: latestProg?.progress || [],
 
@@ -307,8 +360,22 @@ export function subscribeToRemoteDatabaseState(onUpdate: (state: DatabaseState) 
         exams: latestLogs?.exams || []
       };
       onUpdate(assembled);
-    }, 60);
+    }, 40);
   };
+
+  // Seed initial values in parallel so live state is ready immediately
+  Promise.all([
+    coreDocRef ? getDoc(coreDocRef).catch(() => null) : null,
+    progressDocRef ? getDoc(progressDocRef).catch(() => null) : null,
+    financeDocRef ? getDoc(financeDocRef).catch(() => null) : null,
+    logsDocRef ? getDoc(logsDocRef).catch(() => null) : null
+  ]).then(([coreSnap, progSnap, finSnap, logsSnap]) => {
+    if (coreSnap && coreSnap.exists()) latestCore = coreSnap.data();
+    if (progSnap && progSnap.exists()) latestProg = progSnap.data();
+    if (finSnap && finSnap.exists()) latestFin = finSnap.data();
+    if (logsSnap && logsSnap.exists()) latestLogs = logsSnap.data();
+    emitLiveState();
+  }).catch(() => {});
 
   try {
     const unsubs: (() => void)[] = [];

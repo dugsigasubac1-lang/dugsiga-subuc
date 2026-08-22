@@ -1020,7 +1020,7 @@ export function safeMergeDatabaseStates(
 
   // 1. STUDENTS:
   // If incoming is from a teacher, NEVER allow modification of students array. Always preserve current students!
-  // If incoming is from an admin, union students by ID, preserving any existing students in current
+  // If incoming is from an admin, union students by ID, preserving ALL existing and incoming students
   // unless explicitly listed in explicitDeletedStudentIds.
   let mergedStudents: Student[] = [];
   if (isTeacher) {
@@ -1041,17 +1041,64 @@ export function safeMergeDatabaseStates(
       }
     });
 
+    const allUsedIds = new Set<string>();
     const allStudentIds = new Set([...Array.from(currentStudentMap.keys()), ...Array.from(incomingStudentMap.keys())]);
+
     allStudentIds.forEach(id => {
       if (deletedSet.has(id)) return;
       const inc = incomingStudentMap.get(id);
       const cur = currentStudentMap.get(id);
+
       if (inc && cur) {
-        mergedStudents.push(options.preferIncomingMeta ? { ...cur, ...inc } : { ...inc, ...cur });
+        // Check if they represent the same individual student
+        const curName = (cur.name || '').trim().toLowerCase();
+        const incName = (inc.name || '').trim().toLowerCase();
+        const curParent = (cur.parentName || '').trim().toLowerCase();
+        const incParent = (inc.parentName || '').trim().toLowerCase();
+        const curPhone = (cur.parentPhone || '').replace(/\D/g, '');
+        const incPhone = (inc.parentPhone || '').replace(/\D/g, '');
+
+        const isSameStudent = 
+          !curName || !incName || 
+          curName === incName || 
+          (curPhone && incPhone && curPhone === incPhone) ||
+          (curParent && incParent && curParent === incParent && curName.includes(incName.split(' ')[0]));
+
+        if (isSameStudent) {
+          // Cleanly merge student fields
+          const mergedItem = options.preferIncomingMeta ? { ...cur, ...inc } : { ...inc, ...cur };
+          mergedStudents.push(mergedItem);
+          allUsedIds.add(id);
+        } else {
+          // ID Collision: Two distinct students were registered concurrently on different devices with the same auto-generated sequential ID!
+          // Preserve current student with their ID
+          mergedStudents.push(cur);
+          allUsedIds.add(cur.id);
+
+          // Find guaranteed new unique ID for the incoming student
+          let counter = 1;
+          let newId = `DS${String(counter).padStart(3, '0')}`;
+          while (
+            allUsedIds.has(newId) || 
+            incomingStudentMap.has(newId) || 
+            currentStudentMap.has(newId) ||
+            allStudentIds.has(newId)
+          ) {
+            counter++;
+            newId = `DS${String(counter).padStart(3, '0')}`;
+          }
+
+          const rekeyedStudent = { ...inc, id: newId };
+          mergedStudents.push(rekeyedStudent);
+          allUsedIds.add(newId);
+          console.warn(`[SafeMerge Resolver] Resolved concurrent student ID collision for "${inc.name}". Assigned unique ID: ${newId} (was ${id}).`);
+        }
       } else if (inc) {
         mergedStudents.push(inc);
+        allUsedIds.add(inc.id);
       } else if (cur) {
         mergedStudents.push(cur);
+        allUsedIds.add(cur.id);
       }
     });
   }

@@ -601,6 +601,19 @@ export default function App() {
           setShowLogin(true);
           setGlobalSaveStatus({ type: null, message: null });
         }
+      } else {
+        const result = await res.json().catch(() => null);
+        if (result && result.data) {
+          setDatabase(currentDb => {
+            if (!currentDb) return result.data;
+            const merged = safeMergeDatabaseStates(currentDb, result.data, { preferIncomingMeta: true });
+            if (JSON.stringify(currentDb) !== JSON.stringify(merged)) {
+              saveDatabase(merged);
+              return merged;
+            }
+            return currentDb;
+          });
+        }
       }
     }).catch(err => {
       console.warn('[Dugsiga Subuc] Server sync background warning:', err);
@@ -608,7 +621,13 @@ export default function App() {
 
     // 2) Direct client-side Firestore partitioned save (if online & enabled)
     if (isDirectFirebasePreferred()) {
-      saveRemoteDatabaseState(dbWithTimestamp, { userRole: activeRole as any, explicitDeletedStudentIds: options?.explicitDeletedStudentIds }).catch(err => {
+      saveRemoteDatabaseState(dbWithTimestamp, {
+        userRole: activeRole as any,
+        explicitDeletedStudentIds: options?.explicitDeletedStudentIds,
+        explicitDeletedTeacherIds: options?.explicitDeletedTeacherIds,
+        explicitDeletedExamIds: options?.explicitDeletedExamIds,
+        explicitDeletedInvoiceIds: options?.explicitDeletedInvoiceIds
+      }).catch(err => {
         console.warn('[Dugsiga Subuc] Direct client Firestore background write notice:', err);
       });
     }
