@@ -271,34 +271,104 @@ export function subscribeToRemoteDatabaseState(onUpdate: (state: DatabaseState) 
   const { coreDocRef, progressDocRef, financeDocRef, logsDocRef, stateDocRef } = initFirebaseClient();
   if (!coreDocRef && !stateDocRef) return () => {};
 
+  let latestCore: any = null;
+  let latestProg: any = null;
+  let latestFin: any = null;
+  let latestLogs: any = null;
   let debounceTimer: any = null;
 
-  const triggerUpdate = async () => {
+  const emitLiveState = () => {
     if (debounceTimer) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(async () => {
-      try {
-        const fullState = await fetchRemoteDatabaseState();
-        if (fullState) {
-          onUpdate(fullState);
-        }
-      } catch (err) {
-        console.warn('[Dugsiga Subuc] Failed fetching full state during subscription trigger:', err);
-      }
-    }, 150);
+    debounceTimer = setTimeout(() => {
+      if (!latestCore) return;
+      const assembled: DatabaseState = {
+        teachers: latestCore.teachers || [],
+        students: latestCore.students || [],
+        classes: latestCore.classes || [],
+        schoolLocation: latestCore.schoolLocation || null,
+        landingPageSettings: latestCore.landingPageSettings || null,
+        contactMessages: latestCore.contactMessages || [],
+        adminAllowedSessionId: latestCore.adminAllowedSessionId,
+        adminRevokeTime: latestCore.adminRevokeTime,
+        lastUpdatedTime: latestCore.lastUpdatedTime || Date.now(),
+        lastBackupDownloadDate: latestCore.lastBackupDownloadDate || null,
+
+        progress: latestProg?.progress || [],
+
+        billing: latestFin?.billing || [],
+        invoices: latestFin?.invoices || [],
+        moneyTransfers: latestFin?.moneyTransfers || [],
+        xawaaladaAccounts: latestFin?.xawaaladaAccounts || [],
+        xawaaladaTransactions: latestFin?.xawaaladaTransactions || [],
+
+        submissions: latestLogs?.submissions || [],
+        teacherAttendance: latestLogs?.teacherAttendance || [],
+        notifications: latestLogs?.notifications || [],
+        exams: latestLogs?.exams || []
+      };
+      onUpdate(assembled);
+    }, 60);
   };
 
   try {
     const unsubs: (() => void)[] = [];
 
-    const refsToListen = [coreDocRef, progressDocRef, financeDocRef, logsDocRef, stateDocRef].filter(Boolean);
-    refsToListen.forEach((docRef) => {
-      const unsub = onSnapshot(docRef, () => {
-        triggerUpdate();
-      }, (error) => {
-        console.warn('[Dugsiga Subuc] Firestore sync listener notice:', error?.message);
-      });
-      unsubs.push(unsub);
-    });
+    if (coreDocRef) {
+      unsubs.push(
+        onSnapshot(coreDocRef, (snap) => {
+          if (snap.exists()) {
+            latestCore = snap.data();
+            emitLiveState();
+          }
+        }, (err) => console.warn('[Dugsiga Subuc] Core live listener warning:', err?.message))
+      );
+    }
+
+    if (progressDocRef) {
+      unsubs.push(
+        onSnapshot(progressDocRef, (snap) => {
+          if (snap.exists()) {
+            latestProg = snap.data();
+            emitLiveState();
+          }
+        }, (err) => console.warn('[Dugsiga Subuc] Progress live listener warning:', err?.message))
+      );
+    }
+
+    if (financeDocRef) {
+      unsubs.push(
+        onSnapshot(financeDocRef, (snap) => {
+          if (snap.exists()) {
+            latestFin = snap.data();
+            emitLiveState();
+          }
+        }, (err) => console.warn('[Dugsiga Subuc] Finance live listener warning:', err?.message))
+      );
+    }
+
+    if (logsDocRef) {
+      unsubs.push(
+        onSnapshot(logsDocRef, (snap) => {
+          if (snap.exists()) {
+            latestLogs = snap.data();
+            emitLiveState();
+          }
+        }, (err) => console.warn('[Dugsiga Subuc] Logs live listener warning:', err?.message))
+      );
+    }
+
+    if (stateDocRef) {
+      unsubs.push(
+        onSnapshot(stateDocRef, (snap) => {
+          if (snap.exists() && !latestCore) {
+            const data = snap.data() as any;
+            if (data?.state) {
+              onUpdate(data.state);
+            }
+          }
+        }, (err) => console.warn('[Dugsiga Subuc] Fallback state listener warning:', err?.message))
+      );
+    }
 
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);

@@ -1467,13 +1467,18 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       handleCancelEditStudent();
       setTimeout(() => setFeedbackMsg(''), 4000);
     } else {
-      // Auto generate ID e.g. DS001
+      // Generate guaranteed collision-free ID e.g. DS001 with random uniqueness fallback
       const currentMaxIdNum = database.students.reduce((max, s) => {
         const digits = (s.id || '').replace(/^\D+/g, ''); // Extract all trailing digits
         const parsed = parseInt(digits, 10);
         return !isNaN(parsed) && parsed > max ? parsed : max;
       }, 0);
-      const nextId = `DS${String(currentMaxIdNum + 1).padStart(3, '0')}`;
+      
+      const candidateId = `DS${String(currentMaxIdNum + 1).padStart(3, '0')}`;
+      const isExisting = database.students.some(s => s.id === candidateId);
+      const nextId = isExisting 
+        ? `DS${String(currentMaxIdNum + 1).padStart(3, '0')}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
+        : candidateId;
 
       const newStudent: Student = {
         id: nextId,
