@@ -289,6 +289,8 @@ export interface DatabaseState {
   landingPageSettings?: LandingPageSettings;
   contactMessages?: ContactMessage[];
   adminSessionId?: string; // Active session tracking for concurrent device login control
+  adminAllowedSessionId?: string; // If set, restricts active admin session to this specific device session ID
+  adminRevokeTime?: number; // Timestamp of when other devices were revoked
   invoices?: Invoice[];
   lastBackupDownloadDate?: string; // YYYY-MM-DD format to track local D:\ system backup reminders
   lastUpdatedTime?: number; // timestamp to prevent accidental overwrite of newer cloud state with older local state

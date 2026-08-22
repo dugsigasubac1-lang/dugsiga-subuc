@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { DatabaseState } from './types';
+import { safeMergeDatabaseStates } from './db';
 import appConfig from '../firebase-applet-config.json';
 
 const firebaseConfig = {
@@ -160,6 +161,39 @@ export async function saveRemoteDatabaseState(
     // Teachers are NEVER allowed to write core or finance documents, preventing any possible student drops.
     if (!isTeacher) {
       if (coreDocRef) {
+        // Pre-merge with latest core on Firestore to protect multi-device concurrency
+        try {
+          const liveCoreSnap = await getDoc(coreDocRef);
+          if (liveCoreSnap && liveCoreSnap.exists()) {
+            const liveCore = liveCoreSnap.data() as any;
+            const tempMerged = safeMergeDatabaseStates(
+              {
+                teachers: liveCore.teachers || [],
+                students: liveCore.students || [],
+                classes: liveCore.classes || [],
+                contactMessages: liveCore.contactMessages || [],
+                schoolLocation: liveCore.schoolLocation,
+                landingPageSettings: liveCore.landingPageSettings,
+                adminAllowedSessionId: liveCore.adminAllowedSessionId,
+                adminRevokeTime: liveCore.adminRevokeTime,
+                progress: [],
+                billing: []
+              },
+              state,
+              {
+                userRole: 'admin',
+                explicitDeletedStudentIds: options?.explicitDeletedStudentIds,
+                preferIncomingMeta: false
+              }
+            );
+            clean.students = tempMerged.students || clean.students;
+            clean.teachers = tempMerged.teachers || clean.teachers;
+            clean.classes = tempMerged.classes || clean.classes;
+          }
+        } catch (mErr) {
+          console.warn('[Firestore] Pre-save live core merge warning:', mErr);
+        }
+
         const coreData = {
           teachers: clean.teachers || [],
           students: clean.students || [],
@@ -167,6 +201,8 @@ export async function saveRemoteDatabaseState(
           schoolLocation: clean.schoolLocation || null,
           landingPageSettings: clean.landingPageSettings || null,
           contactMessages: clean.contactMessages || [],
+          adminAllowedSessionId: clean.adminAllowedSessionId || null,
+          adminRevokeTime: clean.adminRevokeTime || null,
           lastUpdatedTime: clean.lastUpdatedTime || Date.now(),
           lastBackupDownloadDate: clean.lastBackupDownloadDate || null
         };
@@ -174,6 +210,35 @@ export async function saveRemoteDatabaseState(
       }
 
       if (financeDocRef) {
+        // Pre-merge with latest finance on Firestore
+        try {
+          const liveFinSnap = await getDoc(financeDocRef);
+          if (liveFinSnap && liveFinSnap.exists()) {
+            const liveFin = liveFinSnap.data() as any;
+            const tempFinMerged = safeMergeDatabaseStates(
+              {
+                teachers: [],
+                students: [],
+                progress: [],
+                billing: liveFin.billing || [],
+                invoices: liveFin.invoices || [],
+                moneyTransfers: liveFin.moneyTransfers || [],
+                xawaaladaAccounts: liveFin.xawaaladaAccounts || [],
+                xawaaladaTransactions: liveFin.xawaaladaTransactions || []
+              },
+              state,
+              { userRole: 'admin', preferIncomingMeta: false }
+            );
+            clean.billing = tempFinMerged.billing || clean.billing;
+            clean.invoices = tempFinMerged.invoices || clean.invoices;
+            clean.moneyTransfers = tempFinMerged.moneyTransfers || clean.moneyTransfers;
+            clean.xawaaladaAccounts = tempFinMerged.xawaaladaAccounts || clean.xawaaladaAccounts;
+            clean.xawaaladaTransactions = tempFinMerged.xawaaladaTransactions || clean.xawaaladaTransactions;
+          }
+        } catch (finErr) {
+          console.warn('[Firestore] Pre-save live finance merge warning:', finErr);
+        }
+
         const financeData = {
           billing: clean.billing || [],
           invoices: clean.invoices || [],
@@ -219,7 +284,7 @@ export function subscribeToRemoteDatabaseState(onUpdate: (state: DatabaseState) 
       } catch (err) {
         console.warn('[Dugsiga Subuc] Failed fetching full state during subscription trigger:', err);
       }
-    }, 400);
+    }, 150);
   };
 
   try {

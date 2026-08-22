@@ -268,7 +268,7 @@ export default function App() {
     }
   }, [database, userRole, loggedTeacher]);
 
-  // Real-time concurrent login validation (logs active session out if hijacked by another device)
+  // Real-time concurrent login validation (logs active session out if hijacked by another device or revoked)
   useEffect(() => {
     if (!database) return;
     const currentDeviceSessionId = localStorage.getItem('dugsi_session_id');
@@ -279,6 +279,14 @@ export default function App() {
       if (dbTeacher && dbTeacher.currentSessionId && dbTeacher.currentSessionId !== currentDeviceSessionId) {
         handleLogout();
         setSessionExpiredMsg("Waa lagaa saaray nidaamka sababtoo ah koontadaada waxaa laga isticmaalayaa aalad kale.");
+        setShowLogin(true);
+      }
+    }
+
+    if (userRole === 'admin') {
+      if (database.adminAllowedSessionId && database.adminAllowedSessionId !== currentDeviceSessionId) {
+        handleLogout();
+        setSessionExpiredMsg("Waa lagaa saaray nidaamka sababtoo ah Maamuluhu wuxuu dalbaday in laga baxo dhammaan aaladaha kale.");
         setShowLogin(true);
       }
     }
@@ -352,7 +360,7 @@ export default function App() {
                 if (!currentDb) return remoteDb;
                 
                 // Guard: Do not overwrite if we recently saved locally
-                const isRecentlySaved = Date.now() - lastSaveTimeRef.current < 4000;
+                const isRecentlySaved = Date.now() - lastSaveTimeRef.current < 800;
                 if (isRecentlySaved) {
                   return currentDb;
                 }
@@ -429,7 +437,7 @@ export default function App() {
                   setDatabase(currentDb => {
                     if (!currentDb) return remoteDb;
                     
-                    const isRecentlySaved = Date.now() - lastSaveTimeRef.current < 4000;
+                    const isRecentlySaved = Date.now() - lastSaveTimeRef.current < 800;
                     if (isRecentlySaved) {
                       return currentDb;
                     }
@@ -463,23 +471,21 @@ export default function App() {
     };
   }, []);
 
-  // Poll the database server every 2 seconds for real-time multi-device sync
+  // Poll the database server every 2.5 seconds for real-time multi-device sync
   useEffect(() => {
-    if (isDirectFirebasePreferred()) {
-      return; // Handled dynamically via live Firestore observer
-    }
     let active = true;
 
     const intervalId = setInterval(async () => {
-      if (Date.now() - lastSaveTimeRef.current < 4000) {
+      if (Date.now() - lastSaveTimeRef.current < 800) {
         return;
       }
       try {
         const res = await fetch(`${API_BASE}/api/database?_t=${Date.now()}`);
+        if (!res.ok) return;
         const serverResult = await res.json();
         
         if (active && serverResult && serverResult.initialized && serverResult.data) {
-          if (Date.now() - lastSaveTimeRef.current < 4000) {
+          if (Date.now() - lastSaveTimeRef.current < 800) {
             return;
           }
           
@@ -497,7 +503,7 @@ export default function App() {
       } catch (error) {
         // Handled silently
       }
-    }, 2000);
+    }, 2500);
 
     return () => {
       active = false;
@@ -523,7 +529,7 @@ export default function App() {
       lastUpdatedTime: now
     };
 
-    // 2. Lock the listener from overwriting immediately for the next 6 seconds
+    // 2. Lock the listener briefly to prevent echo overwrite
     lastSaveTimeRef.current = now;
 
     // Optimistically save locally to localStorage and update component state immediately
@@ -547,7 +553,7 @@ export default function App() {
         message: 'Aaladdaadu hadda khadka kama jirto (Offline). Xogta waxaa lagu kaydiyay gudaha aaladda waxaana loo gudbin doonaa cloud-ka marka khadku soo laabto.' 
       });
       if (isDirectFirebasePreferred()) {
-        saveRemoteDatabaseState(dbWithTimestamp, { userRole: activeRole as any }).catch(() => {});
+        saveRemoteDatabaseState(dbWithTimestamp, { userRole: activeRole as any, explicitDeletedStudentIds: options?.explicitDeletedStudentIds }).catch(() => {});
       }
       return;
     }
@@ -602,7 +608,7 @@ export default function App() {
 
     // 2) Direct client-side Firestore partitioned save (if online & enabled)
     if (isDirectFirebasePreferred()) {
-      saveRemoteDatabaseState(dbWithTimestamp, { userRole: activeRole as any }).catch(err => {
+      saveRemoteDatabaseState(dbWithTimestamp, { userRole: activeRole as any, explicitDeletedStudentIds: options?.explicitDeletedStudentIds }).catch(err => {
         console.warn('[Dugsiga Subuc] Direct client Firestore background write notice:', err);
       });
     }

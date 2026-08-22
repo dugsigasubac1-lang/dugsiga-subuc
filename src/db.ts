@@ -1047,7 +1047,7 @@ export function safeMergeDatabaseStates(
       const inc = incomingStudentMap.get(id);
       const cur = currentStudentMap.get(id);
       if (inc && cur) {
-        mergedStudents.push({ ...cur, ...inc });
+        mergedStudents.push(options.preferIncomingMeta ? { ...cur, ...inc } : { ...inc, ...cur });
       } else if (inc) {
         mergedStudents.push(inc);
       } else if (cur) {
@@ -1211,6 +1211,9 @@ export function safeMergeDatabaseStates(
     schoolLocation: isTeacher ? current.schoolLocation : (incoming.schoolLocation || current.schoolLocation),
     landingPageSettings: isTeacher ? current.landingPageSettings : (incoming.landingPageSettings || current.landingPageSettings),
     contactMessages: Array.from(new Set([...(current.contactMessages || []), ...(incoming.contactMessages || [])])),
+    adminSessionId: incoming.adminSessionId || current.adminSessionId,
+    adminAllowedSessionId: incoming.adminAllowedSessionId !== undefined ? incoming.adminAllowedSessionId : current.adminAllowedSessionId,
+    adminRevokeTime: incoming.adminRevokeTime || current.adminRevokeTime,
     lastUpdatedTime,
     lastBackupDownloadDate: incoming.lastBackupDownloadDate || current.lastBackupDownloadDate,
     progress: mergedProgress,

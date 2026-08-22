@@ -63,7 +63,8 @@ import {
   CheckCircle2,
   Sun,
   Moon,
-  Sunrise
+  Sunrise,
+  ShieldAlert
 } from 'lucide-react';
 import { 
   DatabaseState, 
@@ -799,76 +800,30 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     });
   };
 
-  // Prune notifications older than 24 hours automatically on mount or update
-  useEffect(() => {
-    if (database.notifications && database.notifications.length > 0) {
-      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const freshNotifs = database.notifications.filter(n => n.timestamp >= oneDayAgo);
-      if (freshNotifs.length !== database.notifications.length) {
+  const handleRevokeOtherDevicesClick = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Ka Saar Aaladaha Kale (Logout Other Devices)",
+      message: "Ma hubtaa inaad ka saarto dhammaan aaladaha kale ee uu maamuluhu hadda kaga furan yahay? Aaladdan aad hadda isticmaalayso kaliya ayaa furan doonta oo sii shaqayn doonta.",
+      accentColor: "amber",
+      confirmText: "Haa, Ka Saar Aaladaha Kale",
+      onConfirm: () => {
+        let currentDeviceSessionId = localStorage.getItem('dugsi_session_id');
+        if (!currentDeviceSessionId) {
+          currentDeviceSessionId = 'sess_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
+          localStorage.setItem('dugsi_session_id', currentDeviceSessionId);
+        }
         onSaveDatabase({
           ...database,
-          notifications: freshNotifs
+          adminAllowedSessionId: currentDeviceSessionId,
+          adminSessionId: currentDeviceSessionId,
+          adminRevokeTime: Date.now()
         });
+        setFeedbackMsg("Dhammaan aaladaha kale ee maamulaha waa laga saaray! Aaladdan kaliya ayaa hadda furan.");
+        setConfirmModal(null);
       }
-    }
-  }, [database.notifications, onSaveDatabase]);
-
-  // Auto-mark notifications as read when relevant tabs are active
-  useEffect(() => {
-    if ((activeTab === 'submissions' || activeTab === 'reports') && attendanceUnreadCount > 0) {
-      const updated = systemNotifications.map(n => {
-        if (n.type === 'attendance' && n.senderRole !== 'admin' && !n.readBy.includes('admin')) {
-          return { ...n, readBy: [...n.readBy, 'admin'] };
-        }
-        return n;
-      });
-      onSaveDatabase({
-        ...database,
-        notifications: updated
-      });
-    }
-  }, [activeTab, attendanceUnreadCount]);
-
-  useEffect(() => {
-    if ((activeTab === 'submissions' || activeTab === 'exams') && examsUnreadCount > 0) {
-      const updated = systemNotifications.map(n => {
-        if (n.type === 'exam' && n.senderRole !== 'admin' && !n.readBy.includes('admin')) {
-          return { ...n, readBy: [...n.readBy, 'admin'] };
-        }
-        return n;
-      });
-      onSaveDatabase({
-        ...database,
-        notifications: updated
-      });
-    }
-  }, [activeTab, examsUnreadCount]);
-
-  // Auto-sync existing parent invoices with student billing on mount
-  useEffect(() => {
-    if (database.invoices && database.invoices.length > 0) {
-      let updatedBilling = [...database.billing];
-      let changed = false;
-      
-      for (const inv of database.invoices) {
-        if (inv.recipientType === 'parent' && inv.studentId) {
-          const synced = syncInvoiceToBilling(inv, updatedBilling, database.students);
-          if (JSON.stringify(synced) !== JSON.stringify(updatedBilling)) {
-            updatedBilling = synced;
-            changed = true;
-          }
-        }
-      }
-      
-      if (changed) {
-        console.log("Auto-syncing pre-existing invoices to billing on mount...");
-        onSaveDatabase({
-          ...database,
-          billing: updatedBilling
-        });
-      }
-    }
-  }, []);
+    });
+  };
 
   const navigationTabs = [
     { id: 'overview', label: 'Muuqaalka Guud', icon: LayoutGrid },
@@ -6208,7 +6163,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       </div>
 
       {/* Footer Profile and Sign Out */}
-      <div className="pt-6 mt-6 border-t border-slate-900/60 space-y-4 shrink-0">
+      <div className="pt-6 mt-6 border-t border-slate-900/60 space-y-3 shrink-0">
         <div className="px-3 flex flex-col">
           <span className="font-semibold text-white text-sm tracking-tight truncate leading-tight">
             yaxye cabdisalan mohamed
@@ -6217,6 +6172,16 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
             Admin
           </span>
         </div>
+
+        <button
+          type="button"
+          onClick={handleRevokeOtherDevicesClick}
+          className="w-full py-2 px-3 bg-amber-950/20 hover:bg-amber-900/40 text-amber-300 font-semibold text-xs tracking-wide rounded-xl transition-all inline-flex items-center gap-2.5 cursor-pointer border border-amber-500/20"
+          title="Ka saar dhammaan aaladaha kale ee uu maamuluhu kaga furan yahay"
+        >
+          <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+          <span className="truncate">Ka saar aaladaha kale</span>
+        </button>
 
         <button
           type="button"
@@ -6251,6 +6216,15 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
         </div>
         
         <div className="flex items-center gap-1.5 relative">
+          <button
+            type="button"
+            onClick={handleRevokeOtherDevicesClick}
+            className="p-2 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-slate-900/55 transition-colors cursor-pointer"
+            title="Ka saar dhammaan aaladaha kale ee maamulaha"
+          >
+            <ShieldAlert className="w-5 h-5" />
+          </button>
+
           <button
             type="button"
             onClick={() => setShowNotifPopup(!showNotifPopup)}
@@ -6492,6 +6466,17 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
               </AnimatePresence>
             </div>
             
+            <button
+              type="button"
+              onClick={handleRevokeOtherDevicesClick}
+              className="py-2.5 px-3.5 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs uppercase tracking-wider rounded-xl transition-all duration-200 border border-amber-300 flex items-center gap-2 cursor-pointer shadow-sm"
+              title="Ka saar dhammaan aaladaha kale ee uu maamuluhu kaga furan yahay"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <span className="hidden sm:inline">Ka saar aaladaha kale</span>
+              <span className="sm:hidden">Aaladaha</span>
+            </button>
+
             <button
               onClick={onLogout}
               className="py-2.5 px-4 bg-slate-50 hover:bg-red-50 text-slate-700 hover:text-red-700 font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all duration-200 border border-slate-200/60 flex items-center gap-2 hover:border-red-200 cursor-pointer shadow-sm"
