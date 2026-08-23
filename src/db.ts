@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DatabaseState, Teacher, Student, DailyProgress, BillingRecord, Exam, MoneyTransferRecord, TeacherAttendanceRecord, SchoolLocationSettings, LandingPageSettings, Invoice, XawaaladaAccount, XawaaladaTransaction } from './types';
+import { DatabaseState, Teacher, Student, DailyProgress, BillingRecord, Exam, MoneyTransferRecord, TeacherAttendanceRecord, SchoolLocationSettings, LandingPageSettings, Invoice, XawaaladaAccount, XawaaladaTransaction, ContactMessage } from './types';
 
 /// Let's create some beautiful, realistic seed data
 const DEFAULT_TEACHERS: Teacher[] = [];
@@ -1065,9 +1065,26 @@ export function safeMergeDatabaseStates(
           (curParent && incParent && curParent === incParent && curName.includes(incName.split(' ')[0]));
 
         if (isSameStudent) {
-          // Cleanly merge student fields
-          const mergedItem = options.preferIncomingMeta ? { ...cur, ...inc } : { ...inc, ...cur };
-          mergedStudents.push(mergedItem);
+          // Cleanly merge student fields and media collections
+          const baseMerged = options.preferIncomingMeta ? { ...cur, ...inc } : { ...inc, ...cur };
+          
+          // Union photos array
+          const mergedPhotos = Array.from(new Set([...(cur.photos || []), ...(inc.photos || [])])).filter(Boolean);
+          if (mergedPhotos.length > 0) baseMerged.photos = mergedPhotos;
+
+          // Union recorded voice recitation items
+          const voiceMap = new Map<string, any>();
+          (cur.voices || []).forEach(v => { if (v && v.url) voiceMap.set(v.url, v); });
+          (inc.voices || []).forEach(v => { if (v && v.url) voiceMap.set(v.url, v); });
+          if (voiceMap.size > 0) baseMerged.voices = Array.from(voiceMap.values());
+
+          // Union recorded video items
+          const videoMap = new Map<string, any>();
+          (cur.videos || []).forEach(v => { if (v && v.url) videoMap.set(v.url, v); });
+          (inc.videos || []).forEach(v => { if (v && v.url) videoMap.set(v.url, v); });
+          if (videoMap.size > 0) baseMerged.videos = Array.from(videoMap.values());
+
+          mergedStudents.push(baseMerged);
           allUsedIds.add(id);
         } else {
           // ID Collision: Two distinct students were registered concurrently on different devices with the same auto-generated sequential ID!
@@ -1134,7 +1151,7 @@ export function safeMergeDatabaseStates(
       if (deletedTeacherSet.has(id)) return;
       const inc = incTeacherMap.get(id);
       const cur = curTeacherMap.get(id);
-      if (inc && cur) mergedTeachers.push({ ...cur, ...inc });
+      if (inc && cur) mergedTeachers.push(options.preferIncomingMeta ? { ...cur, ...inc } : { ...inc, ...cur });
       else if (inc) mergedTeachers.push(inc);
       else if (cur) mergedTeachers.push(cur);
     });
@@ -1163,7 +1180,8 @@ export function safeMergeDatabaseStates(
   (current.exams || []).forEach(ex => { if (ex && ex.id && !deletedExamSet.has(ex.id)) examMap.set(ex.id, ex); });
   (incoming.exams || []).forEach(ex => {
     if (ex && ex.id && !deletedExamSet.has(ex.id)) {
-      examMap.set(ex.id, ex);
+      const curEx = examMap.get(ex.id);
+      examMap.set(ex.id, curEx ? { ...curEx, ...ex } : ex);
     }
   });
   const mergedExams = Array.from(examMap.values());
@@ -1171,7 +1189,12 @@ export function safeMergeDatabaseStates(
   // 6. SUBMISSIONS: Union by ID
   const subMap = new Map<string, any>();
   (current.submissions || []).forEach(sub => { if (sub && sub.id) subMap.set(sub.id, sub); });
-  (incoming.submissions || []).forEach(sub => { if (sub && sub.id) subMap.set(sub.id, sub); });
+  (incoming.submissions || []).forEach(sub => {
+    if (sub && sub.id) {
+      const curSub = subMap.get(sub.id);
+      subMap.set(sub.id, curSub ? { ...curSub, ...sub } : sub);
+    }
+  });
   const mergedSubmissions = Array.from(subMap.values());
 
   // 7. TEACHER ATTENDANCE: Union by ID / teacher+date key
@@ -1185,7 +1208,8 @@ export function safeMergeDatabaseStates(
   (incoming.teacherAttendance || []).forEach(ta => {
     if (ta) {
       const key = ta.id || `${ta.teacherId}_${ta.date}`;
-      tAttMap.set(key, ta);
+      const curTa = tAttMap.get(key);
+      tAttMap.set(key, curTa ? { ...curTa, ...ta } : ta);
     }
   });
   const mergedTeacherAttendance = Array.from(tAttMap.values());
@@ -1203,31 +1227,56 @@ export function safeMergeDatabaseStates(
     // Invoices merge
     const invMap = new Map<string, Invoice>();
     (current.invoices || []).forEach(inv => { if (inv && inv.id && !deletedInvSet.has(inv.id)) invMap.set(inv.id, inv); });
-    (incoming.invoices || []).forEach(inv => { if (inv && inv.id && !deletedInvSet.has(inv.id)) invMap.set(inv.id, inv); });
+    (incoming.invoices || []).forEach(inv => {
+      if (inv && inv.id && !deletedInvSet.has(inv.id)) {
+        const curInv = invMap.get(inv.id);
+        invMap.set(inv.id, curInv ? { ...curInv, ...inv } : inv);
+      }
+    });
     mergedInvoices = Array.from(invMap.values());
 
     // Billing merge
     const billMap = new Map<string, BillingRecord>();
     (current.billing || []).forEach(b => { if (b && b.id) billMap.set(b.id, b); });
-    (incoming.billing || []).forEach(b => { if (b && b.id) billMap.set(b.id, b); });
+    (incoming.billing || []).forEach(b => {
+      if (b && b.id) {
+        const curB = billMap.get(b.id);
+        billMap.set(b.id, curB ? { ...curB, ...b } : b);
+      }
+    });
     mergedBilling = Array.from(billMap.values());
 
     // Money transfers merge
     const mtMap = new Map<string, MoneyTransferRecord>();
     (current.moneyTransfers || []).forEach(m => { if (m && m.id) mtMap.set(m.id, m); });
-    (incoming.moneyTransfers || []).forEach(m => { if (m && m.id) mtMap.set(m.id, m); });
+    (incoming.moneyTransfers || []).forEach(m => {
+      if (m && m.id) {
+        const curM = mtMap.get(m.id);
+        mtMap.set(m.id, curM ? { ...curM, ...m } : m);
+      }
+    });
     mergedMoneyTransfers = Array.from(mtMap.values());
 
     // Xawaalada accounts merge
     const xAccMap = new Map<string, XawaaladaAccount>();
     (current.xawaaladaAccounts || []).forEach(a => { if (a && a.id) xAccMap.set(a.id, a); });
-    (incoming.xawaaladaAccounts || []).forEach(a => { if (a && a.id) xAccMap.set(a.id, a); });
+    (incoming.xawaaladaAccounts || []).forEach(a => {
+      if (a && a.id) {
+        const curA = xAccMap.get(a.id);
+        xAccMap.set(a.id, curA ? { ...curA, ...a } : a);
+      }
+    });
     mergedXawaaladaAccounts = Array.from(xAccMap.values());
 
     // Xawaalada transactions merge
     const xTxMap = new Map<string, XawaaladaTransaction>();
     (current.xawaaladaTransactions || []).forEach(t => { if (t && t.id) xTxMap.set(t.id, t); });
-    (incoming.xawaaladaTransactions || []).forEach(t => { if (t && t.id) xTxMap.set(t.id, t); });
+    (incoming.xawaaladaTransactions || []).forEach(t => {
+      if (t && t.id) {
+        const curTx = xTxMap.get(t.id);
+        xTxMap.set(t.id, curTx ? { ...curTx, ...t } : t);
+      }
+    });
     mergedXawaaladaTransactions = Array.from(xTxMap.values());
 
     mergedXawaaladaSettings = incoming.xawaaladaSettings || current.xawaaladaSettings || null;
@@ -1249,15 +1298,26 @@ export function safeMergeDatabaseStates(
   });
   const mergedNotifications = Array.from(notifMap.values());
 
+  // 10. CONTACT MESSAGES: Union by ID
+  const msgMap = new Map<string, ContactMessage>();
+  (current.contactMessages || []).forEach(m => { if (m && m.id) msgMap.set(m.id, m); });
+  (incoming.contactMessages || []).forEach(m => {
+    if (m && m.id) {
+      const curM = msgMap.get(m.id);
+      msgMap.set(m.id, curM ? { ...curM, ...m } : m);
+    }
+  });
+  const mergedContactMessages = Array.from(msgMap.values());
+
   const lastUpdatedTime = Math.max(current.lastUpdatedTime || 0, incoming.lastUpdatedTime || 0, Date.now());
 
   const mergedResult: DatabaseState = {
     teachers: mergedTeachers,
     students: mergedStudents,
     classes: mergedClasses,
-    schoolLocation: isTeacher ? current.schoolLocation : (incoming.schoolLocation || current.schoolLocation),
-    landingPageSettings: isTeacher ? current.landingPageSettings : (incoming.landingPageSettings || current.landingPageSettings),
-    contactMessages: Array.from(new Set([...(current.contactMessages || []), ...(incoming.contactMessages || [])])),
+    schoolLocation: isTeacher ? current.schoolLocation : (incoming.schoolLocation ? { ...current.schoolLocation, ...incoming.schoolLocation } : current.schoolLocation),
+    landingPageSettings: isTeacher ? current.landingPageSettings : (incoming.landingPageSettings ? { ...current.landingPageSettings, ...incoming.landingPageSettings } : current.landingPageSettings),
+    contactMessages: mergedContactMessages,
     adminSessionId: incoming.adminSessionId || current.adminSessionId,
     adminAllowedSessionId: incoming.adminAllowedSessionId !== undefined ? incoming.adminAllowedSessionId : current.adminAllowedSessionId,
     adminRevokeTime: incoming.adminRevokeTime || current.adminRevokeTime,

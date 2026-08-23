@@ -100,6 +100,7 @@ export async function fetchRemoteDatabaseState(): Promise<DatabaseState | null> 
         moneyTransfers: finData.moneyTransfers || [],
         xawaaladaAccounts: finData.xawaaladaAccounts || [],
         xawaaladaTransactions: finData.xawaaladaTransactions || [],
+        xawaaladaSettings: finData.xawaaladaSettings || null,
 
         submissions: logsData.submissions || [],
         teacherAttendance: logsData.teacherAttendance || [],
@@ -127,7 +128,13 @@ export async function fetchRemoteDatabaseState(): Promise<DatabaseState | null> 
 
 export async function saveRemoteDatabaseState(
   state: DatabaseState,
-  options?: { userRole?: 'admin' | 'teacher' | null; explicitDeletedStudentIds?: string[] }
+  options?: {
+    userRole?: 'admin' | 'teacher' | null;
+    explicitDeletedStudentIds?: string[];
+    explicitDeletedTeacherIds?: string[];
+    explicitDeletedExamIds?: string[];
+    explicitDeletedInvoiceIds?: string[];
+  }
 ): Promise<boolean> {
   const { coreDocRef, progressDocRef, financeDocRef, logsDocRef, stateDocRef } = initFirebaseClient();
   if (!coreDocRef) return false;
@@ -234,6 +241,7 @@ export async function saveRemoteDatabaseState(
               {
                 userRole: 'admin',
                 explicitDeletedStudentIds: options?.explicitDeletedStudentIds,
+                explicitDeletedTeacherIds: options?.explicitDeletedTeacherIds,
                 preferIncomingMeta: true
               }
             );
@@ -242,6 +250,7 @@ export async function saveRemoteDatabaseState(
             clean.classes = tempMerged.classes || clean.classes;
             clean.schoolLocation = tempMerged.schoolLocation || clean.schoolLocation;
             clean.landingPageSettings = tempMerged.landingPageSettings || clean.landingPageSettings;
+            clean.contactMessages = tempMerged.contactMessages || clean.contactMessages;
           }
         } catch (mErr) {
           console.warn('[Firestore] Pre-save live core merge warning:', mErr);
@@ -277,16 +286,22 @@ export async function saveRemoteDatabaseState(
                 invoices: liveFin.invoices || [],
                 moneyTransfers: liveFin.moneyTransfers || [],
                 xawaaladaAccounts: liveFin.xawaaladaAccounts || [],
-                xawaaladaTransactions: liveFin.xawaaladaTransactions || []
+                xawaaladaTransactions: liveFin.xawaaladaTransactions || [],
+                xawaaladaSettings: liveFin.xawaaladaSettings || null
               },
               state,
-              { userRole: 'admin', preferIncomingMeta: true }
+              {
+                userRole: 'admin',
+                explicitDeletedInvoiceIds: options?.explicitDeletedInvoiceIds,
+                preferIncomingMeta: true
+              }
             );
             clean.billing = tempFinMerged.billing || clean.billing;
             clean.invoices = tempFinMerged.invoices || clean.invoices;
             clean.moneyTransfers = tempFinMerged.moneyTransfers || clean.moneyTransfers;
             clean.xawaaladaAccounts = tempFinMerged.xawaaladaAccounts || clean.xawaaladaAccounts;
             clean.xawaaladaTransactions = tempFinMerged.xawaaladaTransactions || clean.xawaaladaTransactions;
+            clean.xawaaladaSettings = tempFinMerged.xawaaladaSettings || clean.xawaaladaSettings;
           }
         } catch (finErr) {
           console.warn('[Firestore] Pre-save live finance merge warning:', finErr);
@@ -297,7 +312,8 @@ export async function saveRemoteDatabaseState(
           invoices: clean.invoices || [],
           moneyTransfers: clean.moneyTransfers || [],
           xawaaladaAccounts: clean.xawaaladaAccounts || [],
-          xawaaladaTransactions: clean.xawaaladaTransactions || []
+          xawaaladaTransactions: clean.xawaaladaTransactions || [],
+          xawaaladaSettings: clean.xawaaladaSettings || null
         };
         writePromises.push(setDoc(financeDocRef, financeData));
       }
@@ -353,6 +369,7 @@ export function subscribeToRemoteDatabaseState(onUpdate: (state: DatabaseState) 
         moneyTransfers: latestFin?.moneyTransfers || [],
         xawaaladaAccounts: latestFin?.xawaaladaAccounts || [],
         xawaaladaTransactions: latestFin?.xawaaladaTransactions || [],
+        xawaaladaSettings: latestFin?.xawaaladaSettings || null,
 
         submissions: latestLogs?.submissions || [],
         teacherAttendance: latestLogs?.teacherAttendance || [],
