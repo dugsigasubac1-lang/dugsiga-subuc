@@ -463,12 +463,12 @@ export default function App() {
     };
   }, []);
 
-  // Poll the database server every 2.5 seconds for real-time multi-device sync
+  // Poll the database server every 2 seconds for real-time multi-device sync
   useEffect(() => {
     let active = true;
 
     const intervalId = setInterval(async () => {
-      if (Date.now() - lastSaveTimeRef.current < 800) {
+      if (Date.now() - lastSaveTimeRef.current < 500) {
         return;
       }
       try {
@@ -477,13 +477,26 @@ export default function App() {
         const serverResult = await res.json();
         
         if (active && serverResult && serverResult.initialized && serverResult.data) {
-          if (Date.now() - lastSaveTimeRef.current < 800) {
+          if (Date.now() - lastSaveTimeRef.current < 500) {
             return;
           }
           
+          const remoteDb = serverResult.data;
+          const currentDeviceSessionId = localStorage.getItem('dugsi_session_id');
+
+          // Active session takeover check directly during polling
+          const currentRole = localStorage.getItem('dugsi_user_role');
+          if (currentRole === 'admin' && currentDeviceSessionId && remoteDb.adminAllowedSessionId) {
+            if (remoteDb.adminAllowedSessionId !== currentDeviceSessionId) {
+              handleLogout();
+              setSessionExpiredMsg("Waa lagaa saaray nidaamka sababtoo ah koontadaada Maamulaha waxaa laga galay aalad kale.");
+              setShowLogin(true);
+              return;
+            }
+          }
+
           setDatabase(currentDb => {
-            if (!currentDb) return serverResult.data;
-            const remoteDb = serverResult.data;
+            if (!currentDb) return remoteDb;
             const merged = safeMergeDatabaseStates(currentDb, remoteDb, { preferIncomingMeta: true });
             if (JSON.stringify(currentDb) !== JSON.stringify(merged)) {
               saveDatabase(merged);
@@ -495,7 +508,7 @@ export default function App() {
       } catch (error) {
         // Handled silently
       }
-    }, 2500);
+    }, 2000);
 
     return () => {
       active = false;

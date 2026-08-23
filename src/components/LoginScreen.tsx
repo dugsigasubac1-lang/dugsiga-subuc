@@ -39,7 +39,16 @@ interface LoginScreenProps {
   database: DatabaseState;
   onLoginSuccess: (role: 'admin' | 'teacher', userEntity?: any) => void;
   onBackToLanding?: () => void;
-  onSaveDatabase: (updatedDb: DatabaseState) => void;
+  onSaveDatabase: (
+    updatedDb: DatabaseState,
+    options?: {
+      userRole?: 'admin' | 'teacher' | null;
+      explicitDeletedStudentIds?: string[];
+      explicitDeletedTeacherIds?: string[];
+      explicitDeletedExamIds?: string[];
+      explicitDeletedInvoiceIds?: string[];
+    }
+  ) => void;
   sessionExpiredMsg: string | null;
   onClearExpiredMsg: () => void;
 }
@@ -75,14 +84,18 @@ export function LoginScreen({
 
     if (activeTab === 'admin') {
       if (username.trim() === 'yaxyecabdisalanmohamed1234@gmail.com' && password.trim() === 'yaxye6189600') {
-        // Update the active admin session ID in database so other devices using this same admin account are logged out
+        // Generate a fresh new unique session token for this login session
+        const freshSessionId = 'admin_sess_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
+        localStorage.setItem('dugsi_session_id', freshSessionId);
+
+        // Update the active admin session ID in database so other devices using this same admin account are logged out immediately
         const updatedDb = {
           ...database,
-          adminAllowedSessionId: currentDeviceSessionId,
-          adminSessionId: currentDeviceSessionId,
+          adminAllowedSessionId: freshSessionId,
+          adminSessionId: freshSessionId,
           lastUpdatedTime: Date.now()
         };
-        onSaveDatabase(updatedDb);
+        onSaveDatabase(updatedDb, { userRole: 'admin' });
         onLoginSuccess('admin');
       } else {
         setError('Magaca adeegsadaha ama erayga sirta ah ee Maamulaha waa khalad.');

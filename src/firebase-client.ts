@@ -90,6 +90,9 @@ export async function fetchRemoteDatabaseState(): Promise<DatabaseState | null> 
         schoolLocation: coreData.schoolLocation,
         landingPageSettings: coreData.landingPageSettings,
         contactMessages: coreData.contactMessages || [],
+        adminSessionId: coreData.adminSessionId,
+        adminAllowedSessionId: coreData.adminAllowedSessionId,
+        adminRevokeTime: coreData.adminRevokeTime,
         lastUpdatedTime: coreData.lastUpdatedTime || Date.now(),
         lastBackupDownloadDate: coreData.lastBackupDownloadDate,
 

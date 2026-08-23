@@ -1551,6 +1551,19 @@ async function startServer() {
         }
       }
 
+      if (userRole === 'admin' && sessionId) {
+        if (currentDatabaseState && currentDatabaseState.adminAllowedSessionId) {
+          // If the incoming admin payload doesn't establish a new adminAllowedSessionId and differs from current active admin session
+          if (dbState.adminAllowedSessionId !== sessionId && currentDatabaseState.adminAllowedSessionId !== sessionId) {
+            console.warn(`[Security] Admin session expired. Requested: ${sessionId}, Server: ${currentDatabaseState.adminAllowedSessionId}`);
+            return res.status(403).json({
+              error: 'session_expired',
+              message: 'You have been logged out because your Admin account was logged into from another device.'
+            });
+          }
+        }
+      }
+
       // Safe conflict-free merge!
       // Guarantees that students, teachers, billing and invoices are NEVER dropped when teachers sync
       // or when multiple clients write concurrently.
