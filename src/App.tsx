@@ -282,6 +282,14 @@ export default function App() {
         setShowLogin(true);
       }
     }
+
+    if (userRole === 'admin') {
+      if (database.adminAllowedSessionId && database.adminAllowedSessionId !== currentDeviceSessionId) {
+        handleLogout();
+        setSessionExpiredMsg("Waa lagaa saaray nidaamka sababtoo ah koontadaada Maamulaha waxaa laga galay aalad kale.");
+        setShowLogin(true);
+      }
+    }
   }, [database, userRole, loggedTeacher]);
 
   // Initialize Database on Mount and synchronize across all devices

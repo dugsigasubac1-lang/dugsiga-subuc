@@ -75,7 +75,14 @@ export function LoginScreen({
 
     if (activeTab === 'admin') {
       if (username.trim() === 'yaxyecabdisalanmohamed1234@gmail.com' && password.trim() === 'yaxye6189600') {
-        // Multi-device Admin access is fully supported across Phone, Laptop, Tablet, Desktop
+        // Update the active admin session ID in database so other devices using this same admin account are logged out
+        const updatedDb = {
+          ...database,
+          adminAllowedSessionId: currentDeviceSessionId,
+          adminSessionId: currentDeviceSessionId,
+          lastUpdatedTime: Date.now()
+        };
+        onSaveDatabase(updatedDb);
         onLoginSuccess('admin');
       } else {
         setError('Magaca adeegsadaha ama erayga sirta ah ee Maamulaha waa khalad.');
