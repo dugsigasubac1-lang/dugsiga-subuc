@@ -433,6 +433,18 @@ export function sanitizeLocalDatabase(parsed: DatabaseState): DatabaseState {
 
   // 6. Generic Sweep of any remaining old BJ- prefixes in the state to ensure DS uniformity
   if (parsed && typeof parsed === 'object') {
+    if (Array.isArray(parsed.students)) {
+      const seenIds = new Set<string>();
+      const dedupedStudents: any[] = [];
+      parsed.students.forEach((s: any) => {
+        if (s && s.id && !seenIds.has(s.id)) {
+          seenIds.add(s.id);
+          dedupedStudents.push(s);
+        }
+      });
+      parsed.students = dedupedStudents;
+    }
+
     const fixPrefix = (val: any): any => {
       if (typeof val === 'string') {
         return val.replace(/BJ-/g, 'DS');
@@ -1050,66 +1062,27 @@ export function safeMergeDatabaseStates(
       const cur = currentStudentMap.get(id);
 
       if (inc && cur) {
-        // Check if they represent the same individual student
-        const curName = (cur.name || '').trim().toLowerCase();
-        const incName = (inc.name || '').trim().toLowerCase();
-        const curParent = (cur.parentName || '').trim().toLowerCase();
-        const incParent = (inc.parentName || '').trim().toLowerCase();
-        const curPhone = (cur.parentPhone || '').replace(/\D/g, '');
-        const incPhone = (inc.parentPhone || '').replace(/\D/g, '');
+        // Cleanly merge student fields and media collections
+        const baseMerged = options.preferIncomingMeta ? { ...cur, ...inc } : { ...inc, ...cur };
+        
+        // Union photos array
+        const mergedPhotos = Array.from(new Set([...(cur.photos || []), ...(inc.photos || [])])).filter(Boolean);
+        if (mergedPhotos.length > 0) baseMerged.photos = mergedPhotos;
 
-        const isSameStudent = 
-          !curName || !incName || 
-          curName === incName || 
-          (curPhone && incPhone && curPhone === incPhone) ||
-          (curParent && incParent && curParent === incParent && curName.includes(incName.split(' ')[0]));
+        // Union recorded voice recitation items
+        const voiceMap = new Map<string, any>();
+        (cur.voices || []).forEach(v => { if (v && v.url) voiceMap.set(v.url, v); });
+        (inc.voices || []).forEach(v => { if (v && v.url) voiceMap.set(v.url, v); });
+        if (voiceMap.size > 0) baseMerged.voices = Array.from(voiceMap.values());
 
-        if (isSameStudent) {
-          // Cleanly merge student fields and media collections
-          const baseMerged = options.preferIncomingMeta ? { ...cur, ...inc } : { ...inc, ...cur };
-          
-          // Union photos array
-          const mergedPhotos = Array.from(new Set([...(cur.photos || []), ...(inc.photos || [])])).filter(Boolean);
-          if (mergedPhotos.length > 0) baseMerged.photos = mergedPhotos;
+        // Union recorded video items
+        const videoMap = new Map<string, any>();
+        (cur.videos || []).forEach(v => { if (v && v.url) videoMap.set(v.url, v); });
+        (inc.videos || []).forEach(v => { if (v && v.url) videoMap.set(v.url, v); });
+        if (videoMap.size > 0) baseMerged.videos = Array.from(videoMap.values());
 
-          // Union recorded voice recitation items
-          const voiceMap = new Map<string, any>();
-          (cur.voices || []).forEach(v => { if (v && v.url) voiceMap.set(v.url, v); });
-          (inc.voices || []).forEach(v => { if (v && v.url) voiceMap.set(v.url, v); });
-          if (voiceMap.size > 0) baseMerged.voices = Array.from(voiceMap.values());
-
-          // Union recorded video items
-          const videoMap = new Map<string, any>();
-          (cur.videos || []).forEach(v => { if (v && v.url) videoMap.set(v.url, v); });
-          (inc.videos || []).forEach(v => { if (v && v.url) videoMap.set(v.url, v); });
-          if (videoMap.size > 0) baseMerged.videos = Array.from(videoMap.values());
-
-          mergedStudents.push(baseMerged);
-          allUsedIds.add(id);
-        } else {
-          // ID Collision: Two distinct students were registered concurrently on different devices with the same auto-generated sequential ID!
-          // Preserve current student with their ID
-          mergedStudents.push(cur);
-          allUsedIds.add(cur.id);
-
-          // Find guaranteed new unique ID for the incoming student
-          let counter = 1;
-          let newId = `DS${String(counter).padStart(3, '0')}`;
-          while (
-            allUsedIds.has(newId) || 
-            incomingStudentMap.has(newId) || 
-            currentStudentMap.has(newId) ||
-            allStudentIds.has(newId)
-          ) {
-            counter++;
-            newId = `DS${String(counter).padStart(3, '0')}`;
-          }
-
-          const rekeyedStudent = { ...inc, id: newId };
-          mergedStudents.push(rekeyedStudent);
-          allUsedIds.add(newId);
-          console.warn(`[SafeMerge Resolver] Resolved concurrent student ID collision for "${inc.name}". Assigned unique ID: ${newId} (was ${id}).`);
-        }
+        mergedStudents.push(baseMerged);
+        allUsedIds.add(id);
       } else if (inc) {
         mergedStudents.push(inc);
         allUsedIds.add(inc.id);

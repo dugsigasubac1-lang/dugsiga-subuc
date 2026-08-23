@@ -268,7 +268,7 @@ export default function App() {
     }
   }, [database, userRole, loggedTeacher]);
 
-  // Real-time concurrent login validation (logs active session out if hijacked by another device or revoked)
+  // Real-time concurrent login validation (protects teacher individual logins while allowing multi-device admin access)
   useEffect(() => {
     if (!database) return;
     const currentDeviceSessionId = localStorage.getItem('dugsi_session_id');
@@ -282,40 +282,29 @@ export default function App() {
         setShowLogin(true);
       }
     }
-
-    if (userRole === 'admin') {
-      if (database.adminAllowedSessionId && database.adminAllowedSessionId !== currentDeviceSessionId) {
-        handleLogout();
-        setSessionExpiredMsg("Waa lagaa saaray nidaamka sababtoo ah Maamuluhu wuxuu dalbaday in laga baxo dhammaan aaladaha kale.");
-        setShowLogin(true);
-      }
-    }
   }, [database, userRole, loggedTeacher]);
 
-  // Initialize Database on Mount and synchronize
+  // Initialize Database on Mount and synchronize across all devices
   useEffect(() => {
     let active = true;
     let unsubscribe: (() => void) | null = null;
 
     async function initDb() {
       if (isDirectFirebasePreferred()) {
-        console.info('[Dugsiga Subuc] Prefers direct client-side Firestore connection.');
+        console.info('[Dugsiga Subuc] Connecting direct real-time Firestore across all devices.');
         try {
           const directData = await fetchRemoteDatabaseState();
           if (active) {
             if (directData) {
-              const { updated, changed } = mergeSeedRemittances(directData);
-              if (!updated.lastUpdatedTime) {
-                updated.lastUpdatedTime = Date.now();
+              const currentLocal = getDatabase();
+              const mergedInitial = safeMergeDatabaseStates(currentLocal, directData, { preferIncomingMeta: true });
+              if (!mergedInitial.lastUpdatedTime) {
+                mergedInitial.lastUpdatedTime = Date.now();
               }
-              setDatabase(updated);
-              saveDatabase(updated);
-              if (changed) {
-                await saveRemoteDatabaseState(updated);
-              }
+              setDatabase(mergedInitial);
+              saveDatabase(mergedInitial);
             } else {
-              // Firestore system/state is currently null/unseeded!
-              // Hit backend GET route to seed from full server-side database.json (containing 34 students) rather than saving empty template!
+              // Remote database is empty. Hit backend GET route to seed from server database.json
               console.info('[Dugsiga Subuc] Remote database is empty. Seeding from server database.json...');
               const res = await fetch(`${API_BASE}/api/database?_t=${Date.now()}`);
               if (!res.ok) {
@@ -340,19 +329,14 @@ export default function App() {
             }
           }
         } catch (err) {
-          console.warn('[Dugsiga Subuc] Direct Firebase fetch failed. Using local cache for offline viewing.', err);
+          console.warn('[Dugsiga Subuc] Direct Firebase fetch notice:', err);
           if (active) {
-            // CRITICAL: Load from localStorage cache, but DO NOT overwrite Firestore!
             const cachedDb = getDatabase();
             setDatabase(cachedDb);
-            setGlobalSaveStatus({
-              type: 'error',
-              message: 'Ma jiro xiriir internet ama khadku waa gaabis. Waxaad ku shaqeynaysaa xogta aaladda ku kaydsan (Offline/Cached).'
-            });
           }
         }
 
-        // Setup real-time listener
+        // Setup real-time multi-device live listener
         if (active) {
           unsubscribe = subscribeToRemoteDatabaseState((remoteDb) => {
             if (active && remoteDb) {
@@ -365,17 +349,17 @@ export default function App() {
                   return currentDb;
                 }
 
-                // Safe merge prevents any accidental loss of students or teacher entries
+                // Safe merge ensures multi-device edits (phone, tablet, laptop, desktop) are immediately reflected
                 const merged = safeMergeDatabaseStates(currentDb, remoteDb, { preferIncomingMeta: true });
                 if (JSON.stringify(currentDb) !== JSON.stringify(merged)) {
-                  console.info(`[Dugsiga Subuc] Real-time Firestore update safely synced (Students: ${merged.students?.length || 0}).`);
+                  console.info(`[Dugsiga Subuc] Multi-device real-time sync updated (Students: ${merged.students?.length || 0}).`);
                   saveDatabase(merged);
                   return merged;
                 }
                 return currentDb;
               });
             }
-          });
+          }, getDatabase());
         }
         return;
       }

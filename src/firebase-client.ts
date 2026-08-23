@@ -336,48 +336,84 @@ export async function saveRemoteDatabaseState(
   }
 }
 
-export function subscribeToRemoteDatabaseState(onUpdate: (state: DatabaseState) => void): () => void {
+export function subscribeToRemoteDatabaseState(
+  onUpdate: (state: DatabaseState) => void,
+  initialState?: DatabaseState | null
+): () => void {
   const { coreDocRef, progressDocRef, financeDocRef, logsDocRef, stateDocRef } = initFirebaseClient();
   if (!coreDocRef && !stateDocRef) return () => {};
 
-  let latestCore: any = null;
-  let latestProg: any = null;
-  let latestFin: any = null;
-  let latestLogs: any = null;
+  // Initialize partitions from initial state or local database so no partition is ever empty/undefined
+  const fallback = initialState || null;
+  let latestCore: any = fallback ? {
+    teachers: fallback.teachers || [],
+    students: fallback.students || [],
+    classes: fallback.classes || [],
+    schoolLocation: fallback.schoolLocation || null,
+    landingPageSettings: fallback.landingPageSettings || null,
+    contactMessages: fallback.contactMessages || [],
+    adminAllowedSessionId: fallback.adminAllowedSessionId,
+    adminRevokeTime: fallback.adminRevokeTime,
+    lastUpdatedTime: fallback.lastUpdatedTime || Date.now(),
+    lastBackupDownloadDate: fallback.lastBackupDownloadDate || null,
+  } : null;
+
+  let latestProg: any = fallback ? {
+    progress: fallback.progress || []
+  } : null;
+
+  let latestFin: any = fallback ? {
+    billing: fallback.billing || [],
+    invoices: fallback.invoices || [],
+    moneyTransfers: fallback.moneyTransfers || [],
+    xawaaladaAccounts: fallback.xawaaladaAccounts || [],
+    xawaaladaTransactions: fallback.xawaaladaTransactions || [],
+    xawaaladaSettings: fallback.xawaaladaSettings || null,
+  } : null;
+
+  let latestLogs: any = fallback ? {
+    submissions: fallback.submissions || [],
+    teacherAttendance: fallback.teacherAttendance || [],
+    notifications: fallback.notifications || [],
+    exams: fallback.exams || []
+  } : null;
+
   let debounceTimer: any = null;
 
   const emitLiveState = () => {
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
       if (!latestCore && !latestProg && !latestFin && !latestLogs) return;
+
       const assembled: DatabaseState = {
-        teachers: latestCore?.teachers || [],
-        students: latestCore?.students || [],
-        classes: latestCore?.classes || [],
-        schoolLocation: latestCore?.schoolLocation || null,
-        landingPageSettings: latestCore?.landingPageSettings || null,
-        contactMessages: latestCore?.contactMessages || [],
-        adminAllowedSessionId: latestCore?.adminAllowedSessionId,
-        adminRevokeTime: latestCore?.adminRevokeTime,
-        lastUpdatedTime: latestCore?.lastUpdatedTime || Date.now(),
-        lastBackupDownloadDate: latestCore?.lastBackupDownloadDate || null,
+        teachers: latestCore?.teachers || fallback?.teachers || [],
+        students: latestCore?.students || fallback?.students || [],
+        classes: latestCore?.classes || fallback?.classes || [],
+        schoolLocation: latestCore?.schoolLocation || fallback?.schoolLocation || null,
+        landingPageSettings: latestCore?.landingPageSettings || fallback?.landingPageSettings || null,
+        contactMessages: latestCore?.contactMessages || fallback?.contactMessages || [],
+        adminAllowedSessionId: latestCore?.adminAllowedSessionId || fallback?.adminAllowedSessionId,
+        adminRevokeTime: latestCore?.adminRevokeTime || fallback?.adminRevokeTime,
+        lastUpdatedTime: latestCore?.lastUpdatedTime || fallback?.lastUpdatedTime || Date.now(),
+        lastBackupDownloadDate: latestCore?.lastBackupDownloadDate || fallback?.lastBackupDownloadDate || null,
 
-        progress: latestProg?.progress || [],
+        progress: latestProg?.progress || fallback?.progress || [],
 
-        billing: latestFin?.billing || [],
-        invoices: latestFin?.invoices || [],
-        moneyTransfers: latestFin?.moneyTransfers || [],
-        xawaaladaAccounts: latestFin?.xawaaladaAccounts || [],
-        xawaaladaTransactions: latestFin?.xawaaladaTransactions || [],
-        xawaaladaSettings: latestFin?.xawaaladaSettings || null,
+        billing: latestFin?.billing || fallback?.billing || [],
+        invoices: latestFin?.invoices || fallback?.invoices || [],
+        moneyTransfers: latestFin?.moneyTransfers || fallback?.moneyTransfers || [],
+        xawaaladaAccounts: latestFin?.xawaaladaAccounts || fallback?.xawaaladaAccounts || [],
+        xawaaladaTransactions: latestFin?.xawaaladaTransactions || fallback?.xawaaladaTransactions || [],
+        xawaaladaSettings: latestFin?.xawaaladaSettings || fallback?.xawaaladaSettings || null,
 
-        submissions: latestLogs?.submissions || [],
-        teacherAttendance: latestLogs?.teacherAttendance || [],
-        notifications: latestLogs?.notifications || [],
-        exams: latestLogs?.exams || []
+        submissions: latestLogs?.submissions || fallback?.submissions || [],
+        teacherAttendance: latestLogs?.teacherAttendance || fallback?.teacherAttendance || [],
+        notifications: latestLogs?.notifications || fallback?.notifications || [],
+        exams: latestLogs?.exams || fallback?.exams || []
       };
+
       onUpdate(assembled);
-    }, 40);
+    }, 30);
   };
 
   // Seed initial values in parallel so live state is ready immediately
