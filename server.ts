@@ -457,11 +457,18 @@ function safeMergeServerDatabaseStates(
     mergedTeachers = (current.teachers || []).map((t: any) => {
       const inc = (incoming.teachers || []).find((it: any) => it && it.id === t.id);
       if (inc) {
+        const curRevoke = Number(t.sessionLoginTimestamp || t.sessionRevokeTime || 0);
+        const incRevoke = Number(inc.sessionLoginTimestamp || inc.sessionRevokeTime || 0);
+        const preferIncSession = incRevoke >= curRevoke;
+
         return {
           ...t,
-          sessionDeviceInfo: inc.sessionDeviceInfo || t.sessionDeviceInfo,
-          currentSessionId: inc.currentSessionId || t.currentSessionId,
-          sessionLoginTime: inc.sessionLoginTime || t.sessionLoginTime
+          isAdmin: inc.isAdmin !== undefined ? inc.isAdmin : t.isAdmin,
+          sessionDeviceInfo: preferIncSession ? (inc.sessionDeviceInfo || t.sessionDeviceInfo) : t.sessionDeviceInfo,
+          currentSessionId: preferIncSession ? (inc.currentSessionId || t.currentSessionId) : (t.currentSessionId || inc.currentSessionId),
+          sessionLoginTime: preferIncSession ? (inc.sessionLoginTime || t.sessionLoginTime) : t.sessionLoginTime,
+          sessionLoginTimestamp: preferIncSession ? (inc.sessionLoginTimestamp || t.sessionLoginTimestamp) : t.sessionLoginTimestamp,
+          sessionRevokeTime: preferIncSession ? (inc.sessionRevokeTime || t.sessionRevokeTime) : t.sessionRevokeTime
         };
       }
       return t;
@@ -481,7 +488,28 @@ function safeMergeServerDatabaseStates(
       if (deletedTeacherSet.has(id)) return;
       const inc = incMap.get(id);
       const cur = curMap.get(id);
-      if (inc && cur) mergedTeachers.push({ ...cur, ...inc });
+      if (inc && cur) {
+        const curRevoke = Number(cur.sessionLoginTimestamp || cur.sessionRevokeTime || 0);
+        const incRevoke = Number(inc.sessionLoginTimestamp || inc.sessionRevokeTime || 0);
+        const preferIncSession = incRevoke >= curRevoke;
+
+        const mergedT = { ...cur, ...inc };
+        mergedT.isAdmin = inc.isAdmin !== undefined ? inc.isAdmin : cur.isAdmin;
+        if (preferIncSession) {
+          mergedT.currentSessionId = inc.currentSessionId || cur.currentSessionId;
+          mergedT.sessionLoginTimestamp = inc.sessionLoginTimestamp || cur.sessionLoginTimestamp;
+          mergedT.sessionRevokeTime = inc.sessionRevokeTime || cur.sessionRevokeTime;
+          mergedT.sessionDeviceInfo = inc.sessionDeviceInfo || cur.sessionDeviceInfo;
+          mergedT.sessionLoginTime = inc.sessionLoginTime || cur.sessionLoginTime;
+        } else {
+          mergedT.currentSessionId = cur.currentSessionId || inc.currentSessionId;
+          mergedT.sessionLoginTimestamp = cur.sessionLoginTimestamp || inc.sessionLoginTimestamp;
+          mergedT.sessionRevokeTime = cur.sessionRevokeTime || inc.sessionRevokeTime;
+          mergedT.sessionDeviceInfo = cur.sessionDeviceInfo || inc.sessionDeviceInfo;
+          mergedT.sessionLoginTime = cur.sessionLoginTime || inc.sessionLoginTime;
+        }
+        mergedTeachers.push(mergedT);
+      }
       else if (inc) mergedTeachers.push(inc);
       else if (cur) mergedTeachers.push(cur);
     });
@@ -680,6 +708,26 @@ function safeMergeServerDatabaseStates(
   };
 
   return sanitizeDatabaseState(result);
+}
+
+function removeUndefined(obj: any): any {
+  if (obj === undefined) {
+    return null;
+  }
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(item => removeUndefined(item));
+  }
+  const cleaned: any = {};
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (val !== undefined) {
+      cleaned[key] = removeUndefined(val);
+    }
+  }
+  return cleaned;
 }
 
 async function startServer() {
@@ -1559,12 +1607,25 @@ async function startServer() {
       if (userRole === 'teacher' && teacherId && sessionId) {
         if (currentDatabaseState) {
           const activeTeacher = (currentDatabaseState.teachers || []).find((t: any) => t.id === teacherId);
-          if (activeTeacher && activeTeacher.currentSessionId && activeTeacher.currentSessionId !== sessionId) {
-            console.warn(`[Security] Session hijacked/expired for teacher ${teacherId}. Requested: ${sessionId}, Server: ${activeTeacher.currentSessionId}`);
-            return res.status(403).json({ 
-              error: 'session_expired', 
-              message: 'You have been logged out because your account was used on another device.' 
-            });
+          const incomingTeacher = (dbState.teachers || []).find((t: any) => t.id === teacherId);
+
+          if (activeTeacher && activeTeacher.currentSessionId) {
+            const currentRevoke = Number(activeTeacher.sessionLoginTimestamp || activeTeacher.sessionRevokeTime || 0);
+            const incomingRevoke = Number(incomingTeacher?.sessionLoginTimestamp || incomingTeacher?.sessionRevokeTime || 0);
+
+            // Only reject if server has a strictly newer revocation/login timestamp from another device,
+            // AND incoming request is not establishing a newer login session
+            if (
+              incomingRevoke < currentRevoke &&
+              activeTeacher.currentSessionId !== sessionId &&
+              incomingTeacher?.currentSessionId !== sessionId
+            ) {
+              console.warn(`[Security] Session hijacked/expired for teacher ${teacherId}. Requested: ${sessionId}, Server: ${activeTeacher.currentSessionId}`);
+              return res.status(403).json({ 
+                error: 'session_expired', 
+                message: 'You have been logged out because your account was used on another device.' 
+              });
+            }
           }
         }
       }
@@ -1626,8 +1687,8 @@ async function startServer() {
         };
 
         const writePromises: Promise<any>[] = [
-          setDoc(progressDocRef, progressData),
-          setDoc(logsDocRef, logsData)
+          setDoc(progressDocRef, removeUndefined(progressData)),
+          setDoc(logsDocRef, removeUndefined(logsData))
         ];
 
         // ONLY NON-TEACHERS (ADMINS) CAN WRITE CORE AND FINANCE TO FIRESTORE
@@ -1639,6 +1700,9 @@ async function startServer() {
             schoolLocation: mergedDbState.schoolLocation || null,
             landingPageSettings: mergedDbState.landingPageSettings || null,
             contactMessages: mergedDbState.contactMessages || [],
+            adminSessionId: mergedDbState.adminSessionId || null,
+            adminAllowedSessionId: mergedDbState.adminAllowedSessionId || null,
+            adminRevokeTime: mergedDbState.adminRevokeTime || null,
             lastUpdatedTime: mergedDbState.lastUpdatedTime || Date.now(),
             lastBackupDownloadDate: mergedDbState.lastBackupDownloadDate || null
           };
@@ -1656,12 +1720,12 @@ async function startServer() {
             syncStaticBrandingFiles(mergedDbState.landingPageSettings.logoUrl);
           }
 
-          writePromises.push(setDoc(coreDocRef, coreData));
-          writePromises.push(setDoc(financeDocRef, financeData));
+          writePromises.push(setDoc(coreDocRef, removeUndefined(coreData)));
+          writePromises.push(setDoc(financeDocRef, removeUndefined(financeData)));
 
           if (stateDocRef) {
             writePromises.push(
-              setDoc(stateDocRef, { state: mergedDbState }).catch(err => {
+              setDoc(stateDocRef, removeUndefined({ state: mergedDbState })).catch(err => {
                 console.warn('[Server POST API] Legacy system/state write notice:', err?.message);
               })
             );
@@ -1781,7 +1845,7 @@ async function startServer() {
       stateToRestore = sanitizeDatabaseState(stateToRestore);
 
       // Write to main system state doc
-      await setDoc(stateDocRef, { state: stateToRestore });
+      await setDoc(stateDocRef, removeUndefined({ state: stateToRestore }));
       console.log(`[Backup Restore] Successfully restored system state to ${backupId} in Firestore.`);
 
       // Update server's in-memory state and local file

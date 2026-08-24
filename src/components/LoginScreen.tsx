@@ -83,35 +83,23 @@ export function LoginScreen({
     })();
 
     if (activeTab === 'admin') {
-      if (username.trim() === 'yaxyecabdisalanmohamed1234@gmail.com' && password.trim() === 'yaxye6189600') {
+      const isPrimaryAdmin = username.trim() === 'yaxyecabdisalanmohamed1234@gmail.com' && password.trim() === 'yaxye6189600';
+      const adminTeacher = !isPrimaryAdmin ? (database.teachers || []).find(
+        (t) => t.isAdmin && t.username.toLowerCase() === username.trim().toLowerCase() && t.passwordHash === password.trim()
+      ) : null;
+
+      if (isPrimaryAdmin || adminTeacher) {
         // Generate a fresh new unique session token for this login session
         const now = Date.now();
-        const freshSessionId = 'admin_sess_' + Math.random().toString(36).substring(2, 11) + '_' + now;
+        const freshSessionId = 'admin_sess_' + (adminTeacher ? `t_${adminTeacher.id}_` : '') + Math.random().toString(36).substring(2, 11) + '_' + now;
         localStorage.setItem('dugsi_session_id', freshSessionId);
         localStorage.setItem('dugsi_admin_login_at', String(now));
         localStorage.setItem('dugsi_user_role', 'admin');
+        if (adminTeacher) {
+          localStorage.setItem('dugsi_teacher_id', adminTeacher.id);
+          localStorage.setItem('dugsi_logged_teacher', JSON.stringify(adminTeacher));
+        }
 
-        // Update the active admin session ID in database so other devices using this same admin account are logged out immediately
-        const updatedDb: DatabaseState = {
-          ...database,
-          adminAllowedSessionId: freshSessionId,
-          adminSessionId: freshSessionId,
-          adminRevokeTime: now,
-          lastUpdatedTime: now
-        };
-        onSaveDatabase(updatedDb, { userRole: 'admin' });
-        onLoginSuccess('admin');
-      } else {
-        setError('Magaca adeegsadaha ama erayga sirta ah ee Maamulaha waa khalad.');
-      }
-    } else {
-      // Find teacher
-      const currTeacher = (database.teachers || []).find(
-        (t) => t.username.toLowerCase() === username.trim().toLowerCase() && t.passwordHash === password.trim()
-      );
-
-      if (currTeacher) {
-        const existingTeacherSession = currTeacher.currentSessionId;
         const info = getDeviceInfo();
         const time = new Date().toLocaleString('so-SO', {
           year: 'numeric',
@@ -122,27 +110,81 @@ export function LoginScreen({
           second: '2-digit'
         });
 
+        let updatedTeachers = database.teachers || [];
+        if (adminTeacher) {
+          updatedTeachers = updatedTeachers.map(t =>
+            t.id === adminTeacher.id
+              ? {
+                  ...t,
+                  currentSessionId: freshSessionId,
+                  sessionDeviceInfo: info,
+                  sessionLoginTime: time,
+                  sessionLoginTimestamp: now,
+                  sessionRevokeTime: now
+                }
+              : t
+          );
+        }
+
+        // Update the active admin session ID in database so other devices using this same admin account are logged out immediately
+        const updatedDb: DatabaseState = {
+          ...database,
+          teachers: updatedTeachers,
+          adminAllowedSessionId: freshSessionId,
+          adminSessionId: freshSessionId,
+          adminRevokeTime: now,
+          lastUpdatedTime: now
+        };
+        onSaveDatabase(updatedDb, { userRole: 'admin' });
+        onLoginSuccess('admin', adminTeacher || undefined);
+      } else {
+        setError('Magaca adeegsadaha ama erayga sirta ah ee Maamulaha waa khalad.');
+      }
+    } else {
+      // Find teacher
+      const currTeacher = (database.teachers || []).find(
+        (t) => t.username.toLowerCase() === username.trim().toLowerCase() && t.passwordHash === password.trim()
+      );
+
+      if (currTeacher) {
+        const now = Date.now();
+        const freshTeacherSessionId = 'teacher_sess_' + currTeacher.id + '_' + Math.random().toString(36).substring(2, 11) + '_' + now;
+        const info = getDeviceInfo();
+        const time = new Date().toLocaleString('so-SO', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+
+        localStorage.setItem('dugsi_session_id', freshTeacherSessionId);
+        localStorage.setItem('dugsi_teacher_login_at', String(now));
+        localStorage.setItem('dugsi_teacher_id', currTeacher.id);
+        localStorage.setItem('dugsi_user_role', 'teacher');
+
+        const updatedTeacher: Teacher = {
+          ...currTeacher,
+          currentSessionId: freshTeacherSessionId,
+          sessionDeviceInfo: info,
+          sessionLoginTime: time,
+          sessionLoginTimestamp: now,
+          sessionRevokeTime: now
+        };
+
+        localStorage.setItem('dugsi_logged_teacher', JSON.stringify(updatedTeacher));
+
         const updatedTeachers = (database.teachers || []).map(t => 
-          t.id === currTeacher.id 
-            ? { 
-                ...t, 
-                currentSessionId: currentDeviceSessionId,
-                sessionDeviceInfo: info,
-                sessionLoginTime: time
-              } 
-            : t
+          t.id === currTeacher.id ? updatedTeacher : t
         );
         const updatedDb: DatabaseState = {
           ...database,
-          teachers: updatedTeachers
+          teachers: updatedTeachers,
+          lastUpdatedTime: now
         };
-        onSaveDatabase(updatedDb);
-        onLoginSuccess('teacher', { 
-          ...currTeacher, 
-          currentSessionId: currentDeviceSessionId,
-          sessionDeviceInfo: info,
-          sessionLoginTime: time
-        });
+        onSaveDatabase(updatedDb, { userRole: 'admin' });
+        onLoginSuccess('teacher', updatedTeacher);
       } else {
         setError('Soo galka macallinka waa guuldarraystay. Fadlan hubi magaca adeegsadaha iyo erayga sirta ah.');
       }

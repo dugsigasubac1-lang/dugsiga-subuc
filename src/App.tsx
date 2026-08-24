@@ -275,8 +275,19 @@ export default function App() {
     if (!currentDeviceSessionId) return;
 
     if (userRole === 'teacher' && loggedTeacher) {
+      const teacherLoginAt = Number(localStorage.getItem('dugsi_teacher_login_at') || 0);
       const dbTeacher = database.teachers.find(t => t.id === loggedTeacher.id);
-      if (dbTeacher && dbTeacher.currentSessionId && dbTeacher.currentSessionId !== currentDeviceSessionId) {
+      const remoteRevokeTime = Number(dbTeacher?.sessionLoginTimestamp || dbTeacher?.sessionRevokeTime || 0);
+      const isGracePeriod = (Date.now() - teacherLoginAt) < 6000;
+
+      // ONLY log out if another session for this teacher was established strictly AFTER this device's login
+      if (
+        !isGracePeriod &&
+        remoteRevokeTime > (teacherLoginAt + 1000) &&
+        dbTeacher &&
+        dbTeacher.currentSessionId &&
+        dbTeacher.currentSessionId !== currentDeviceSessionId
+      ) {
         handleLogout();
         setSessionExpiredMsg("Waa lagaa saaray nidaamka sababtoo ah koontadaada waxaa laga isticmaalayaa aalad kale.");
         setShowLogin(true);
@@ -379,6 +390,28 @@ export default function App() {
                   if (remoteRevoke <= myLoginAt + 1000) {
                     merged.adminAllowedSessionId = currSessionId;
                     merged.adminSessionId = currSessionId;
+                  }
+                }
+
+                // If this device is an active Teacher, keep current session token intact
+                if (activeRole === 'teacher' && currSessionId) {
+                  const myTLoginAt = Number(localStorage.getItem('dugsi_teacher_login_at') || 0);
+                  const myTId = localStorage.getItem('dugsi_teacher_id');
+                  if (myTId && merged.teachers) {
+                    merged.teachers = merged.teachers.map(t => {
+                      if (t.id === myTId) {
+                        const remoteRevoke = Number(t.sessionLoginTimestamp || t.sessionRevokeTime || 0);
+                        if (remoteRevoke <= myTLoginAt + 1000) {
+                          return {
+                            ...t,
+                            currentSessionId: currSessionId,
+                            sessionLoginTimestamp: myTLoginAt,
+                            sessionRevokeTime: myTLoginAt
+                          };
+                        }
+                      }
+                      return t;
+                    });
                   }
                 }
 
@@ -526,6 +559,27 @@ export default function App() {
             }
           }
 
+          if (currentRole === 'teacher' && currentDeviceSessionId) {
+            const teacherLoginAt = Number(localStorage.getItem('dugsi_teacher_login_at') || 0);
+            const myTId = localStorage.getItem('dugsi_teacher_id');
+            const remoteT = (remoteDb.teachers || []).find((t: any) => t.id === myTId);
+            if (remoteT && remoteT.currentSessionId) {
+              const remoteRevokeTime = Number(remoteT.sessionLoginTimestamp || remoteT.sessionRevokeTime || 0);
+              const isGracePeriod = (Date.now() - teacherLoginAt) < 6000;
+
+              if (
+                !isGracePeriod &&
+                remoteRevokeTime > (teacherLoginAt + 1000) &&
+                remoteT.currentSessionId !== currentDeviceSessionId
+              ) {
+                handleLogout();
+                setSessionExpiredMsg("Waa lagaa saaray nidaamka sababtoo ah koontadaada waxaa laga galay aalad kale.");
+                setShowLogin(true);
+                return;
+              }
+            }
+          }
+
           setDatabase(currentDb => {
             if (!currentDb) return remoteDb;
             const merged = safeMergeDatabaseStates(currentDb, remoteDb, { preferIncomingMeta: true });
@@ -537,6 +591,28 @@ export default function App() {
               if (remoteRevoke <= myLoginAt + 1000) {
                 merged.adminAllowedSessionId = currentDeviceSessionId;
                 merged.adminSessionId = currentDeviceSessionId;
+              }
+            }
+
+            // If this device is active Teacher, keep current session token intact
+            if (currentRole === 'teacher' && currentDeviceSessionId) {
+              const myTLoginAt = Number(localStorage.getItem('dugsi_teacher_login_at') || 0);
+              const myTId = localStorage.getItem('dugsi_teacher_id');
+              if (myTId && merged.teachers) {
+                merged.teachers = merged.teachers.map(t => {
+                  if (t.id === myTId) {
+                    const remoteRevoke = Number(t.sessionLoginTimestamp || t.sessionRevokeTime || 0);
+                    if (remoteRevoke <= myTLoginAt + 1000) {
+                      return {
+                        ...t,
+                        currentSessionId: currentDeviceSessionId,
+                        sessionLoginTimestamp: myTLoginAt,
+                        sessionRevokeTime: myTLoginAt
+                      };
+                    }
+                  }
+                  return t;
+                });
               }
             }
 
@@ -772,6 +848,10 @@ export default function App() {
           database={database} 
           onSaveDatabase={handleSaveDatabaseState} 
           onLogout={handleLogout} 
+          onSwitchToAdmin={() => {
+            setUserRole('admin');
+            localStorage.setItem('dugsi_user_role', 'admin');
+          }}
         />
       )}
 

@@ -48,11 +48,14 @@ export function initFirebaseClient() {
 }
 
 function removeUndefined(obj: any): any {
+  if (obj === undefined) {
+    return null;
+  }
   if (obj === null || typeof obj !== 'object') {
     return obj;
   }
   if (Array.isArray(obj)) {
-    return obj.map(removeUndefined);
+    return obj.map(item => removeUndefined(item));
   }
   const cleaned: any = {};
   for (const key of Object.keys(obj)) {
@@ -173,7 +176,7 @@ export async function saveRemoteDatabaseState(
       const progressData = {
         progress: clean.progress || []
       };
-      writePromises.push(setDoc(progressDocRef, progressData));
+      writePromises.push(setDoc(progressDocRef, removeUndefined(progressData)));
     }
 
     // Pre-merge with latest logs partition (teacher attendance, submissions, exams, notifications)
@@ -215,7 +218,7 @@ export async function saveRemoteDatabaseState(
         notifications: clean.notifications || [],
         exams: clean.exams || []
       };
-      writePromises.push(setDoc(logsDocRef, logsData));
+      writePromises.push(setDoc(logsDocRef, removeUndefined(logsData)));
     }
 
     // CRITICAL: ONLY ADMIN CAN MODIFY CORE ROSTER & FINANCIAL PARTITIONS!
@@ -287,7 +290,7 @@ export async function saveRemoteDatabaseState(
           lastUpdatedTime: clean.lastUpdatedTime || Date.now(),
           lastBackupDownloadDate: clean.lastBackupDownloadDate || null
         };
-        writePromises.push(setDoc(coreDocRef, coreData));
+        writePromises.push(setDoc(coreDocRef, removeUndefined(coreData)));
       }
 
       if (financeDocRef) {
@@ -320,7 +323,7 @@ export async function saveRemoteDatabaseState(
             clean.moneyTransfers = tempFinMerged.moneyTransfers || clean.moneyTransfers;
             clean.xawaaladaAccounts = tempFinMerged.xawaaladaAccounts || clean.xawaaladaAccounts;
             clean.xawaaladaTransactions = tempFinMerged.xawaaladaTransactions || clean.xawaaladaTransactions;
-            clean.xawaaladaSettings = tempFinMerged.xawaaladaSettings || clean.xawaaladaSettings;
+            clean.xawaaladaSettings = tempFinMerged.xawaaladaSettings || clean.xawaaladaSettings || null;
           }
         } catch (finErr) {
           console.warn('[Firestore] Pre-save live finance merge warning:', finErr);
@@ -334,13 +337,13 @@ export async function saveRemoteDatabaseState(
           xawaaladaTransactions: clean.xawaaladaTransactions || [],
           xawaaladaSettings: clean.xawaaladaSettings || null
         };
-        writePromises.push(setDoc(financeDocRef, financeData));
+        writePromises.push(setDoc(financeDocRef, removeUndefined(financeData)));
       }
 
       // Also update legacy single-doc if within size limit (with catch)
       if (stateDocRef) {
         writePromises.push(
-          setDoc(stateDocRef, { state: clean }).catch(err => {
+          setDoc(stateDocRef, removeUndefined({ state: clean })).catch(err => {
             console.warn('[Dugsiga Subuc] Legacy system/state write skipped (partitioned write active):', err?.message);
           })
         );

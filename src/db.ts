@@ -1096,15 +1096,22 @@ export function safeMergeDatabaseStates(
   // 2. TEACHERS:
   let mergedTeachers: Teacher[] = [];
   if (isTeacher) {
-    // Preserve teacher roster, only allow session meta update for the active teacher
+    // Preserve teacher roster, allow session meta update for the active teacher if incoming is newer or valid
     mergedTeachers = (current.teachers || []).map(t => {
       const inc = (incoming.teachers || []).find(it => it && it.id === t.id);
       if (inc) {
+        const curRevoke = Number(t.sessionLoginTimestamp || t.sessionRevokeTime || 0);
+        const incRevoke = Number(inc.sessionLoginTimestamp || inc.sessionRevokeTime || 0);
+        const preferIncSession = incRevoke >= curRevoke;
+
         return {
           ...t,
-          sessionDeviceInfo: inc.sessionDeviceInfo || t.sessionDeviceInfo,
-          currentSessionId: inc.currentSessionId || t.currentSessionId,
-          sessionLoginTime: inc.sessionLoginTime || t.sessionLoginTime
+          isAdmin: inc.isAdmin !== undefined ? inc.isAdmin : t.isAdmin,
+          sessionDeviceInfo: preferIncSession ? (inc.sessionDeviceInfo || t.sessionDeviceInfo) : t.sessionDeviceInfo,
+          currentSessionId: preferIncSession ? (inc.currentSessionId || t.currentSessionId) : (t.currentSessionId || inc.currentSessionId),
+          sessionLoginTime: preferIncSession ? (inc.sessionLoginTime || t.sessionLoginTime) : t.sessionLoginTime,
+          sessionLoginTimestamp: preferIncSession ? (inc.sessionLoginTimestamp || t.sessionLoginTimestamp) : t.sessionLoginTimestamp,
+          sessionRevokeTime: preferIncSession ? (inc.sessionRevokeTime || t.sessionRevokeTime) : t.sessionRevokeTime
         };
       }
       return t;
@@ -1124,7 +1131,28 @@ export function safeMergeDatabaseStates(
       if (deletedTeacherSet.has(id)) return;
       const inc = incTeacherMap.get(id);
       const cur = curTeacherMap.get(id);
-      if (inc && cur) mergedTeachers.push(options.preferIncomingMeta ? { ...cur, ...inc } : { ...inc, ...cur });
+      if (inc && cur) {
+        const curRevoke = Number(cur.sessionLoginTimestamp || cur.sessionRevokeTime || 0);
+        const incRevoke = Number(inc.sessionLoginTimestamp || inc.sessionRevokeTime || 0);
+        const preferIncSession = incRevoke >= curRevoke;
+
+        const mergedT: Teacher = options.preferIncomingMeta ? { ...cur, ...inc } : { ...inc, ...cur };
+        mergedT.isAdmin = inc.isAdmin !== undefined ? inc.isAdmin : cur.isAdmin;
+        if (preferIncSession) {
+          mergedT.currentSessionId = inc.currentSessionId || cur.currentSessionId;
+          mergedT.sessionLoginTimestamp = inc.sessionLoginTimestamp || cur.sessionLoginTimestamp;
+          mergedT.sessionRevokeTime = inc.sessionRevokeTime || cur.sessionRevokeTime;
+          mergedT.sessionDeviceInfo = inc.sessionDeviceInfo || cur.sessionDeviceInfo;
+          mergedT.sessionLoginTime = inc.sessionLoginTime || cur.sessionLoginTime;
+        } else {
+          mergedT.currentSessionId = cur.currentSessionId || inc.currentSessionId;
+          mergedT.sessionLoginTimestamp = cur.sessionLoginTimestamp || inc.sessionLoginTimestamp;
+          mergedT.sessionRevokeTime = cur.sessionRevokeTime || inc.sessionRevokeTime;
+          mergedT.sessionDeviceInfo = cur.sessionDeviceInfo || inc.sessionDeviceInfo;
+          mergedT.sessionLoginTime = cur.sessionLoginTime || inc.sessionLoginTime;
+        }
+        mergedTeachers.push(mergedT);
+      }
       else if (inc) mergedTeachers.push(inc);
       else if (cur) mergedTeachers.push(cur);
     });

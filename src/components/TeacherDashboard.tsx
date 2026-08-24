@@ -45,7 +45,9 @@ import {
   Navigation,
   Target,
   Globe,
-  Compass
+  Compass,
+  Crown,
+  ShieldCheck
 } from 'lucide-react';
 import { DatabaseState, Teacher, Student, DailyProgress, AttendanceType, LessonStatusType, TaskStatusType, GradeType, Exam, ExamScore, AppNotification, TeacherSubmission, TeacherAttendanceRecord } from '../types';
 import { triggerFileDownload, generateStudentBehaviorCommentsReport, generateStudentBehaviorCommentsCSV } from '../db';
@@ -57,9 +59,10 @@ interface TeacherDashboardProps {
   database: DatabaseState;
   onSaveDatabase: (updatedDb: DatabaseState) => void;
   onLogout: () => void;
+  onSwitchToAdmin?: () => void;
 }
 
-export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }: TeacherDashboardProps) {
+export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout, onSwitchToAdmin }: TeacherDashboardProps) {
   // Filters and states
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [currentSession, setCurrentSession] = useState<'Morning' | 'Afternoon'>('Morning');
@@ -1589,7 +1592,17 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
       </div>
 
       {/* Logout Action at Bottom */}
-      <div className="pt-6 border-t border-slate-900/50 shrink-0">
+      <div className="pt-4 space-y-2 border-t border-slate-900/50 shrink-0">
+        {teacher.isAdmin && onSwitchToAdmin && (
+          <button
+            onClick={onSwitchToAdmin}
+            className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-2xl shadow-lg shadow-amber-500/20 inline-flex items-center justify-center gap-2 transition-all cursor-pointer"
+            id="teacher-sidebar-switch-admin-btn"
+          >
+            <Crown className="w-4 h-4 text-amber-100" />
+            U Gudub Admin Dashboard
+          </button>
+        )}
         <button
           onClick={onLogout}
           className="w-full py-3 px-4 bg-rose-955/10 hover:bg-rose-955/20 text-rose-450 hover:text-rose-400 text-xs font-bold rounded-2xl border border-rose-900/20 inline-flex items-center justify-center gap-2 transition-all cursor-pointer"
@@ -1667,7 +1680,19 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout }
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
+              {teacher.isAdmin && onSwitchToAdmin && (
+                <button
+                  type="button"
+                  onClick={onSwitchToAdmin}
+                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                  title="Gali Qaybta Maamulka (Admin Dashboard)"
+                  id="teacher-header-switch-admin-btn"
+                >
+                  <Crown className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Admin Dashboard</span>
+                </button>
+              )}
               <span className="w-8 h-8 rounded-xl bg-slate-55 mb-0.5 text-[#1e5ee6] font-extrabold text-xs flex items-center justify-center select-none border border-slate-100 hidden sm:flex">
                 {teacher.name.trim() ? teacher.name.trim().charAt(0).toUpperCase() : 'T'}
               </span>

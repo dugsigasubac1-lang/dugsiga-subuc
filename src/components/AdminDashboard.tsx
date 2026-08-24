@@ -64,7 +64,9 @@ import {
   Sun,
   Moon,
   Sunrise,
-  ShieldAlert
+  ShieldAlert,
+  Crown,
+  ShieldCheck
 } from 'lucide-react';
 import { 
   DatabaseState, 
@@ -196,7 +198,16 @@ export const getStudentsForTeacher = (teacher: Teacher, students: Student[]): St
 
 interface AdminDashboardProps {
   database: DatabaseState;
-  onSaveDatabase: (updatedDb: DatabaseState) => void;
+  onSaveDatabase: (
+    updatedDb: DatabaseState,
+    options?: {
+      userRole?: 'admin' | 'teacher' | null;
+      explicitDeletedStudentIds?: string[];
+      explicitDeletedTeacherIds?: string[];
+      explicitDeletedExamIds?: string[];
+      explicitDeletedInvoiceIds?: string[];
+    }
+  ) => void;
   onLogout: () => void;
 }
 
@@ -1571,6 +1582,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [newTeacherTime, setNewTeacherTime] = useState('07:30');
   const [newTeacherImage, setNewTeacherImage] = useState<string>('');
   const [newTeacherRegDate, setNewTeacherRegDate] = useState<string>('');
+  const [newTeacherIsAdmin, setNewTeacherIsAdmin] = useState<boolean>(false);
 
   const [newClassNameInput, setNewClassNameInput] = useState('');
 
@@ -1582,6 +1594,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   const [editTeacherPassword, setEditTeacherPassword] = useState('');
   const [editTeacherTime, setEditTeacherTime] = useState('07:30');
   const [editTeacherRegDate, setEditTeacherRegDate] = useState<string>('');
+  const [editTeacherIsAdmin, setEditTeacherIsAdmin] = useState<boolean>(false);
 
   // Edit Class State
   const [editingClass, setEditingClass] = useState<string | null>(null);
@@ -1731,7 +1744,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       passwordHash: newTeacherPassword.trim(),
       requiredCheckInTime: newTeacherTime || '07:30',
       imageUrl: newTeacherImage,
-      registrationDate: newTeacherRegDate || new Date().toISOString().split('T')[0]
+      registrationDate: newTeacherRegDate || new Date().toISOString().split('T')[0],
+      isAdmin: newTeacherIsAdmin
     };
 
     onSaveDatabase({
@@ -1746,6 +1760,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     setNewTeacherTime('07:30');
     setNewTeacherImage('');
     setNewTeacherRegDate('');
+    setNewTeacherIsAdmin(false);
     setFeedbackMsg(`Teacher ${newTeacher.name} successfully certified for class ${newTeacher.classAssigned}!`);
     setTimeout(() => setFeedbackMsg(''), 4000);
   };
@@ -1759,6 +1774,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     setEditTeacherTime(teacher.requiredCheckInTime || '07:30');
     setNewTeacherImage(teacher.imageUrl || '');
     setEditTeacherRegDate(teacher.registrationDate || '');
+    setEditTeacherIsAdmin(Boolean(teacher.isAdmin));
     
     // Smoothly scroll to the edit form container so the user sees the filled-in details instantly
     setTimeout(() => {
@@ -1793,7 +1809,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
           passwordHash: editTeacherPassword.trim(),
           requiredCheckInTime: editTeacherTime || '07:30',
           imageUrl: newTeacherImage,
-          registrationDate: editTeacherRegDate || t.registrationDate || new Date().toISOString().split('T')[0]
+          registrationDate: editTeacherRegDate || t.registrationDate || new Date().toISOString().split('T')[0],
+          isAdmin: editTeacherIsAdmin
         };
       }
       return t;
@@ -1807,8 +1824,37 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     setEditingTeacher(null);
     setNewTeacherImage('');
     setEditTeacherRegDate('');
+    setEditTeacherIsAdmin(false);
     setFeedbackMsg(`Successfully updated credentials for Sh. ${editTeacherName}`);
     setTimeout(() => setFeedbackMsg(''), 4000);
+  };
+
+  const handleToggleTeacherAdmin = (teacherId: string, makeAdmin: boolean) => {
+    const teacher = database.teachers.find(t => t.id === teacherId);
+    if (!teacher) return;
+    const teacherName = `Sh. ${teacher.name}`;
+
+    const updatedTeachers = database.teachers.map(t => {
+      if (t.id === teacherId) {
+        return {
+          ...t,
+          isAdmin: makeAdmin
+        };
+      }
+      return t;
+    });
+
+    onSaveDatabase({
+      ...database,
+      teachers: updatedTeachers
+    });
+
+    setFeedbackMsg(
+      makeAdmin
+        ? `👑 ${teacherName} si guul ah ayaa looga dhigay Maamule (Admin)! Hadda wuxuu geli karaa nidaamka Maamulka.`
+        : `🛡️ Doorkii Maamulaha (Admin) waa laga qaaday ${teacherName}. Wuxuu hadda yahay Macallin caadi ah.`
+    );
+    setTimeout(() => setFeedbackMsg(''), 5000);
   };
 
   const handleDeleteTeacher = (teacherId: string) => {
@@ -8089,6 +8135,25 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                       </div>
                     </div>
 
+                    {/* Admin Privileges Toggle */}
+                    <div>
+                      <label className="flex items-center gap-2.5 p-3 bg-amber-50/70 hover:bg-amber-50 border border-amber-200/80 rounded-xl cursor-pointer transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={editTeacherIsAdmin}
+                          onChange={(e) => setEditTeacherIsAdmin(e.target.checked)}
+                          className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-amber-300 cursor-pointer"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                            <Crown className="w-3.5 h-3.5 text-amber-600" />
+                            Awoodda Maamulaha (Admin Privileges)
+                          </div>
+                          <p className="text-[10px] text-amber-700/80">U ogolow macallinkan inuu galo qaybta Maamulka (Admin Dashboard)</p>
+                        </div>
+                      </label>
+                    </div>
+
                     <div className="flex gap-2 pt-2">
                       <button
                         type="submit"
@@ -8177,6 +8242,25 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-semibold text-slate-800 outline-none cursor-pointer"
                       />
                       <p className="text-[10px] text-slate-400 mt-1">Leave empty to auto-use today's date.</p>
+                    </div>
+
+                    {/* Admin Privileges Toggle */}
+                    <div>
+                      <label className="flex items-center gap-2.5 p-3 bg-amber-50/70 hover:bg-amber-50 border border-amber-200/80 rounded-xl cursor-pointer transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={newTeacherIsAdmin}
+                          onChange={(e) => setNewTeacherIsAdmin(e.target.checked)}
+                          className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-amber-300 cursor-pointer"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                            <Crown className="w-3.5 h-3.5 text-amber-600" />
+                            Awoodda Maamulaha (Admin Privileges)
+                          </div>
+                          <p className="text-[10px] text-amber-700/80">U ogolow macallinkan inuu galo qaybta Maamulka (Admin Dashboard)</p>
+                        </div>
+                      </label>
                     </div>
 
                     {/* Teacher Photo Upload Zone */}
@@ -8269,7 +8353,9 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                     return (
                       <div 
                         key={teacher.id} 
-                        className="bg-white p-6 rounded-3xl border border-slate-100 hover:border-teal-100 hover:shadow-lg hover:shadow-slate-100/80 transition-all duration-300 flex flex-col justify-between group" 
+                        className={`bg-white p-6 rounded-3xl border transition-all duration-300 flex flex-col justify-between group ${
+                          teacher.isAdmin ? 'border-amber-200/80 hover:border-amber-300 shadow-amber-100/30' : 'border-slate-100 hover:border-teal-100'
+                        } hover:shadow-lg hover:shadow-slate-100/80`} 
                         id={`teacher-card-${teacher.id}`}
                       >
                         <div>
@@ -8286,8 +8372,15 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center justify-between gap-2">
-                                <span className="text-[10px] font-black text-slate-400 tracking-wider">ID: {teacher.id}</span>
-                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[10px] font-black text-slate-400 tracking-wider">ID: {teacher.id}</span>
+                                  {teacher.isAdmin && (
+                                    <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500 text-white shadow-xs flex items-center gap-1">
+                                      <Crown className="w-2.5 h-2.5" /> Admin Staff
+                                    </span>
+                                  )}
+                                </div>
+                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full shrink-0 ${
                                   studentCount > 0 
                                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
                                     : 'bg-amber-50 text-amber-600 border border-amber-100'
@@ -8295,7 +8388,10 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                   {studentCount} Students
                                 </span>
                               </div>
-                              <h4 className="font-extrabold text-slate-800 text-sm mt-1 truncate group-hover:text-teal-650 transition-colors">{teacher.name}</h4>
+                              <h4 className="font-extrabold text-slate-800 text-sm mt-1 truncate group-hover:text-teal-650 transition-colors flex items-center gap-1.5">
+                                {teacher.name}
+                                {teacher.isAdmin && <Crown className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                              </h4>
                             </div>
                           </div>
 
@@ -8361,7 +8457,20 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                           </div>
                         </div>
 
-                        <div className="pt-4 mt-4 border-t border-slate-100 flex gap-2 justify-end">
+                        <div className="pt-4 mt-4 border-t border-slate-100 flex flex-wrap gap-2 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTeacherAdmin(teacher.id, !teacher.isAdmin)}
+                            className={`flex-1 sm:flex-initial px-3 py-2 text-[10px] font-extrabold uppercase rounded-xl border shadow-xs transition-all duration-250 flex items-center justify-center gap-1.5 cursor-pointer ${
+                              teacher.isAdmin
+                                ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600'
+                                : 'bg-amber-50 hover:bg-amber-500 text-amber-800 hover:text-white border-amber-200'
+                            }`}
+                            title={teacher.isAdmin ? "Ka qaad awoodda Maamulaha (Make regular teacher)" : "Ka dhig Maamule (Make admin with one click)"}
+                          >
+                            <Crown className="w-3.5 h-3.5" />
+                            {teacher.isAdmin ? 'Ka Qaad Admin' : 'Ka Dhig Admin 👑'}
+                          </button>
                           <button
                             type="button"
                             onClick={() => setShowPrintIDBadge({

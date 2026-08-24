@@ -14,8 +14,11 @@ export interface Teacher {
   imageUrl?: string; // profile picture Base64/url
   currentSessionId?: string; // Active session tracking for concurrent device login control
   sessionDeviceInfo?: string; // Information about the client device
-  sessionLoginTime?: string; // Timestamp of when the session logged in
+  sessionLoginTime?: string; // Formatted timestamp of when the session logged in
+  sessionLoginTimestamp?: number; // Numeric epoch timestamp for exact login ordering
+  sessionRevokeTime?: number; // Invalidation timestamp for previous logins on other devices
   registrationDate?: string; // YYYY-MM-DD when teacher was registered
+  isAdmin?: boolean; // When true, teacher has full administrator privileges
 }
 
 export interface Student {
