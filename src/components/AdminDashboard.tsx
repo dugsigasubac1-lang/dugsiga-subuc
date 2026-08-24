@@ -808,17 +808,19 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       accentColor: "amber",
       confirmText: "Haa, Ka Saar Aaladaha Kale",
       onConfirm: () => {
+        const now = Date.now();
         let currentDeviceSessionId = localStorage.getItem('dugsi_session_id');
         if (!currentDeviceSessionId) {
-          currentDeviceSessionId = 'sess_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
+          currentDeviceSessionId = 'admin_sess_' + Math.random().toString(36).substring(2, 11) + '_' + now;
           localStorage.setItem('dugsi_session_id', currentDeviceSessionId);
         }
+        localStorage.setItem('dugsi_admin_login_at', String(now));
         onSaveDatabase({
           ...database,
           adminAllowedSessionId: currentDeviceSessionId,
           adminSessionId: currentDeviceSessionId,
-          adminRevokeTime: Date.now()
-        });
+          adminRevokeTime: now
+        }, { userRole: 'admin' });
         setFeedbackMsg("Dhammaan aaladaha kale ee maamulaha waa laga saaray! Aaladdan kaliya ayaa hadda furan.");
         setConfirmModal(null);
       }

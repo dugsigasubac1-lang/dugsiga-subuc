@@ -636,6 +636,24 @@ function safeMergeServerDatabaseStates(
 
   const lastUpdatedTime = Math.max(current.lastUpdatedTime || 0, incoming.lastUpdatedTime || 0, Date.now());
 
+  const currentRevokeTime = Number(current.adminRevokeTime || 0);
+  const incomingRevokeTime = Number(incoming.adminRevokeTime || 0);
+
+  let mergedAdminSessionId = current.adminSessionId;
+  let mergedAdminAllowedSessionId = current.adminAllowedSessionId;
+  let mergedAdminRevokeTime = currentRevokeTime;
+
+  if (!isTeacher) {
+    if (incomingRevokeTime > currentRevokeTime) {
+      mergedAdminAllowedSessionId = incoming.adminAllowedSessionId;
+      mergedAdminSessionId = incoming.adminSessionId || incoming.adminAllowedSessionId;
+      mergedAdminRevokeTime = incomingRevokeTime;
+    } else if (incomingRevokeTime === currentRevokeTime) {
+      mergedAdminAllowedSessionId = incoming.adminAllowedSessionId || current.adminAllowedSessionId;
+      mergedAdminSessionId = incoming.adminSessionId || current.adminSessionId;
+    }
+  }
+
   const result = {
     teachers: mergedTeachers,
     students: mergedStudents,
@@ -643,9 +661,9 @@ function safeMergeServerDatabaseStates(
     schoolLocation: isTeacher ? current.schoolLocation : (incoming.schoolLocation ? { ...current.schoolLocation, ...incoming.schoolLocation } : current.schoolLocation),
     landingPageSettings: isTeacher ? current.landingPageSettings : (incoming.landingPageSettings ? { ...current.landingPageSettings, ...incoming.landingPageSettings } : current.landingPageSettings),
     contactMessages: mergedContactMessages,
-    adminSessionId: isTeacher ? current.adminSessionId : (incoming.adminSessionId || current.adminSessionId),
-    adminAllowedSessionId: isTeacher ? current.adminAllowedSessionId : (incoming.adminAllowedSessionId !== undefined ? incoming.adminAllowedSessionId : current.adminAllowedSessionId),
-    adminRevokeTime: isTeacher ? current.adminRevokeTime : (incoming.adminRevokeTime || current.adminRevokeTime),
+    adminSessionId: mergedAdminSessionId,
+    adminAllowedSessionId: mergedAdminAllowedSessionId,
+    adminRevokeTime: mergedAdminRevokeTime,
     lastUpdatedTime,
     lastBackupDownloadDate: incoming.lastBackupDownloadDate || current.lastBackupDownloadDate,
     progress: mergedProgress,
@@ -1553,8 +1571,16 @@ async function startServer() {
 
       if (userRole === 'admin' && sessionId) {
         if (currentDatabaseState && currentDatabaseState.adminAllowedSessionId) {
-          // If the incoming admin payload doesn't establish a new adminAllowedSessionId and differs from current active admin session
-          if (dbState.adminAllowedSessionId !== sessionId && currentDatabaseState.adminAllowedSessionId !== sessionId) {
+          const currentRevoke = Number(currentDatabaseState.adminRevokeTime || 0);
+          const incomingRevoke = Number(dbState.adminRevokeTime || 0);
+          
+          // Only reject if server has a strictly newer revocation timestamp from another device,
+          // AND the incoming admin request is from an older session and not establishing a newer login
+          if (
+            incomingRevoke < currentRevoke &&
+            currentDatabaseState.adminAllowedSessionId !== sessionId &&
+            dbState.adminAllowedSessionId !== sessionId
+          ) {
             console.warn(`[Security] Admin session expired. Requested: ${sessionId}, Server: ${currentDatabaseState.adminAllowedSessionId}`);
             return res.status(403).json({
               error: 'session_expired',

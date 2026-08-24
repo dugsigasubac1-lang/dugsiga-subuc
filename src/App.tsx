@@ -284,7 +284,17 @@ export default function App() {
     }
 
     if (userRole === 'admin') {
-      if (database.adminAllowedSessionId && database.adminAllowedSessionId !== currentDeviceSessionId) {
+      const adminLoginAt = Number(localStorage.getItem('dugsi_admin_login_at') || 0);
+      const currentRevokeTime = Number(database.adminRevokeTime || 0);
+      const isGracePeriod = (Date.now() - adminLoginAt) < 6000;
+
+      // ONLY log out if another admin session was initiated strictly AFTER this device's login
+      if (
+        !isGracePeriod &&
+        currentRevokeTime > (adminLoginAt + 1000) &&
+        database.adminAllowedSessionId &&
+        database.adminAllowedSessionId !== currentDeviceSessionId
+      ) {
         handleLogout();
         setSessionExpiredMsg("Waa lagaa saaray nidaamka sababtoo ah koontadaada Maamulaha waxaa laga galay aalad kale.");
         setShowLogin(true);
@@ -359,6 +369,19 @@ export default function App() {
 
                 // Safe merge ensures multi-device edits (phone, tablet, laptop, desktop) are immediately reflected
                 const merged = safeMergeDatabaseStates(currentDb, remoteDb, { preferIncomingMeta: true });
+                
+                // If this device is an active Admin, ensure its own session ID is not overwritten by older remote snapshots
+                const activeRole = localStorage.getItem('dugsi_user_role');
+                const currSessionId = localStorage.getItem('dugsi_session_id');
+                const myLoginAt = Number(localStorage.getItem('dugsi_admin_login_at') || 0);
+                if (activeRole === 'admin' && currSessionId) {
+                  const remoteRevoke = Number(remoteDb.adminRevokeTime || 0);
+                  if (remoteRevoke <= myLoginAt + 1000) {
+                    merged.adminAllowedSessionId = currSessionId;
+                    merged.adminSessionId = currSessionId;
+                  }
+                }
+
                 if (JSON.stringify(currentDb) !== JSON.stringify(merged)) {
                   console.info(`[Dugsiga Subuc] Multi-device real-time sync updated (Students: ${merged.students?.length || 0}).`);
                   saveDatabase(merged);
@@ -487,7 +510,15 @@ export default function App() {
           // Active session takeover check directly during polling
           const currentRole = localStorage.getItem('dugsi_user_role');
           if (currentRole === 'admin' && currentDeviceSessionId && remoteDb.adminAllowedSessionId) {
-            if (remoteDb.adminAllowedSessionId !== currentDeviceSessionId) {
+            const adminLoginAt = Number(localStorage.getItem('dugsi_admin_login_at') || 0);
+            const remoteRevokeTime = Number(remoteDb.adminRevokeTime || 0);
+            const isGracePeriod = (Date.now() - adminLoginAt) < 6000;
+
+            if (
+              !isGracePeriod &&
+              remoteRevokeTime > (adminLoginAt + 1000) &&
+              remoteDb.adminAllowedSessionId !== currentDeviceSessionId
+            ) {
               handleLogout();
               setSessionExpiredMsg("Waa lagaa saaray nidaamka sababtoo ah koontadaada Maamulaha waxaa laga galay aalad kale.");
               setShowLogin(true);
@@ -498,6 +529,17 @@ export default function App() {
           setDatabase(currentDb => {
             if (!currentDb) return remoteDb;
             const merged = safeMergeDatabaseStates(currentDb, remoteDb, { preferIncomingMeta: true });
+            
+            // If this device is active Admin, keep current session token intact
+            const myLoginAt = Number(localStorage.getItem('dugsi_admin_login_at') || 0);
+            if (currentRole === 'admin' && currentDeviceSessionId) {
+              const remoteRevoke = Number(remoteDb.adminRevokeTime || 0);
+              if (remoteRevoke <= myLoginAt + 1000) {
+                merged.adminAllowedSessionId = currentDeviceSessionId;
+                merged.adminSessionId = currentDeviceSessionId;
+              }
+            }
+
             if (JSON.stringify(currentDb) !== JSON.stringify(merged)) {
               saveDatabase(merged);
               return merged;
@@ -529,10 +571,15 @@ export default function App() {
     const activeRole = options?.userRole || userRole || (loggedTeacher ? 'teacher' : 'admin');
     // 1. Assign new timestamp to track modifications
     const now = Date.now();
-    const dbWithTimestamp = {
+    const currentDeviceSessionId = localStorage.getItem('dugsi_session_id') || '';
+    const dbWithTimestamp: DatabaseState = {
       ...updatedDb,
       lastUpdatedTime: now
     };
+    if (activeRole === 'admin' && currentDeviceSessionId) {
+      dbWithTimestamp.adminAllowedSessionId = currentDeviceSessionId;
+      dbWithTimestamp.adminSessionId = currentDeviceSessionId;
+    }
 
     // 2. Lock the listener briefly to prevent echo overwrite
     lastSaveTimeRef.current = now;
@@ -568,8 +615,6 @@ export default function App() {
     setTimeout(() => {
       setGlobalSaveStatus(prev => prev.type === 'success' ? { type: null, message: null } : prev);
     }, 2500);
-
-    const currentDeviceSessionId = localStorage.getItem('dugsi_session_id') || '';
 
     const headers: Record<string, string> = { 
       'Content-Type': 'application/json',
@@ -644,12 +689,25 @@ export default function App() {
     setUserRole(role);
     setShowLogin(false);
     localStorage.setItem('dugsi_user_role', role);
-    if (role === 'teacher' && userEntity) {
+    if (role === 'admin') {
+      const now = Date.now();
+      localStorage.setItem('dugsi_admin_login_at', String(now));
+      const currentSessId = localStorage.getItem('dugsi_session_id') || ('admin_sess_' + Math.random().toString(36).substring(2, 11) + '_' + now);
+      localStorage.setItem('dugsi_session_id', currentSessId);
+      setDatabase(prev => prev ? ({
+        ...prev,
+        adminAllowedSessionId: currentSessId,
+        adminSessionId: currentSessId,
+        adminRevokeTime: now
+      }) : prev);
+    } else if (role === 'teacher' && userEntity) {
       setLoggedTeacher(userEntity);
       localStorage.setItem('dugsi_logged_teacher', JSON.stringify(userEntity));
+      localStorage.removeItem('dugsi_admin_login_at');
     } else {
       setLoggedTeacher(null);
       localStorage.removeItem('dugsi_logged_teacher');
+      localStorage.removeItem('dugsi_admin_login_at');
     }
   };
 
@@ -658,6 +716,7 @@ export default function App() {
     setLoggedTeacher(null);
     localStorage.removeItem('dugsi_user_role');
     localStorage.removeItem('dugsi_logged_teacher');
+    localStorage.removeItem('dugsi_admin_login_at');
   };
 
   if (!database) {

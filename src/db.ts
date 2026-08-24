@@ -1284,6 +1284,24 @@ export function safeMergeDatabaseStates(
 
   const lastUpdatedTime = Math.max(current.lastUpdatedTime || 0, incoming.lastUpdatedTime || 0, Date.now());
 
+  const currentRevokeTime = Number(current.adminRevokeTime || 0);
+  const incomingRevokeTime = Number(incoming.adminRevokeTime || 0);
+
+  let mergedAdminSessionId = current.adminSessionId;
+  let mergedAdminAllowedSessionId = current.adminAllowedSessionId;
+  let mergedAdminRevokeTime = currentRevokeTime;
+
+  if (!isTeacher) {
+    if (incomingRevokeTime > currentRevokeTime) {
+      mergedAdminAllowedSessionId = incoming.adminAllowedSessionId;
+      mergedAdminSessionId = incoming.adminSessionId || incoming.adminAllowedSessionId;
+      mergedAdminRevokeTime = incomingRevokeTime;
+    } else if (incomingRevokeTime === currentRevokeTime) {
+      mergedAdminAllowedSessionId = incoming.adminAllowedSessionId || current.adminAllowedSessionId;
+      mergedAdminSessionId = incoming.adminSessionId || current.adminSessionId;
+    }
+  }
+
   const mergedResult: DatabaseState = {
     teachers: mergedTeachers,
     students: mergedStudents,
@@ -1291,9 +1309,9 @@ export function safeMergeDatabaseStates(
     schoolLocation: isTeacher ? current.schoolLocation : (incoming.schoolLocation ? { ...current.schoolLocation, ...incoming.schoolLocation } : current.schoolLocation),
     landingPageSettings: isTeacher ? current.landingPageSettings : (incoming.landingPageSettings ? { ...current.landingPageSettings, ...incoming.landingPageSettings } : current.landingPageSettings),
     contactMessages: mergedContactMessages,
-    adminSessionId: isTeacher ? current.adminSessionId : (incoming.adminSessionId || current.adminSessionId),
-    adminAllowedSessionId: isTeacher ? current.adminAllowedSessionId : (incoming.adminAllowedSessionId !== undefined ? incoming.adminAllowedSessionId : current.adminAllowedSessionId),
-    adminRevokeTime: isTeacher ? current.adminRevokeTime : (incoming.adminRevokeTime || current.adminRevokeTime),
+    adminSessionId: mergedAdminSessionId,
+    adminAllowedSessionId: mergedAdminAllowedSessionId,
+    adminRevokeTime: mergedAdminRevokeTime,
     lastUpdatedTime,
     lastBackupDownloadDate: incoming.lastBackupDownloadDate || current.lastBackupDownloadDate,
     progress: mergedProgress,

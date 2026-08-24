@@ -85,15 +85,19 @@ export function LoginScreen({
     if (activeTab === 'admin') {
       if (username.trim() === 'yaxyecabdisalanmohamed1234@gmail.com' && password.trim() === 'yaxye6189600') {
         // Generate a fresh new unique session token for this login session
-        const freshSessionId = 'admin_sess_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
+        const now = Date.now();
+        const freshSessionId = 'admin_sess_' + Math.random().toString(36).substring(2, 11) + '_' + now;
         localStorage.setItem('dugsi_session_id', freshSessionId);
+        localStorage.setItem('dugsi_admin_login_at', String(now));
+        localStorage.setItem('dugsi_user_role', 'admin');
 
         // Update the active admin session ID in database so other devices using this same admin account are logged out immediately
-        const updatedDb = {
+        const updatedDb: DatabaseState = {
           ...database,
           adminAllowedSessionId: freshSessionId,
           adminSessionId: freshSessionId,
-          lastUpdatedTime: Date.now()
+          adminRevokeTime: now,
+          lastUpdatedTime: now
         };
         onSaveDatabase(updatedDb, { userRole: 'admin' });
         onLoginSuccess('admin');
