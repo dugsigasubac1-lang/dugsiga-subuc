@@ -352,7 +352,7 @@ export default function App() {
                 if (!currentDb) return remoteDb;
                 
                 // Guard: Do not overwrite if we recently saved locally
-                const isRecentlySaved = Date.now() - lastSaveTimeRef.current < 800;
+                const isRecentlySaved = Date.now() - lastSaveTimeRef.current < 1500;
                 if (isRecentlySaved) {
                   return currentDb;
                 }
@@ -468,7 +468,7 @@ export default function App() {
     let active = true;
 
     const intervalId = setInterval(async () => {
-      if (Date.now() - lastSaveTimeRef.current < 500) {
+      if (Date.now() - lastSaveTimeRef.current < 1500) {
         return;
       }
       try {
@@ -477,7 +477,7 @@ export default function App() {
         const serverResult = await res.json();
         
         if (active && serverResult && serverResult.initialized && serverResult.data) {
-          if (Date.now() - lastSaveTimeRef.current < 500) {
+          if (Date.now() - lastSaveTimeRef.current < 1500) {
             return;
           }
           

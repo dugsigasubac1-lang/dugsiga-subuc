@@ -254,6 +254,21 @@ export async function saveRemoteDatabaseState(
             clean.schoolLocation = tempMerged.schoolLocation || clean.schoolLocation;
             clean.landingPageSettings = tempMerged.landingPageSettings || clean.landingPageSettings;
             clean.contactMessages = tempMerged.contactMessages || clean.contactMessages;
+            if (state.adminAllowedSessionId !== undefined) {
+              clean.adminAllowedSessionId = state.adminAllowedSessionId;
+            } else if (tempMerged.adminAllowedSessionId !== undefined) {
+              clean.adminAllowedSessionId = tempMerged.adminAllowedSessionId;
+            }
+            if (state.adminSessionId !== undefined) {
+              clean.adminSessionId = state.adminSessionId;
+            } else if (tempMerged.adminSessionId !== undefined) {
+              clean.adminSessionId = tempMerged.adminSessionId;
+            }
+            if (state.adminRevokeTime !== undefined) {
+              clean.adminRevokeTime = state.adminRevokeTime;
+            } else if (tempMerged.adminRevokeTime !== undefined) {
+              clean.adminRevokeTime = tempMerged.adminRevokeTime;
+            }
           }
         } catch (mErr) {
           console.warn('[Firestore] Pre-save live core merge warning:', mErr);
@@ -266,6 +281,7 @@ export async function saveRemoteDatabaseState(
           schoolLocation: clean.schoolLocation || null,
           landingPageSettings: clean.landingPageSettings || null,
           contactMessages: clean.contactMessages || [],
+          adminSessionId: clean.adminSessionId || null,
           adminAllowedSessionId: clean.adminAllowedSessionId || null,
           adminRevokeTime: clean.adminRevokeTime || null,
           lastUpdatedTime: clean.lastUpdatedTime || Date.now(),
