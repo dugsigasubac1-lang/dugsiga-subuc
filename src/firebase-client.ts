@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { initializeFirestore, getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { DatabaseState } from './types';
 import { safeMergeDatabaseStates } from './db';
 import appConfig from '../firebase-applet-config.json';
@@ -33,7 +33,14 @@ export function initFirebaseClient() {
   }
   try {
     app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-    db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    try {
+      db = initializeFirestore(app, {
+        experimentalAutoDetectLongPolling: true,
+        ignoreUndefinedProperties: true
+      }, firebaseConfig.firestoreDatabaseId);
+    } catch {
+      db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    }
     stateDocRef = doc(db, 'system', 'state');
     coreDocRef = doc(db, 'system', 'core');
     progressDocRef = doc(db, 'system', 'progress');
@@ -119,15 +126,15 @@ export async function fetchRemoteDatabaseState(): Promise<DatabaseState | null> 
 
     // 2. Fallback to monolithic system/state document if partitions don't exist yet
     if (stateDocRef) {
-      const snap = await getDoc(stateDocRef);
-      if (snap.exists()) {
+      const snap = await getDoc(stateDocRef).catch(() => null);
+      if (snap && snap.exists()) {
         const data = snap.data() as any;
         return data?.state || null;
       }
     }
   } catch (error) {
-    console.error('[Dugsiga Subuc] Direct Firestore fetch error:', error);
-    throw error;
+    console.warn('[Dugsiga Subuc] Remote Firestore currently unavailable, utilizing local/server offline cache:', error);
+    return null;
   }
   return null;
 }

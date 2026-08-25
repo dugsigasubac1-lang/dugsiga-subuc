@@ -1029,23 +1029,17 @@ export function safeMergeDatabaseStates(
   if (!incoming) return sanitizeLocalDatabase(current);
 
   const isTeacher = options.userRole === 'teacher';
+  const preferIncoming = !!options.preferIncomingMeta;
 
   // 1. STUDENTS:
-  // If incoming is from a teacher, NEVER allow modification of students array. Always preserve current students!
-  // If incoming is from an admin, union students by ID, preserving ALL existing and incoming students
-  // unless explicitly listed in explicitDeletedStudentIds.
+  // Teachers NEVER modify students list. Always preserve current students.
+  // For Admins or cloud sync, incoming.students is authoritative.
   let mergedStudents: Student[] = [];
-  if (isTeacher) {
-    mergedStudents = Array.isArray(current.students) ? [...current.students] : [];
-  } else {
-    const deletedSet = new Set(options.explicitDeletedStudentIds || []);
-    const incomingStudentMap = new Map<string, Student>();
-    (incoming.students || []).forEach(s => {
-      if (s && s.id && !deletedSet.has(s.id)) {
-        incomingStudentMap.set(s.id, s);
-      }
-    });
+  const deletedSet = new Set(options.explicitDeletedStudentIds || []);
 
+  if (isTeacher) {
+    mergedStudents = (current.students || []).filter(s => s && s.id && !deletedSet.has(s.id));
+  } else {
     const currentStudentMap = new Map<string, Student>();
     (current.students || []).forEach(s => {
       if (s && s.id && !deletedSet.has(s.id)) {
@@ -1053,51 +1047,43 @@ export function safeMergeDatabaseStates(
       }
     });
 
-    const allUsedIds = new Set<string>();
-    const allStudentIds = new Set([...Array.from(currentStudentMap.keys()), ...Array.from(incomingStudentMap.keys())]);
+    const incStudents = Array.isArray(incoming.students) ? incoming.students : [];
+    mergedStudents = incStudents
+      .filter(s => s && s.id && !deletedSet.has(s.id))
+      .map(inc => {
+        const cur = currentStudentMap.get(inc.id);
+        if (!cur) return inc;
 
-    allStudentIds.forEach(id => {
-      if (deletedSet.has(id)) return;
-      const inc = incomingStudentMap.get(id);
-      const cur = currentStudentMap.get(id);
+        const baseMerged = preferIncoming ? { ...cur, ...inc } : { ...inc, ...cur };
 
-      if (inc && cur) {
-        // Cleanly merge student fields and media collections
-        const baseMerged = options.preferIncomingMeta ? { ...cur, ...inc } : { ...inc, ...cur };
-        
-        // Union photos array
+        // Preserve non-conflicting photos
         const mergedPhotos = Array.from(new Set([...(cur.photos || []), ...(inc.photos || [])])).filter(Boolean);
         if (mergedPhotos.length > 0) baseMerged.photos = mergedPhotos;
 
-        // Union recorded voice recitation items
+        // Preserve voice recitations
         const voiceMap = new Map<string, any>();
         (cur.voices || []).forEach(v => { if (v && v.url) voiceMap.set(v.url, v); });
         (inc.voices || []).forEach(v => { if (v && v.url) voiceMap.set(v.url, v); });
         if (voiceMap.size > 0) baseMerged.voices = Array.from(voiceMap.values());
 
-        // Union recorded video items
+        // Preserve videos
         const videoMap = new Map<string, any>();
         (cur.videos || []).forEach(v => { if (v && v.url) videoMap.set(v.url, v); });
         (inc.videos || []).forEach(v => { if (v && v.url) videoMap.set(v.url, v); });
         if (videoMap.size > 0) baseMerged.videos = Array.from(videoMap.values());
 
-        mergedStudents.push(baseMerged);
-        allUsedIds.add(id);
-      } else if (inc) {
-        mergedStudents.push(inc);
-        allUsedIds.add(inc.id);
-      } else if (cur) {
-        mergedStudents.push(cur);
-        allUsedIds.add(cur.id);
-      }
-    });
+        return baseMerged;
+      });
   }
+
+  const validStudentIdSet = new Set(mergedStudents.map(s => s.id));
 
   // 2. TEACHERS:
   let mergedTeachers: Teacher[] = [];
+  const deletedTeacherSet = new Set(options.explicitDeletedTeacherIds || []);
+
   if (isTeacher) {
-    // Preserve teacher roster, allow session meta update for the active teacher if incoming is newer or valid
-    mergedTeachers = (current.teachers || []).map(t => {
+    mergedTeachers = (current.teachers || []).filter(t => t && t.id && !deletedTeacherSet.has(t.id)).map(t => {
       const inc = (incoming.teachers || []).find(it => it && it.id === t.id);
       if (inc) {
         const curRevoke = Number(t.sessionLoginTimestamp || t.sessionRevokeTime || 0);
@@ -1117,26 +1103,23 @@ export function safeMergeDatabaseStates(
       return t;
     });
   } else {
-    const deletedTeacherSet = new Set(options.explicitDeletedTeacherIds || []);
-    const incTeacherMap = new Map<string, Teacher>();
-    (incoming.teachers || []).forEach(t => {
-      if (t && t.id && !deletedTeacherSet.has(t.id)) incTeacherMap.set(t.id, t);
-    });
     const curTeacherMap = new Map<string, Teacher>();
     (current.teachers || []).forEach(t => {
       if (t && t.id && !deletedTeacherSet.has(t.id)) curTeacherMap.set(t.id, t);
     });
-    const allTIds = new Set([...Array.from(curTeacherMap.keys()), ...Array.from(incTeacherMap.keys())]);
-    allTIds.forEach(id => {
-      if (deletedTeacherSet.has(id)) return;
-      const inc = incTeacherMap.get(id);
-      const cur = curTeacherMap.get(id);
-      if (inc && cur) {
+
+    const incTeachers = Array.isArray(incoming.teachers) ? incoming.teachers : [];
+    mergedTeachers = incTeachers
+      .filter(t => t && t.id && !deletedTeacherSet.has(t.id))
+      .map(inc => {
+        const cur = curTeacherMap.get(inc.id);
+        if (!cur) return inc;
+
         const curRevoke = Number(cur.sessionLoginTimestamp || cur.sessionRevokeTime || 0);
         const incRevoke = Number(inc.sessionLoginTimestamp || inc.sessionRevokeTime || 0);
         const preferIncSession = incRevoke >= curRevoke;
 
-        const mergedT: Teacher = options.preferIncomingMeta ? { ...cur, ...inc } : { ...inc, ...cur };
+        const mergedT: Teacher = preferIncoming ? { ...cur, ...inc } : { ...inc, ...cur };
         mergedT.isAdmin = inc.isAdmin !== undefined ? inc.isAdmin : cur.isAdmin;
         if (preferIncSession) {
           mergedT.currentSessionId = inc.currentSessionId || cur.currentSessionId;
@@ -1151,177 +1134,152 @@ export function safeMergeDatabaseStates(
           mergedT.sessionDeviceInfo = cur.sessionDeviceInfo || inc.sessionDeviceInfo;
           mergedT.sessionLoginTime = cur.sessionLoginTime || inc.sessionLoginTime;
         }
-        mergedTeachers.push(mergedT);
-      }
-      else if (inc) mergedTeachers.push(inc);
-      else if (cur) mergedTeachers.push(cur);
-    });
+        return mergedT;
+      });
   }
 
   // 3. CLASSES:
-  const mergedClasses = Array.from(new Set([
-    ...(current.classes || []),
-    ...(isTeacher ? [] : (incoming.classes || []))
-  ])).filter(Boolean);
-
-  // 4. PROGRESS: Union & Update by ID
-  const deletedStudentSet = new Set(options.explicitDeletedStudentIds || []);
-  const progressMap = new Map<string, DailyProgress>();
-  (current.progress || []).forEach(p => {
-    if (p && p.id && (!p.studentId || !deletedStudentSet.has(p.studentId))) {
-      progressMap.set(p.id, p);
-    }
-  });
-  (incoming.progress || []).forEach(p => {
-    if (p && p.id && (!p.studentId || !deletedStudentSet.has(p.studentId))) {
-      const curP = progressMap.get(p.id);
-      progressMap.set(p.id, curP ? { ...curP, ...p } : p);
-    }
-  });
-  const mergedProgress = Array.from(progressMap.values());
-
-  // 5. EXAMS: Union by ID
-  const deletedExamSet = new Set(options.explicitDeletedExamIds || []);
-  const examMap = new Map<string, Exam>();
-  (current.exams || []).forEach(ex => { if (ex && ex.id && !deletedExamSet.has(ex.id)) examMap.set(ex.id, ex); });
-  (incoming.exams || []).forEach(ex => {
-    if (ex && ex.id && !deletedExamSet.has(ex.id)) {
-      const curEx = examMap.get(ex.id);
-      examMap.set(ex.id, curEx ? { ...curEx, ...ex } : ex);
-    }
-  });
-  const mergedExams = Array.from(examMap.values());
-
-  // 6. SUBMISSIONS: Union by ID
-  const subMap = new Map<string, any>();
-  (current.submissions || []).forEach(sub => { if (sub && sub.id) subMap.set(sub.id, sub); });
-  (incoming.submissions || []).forEach(sub => {
-    if (sub && sub.id) {
-      const curSub = subMap.get(sub.id);
-      subMap.set(sub.id, curSub ? { ...curSub, ...sub } : sub);
-    }
-  });
-  const mergedSubmissions = Array.from(subMap.values());
-
-  // 7. TEACHER ATTENDANCE: Union by ID / teacher+date key
-  const tAttMap = new Map<string, TeacherAttendanceRecord>();
-  (current.teacherAttendance || []).forEach(ta => {
-    if (ta) {
-      const key = ta.id || `${ta.teacherId}_${ta.date}`;
-      tAttMap.set(key, ta);
-    }
-  });
-  (incoming.teacherAttendance || []).forEach(ta => {
-    if (ta) {
-      const key = ta.id || `${ta.teacherId}_${ta.date}`;
-      const curTa = tAttMap.get(key);
-      tAttMap.set(key, curTa ? { ...curTa, ...ta } : ta);
-    }
-  });
-  const mergedTeacherAttendance = Array.from(tAttMap.values());
-
-  // 8. BILLING & INVOICES & FINANCIALS:
-  let mergedBilling = current.billing || [];
-  let mergedInvoices = current.invoices || [];
-  let mergedMoneyTransfers = current.moneyTransfers || [];
-  let mergedXawaaladaAccounts = current.xawaaladaAccounts || [];
-  let mergedXawaaladaTransactions = current.xawaaladaTransactions || [];
-  let mergedXawaaladaSettings = current.xawaaladaSettings || null;
-
-  if (!isTeacher) {
-    const deletedInvSet = new Set(options.explicitDeletedInvoiceIds || []);
-    // Invoices merge
-    const invMap = new Map<string, Invoice>();
-    (current.invoices || []).forEach(inv => {
-      if (inv && inv.id && !deletedInvSet.has(inv.id) && (!inv.studentId || !deletedStudentSet.has(inv.studentId))) {
-        invMap.set(inv.id, inv);
-      }
-    });
-    (incoming.invoices || []).forEach(inv => {
-      if (inv && inv.id && !deletedInvSet.has(inv.id) && (!inv.studentId || !deletedStudentSet.has(inv.studentId))) {
-        const curInv = invMap.get(inv.id);
-        invMap.set(inv.id, curInv ? { ...curInv, ...inv } : inv);
-      }
-    });
-    mergedInvoices = Array.from(invMap.values());
-
-    // Billing merge
-    const billMap = new Map<string, BillingRecord>();
-    (current.billing || []).forEach(b => {
-      if (b && b.id && (!b.studentId || !deletedStudentSet.has(b.studentId))) {
-        billMap.set(b.id, b);
-      }
-    });
-    (incoming.billing || []).forEach(b => {
-      if (b && b.id && (!b.studentId || !deletedStudentSet.has(b.studentId))) {
-        const curB = billMap.get(b.id);
-        billMap.set(b.id, curB ? { ...curB, ...b } : b);
-      }
-    });
-    mergedBilling = Array.from(billMap.values());
-
-    // Money transfers merge
-    const mtMap = new Map<string, MoneyTransferRecord>();
-    (current.moneyTransfers || []).forEach(m => { if (m && m.id) mtMap.set(m.id, m); });
-    (incoming.moneyTransfers || []).forEach(m => {
-      if (m && m.id) {
-        const curM = mtMap.get(m.id);
-        mtMap.set(m.id, curM ? { ...curM, ...m } : m);
-      }
-    });
-    mergedMoneyTransfers = Array.from(mtMap.values());
-
-    // Xawaalada accounts merge
-    const xAccMap = new Map<string, XawaaladaAccount>();
-    (current.xawaaladaAccounts || []).forEach(a => { if (a && a.id) xAccMap.set(a.id, a); });
-    (incoming.xawaaladaAccounts || []).forEach(a => {
-      if (a && a.id) {
-        const curA = xAccMap.get(a.id);
-        xAccMap.set(a.id, curA ? { ...curA, ...a } : a);
-      }
-    });
-    mergedXawaaladaAccounts = Array.from(xAccMap.values());
-
-    // Xawaalada transactions merge
-    const xTxMap = new Map<string, XawaaladaTransaction>();
-    (current.xawaaladaTransactions || []).forEach(t => { if (t && t.id) xTxMap.set(t.id, t); });
-    (incoming.xawaaladaTransactions || []).forEach(t => {
-      if (t && t.id) {
-        const curTx = xTxMap.get(t.id);
-        xTxMap.set(t.id, curTx ? { ...curTx, ...t } : t);
-      }
-    });
-    mergedXawaaladaTransactions = Array.from(xTxMap.values());
-
-    mergedXawaaladaSettings = incoming.xawaaladaSettings || current.xawaaladaSettings || null;
+  let mergedClasses: string[] = [];
+  if (isTeacher) {
+    mergedClasses = current.classes || [];
+  } else {
+    mergedClasses = Array.isArray(incoming.classes) ? incoming.classes : (current.classes || []);
   }
 
-  // 9. NOTIFICATIONS: Union by ID & merge readBy
-  const notifMap = new Map<string, any>();
-  (current.notifications || []).forEach(n => { if (n && n.id) notifMap.set(n.id, n); });
-  (incoming.notifications || []).forEach(n => {
-    if (n && n.id) {
-      const curN = notifMap.get(n.id);
-      if (curN) {
-        const readByUnion = Array.from(new Set([...(curN.readBy || []), ...(n.readBy || [])]));
-        notifMap.set(n.id, { ...curN, ...n, readBy: readByUnion });
-      } else {
-        notifMap.set(n.id, n);
+  // 4. PROGRESS:
+  let mergedProgress: DailyProgress[] = [];
+  if (isTeacher) {
+    const progressMap = new Map<string, DailyProgress>();
+    (current.progress || []).forEach(p => {
+      if (p && p.id && (!p.studentId || validStudentIdSet.has(p.studentId))) {
+        progressMap.set(p.id, p);
       }
-    }
-  });
-  const mergedNotifications = Array.from(notifMap.values());
+    });
+    (incoming.progress || []).forEach(p => {
+      if (p && p.id && (!p.studentId || validStudentIdSet.has(p.studentId))) {
+        const curP = progressMap.get(p.id);
+        progressMap.set(p.id, curP ? { ...curP, ...p } : p);
+      }
+    });
+    mergedProgress = Array.from(progressMap.values());
+  } else {
+    const sourceProg = Array.isArray(incoming.progress) ? incoming.progress : (current.progress || []);
+    mergedProgress = sourceProg.filter(p => p && p.id && (!p.studentId || validStudentIdSet.has(p.studentId)));
+  }
 
-  // 10. CONTACT MESSAGES: Union by ID
-  const msgMap = new Map<string, ContactMessage>();
-  (current.contactMessages || []).forEach(m => { if (m && m.id) msgMap.set(m.id, m); });
-  (incoming.contactMessages || []).forEach(m => {
-    if (m && m.id) {
-      const curM = msgMap.get(m.id);
-      msgMap.set(m.id, curM ? { ...curM, ...m } : m);
-    }
-  });
-  const mergedContactMessages = Array.from(msgMap.values());
+  // 5. EXAMS:
+  const deletedExamSet = new Set(options.explicitDeletedExamIds || []);
+  let mergedExams: Exam[] = [];
+  if (isTeacher) {
+    const examMap = new Map<string, Exam>();
+    (current.exams || []).forEach(ex => { if (ex && ex.id && !deletedExamSet.has(ex.id)) examMap.set(ex.id, ex); });
+    (incoming.exams || []).forEach(ex => {
+      if (ex && ex.id && !deletedExamSet.has(ex.id)) {
+        const curEx = examMap.get(ex.id);
+        examMap.set(ex.id, curEx ? { ...curEx, ...ex } : ex);
+      }
+    });
+    mergedExams = Array.from(examMap.values());
+  } else {
+    const sourceExams = Array.isArray(incoming.exams) ? incoming.exams : (current.exams || []);
+    mergedExams = sourceExams.filter(ex => ex && ex.id && !deletedExamSet.has(ex.id));
+  }
+
+  // 6. SUBMISSIONS:
+  let mergedSubmissions: any[] = [];
+  if (isTeacher) {
+    const subMap = new Map<string, any>();
+    (current.submissions || []).forEach(sub => { if (sub && sub.id) subMap.set(sub.id, sub); });
+    (incoming.submissions || []).forEach(sub => {
+      if (sub && sub.id) {
+        const curSub = subMap.get(sub.id);
+        subMap.set(sub.id, curSub ? { ...curSub, ...sub } : sub);
+      }
+    });
+    mergedSubmissions = Array.from(subMap.values());
+  } else {
+    mergedSubmissions = Array.isArray(incoming.submissions) ? incoming.submissions : (current.submissions || []);
+  }
+
+  // 7. TEACHER ATTENDANCE:
+  let mergedTeacherAttendance: TeacherAttendanceRecord[] = [];
+  if (isTeacher) {
+    const tAttMap = new Map<string, TeacherAttendanceRecord>();
+    (current.teacherAttendance || []).forEach(ta => {
+      if (ta) {
+        const key = ta.id || `${ta.teacherId}_${ta.date}`;
+        tAttMap.set(key, ta);
+      }
+    });
+    (incoming.teacherAttendance || []).forEach(ta => {
+      if (ta) {
+        const key = ta.id || `${ta.teacherId}_${ta.date}`;
+        const curTa = tAttMap.get(key);
+        tAttMap.set(key, curTa ? { ...curTa, ...ta } : ta);
+      }
+    });
+    mergedTeacherAttendance = Array.from(tAttMap.values());
+  } else {
+    mergedTeacherAttendance = Array.isArray(incoming.teacherAttendance) ? incoming.teacherAttendance : (current.teacherAttendance || []);
+  }
+
+  // 8. BILLING & INVOICES & FINANCIALS:
+  let mergedBilling: BillingRecord[] = [];
+  let mergedInvoices: Invoice[] = [];
+  let mergedMoneyTransfers: MoneyTransferRecord[] = [];
+  let mergedXawaaladaAccounts: XawaaladaAccount[] = [];
+  let mergedXawaaladaTransactions: XawaaladaTransaction[] = [];
+  let mergedXawaaladaSettings = current.xawaaladaSettings || null;
+
+  if (isTeacher) {
+    mergedBilling = current.billing || [];
+    mergedInvoices = current.invoices || [];
+    mergedMoneyTransfers = current.moneyTransfers || [];
+    mergedXawaaladaAccounts = current.xawaaladaAccounts || [];
+    mergedXawaaladaTransactions = current.xawaaladaTransactions || [];
+    mergedXawaaladaSettings = current.xawaaladaSettings || null;
+  } else {
+    const deletedInvSet = new Set(options.explicitDeletedInvoiceIds || []);
+    const sourceInvoices = Array.isArray(incoming.invoices) ? incoming.invoices : (current.invoices || []);
+    mergedInvoices = sourceInvoices.filter(inv => inv && inv.id && !deletedInvSet.has(inv.id) && (!inv.studentId || validStudentIdSet.has(inv.studentId)));
+
+    const sourceBilling = Array.isArray(incoming.billing) ? incoming.billing : (current.billing || []);
+    mergedBilling = sourceBilling.filter(b => b && b.id && (!b.studentId || validStudentIdSet.has(b.studentId)));
+
+    mergedMoneyTransfers = Array.isArray(incoming.moneyTransfers) ? incoming.moneyTransfers : (current.moneyTransfers || []);
+    mergedXawaaladaAccounts = Array.isArray(incoming.xawaaladaAccounts) ? incoming.xawaaladaAccounts : (current.xawaaladaAccounts || []);
+    mergedXawaaladaTransactions = Array.isArray(incoming.xawaaladaTransactions) ? incoming.xawaaladaTransactions : (current.xawaaladaTransactions || []);
+    mergedXawaaladaSettings = incoming.xawaaladaSettings !== undefined ? incoming.xawaaladaSettings : (current.xawaaladaSettings || null);
+  }
+
+  // 9. NOTIFICATIONS:
+  let mergedNotifications: any[] = [];
+  if (isTeacher) {
+    const notifMap = new Map<string, any>();
+    (current.notifications || []).forEach(n => { if (n && n.id) notifMap.set(n.id, n); });
+    (incoming.notifications || []).forEach(n => {
+      if (n && n.id) {
+        const curN = notifMap.get(n.id);
+        if (curN) {
+          const readByUnion = Array.from(new Set([...(curN.readBy || []), ...(n.readBy || [])]));
+          notifMap.set(n.id, { ...curN, ...n, readBy: readByUnion });
+        } else {
+          notifMap.set(n.id, n);
+        }
+      }
+    });
+    mergedNotifications = Array.from(notifMap.values());
+  } else {
+    mergedNotifications = Array.isArray(incoming.notifications) ? incoming.notifications : (current.notifications || []);
+  }
+
+  // 10. CONTACT MESSAGES:
+  let mergedContactMessages: ContactMessage[] = [];
+  if (isTeacher) {
+    mergedContactMessages = current.contactMessages || [];
+  } else {
+    mergedContactMessages = Array.isArray(incoming.contactMessages) ? incoming.contactMessages : (current.contactMessages || []);
+  }
 
   const lastUpdatedTime = Math.max(current.lastUpdatedTime || 0, incoming.lastUpdatedTime || 0, Date.now());
 
