@@ -522,10 +522,15 @@ function safeMergeServerDatabaseStates(
   ])).filter(Boolean);
 
   // 4. PROGRESS: Union & Update by ID
+  const deletedStudentSet = new Set(options.explicitDeletedStudentIds || []);
   const progressMap = new Map<string, any>();
-  (current.progress || []).forEach((p: any) => { if (p && p.id) progressMap.set(p.id, p); });
+  (current.progress || []).forEach((p: any) => {
+    if (p && p.id && (!p.studentId || !deletedStudentSet.has(p.studentId))) {
+      progressMap.set(p.id, p);
+    }
+  });
   (incoming.progress || []).forEach((p: any) => {
-    if (p && p.id) {
+    if (p && p.id && (!p.studentId || !deletedStudentSet.has(p.studentId))) {
       const curP = progressMap.get(p.id);
       progressMap.set(p.id, curP ? { ...curP, ...p } : p);
     }
@@ -546,9 +551,13 @@ function safeMergeServerDatabaseStates(
 
   // 6. SUBMISSIONS: Union by ID
   const subMap = new Map<string, any>();
-  (current.submissions || []).forEach((s: any) => { if (s && s.id) subMap.set(s.id, s); });
+  (current.submissions || []).forEach((s: any) => {
+    if (s && s.id && (!s.studentId || !deletedStudentSet.has(s.studentId))) {
+      subMap.set(s.id, s);
+    }
+  });
   (incoming.submissions || []).forEach((s: any) => {
-    if (s && s.id) {
+    if (s && s.id && (!s.studentId || !deletedStudentSet.has(s.studentId))) {
       const curSub = subMap.get(s.id);
       subMap.set(s.id, curSub ? { ...curSub, ...s } : s);
     }
@@ -583,9 +592,13 @@ function safeMergeServerDatabaseStates(
   if (!isTeacher) {
     const deletedInvSet = new Set(options.explicitDeletedInvoiceIds || []);
     const invMap = new Map<string, any>();
-    (current.invoices || []).forEach((inv: any) => { if (inv && inv.id && !deletedInvSet.has(inv.id)) invMap.set(inv.id, inv); });
+    (current.invoices || []).forEach((inv: any) => {
+      if (inv && inv.id && !deletedInvSet.has(inv.id) && (!inv.studentId || !deletedStudentSet.has(inv.studentId))) {
+        invMap.set(inv.id, inv);
+      }
+    });
     (incoming.invoices || []).forEach((inv: any) => {
-      if (inv && inv.id && !deletedInvSet.has(inv.id)) {
+      if (inv && inv.id && !deletedInvSet.has(inv.id) && (!inv.studentId || !deletedStudentSet.has(inv.studentId))) {
         const curInv = invMap.get(inv.id);
         invMap.set(inv.id, curInv ? { ...curInv, ...inv } : inv);
       }
@@ -593,9 +606,13 @@ function safeMergeServerDatabaseStates(
     mergedInvoices = Array.from(invMap.values());
 
     const billMap = new Map<string, any>();
-    (current.billing || []).forEach((b: any) => { if (b && b.id) billMap.set(b.id, b); });
+    (current.billing || []).forEach((b: any) => {
+      if (b && b.id && (!b.studentId || !deletedStudentSet.has(b.studentId))) {
+        billMap.set(b.id, b);
+      }
+    });
     (incoming.billing || []).forEach((b: any) => {
-      if (b && b.id) {
+      if (b && b.id && (!b.studentId || !deletedStudentSet.has(b.studentId))) {
         const curB = billMap.get(b.id);
         billMap.set(b.id, curB ? { ...curB, ...b } : b);
       }
@@ -1239,7 +1256,7 @@ async function startServer() {
         storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${process.env.FIREBASE_PROJECT_ID}.firebasestorage.app`,
         messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "",
         appId: process.env.FIREBASE_APP_ID || "",
-        firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || "ai-studio-4ff514b8-ec83-4143-b156-7acce5ac27d5",
+        firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || "(default)",
       };
       console.log('Firebase configured using environment variables.');
     } else if (process.env.FIREBASE_CONFIG) {
@@ -1599,10 +1616,39 @@ async function startServer() {
       const userRole = (req.headers['x-user-role'] as string) || '';
       const teacherId = req.headers['x-teacher-id'];
       const sessionId = req.headers['x-session-id'];
-      const deletedStudentId = req.headers['x-deleted-student-id'] as string;
-      const deletedTeacherId = req.headers['x-deleted-teacher-id'] as string;
-      const deletedExamId = req.headers['x-deleted-exam-id'] as string;
-      const deletedInvoiceId = req.headers['x-deleted-invoice-id'] as string;
+      
+      const parseIdList = (headerValue?: string, singleHeaderValue?: string): string[] => {
+        const idSet = new Set<string>();
+        if (headerValue) {
+          try {
+            const parsed = JSON.parse(headerValue);
+            if (Array.isArray(parsed)) parsed.forEach((id: any) => id && idSet.add(String(id)));
+          } catch {
+            headerValue.split(',').forEach(id => id && idSet.add(id.trim()));
+          }
+        }
+        if (singleHeaderValue) {
+          idSet.add(singleHeaderValue.trim());
+        }
+        return Array.from(idSet).filter(Boolean);
+      };
+
+      const explicitDeletedStudentIds = parseIdList(
+        req.headers['x-deleted-student-ids'] as string,
+        req.headers['x-deleted-student-id'] as string
+      );
+      const explicitDeletedTeacherIds = parseIdList(
+        req.headers['x-deleted-teacher-ids'] as string,
+        req.headers['x-deleted-teacher-id'] as string
+      );
+      const explicitDeletedExamIds = parseIdList(
+        req.headers['x-deleted-exam-ids'] as string,
+        req.headers['x-deleted-exam-id'] as string
+      );
+      const explicitDeletedInvoiceIds = parseIdList(
+        req.headers['x-deleted-invoice-ids'] as string,
+        req.headers['x-deleted-invoice-id'] as string
+      );
 
       if (userRole === 'teacher' && teacherId && sessionId) {
         if (currentDatabaseState) {
@@ -1659,10 +1705,10 @@ async function startServer() {
         dbState,
         {
           userRole,
-          explicitDeletedStudentIds: deletedStudentId ? [deletedStudentId] : [],
-          explicitDeletedTeacherIds: deletedTeacherId ? [deletedTeacherId] : [],
-          explicitDeletedExamIds: deletedExamId ? [deletedExamId] : [],
-          explicitDeletedInvoiceIds: deletedInvoiceId ? [deletedInvoiceId] : []
+          explicitDeletedStudentIds,
+          explicitDeletedTeacherIds,
+          explicitDeletedExamIds,
+          explicitDeletedInvoiceIds
         }
       );
 

@@ -681,7 +681,13 @@ export default function App() {
         message: 'Aaladdaadu hadda khadka kama jirto (Offline). Xogta waxaa lagu kaydiyay gudaha aaladda waxaana loo gudbin doonaa cloud-ka marka khadku soo laabto.' 
       });
       if (isDirectFirebasePreferred()) {
-        saveRemoteDatabaseState(dbWithTimestamp, { userRole: activeRole as any, explicitDeletedStudentIds: options?.explicitDeletedStudentIds }).catch(() => {});
+        saveRemoteDatabaseState(dbWithTimestamp, {
+          userRole: activeRole as any,
+          explicitDeletedStudentIds: options?.explicitDeletedStudentIds,
+          explicitDeletedTeacherIds: options?.explicitDeletedTeacherIds,
+          explicitDeletedExamIds: options?.explicitDeletedExamIds,
+          explicitDeletedInvoiceIds: options?.explicitDeletedInvoiceIds
+        }).catch(() => {});
       }
       return;
     }
@@ -699,17 +705,21 @@ export default function App() {
       'X-Session-Id': currentDeviceSessionId
     };
 
-    if (options?.explicitDeletedStudentIds?.[0]) {
+    if (options?.explicitDeletedStudentIds && options.explicitDeletedStudentIds.length > 0) {
       headers['X-Deleted-Student-Id'] = options.explicitDeletedStudentIds[0];
+      headers['X-Deleted-Student-Ids'] = JSON.stringify(options.explicitDeletedStudentIds);
     }
-    if (options?.explicitDeletedTeacherIds?.[0]) {
+    if (options?.explicitDeletedTeacherIds && options.explicitDeletedTeacherIds.length > 0) {
       headers['X-Deleted-Teacher-Id'] = options.explicitDeletedTeacherIds[0];
+      headers['X-Deleted-Teacher-Ids'] = JSON.stringify(options.explicitDeletedTeacherIds);
     }
-    if (options?.explicitDeletedExamIds?.[0]) {
+    if (options?.explicitDeletedExamIds && options.explicitDeletedExamIds.length > 0) {
       headers['X-Deleted-Exam-Id'] = options.explicitDeletedExamIds[0];
+      headers['X-Deleted-Exam-Ids'] = JSON.stringify(options.explicitDeletedExamIds);
     }
-    if (options?.explicitDeletedInvoiceIds?.[0]) {
+    if (options?.explicitDeletedInvoiceIds && options.explicitDeletedInvoiceIds.length > 0) {
       headers['X-Deleted-Invoice-Id'] = options.explicitDeletedInvoiceIds[0];
+      headers['X-Deleted-Invoice-Ids'] = JSON.stringify(options.explicitDeletedInvoiceIds);
     }
 
     // Fire dual persistence in background:
@@ -732,7 +742,13 @@ export default function App() {
         if (result && result.data) {
           setDatabase(currentDb => {
             if (!currentDb) return result.data;
-            const merged = safeMergeDatabaseStates(currentDb, result.data, { preferIncomingMeta: true });
+            const merged = safeMergeDatabaseStates(currentDb, result.data, {
+              preferIncomingMeta: true,
+              explicitDeletedStudentIds: options?.explicitDeletedStudentIds,
+              explicitDeletedTeacherIds: options?.explicitDeletedTeacherIds,
+              explicitDeletedExamIds: options?.explicitDeletedExamIds,
+              explicitDeletedInvoiceIds: options?.explicitDeletedInvoiceIds
+            });
             if (JSON.stringify(currentDb) !== JSON.stringify(merged)) {
               saveDatabase(merged);
               return merged;

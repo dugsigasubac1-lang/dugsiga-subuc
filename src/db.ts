@@ -1165,10 +1165,15 @@ export function safeMergeDatabaseStates(
   ])).filter(Boolean);
 
   // 4. PROGRESS: Union & Update by ID
+  const deletedStudentSet = new Set(options.explicitDeletedStudentIds || []);
   const progressMap = new Map<string, DailyProgress>();
-  (current.progress || []).forEach(p => { if (p && p.id) progressMap.set(p.id, p); });
+  (current.progress || []).forEach(p => {
+    if (p && p.id && (!p.studentId || !deletedStudentSet.has(p.studentId))) {
+      progressMap.set(p.id, p);
+    }
+  });
   (incoming.progress || []).forEach(p => {
-    if (p && p.id) {
+    if (p && p.id && (!p.studentId || !deletedStudentSet.has(p.studentId))) {
       const curP = progressMap.get(p.id);
       progressMap.set(p.id, curP ? { ...curP, ...p } : p);
     }
@@ -1227,9 +1232,13 @@ export function safeMergeDatabaseStates(
     const deletedInvSet = new Set(options.explicitDeletedInvoiceIds || []);
     // Invoices merge
     const invMap = new Map<string, Invoice>();
-    (current.invoices || []).forEach(inv => { if (inv && inv.id && !deletedInvSet.has(inv.id)) invMap.set(inv.id, inv); });
+    (current.invoices || []).forEach(inv => {
+      if (inv && inv.id && !deletedInvSet.has(inv.id) && (!inv.studentId || !deletedStudentSet.has(inv.studentId))) {
+        invMap.set(inv.id, inv);
+      }
+    });
     (incoming.invoices || []).forEach(inv => {
-      if (inv && inv.id && !deletedInvSet.has(inv.id)) {
+      if (inv && inv.id && !deletedInvSet.has(inv.id) && (!inv.studentId || !deletedStudentSet.has(inv.studentId))) {
         const curInv = invMap.get(inv.id);
         invMap.set(inv.id, curInv ? { ...curInv, ...inv } : inv);
       }
@@ -1238,9 +1247,13 @@ export function safeMergeDatabaseStates(
 
     // Billing merge
     const billMap = new Map<string, BillingRecord>();
-    (current.billing || []).forEach(b => { if (b && b.id) billMap.set(b.id, b); });
+    (current.billing || []).forEach(b => {
+      if (b && b.id && (!b.studentId || !deletedStudentSet.has(b.studentId))) {
+        billMap.set(b.id, b);
+      }
+    });
     (incoming.billing || []).forEach(b => {
-      if (b && b.id) {
+      if (b && b.id && (!b.studentId || !deletedStudentSet.has(b.studentId))) {
         const curB = billMap.get(b.id);
         billMap.set(b.id, curB ? { ...curB, ...b } : b);
       }

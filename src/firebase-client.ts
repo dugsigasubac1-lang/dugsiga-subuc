@@ -132,6 +132,22 @@ export async function fetchRemoteDatabaseState(): Promise<DatabaseState | null> 
   return null;
 }
 
+// Queue and Mutex for serializing Firestore writes to prevent write stream buffer exhaustion
+let isWriteInProgress = false;
+let pendingSave: {
+  state: DatabaseState;
+  options?: {
+    userRole?: 'admin' | 'teacher' | null;
+    explicitDeletedStudentIds?: string[];
+    explicitDeletedTeacherIds?: string[];
+    explicitDeletedExamIds?: string[];
+    explicitDeletedInvoiceIds?: string[];
+  };
+  resolve: (val: boolean) => void;
+  reject: (err: any) => void;
+} | null = null;
+let saveDebounceTimeout: any = null;
+
 export async function saveRemoteDatabaseState(
   state: DatabaseState,
   options?: {
@@ -142,16 +158,117 @@ export async function saveRemoteDatabaseState(
     explicitDeletedInvoiceIds?: string[];
   }
 ): Promise<boolean> {
-  const { coreDocRef, progressDocRef, financeDocRef, logsDocRef, stateDocRef } = initFirebaseClient();
+  return new Promise<boolean>((resolve, reject) => {
+    // If a pending save is already queued, coalesce/merge with the latest request
+    if (pendingSave) {
+      const mergedPendingState = safeMergeDatabaseStates(pendingSave.state, state, { preferIncomingMeta: true });
+      const mergedDeletedStudentIds = Array.from(new Set([
+        ...(pendingSave.options?.explicitDeletedStudentIds || []),
+        ...(options?.explicitDeletedStudentIds || [])
+      ]));
+      const mergedDeletedTeacherIds = Array.from(new Set([
+        ...(pendingSave.options?.explicitDeletedTeacherIds || []),
+        ...(options?.explicitDeletedTeacherIds || [])
+      ]));
+      const mergedDeletedExamIds = Array.from(new Set([
+        ...(pendingSave.options?.explicitDeletedExamIds || []),
+        ...(options?.explicitDeletedExamIds || [])
+      ]));
+      const mergedDeletedInvoiceIds = Array.from(new Set([
+        ...(pendingSave.options?.explicitDeletedInvoiceIds || []),
+        ...(options?.explicitDeletedInvoiceIds || [])
+      ]));
+
+      const previousResolve = pendingSave.resolve;
+      pendingSave = {
+        state: mergedPendingState,
+        options: {
+          ...pendingSave.options,
+          ...options,
+          explicitDeletedStudentIds: mergedDeletedStudentIds,
+          explicitDeletedTeacherIds: mergedDeletedTeacherIds,
+          explicitDeletedExamIds: mergedDeletedExamIds,
+          explicitDeletedInvoiceIds: mergedDeletedInvoiceIds
+        },
+        resolve: (val: boolean) => {
+          previousResolve(val);
+          resolve(val);
+        },
+        reject
+      };
+      return;
+    }
+
+    pendingSave = { state, options, resolve, reject };
+
+    if (!isWriteInProgress) {
+      if (saveDebounceTimeout) clearTimeout(saveDebounceTimeout);
+      saveDebounceTimeout = setTimeout(() => {
+        processSaveQueue();
+      }, 50);
+    }
+  });
+}
+
+async function processSaveQueue() {
+  if (isWriteInProgress || !pendingSave) return;
+
+  isWriteInProgress = true;
+  const currentJob = pendingSave;
+  pendingSave = null;
+
+  try {
+    const success = await executeDirectFirestoreSave(currentJob.state, currentJob.options);
+    currentJob.resolve(success);
+  } catch (err) {
+    console.warn('[Dugsiga Subuc] Firestore queued save warning:', err);
+    currentJob.resolve(false);
+  } finally {
+    isWriteInProgress = false;
+    // If another save arrived while writing, process next after a brief pause
+    if (pendingSave) {
+      setTimeout(() => {
+        processSaveQueue();
+      }, 100);
+    }
+  }
+}
+
+async function safeSetDocWithBackoff(docRef: any, data: any, retries = 2): Promise<void> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      await setDoc(docRef, data);
+      return;
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
+      if ((errMsg.includes('resource-exhausted') || errMsg.includes('RESOURCE_EXHAUSTED')) && attempt < retries) {
+        console.warn(`[Firestore] Write stream busy, backing off (attempt ${attempt + 1}/${retries})...`);
+        await new Promise(r => setTimeout(r, 250 * (attempt + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+async function executeDirectFirestoreSave(
+  state: DatabaseState,
+  options?: {
+    userRole?: 'admin' | 'teacher' | null;
+    explicitDeletedStudentIds?: string[];
+    explicitDeletedTeacherIds?: string[];
+    explicitDeletedExamIds?: string[];
+    explicitDeletedInvoiceIds?: string[];
+  }
+): Promise<boolean> {
+  const { coreDocRef, progressDocRef, financeDocRef, logsDocRef } = initFirebaseClient();
   if (!coreDocRef) return false;
 
   try {
     const isTeacher = options?.userRole === 'teacher';
     const clean = removeUndefined(state);
 
-    const writePromises: Promise<any>[] = [];
-
-    // Pre-merge with latest progress partition
+    // 1. Progress partition
     if (progressDocRef) {
       try {
         const liveProgSnap = await getDoc(progressDocRef);
@@ -165,21 +282,25 @@ export async function saveRemoteDatabaseState(
               billing: []
             },
             state,
-            { userRole: isTeacher ? 'teacher' : 'admin', preferIncomingMeta: true }
+            {
+              userRole: isTeacher ? 'teacher' : 'admin',
+              explicitDeletedStudentIds: options?.explicitDeletedStudentIds,
+              preferIncomingMeta: true
+            }
           );
           clean.progress = tempProgMerged.progress || clean.progress;
         }
       } catch (pErr) {
-        console.warn('[Firestore] Pre-save live progress merge warning:', pErr);
+        console.warn('[Firestore] Pre-save live progress merge notice:', pErr);
       }
 
       const progressData = {
         progress: clean.progress || []
       };
-      writePromises.push(setDoc(progressDocRef, removeUndefined(progressData)));
+      await safeSetDocWithBackoff(progressDocRef, removeUndefined(progressData));
     }
 
-    // Pre-merge with latest logs partition (teacher attendance, submissions, exams, notifications)
+    // 2. Logs partition (teacher attendance, submissions, exams, notifications)
     if (logsDocRef) {
       try {
         const liveLogsSnap = await getDoc(logsDocRef);
@@ -199,6 +320,7 @@ export async function saveRemoteDatabaseState(
             state,
             {
               userRole: isTeacher ? 'teacher' : 'admin',
+              explicitDeletedStudentIds: options?.explicitDeletedStudentIds,
               explicitDeletedExamIds: options?.explicitDeletedExamIds,
               preferIncomingMeta: true
             }
@@ -209,7 +331,7 @@ export async function saveRemoteDatabaseState(
           clean.exams = tempLogsMerged.exams || clean.exams;
         }
       } catch (lErr) {
-        console.warn('[Firestore] Pre-save live logs merge warning:', lErr);
+        console.warn('[Firestore] Pre-save live logs merge notice:', lErr);
       }
 
       const logsData = {
@@ -218,14 +340,12 @@ export async function saveRemoteDatabaseState(
         notifications: clean.notifications || [],
         exams: clean.exams || []
       };
-      writePromises.push(setDoc(logsDocRef, removeUndefined(logsData)));
+      await safeSetDocWithBackoff(logsDocRef, removeUndefined(logsData));
     }
 
     // CRITICAL: ONLY ADMIN CAN MODIFY CORE ROSTER & FINANCIAL PARTITIONS!
-    // Teachers are NEVER allowed to write core or finance documents, preventing any possible student drops.
     if (!isTeacher) {
       if (coreDocRef) {
-        // Pre-merge with latest core on Firestore to protect multi-device concurrency
         try {
           const liveCoreSnap = await getDoc(coreDocRef);
           if (liveCoreSnap && liveCoreSnap.exists()) {
@@ -274,7 +394,7 @@ export async function saveRemoteDatabaseState(
             }
           }
         } catch (mErr) {
-          console.warn('[Firestore] Pre-save live core merge warning:', mErr);
+          console.warn('[Firestore] Pre-save live core merge notice:', mErr);
         }
 
         const coreData = {
@@ -290,11 +410,10 @@ export async function saveRemoteDatabaseState(
           lastUpdatedTime: clean.lastUpdatedTime || Date.now(),
           lastBackupDownloadDate: clean.lastBackupDownloadDate || null
         };
-        writePromises.push(setDoc(coreDocRef, removeUndefined(coreData)));
+        await safeSetDocWithBackoff(coreDocRef, removeUndefined(coreData));
       }
 
       if (financeDocRef) {
-        // Pre-merge with latest finance on Firestore
         try {
           const liveFinSnap = await getDoc(financeDocRef);
           if (liveFinSnap && liveFinSnap.exists()) {
@@ -314,6 +433,7 @@ export async function saveRemoteDatabaseState(
               state,
               {
                 userRole: 'admin',
+                explicitDeletedStudentIds: options?.explicitDeletedStudentIds,
                 explicitDeletedInvoiceIds: options?.explicitDeletedInvoiceIds,
                 preferIncomingMeta: true
               }
@@ -326,7 +446,7 @@ export async function saveRemoteDatabaseState(
             clean.xawaaladaSettings = tempFinMerged.xawaaladaSettings || clean.xawaaladaSettings || null;
           }
         } catch (finErr) {
-          console.warn('[Firestore] Pre-save live finance merge warning:', finErr);
+          console.warn('[Firestore] Pre-save live finance merge notice:', finErr);
         }
 
         const financeData = {
@@ -337,24 +457,14 @@ export async function saveRemoteDatabaseState(
           xawaaladaTransactions: clean.xawaaladaTransactions || [],
           xawaaladaSettings: clean.xawaaladaSettings || null
         };
-        writePromises.push(setDoc(financeDocRef, removeUndefined(financeData)));
-      }
-
-      // Also update legacy single-doc if within size limit (with catch)
-      if (stateDocRef) {
-        writePromises.push(
-          setDoc(stateDocRef, removeUndefined({ state: clean })).catch(err => {
-            console.warn('[Dugsiga Subuc] Legacy system/state write skipped (partitioned write active):', err?.message);
-          })
-        );
+        await safeSetDocWithBackoff(financeDocRef, removeUndefined(financeData));
       }
     }
 
-    await Promise.all(writePromises);
     return true;
   } catch (error) {
     console.error('[Dugsiga Subuc] Direct Firestore save error:', error);
-    throw error;
+    return false;
   }
 }
 
