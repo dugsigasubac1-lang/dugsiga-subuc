@@ -127,6 +127,7 @@ export interface XawaaladaTransaction {
   accountId: string; // Links to XawaaladaAccount.id
   type: 'in' | 'out'; // 'in' = Money In / Deposit (+), 'out' = Money Out / Withdrawal (-)
   amount: number;
+  balanceAfter?: number; // Snapshot of remaining balance (Haraaga) in account after transaction
   clientName?: string;
   clientPhone?: string;
   referenceNo?: string;

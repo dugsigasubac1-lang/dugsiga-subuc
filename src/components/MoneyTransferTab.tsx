@@ -33,7 +33,8 @@ import {
   CheckCircle2,
   Building2,
   DollarSign,
-  Plus
+  Plus,
+  Receipt
 } from 'lucide-react';
 import { DatabaseState, MoneyTransferRecord, XawaaladaAccount, XawaaladaTransaction } from '../types';
 import { DEFAULT_XAWAALADA_ACCOUNTS, DEFAULT_XAWAALADA_TRANSACTIONS, triggerFileDownload } from '../db';
@@ -90,6 +91,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
 
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [receiptTransaction, setReceiptTransaction] = useState<XawaaladaTransaction | null>(null);
 
   // Form state for Account
   const [accName, setAccName] = useState('');
@@ -234,6 +236,54 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
       return b.createdAt.localeCompare(a.createdAt);
     });
   }, [transactions, searchTerm, selectedAccountId, dateFilter, monthFilter, yearFilter]);
+
+  // Chronological running balances (Haraaga) map for every transaction in every account
+  const runningBalances = useMemo(() => {
+    const map = new Map<string, number>(); // tx.id -> balanceAfter
+    const prevMap = new Map<string, number>(); // tx.id -> balanceBefore
+    const accountCurrentMap = new Map<string, number>(); // accountId -> all-time latest balance
+
+    const txByAccount: Record<string, XawaaladaTransaction[]> = {};
+    accounts.forEach(acc => {
+      txByAccount[acc.id] = [];
+    });
+
+    transactions.forEach(tx => {
+      if (!txByAccount[tx.accountId]) {
+        txByAccount[tx.accountId] = [];
+      }
+      txByAccount[tx.accountId].push(tx);
+    });
+
+    accounts.forEach(acc => {
+      const list = [...(txByAccount[acc.id] || [])];
+      // Sort chronologically (oldest first)
+      list.sort((a, b) => {
+        const dateCmp = (a.date || '').localeCompare(b.date || '');
+        if (dateCmp !== 0) return dateCmp;
+        const timeCmp = (a.time || '').localeCompare(b.time || '');
+        if (timeCmp !== 0) return timeCmp;
+        const createCmp = (a.createdAt || '').localeCompare(b.createdAt || '');
+        if (createCmp !== 0) return createCmp;
+        return (a.id || '').localeCompare(b.id || '');
+      });
+
+      let currentRunningBal = Number(acc.openingBalance || 0);
+      list.forEach(tx => {
+        prevMap.set(tx.id, currentRunningBal);
+        const amt = Number(tx.amount || 0);
+        if (tx.type === 'in') {
+          currentRunningBal += amt;
+        } else {
+          currentRunningBal -= amt;
+        }
+        map.set(tx.id, currentRunningBal);
+      });
+      accountCurrentMap.set(acc.id, currentRunningBal);
+    });
+
+    return { map, prevMap, accountCurrentMap };
+  }, [accounts, transactions]);
 
   // Accounting Ledger calculations per account
   const accountCalculations = useMemo(() => {
@@ -412,6 +462,11 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
       return;
     }
 
+    // Calculate current balance before this new transaction to compute snapshot balanceAfter
+    const currentAccBal = runningBalances.accountCurrentMap.get(txAccountId) ?? 
+      (accounts.find(a => a.id === txAccountId)?.openingBalance ?? 0);
+    const calculatedBalanceAfter = txType === 'in' ? currentAccBal + Number(txAmount) : currentAccBal - Number(txAmount);
+
     let updatedTxns: XawaaladaTransaction[] = [];
 
     if (editingTransaction) {
@@ -420,6 +475,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
         accountId: txAccountId,
         type: txType,
         amount: Number(txAmount),
+        balanceAfter: calculatedBalanceAfter,
         clientName: txClientName.trim(),
         clientPhone: txClientPhone.trim(),
         referenceNo: txRefNo.trim(),
@@ -434,6 +490,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
         accountId: txAccountId,
         type: txType,
         amount: Number(txAmount),
+        balanceAfter: calculatedBalanceAfter,
         clientName: txClientName.trim(),
         clientPhone: txClientPhone.trim(),
         referenceNo: txRefNo.trim() || generateRefNo(),
@@ -444,7 +501,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
         createdAt: new Date().toISOString()
       };
       updatedTxns = [newTx, ...transactions];
-      triggerFeedback(`Lacagta $${txAmount} (${txType === 'in' ? 'Money In' : 'Money Out'}) waa la diiwaangeliyay!`);
+      triggerFeedback(`Lacagta $${txAmount} (${txType === 'in' ? 'Money In' : 'Money Out'}) waa la diiwaangeliyay! Haraaga Cusub: $${calculatedBalanceAfter.toFixed(2)}`);
     }
 
     const updatedMoneyTransfers = updatedTxns.map(tx => ({
@@ -544,7 +601,8 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
       } else {
         calc.filteredTxns.forEach((tx, idx) => {
           const typeStr = tx.type === 'in' ? '[MONEY IN +]' : '[MONEY OUT -]';
-          text += `    ${idx + 1}. ${tx.date} ${tx.time || ''} ${typeStr} $${tx.amount.toFixed(2)} | Ref: ${tx.referenceNo || 'N/A'}\n`;
+          const balAfter = runningBalances.map.get(tx.id) ?? tx.balanceAfter ?? 0;
+          text += `    ${idx + 1}. ${tx.date} ${tx.time || ''} ${typeStr} $${tx.amount.toFixed(2)} | Haraaga (Bal After): $${balAfter.toFixed(2)} | Ref: ${tx.referenceNo || 'N/A'}\n`;
           text += `       Client: ${tx.clientName || 'N/A'} (${tx.clientPhone || 'N/A'})\n`;
           text += `       Note  : ${tx.description}\n`;
         });
@@ -576,12 +634,13 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
 
     csv += `\n"GRAND TOTALS","--",${accountCalculations.grandOpening.toFixed(2)},${accountCalculations.grandIn.toFixed(2)},${accountCalculations.grandOut.toFixed(2)},${(accountCalculations.grandIn - accountCalculations.grandOut).toFixed(2)},${accountCalculations.grandCurrent.toFixed(2)}\n\n`;
 
-    csv += `Transaction ID,Account Name,Date,Time,Type,Amount ($),Client Name,Client Phone,Reference No,Description\n`;
+    csv += `Transaction ID,Account Name,Date,Time,Type,Amount ($),Haraaga (Balance After $),Client Name,Client Phone,Reference No,Description\n`;
 
     transactions.forEach(tx => {
       const acc = accounts.find(a => a.id === tx.accountId);
       const accName = acc ? acc.name : 'Unknown';
-      csv += `"${tx.id}","${accName.replace(/"/g, '""')}","${tx.date}","${tx.time || ''}","${tx.type === 'in' ? 'Money In (+)' : 'Money Out (-)'}",${tx.amount.toFixed(2)},"${(tx.clientName || '').replace(/"/g, '""')}","${(tx.clientPhone || '').replace(/"/g, '""')}","${(tx.referenceNo || '').replace(/"/g, '""')}","${(tx.description || '').replace(/"/g, '""')}"\n`;
+      const balAfter = runningBalances.map.get(tx.id) ?? tx.balanceAfter ?? 0;
+      csv += `"${tx.id}","${accName.replace(/"/g, '""')}","${tx.date}","${tx.time || ''}","${tx.type === 'in' ? 'Money In (+)' : 'Money Out (-)'}",${tx.amount.toFixed(2)},${balAfter.toFixed(2)},"${(tx.clientName || '').replace(/"/g, '""')}","${(tx.clientPhone || '').replace(/"/g, '""')}","${(tx.referenceNo || '').replace(/"/g, '""')}","${(tx.description || '').replace(/"/g, '""')}"\n`;
     });
 
     if (reportComment && reportComment.trim()) {
@@ -747,10 +806,11 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
           doc.setFont('Helvetica', 'bold');
           doc.setTextColor(15, 23, 42);
           doc.text("Date & Time", 16, y + 3.5);
-          doc.text("Type", 48, y + 3.5);
-          doc.text("Client Name / Phone", 75, y + 3.5);
-          doc.text("Ref No / Note", 125, y + 3.5);
-          doc.text("Amount ($)", 193, y + 3.5, { align: 'right' });
+          doc.text("Type", 45, y + 3.5);
+          doc.text("Client Name / Phone", 70, y + 3.5);
+          doc.text("Ref No / Note", 115, y + 3.5);
+          doc.text("Amount ($)", 165, y + 3.5, { align: 'right' });
+          doc.text("Haraaga ($)", 193, y + 3.5, { align: 'right' });
           y += 5;
 
           calc.filteredTxns.forEach(tx => {
@@ -762,27 +822,31 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
 
             if (tx.type === 'in') {
               doc.setTextColor(16, 185, 129);
-              doc.text("Money In (+)", 48, y + 3.5);
+              doc.text("Money In (+)", 45, y + 3.5);
             } else {
               doc.setTextColor(225, 29, 72);
-              doc.text("Money Out (-)", 48, y + 3.5);
+              doc.text("Money Out (-)", 45, y + 3.5);
             }
 
             doc.setTextColor(15, 23, 42);
             const clientStr = `${tx.clientName || 'N/A'} ${tx.clientPhone ? `(${tx.clientPhone})` : ''}`;
-            doc.text(clientStr.length > 26 ? clientStr.substring(0, 26) + '..' : clientStr, 75, y + 3.5);
+            doc.text(clientStr.length > 22 ? clientStr.substring(0, 22) + '..' : clientStr, 70, y + 3.5);
 
             const descStr = `${tx.referenceNo ? `[${tx.referenceNo}] ` : ''}${tx.description}`;
-            doc.text(descStr.length > 35 ? descStr.substring(0, 35) + '..' : descStr, 125, y + 3.5);
+            doc.text(descStr.length > 28 ? descStr.substring(0, 28) + '..' : descStr, 115, y + 3.5);
 
             doc.setFont('Helvetica', 'bold');
             if (tx.type === 'in') {
               doc.setTextColor(16, 185, 129);
-              doc.text(`+$${tx.amount.toFixed(2)}`, 193, y + 3.5, { align: 'right' });
+              doc.text(`+$${tx.amount.toFixed(2)}`, 165, y + 3.5, { align: 'right' });
             } else {
               doc.setTextColor(225, 29, 72);
-              doc.text(`-$${tx.amount.toFixed(2)}`, 193, y + 3.5, { align: 'right' });
+              doc.text(`-$${tx.amount.toFixed(2)}`, 165, y + 3.5, { align: 'right' });
             }
+
+            const balAfter = runningBalances.map.get(tx.id) ?? tx.balanceAfter ?? 0;
+            doc.setTextColor(30, 41, 59);
+            doc.text(`$${balAfter.toFixed(2)}`, 193, y + 3.5, { align: 'right' });
 
             y += 5;
           });
@@ -882,6 +946,61 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                 .break-inside-avoid { break-inside: avoid; }
                 @media print {
                   @page { size: A4; margin: 12mm; }
+                  body { padding: 0; }
+                  .no-print { display: none !important; }
+                }
+              </style>
+            </head>
+            <body>
+              ${printArea.innerHTML}
+              <script>
+                window.onload = function() {
+                  setTimeout(function() {
+                    window.print();
+                  }, 200);
+                };
+              </script>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+        return;
+      }
+    }
+    window.print();
+  };
+
+  // Receipt Voucher Print Handler
+  const handlePrintReceipt = () => {
+    const printArea = document.getElementById('receipt-print-area');
+    if (printArea) {
+      const printWindow = window.open('', '_blank', 'width=700,height=750');
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Rasiidka Xawaallada - ${receiptTransaction?.referenceNo || receiptTransaction?.id || 'Receipt'}</title>
+              <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #0f172a; padding: 24px; line-height: 1.5; background: #fff; }
+                .receipt-container { border: 2px dashed #94a3b8; border-radius: 16px; padding: 24px; max-width: 520px; margin: 0 auto; }
+                h1 { font-size: 18px; font-weight: 900; margin: 0 0 2px 0; color: #0f172a; text-transform: uppercase; text-align: center; }
+                .subtitle { font-size: 11px; color: #64748b; text-align: center; margin-bottom: 16px; }
+                .badge { padding: 4px 12px; border-radius: 9999px; font-weight: 800; font-size: 11px; text-transform: uppercase; display: inline-block; }
+                .badge-in { background-color: #d1fae5; color: #065f46; }
+                .badge-out { background-color: #ffe4e6; color: #9f1239; }
+                .highlight-box { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; margin: 16px 0; }
+                .amount { font-size: 24px; font-weight: 900; font-family: monospace; }
+                .haraa-box { background-color: #e0e7ff; border: 1px solid #c7d2fe; border-radius: 10px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+                .haraa-title { font-weight: 800; font-size: 12px; color: #312e81; }
+                .haraa-amount { font-weight: 900; font-size: 16px; font-family: monospace; color: #1e1b4b; }
+                .row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed #e2e8f0; font-size: 12px; }
+                .row-label { color: #64748b; font-weight: 600; }
+                .row-val { font-weight: 700; color: #0f172a; }
+                .signatures { display: flex; justify-content: space-between; margin-top: 28px; font-size: 11px; font-weight: 600; }
+                .sig-line { border-bottom: 1px solid #94a3b8; width: 140px; margin-top: 36px; margin-bottom: 4px; }
+                @media print {
+                  @page { margin: 10mm; }
                   body { padding: 0; }
                   .no-print { display: none !important; }
                 }
@@ -1309,11 +1428,32 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                               {tx.description}
                             </p>
 
-                            <div className="flex items-center justify-end gap-1.5 mt-2 pt-1">
+                            {/* Remaining Balance (Haraaga) at this exact point in time */}
+                            <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-200/70 text-[11px]">
+                              <div className="flex items-center gap-1 text-slate-500 font-bold">
+                                <Wallet className="w-3 h-3 text-indigo-500" />
+                                <span>Haraaga:</span>
+                              </div>
+                              <span className="font-mono font-black text-indigo-950 bg-white/90 px-2 py-0.5 rounded-md border border-slate-200/80 shadow-2xs">
+                                ${(runningBalances.map.get(tx.id) ?? tx.balanceAfter ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 mt-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => setReceiptTransaction(tx)}
+                                className="text-[10px] font-bold text-slate-600 hover:text-indigo-700 cursor-pointer flex items-center gap-0.5 transition-colors"
+                                title="Fiiri / Daabac Rasiidka (View Receipt)"
+                              >
+                                <Receipt className="w-3 h-3 text-indigo-500" />
+                                Rasiid
+                              </button>
+                              <span className="text-slate-300">•</span>
                               <button
                                 type="button"
                                 onClick={() => openEditTransaction(tx)}
-                                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer transition-colors"
                               >
                                 Edit
                               </button>
@@ -1321,7 +1461,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                               <button
                                 type="button"
                                 onClick={() => handleDeleteTransaction(tx)}
-                                className="text-[10px] font-bold text-rose-500 hover:text-rose-700 cursor-pointer"
+                                className="text-[10px] font-bold text-rose-500 hover:text-rose-700 cursor-pointer transition-colors"
                               >
                                 Delete
                               </button>
@@ -1411,19 +1551,21 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                   <th className="p-3.5">Ref No</th>
                   <th className="p-3.5">Description</th>
                   <th className="p-3.5 text-right">Amount ($)</th>
+                  <th className="p-3.5 text-right">Haraaga (Bal After $)</th>
                   <th className="p-3.5 text-right pr-5">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
                 {filteredTransactions.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400 font-semibold">
+                    <td colSpan={9} className="py-12 text-center text-slate-400 font-semibold">
                       Ma jiraan xawilaado la helay oo u dhigma raadintaada.
                     </td>
                   </tr>
                 ) : (
                   filteredTransactions.map(tx => {
                     const acc = accounts.find(a => a.id === tx.accountId);
+                    const balAfter = runningBalances.map.get(tx.id) ?? tx.balanceAfter ?? 0;
                     return (
                       <tr key={tx.id} className="hover:bg-slate-50/80 transition-colors font-medium text-slate-800">
                         <td className="p-3.5 pl-5 font-mono text-slate-500">
@@ -1459,8 +1601,22 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                         }`}>
                           {tx.type === 'in' ? '+' : '-'}${tx.amount.toFixed(2)}
                         </td>
+                        <td className="p-3.5 text-right font-mono font-bold">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50/90 text-indigo-950 border border-indigo-200/70 text-xs font-black shadow-2xs">
+                            <Wallet className="w-3 h-3 text-indigo-500" />
+                            ${balAfter.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </span>
+                        </td>
                         <td className="p-3.5 text-right pr-5">
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setReceiptTransaction(tx)}
+                              className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer"
+                              title="Fiiri / Daabac Rasiidka (View Receipt)"
+                            >
+                              <Receipt className="w-3.5 h-3.5 text-indigo-600" />
+                            </button>
                             <button
                               type="button"
                               onClick={() => openEditTransaction(tx)}
@@ -1691,6 +1847,48 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                   required
                 />
               </div>
+
+              {/* Live Balance Impact Preview (Haraaga Hadda & Ka Dib) */}
+              {(() => {
+                const selAcc = accounts.find(a => a.id === txAccountId);
+                if (!selAcc) return null;
+                const currentAccBal = runningBalances.accountCurrentMap.get(txAccountId) ?? selAcc.openingBalance;
+                const numAmt = typeof txAmount === 'number' && txAmount > 0 ? txAmount : 0;
+                const projectedBal = txType === 'in' ? currentAccBal + numAmt : currentAccBal - numAmt;
+                return (
+                  <div className="p-3 bg-indigo-50/70 border border-indigo-200/80 rounded-2xl space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-extrabold text-indigo-950 flex items-center gap-1.5">
+                        <Wallet className="w-3.5 h-3.5 text-indigo-600" />
+                        Xisaabinta Haraaga ({selAcc.name}):
+                      </span>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                        Live Balance Impact
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+                      <div className="bg-white p-2 rounded-xl border border-indigo-100 shadow-2xs">
+                        <span className="text-[9px] font-black text-slate-400 block uppercase">Haraaga Hadda</span>
+                        <span className="text-xs font-black font-mono text-slate-700">
+                          ${currentAccBal.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="bg-white p-2 rounded-xl border border-indigo-100 shadow-2xs">
+                        <span className="text-[9px] font-black text-slate-400 block uppercase">Dhaqdhaqaaqa</span>
+                        <span className={`text-xs font-black font-mono ${txType === 'in' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {txType === 'in' ? '+' : '-'}${numAmt.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className={`p-2 rounded-xl border shadow-2xs ${txType === 'in' ? 'bg-emerald-100/90 border-emerald-300 text-emerald-950' : 'bg-rose-100/90 border-rose-300 text-rose-950'}`}>
+                        <span className="text-[9px] font-black uppercase block">Haraaga Ka Dib</span>
+                        <span className="text-xs font-black font-mono">
+                          ${projectedBal.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Client Name with Autocomplete */}
               <div className="relative">
@@ -2119,30 +2317,37 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                             <th className="p-2">Client / Phone</th>
                             <th className="p-2">Ref No / Note</th>
                             <th className="p-2 text-right">Amount ($)</th>
+                            <th className="p-2 text-right">Haraaga ($)</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {calc.filteredTxns.map(tx => (
-                            <tr key={tx.id}>
-                              <td className="p-2 text-slate-500">{tx.date} {tx.time || ''}</td>
-                              <td className="p-2 font-bold">
-                                {tx.type === 'in' ? (
-                                  <span className="text-emerald-700">Money In (+)</span>
-                                ) : (
-                                  <span className="text-rose-700">Money Out (-)</span>
-                                )}
-                              </td>
-                              <td className="p-2 font-semibold text-slate-800">{tx.clientName || 'N/A'} {tx.clientPhone ? `(${tx.clientPhone})` : ''}</td>
-                              <td className="p-2 text-slate-600">{tx.referenceNo ? `[${tx.referenceNo}] ` : ''}{tx.description}</td>
-                              <td className="p-2 text-right font-mono font-bold">
-                                {tx.type === 'in' ? (
-                                  <span className="text-emerald-700">+${tx.amount.toFixed(2)}</span>
-                                ) : (
-                                  <span className="text-rose-700">-${tx.amount.toFixed(2)}</span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
+                          {calc.filteredTxns.map(tx => {
+                            const balAfter = runningBalances.map.get(tx.id) ?? tx.balanceAfter ?? 0;
+                            return (
+                              <tr key={tx.id}>
+                                <td className="p-2 text-slate-500">{tx.date} {tx.time || ''}</td>
+                                <td className="p-2 font-bold">
+                                  {tx.type === 'in' ? (
+                                    <span className="text-emerald-700">Money In (+)</span>
+                                  ) : (
+                                    <span className="text-rose-700">Money Out (-)</span>
+                                  )}
+                                </td>
+                                <td className="p-2 font-semibold text-slate-800">{tx.clientName || 'N/A'} {tx.clientPhone ? `(${tx.clientPhone})` : ''}</td>
+                                <td className="p-2 text-slate-600">{tx.referenceNo ? `[${tx.referenceNo}] ` : ''}{tx.description}</td>
+                                <td className="p-2 text-right font-mono font-bold">
+                                  {tx.type === 'in' ? (
+                                    <span className="text-emerald-700">+${tx.amount.toFixed(2)}</span>
+                                  ) : (
+                                    <span className="text-rose-700">-${tx.amount.toFixed(2)}</span>
+                                  )}
+                                </td>
+                                <td className="p-2 text-right font-mono font-black text-indigo-950">
+                                  ${balAfter.toFixed(2)}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -2183,6 +2388,159 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
           </div>
         </div>
       )}
+
+      {/* MODAL 5: TRANSACTION RECEIPT / VOUCHER (RASIID) */}
+      {receiptTransaction && (() => {
+        const tx = receiptTransaction;
+        const acc = accounts.find(a => a.id === tx.accountId);
+        const balAfter = runningBalances.map.get(tx.id) ?? tx.balanceAfter ?? 0;
+        const balBefore = runningBalances.prevMap.get(tx.id) ?? (tx.type === 'in' ? balAfter - tx.amount : balAfter + tx.amount);
+
+        return (
+          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-[20000] animate-fade-in overflow-y-auto">
+            <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden my-6">
+              <div className="bg-slate-900 p-4 text-white flex items-center justify-between no-print">
+                <span className="text-xs font-black uppercase text-indigo-300 tracking-wider flex items-center gap-1.5">
+                  <Receipt className="w-4 h-4 text-indigo-400" />
+                  Rasiidka Diiwaanka Xawaallada (Voucher)
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handlePrintReceipt}
+                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    Daabac Rasiidka
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReceiptTransaction(null)}
+                    className="text-slate-400 hover:text-white p-1"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Printable Receipt Container */}
+              <div id="receipt-print-area" className="p-6">
+                <div className="border-2 border-dashed border-slate-300 rounded-2xl p-6 bg-slate-50/50 space-y-4">
+                  {/* Header */}
+                  <div className="text-center pb-3 border-b border-slate-200">
+                    <h2 className="text-lg font-black text-slate-900 tracking-tight uppercase">
+                      DUGSIGA SUBUC & XAWAALLADA
+                    </h2>
+                    <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                      Rasiidka Diiwaangelinta Lacagta & Haraaga (Transaction Receipt)
+                    </p>
+                    <div className="mt-2 inline-flex items-center gap-2">
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                        tx.type === 'in'
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : 'bg-rose-100 text-rose-800 border border-rose-300'
+                      }`}>
+                        {tx.type === 'in' ? 'Money In (Lacag Soo Gashay)' : 'Money Out (Lacag Baxday)'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Transaction Metadata */}
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Tixraac (Ref No)</span>
+                      <span className="font-mono font-bold text-slate-800">{tx.referenceNo || tx.id}</span>
+                    </div>
+                    <div className="space-y-0.5 text-right">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Taariikhda & Waqtiga</span>
+                      <span className="font-mono font-bold text-slate-800">{tx.date} {tx.time || ''}</span>
+                    </div>
+                  </div>
+
+                  {/* Account & Client Details */}
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-2 text-xs">
+                    <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                      <span className="text-slate-500 font-medium">Akawnka (Account):</span>
+                      <span className="font-bold text-slate-900">{acc?.name || 'N/A'} {acc?.accountNumber ? `(${acc.accountNumber})` : ''}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                      <span className="text-slate-500 font-medium">Macmiilka (Client Name):</span>
+                      <span className="font-bold text-slate-900">{tx.clientName || 'N/A'}</span>
+                    </div>
+                    {tx.clientPhone && (
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span className="text-slate-500 font-medium">Telefoonka (Phone):</span>
+                        <span className="font-mono font-bold text-slate-700">{tx.clientPhone}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">Ujeeddada (Note):</span>
+                      <span className="font-medium text-slate-800 text-right max-w-[240px] truncate">{tx.description}</span>
+                    </div>
+                  </div>
+
+                  {/* Transaction Amount Box */}
+                  <div className="text-center p-3.5 bg-white rounded-xl border border-slate-200">
+                    <span className="text-[10px] font-black uppercase text-slate-400 block mb-1">
+                      Lacagta Diiwaangashan (Amount)
+                    </span>
+                    <span className={`text-2xl font-black font-mono ${
+                      tx.type === 'in' ? 'text-emerald-600' : 'text-rose-600'
+                    }`}>
+                      {tx.type === 'in' ? '+' : '-'}${tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  {/* EXACT HARAA / REMAINING BALANCE HIGHLIGHT BOX */}
+                  <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black uppercase text-indigo-950 flex items-center gap-1.5">
+                        <Wallet className="w-4 h-4 text-indigo-600" />
+                        Haraaga Akawnka Waqtigaas (Remaining Balance):
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-indigo-200/60 text-xs">
+                      <div>
+                        <span className="text-[10px] font-semibold text-slate-500 block">Haraagii Hore (Before):</span>
+                        <span className="font-mono font-bold text-slate-700">${balBefore.toFixed(2)}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] font-black text-indigo-900 block uppercase">Haraaga Cusub (Haraa Ka Dib):</span>
+                        <span className="font-mono font-black text-base text-indigo-950">${balAfter.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Signatures */}
+                  <div className="pt-6 grid grid-cols-2 gap-6 text-[11px] font-semibold border-t border-slate-200">
+                    <div>
+                      <p className="text-slate-600">Qasnajiga / Shaqaalaha:</p>
+                      <div className="border-b border-slate-400 w-32 mt-6 mb-1" />
+                      <p className="text-[9px] text-slate-400 font-mono">Diiwaangeliyay</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-slate-600">Macmiilka / Qofka:</p>
+                      <div className="border-b border-slate-400 w-32 ml-auto mt-6 mb-1" />
+                      <p className="text-[9px] text-slate-400 font-mono">Saxiixa</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end no-print">
+                <button
+                  type="button"
+                  onClick={() => setReceiptTransaction(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl"
+                >
+                  Xir (Close)
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* CONFIRMATION DIALOG MODAL */}
       {confirmModal && confirmModal.isOpen && (
