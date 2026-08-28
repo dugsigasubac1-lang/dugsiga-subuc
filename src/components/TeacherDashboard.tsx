@@ -557,23 +557,25 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout, 
   // Helper: calculate student monthly score (sum of weeklies / count of completed)
   const calculateStudentMonthlyScore = (studentId: string, month: string) => {
     const weeklies = (database.exams || []).filter(ex => 
-      ex.className === teacher.classAssigned &&
-      ex.assessmentType === 'weekly' &&
-      ex.month === month
+      (ex.className || '').trim().toLowerCase() === (teacher.classAssigned || '').trim().toLowerCase() &&
+      ex.assessmentType !== 'monthly' &&
+      ((ex.month || (ex.date ? ex.date.slice(0, 7) : '')) === month)
     );
     
     let totalScore = 0;
     let count = 0;
     
     weeklies.forEach(ex => {
-      const sScore = ex.scores.find(sc => sc.studentId === studentId);
+      const sScore = (ex.scores || []).find(sc => sc.studentId === studentId);
       if (sScore) {
-        let weeklyTotal = 0;
-        const subjects = ['Laxniga', 'Imaanshaha', 'Xifdiga', 'Tajwiidka', 'Akhlaaqda iyo Nadaafada'];
-        subjects.forEach(sub => {
-          weeklyTotal += (sScore.scores[sub] || 0);
-        });
-        totalScore += weeklyTotal;
+        let weeklyScore = 0;
+        if (sScore.averageScore !== undefined && !isNaN(sScore.averageScore) && sScore.averageScore > 0) {
+          weeklyScore = sScore.averageScore;
+        } else if (sScore.scores && Object.keys(sScore.scores).length > 0) {
+          const values = Object.values(sScore.scores);
+          weeklyScore = values.reduce((a, b) => a + (Number(b) || 0), 0) / values.length;
+        }
+        totalScore += weeklyScore;
         count++;
       }
     });
@@ -596,19 +598,23 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout, 
     diff: number;
   } => {
     const weeklyExams = (examsList || [])
-      .filter(ex => ex.assessmentType === 'weekly')
-      .sort((a, b) => a.date.localeCompare(b.date)); // chronological order
+      .filter(ex => ex.assessmentType !== 'monthly')
+      .sort((a, b) => (a.date || '').localeCompare(b.date || '')); // chronological order
     
     const studentScoresList: number[] = [];
     weeklyExams.forEach(ex => {
-      const sc = ex.scores.find(s => s.studentId === studentId);
+      const sc = (ex.scores || []).find(s => s.studentId === studentId);
       if (sc) {
-        let weeklyTotal = 0;
-        const subjectsList = ['Laxniga', 'Imaanshaha', 'Xifdiga', 'Tajwiidka', 'Akhlaaqda iyo Nadaafada'];
-        subjectsList.forEach(sub => {
-          weeklyTotal += (sc.scores[sub] || 0);
-        });
-        studentScoresList.push(weeklyTotal);
+        let scoreVal = 0;
+        if (sc.averageScore !== undefined && !isNaN(sc.averageScore) && sc.averageScore > 0) {
+          scoreVal = sc.averageScore;
+        } else if (sc.scores && Object.keys(sc.scores).length > 0) {
+          const values = Object.values(sc.scores);
+          scoreVal = values.reduce((a, b) => a + (Number(b) || 0), 0) / values.length;
+        }
+        if (scoreVal > 0 || sc.grade) {
+          studentScoresList.push(scoreVal);
+        }
       }
     });
 
@@ -634,13 +640,13 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout, 
     // Latest saved monthly assessment
     const isMonthlyExamList = (examsList || [])
       .filter(ex => ex.assessmentType === 'monthly')
-      .sort((a, b) => b.date.localeCompare(a.date));
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
     let latestScore: number | null = null;
     if (isMonthlyExamList.length > 0) {
       for (const ex of isMonthlyExamList) {
-        const sc = ex.scores.find(s => s.studentId === studentId);
-        if (sc) {
+        const sc = (ex.scores || []).find(s => s.studentId === studentId);
+        if (sc && sc.averageScore !== undefined && !isNaN(sc.averageScore)) {
           latestScore = sc.averageScore;
           break;
         }
@@ -649,23 +655,25 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout, 
 
     // Dynamic fallback to current month's weeklies
     if (latestScore === null) {
-      const weeklyEx = (examsList || []).filter(ex => ex.assessmentType === 'weekly');
+      const weeklyEx = (examsList || []).filter(ex => ex.assessmentType !== 'monthly');
       if (weeklyEx.length > 0) {
-        const sorted = [...weeklyEx].sort((a, b) => b.date.localeCompare(a.date));
-        const latestMonStr = sorted[0].month;
+        const sorted = [...weeklyEx].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        const latestMonStr = sorted[0].month || (sorted[0].date ? sorted[0].date.slice(0, 7) : '');
         if (latestMonStr) {
-          const matched = sorted.filter(w => w.month === latestMonStr);
+          const matched = sorted.filter(w => (w.month || (w.date ? w.date.slice(0, 7) : '')) === latestMonStr);
           let sum = 0;
           let count = 0;
           matched.forEach(w => {
-            const sc = w.scores.find(s => s.studentId === studentId);
+            const sc = (w.scores || []).find(s => s.studentId === studentId);
             if (sc) {
-              const subjectsList = ['Laxniga', 'Imaanshaha', 'Xifdiga', 'Tajwiidka', 'Akhlaaqda iyo Nadaafada'];
-              let weeklyTotal = 0;
-              subjectsList.forEach(sub => {
-                weeklyTotal += (sc.scores[sub] || 0);
-              });
-              sum += weeklyTotal;
+              let scoreVal = 0;
+              if (sc.averageScore !== undefined && !isNaN(sc.averageScore)) {
+                scoreVal = sc.averageScore;
+              } else if (sc.scores && Object.keys(sc.scores).length > 0) {
+                const values = Object.values(sc.scores);
+                scoreVal = values.reduce((a, b) => a + (Number(b) || 0), 0) / values.length;
+              }
+              sum += scoreVal;
               count++;
             }
           });
@@ -1207,6 +1215,8 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout, 
       exams: updatedExams,
       notifications: updatedNotifications,
       submissions: [examSubmission, ...(database.submissions || [])]
+    }, {
+      userRole: 'teacher'
     });
 
     setSuccessMsg(`Exam results report for "${examHeading}" completed and synced!`);
@@ -1238,6 +1248,9 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout, 
         onSaveDatabase({
           ...database,
           exams: updatedExams
+        }, {
+          userRole: 'teacher',
+          explicitDeletedExamIds: [examId]
         });
         setSuccessMsg("Successfully deleted the exam results record from the cloud.");
         setTimeout(() => setSuccessMsg(''), 4000);
@@ -2976,12 +2989,12 @@ export function TeacherDashboard({ teacher, database, onSaveDatabase, onLogout, 
                   {/* Weekly and Monthly Assessments Reports */}
                   {(() => {
                     const studentWeeklyExams = (database.exams || []).filter(ex => 
-                      ex.assessmentType === 'weekly' &&
-                      ex.scores.some(sc => sc.studentId === selectedStudent.id)
-                    ).sort((a,b) => b.date.localeCompare(a.date));
+                      ex.assessmentType !== 'monthly' &&
+                      (ex.scores || []).some(sc => sc.studentId === selectedStudent.id)
+                    ).sort((a,b) => (b.date || '').localeCompare(a.date || ''));
 
                     // Get unique months from weekly exams to compute monthly averages dynamically
-                    const uniqueMonths = Array.from(new Set(studentWeeklyExams.map(ex => ex.month).filter(Boolean))) as string[];
+                    const uniqueMonths = Array.from(new Set(studentWeeklyExams.map(ex => ex.month || (ex.date ? ex.date.slice(0, 7) : '')).filter(Boolean))) as string[];
                     uniqueMonths.sort((a, b) => b.localeCompare(a));
 
                     const studentMonthlyExams = uniqueMonths.map(m => {
