@@ -87,6 +87,7 @@ import {
   TeacherAttendanceRecord
 } from '../types';
 import { MoneyTransferTab } from './MoneyTransferTab';
+import { WeeklyAssessmentTab } from './WeeklyAssessmentTab';
 import { LandingControlTab } from './LandingControlTab';
 import StudentMediaModal from './StudentMediaModal';
 import { DugsigaSubucLogo } from './Logo';
@@ -10670,11566 +10671,332 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                             className: 'All',
                             studentId: payReportStudentId
                           })}
-                          className="py-2.5 px-5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold disabled:opacity-40 shadow-md inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer w-full sm:w-auto hover:scale-[1.01] active:scale-[0.99]"
-                        >
-                          <Printer className="w-4 h-4" />
-                          Print statement
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Attendance Analytics & Logs Master List */}
-            {reportViewMode === 'whole' ? (
-              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                  <div>
-                    <h3 className="font-extrabold text-slate-900 text-lg">Compiled Attendance Aggregates</h3>
-                    <p className="text-slate-400 text-xs mt-0.5">Showing performance compliance from {reportStartDate} to {reportEndDate}</p>
-                  </div>
-                  <div className="text-xs font-extrabold text-teal-600 bg-teal-50 px-3 py-1.5 rounded-xl border border-teal-100 uppercase">
-                    Range: {reportStartDate} to {reportEndDate}
-                  </div>
-                </div>
-
-                {/* Table Body */}
-                <div className="overflow-x-auto rounded-2xl border border-slate-100 scrollbar-thin">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider">
-                        <th className="py-3 px-4">ID-ga Ardayga</th>
-                        <th className="py-3 px-4">Magaca Ardayga</th>
-                        <th className="py-3 px-4">Fasalka</th>
-                        <th className="py-3 px-4 text-center">Kulamada Guud</th>
-                        <th className="py-3 px-4 text-center text-emerald-700">Joogid</th>
-                        <th className="py-3 px-4 text-center text-amber-700">Daahid</th>
-                        <th className="py-3 px-4 text-center text-rose-700">Maqnansho</th>
-                        <th className="py-3 px-4 text-right hover:text-slate-500">Heerka Joogitaanka</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {database.students
-                        .filter(s => s.active && (reportClassSelection === 'All' ? true : s.className === reportClassSelection))
-                        .map(stu => {
-                          const studentLogs = rangeProgress.filter(p => p.studentId === stu.id);
-                          const totalDays = studentLogs.length;
-                          const presentCount = studentLogs.filter(p => p.attendance === 'Present').length;
-                          const lateCount = studentLogs.filter(p => p.attendance === 'Late').length;
-                          const absentCount = studentLogs.filter(p => p.attendance === 'Absent').length;
-
-                          const compliance = totalDays > 0 ? Math.round(((presentCount + lateCount) / totalDays) * 100) : 0;
-
-                          return (
-                            <tr key={stu.id} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="py-3.5 px-4 font-bold text-slate-800">{stu.id}</td>
-                              <td className="py-3.5 px-4 font-extrabold text-slate-900">{stu.name}</td>
-                              <td className="py-3.5 px-4 text-slate-400 font-medium">{stu.className}</td>
-                              <td className="py-3.5 px-4 text-center font-bold text-slate-600">{totalDays}</td>
-                              <td className="py-3.5 px-4 text-center font-extrabold text-emerald-600">{presentCount}</td>
-                              <td className="py-3.5 px-4 text-center font-extrabold text-amber-600">{lateCount}</td>
-                              <td className="py-3.5 px-4 text-center font-extrabold text-rose-600">{absentCount}</td>
-                              <td className="py-3.5 px-4 text-right">
-                                <span className={`px-2.5 py-1 rounded-lg text-xs font-black border ${
-                                  compliance >= 85 ? 'bg-emerald-55 bg-emerald-50 text-emerald-700 border-emerald-100' :
-                                  compliance >= 50 ? 'bg-amber-55 bg-amber-50 text-amber-700 border-amber-100' :
-                                  'bg-rose-55 bg-rose-50 text-rose-700 border-rose-100'
-                                }`}>
-                                  {totalDays > 0 ? `${compliance}%` : 'may'}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ) : reportViewMode === 'student' ? (
-              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6">
-                {/* Single Student Attendance compliance details */}
-                {(() => {
-                  const s = database.students.find(st => st.id === reportSelectedStudentId);
-                  if (!s) {
-                    return (
-                      <div className="text-center py-10 text-slate-400">
-                        Please select an active student.
-                      </div>
-                    );
-                  }
-
-                  const studentLogs = rangeProgress.filter(p => p.studentId === s.id).sort((a,b) => a.date.localeCompare(b.date));
-                  const totalDays = studentLogs.length;
-                  const presentCount = studentLogs.filter(p => p.attendance === 'Present').length;
-                  const lateCount = studentLogs.filter(p => p.attendance === 'Late').length;
-                  const absentCount = studentLogs.filter(p => p.attendance === 'Absent').length;
-
-                  const compliance = totalDays > 0 ? Math.round(((presentCount + lateCount) / totalDays) * 100) : 0;
-
-                  return (
-                    <div className="space-y-6">
-                      {/* Metric widgets block */}
-                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                          <span className="text-[10px] text-slate-400 uppercase font-bold">Total Sessions</span>
-                          <span className="block text-2xl font-black text-slate-800 mt-1">{totalDays}</span>
-                        </div>
-                        <div className="bg-emerald-50 text-emerald-700 p-4 rounded-2xl border border-emerald-100">
-                          <span className="text-[10px] uppercase font-bold">Present Days</span>
-                          <span className="block text-2xl font-black mt-1 text-emerald-800">{presentCount}</span>
-                        </div>
-                        <div className="bg-amber-50 text-amber-700 p-4 rounded-2xl border border-amber-100">
-                          <span className="text-[10px] uppercase font-bold">Late Days</span>
-                          <span className="block text-2xl font-black mt-1 text-amber-800">{lateCount}</span>
-                        </div>
-                        <div className="bg-rose-50 text-rose-700 p-4 rounded-2xl border border-rose-100">
-                          <span className="text-[10px] uppercase font-bold text-rose-600">Compliance Rate</span>
-                          <span className="block text-2xl font-black mt-1 text-rose-800">{totalDays > 0 ? `${compliance}%` : 'may'}</span>
-                        </div>
-                      </div>
-
-                      {/* We insert the student's Academic Performance & Assessment history here */}
-                      {(() => {
-                        const studentWeeklyExams = (database.exams || []).filter(ex => 
-                          ex.assessmentType === 'weekly' &&
-                          ex.scores.some(sc => sc.studentId === s.id)
-                        ).sort((a,b) => b.date.localeCompare(a.date));
-
-                        // Get unique months from weekly exams to compute monthly averages dynamically
-                        const uniqueMonths = Array.from(new Set(studentWeeklyExams.map(ex => ex.month).filter(Boolean))) as string[];
-                        uniqueMonths.sort((a, b) => b.localeCompare(a));
-
-                        const studentMonthlyExams = uniqueMonths.map(m => {
-                          const res = calculateStudentMonthlyScore(s.id, m, s.className);
-                          return {
-                            id: `computed-monthly-${m}`,
-                            month: m,
-                            heading: `Celceliska Bisha (${m})`,
-                            averageScore: res.average,
-                            grade: res.grade,
-                            completedWeeks: res.completedWeeks
-                          };
-                        }).filter(report => report.completedWeeks > 0);
-
-                        const currentComp = getStudentCompetitionGroup(s.id);
-                        const currentTrend = getStudentProgressTrend(s.id);
-
-                        return (
-                          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden" id="admin-assessments-timeline">
-                            <div className="p-5 border-b border-slate-100 bg-slate-50/25" id="admin-assessments-header">
-                              <h4 className="font-extrabold text-xs uppercase text-slate-700 tracking-wider flex items-center gap-2">
-                                <span>üéì</span> Xogta Waxbarashada & Qiimaynta Toddobaadlaha (Academic & Assessment History)
-                              </h4>
-                            </div>
-                            <div className="p-5 space-y-6">
-                              {/* Standings, Level, Trend, and Competition Group Profile Cards */}
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                <div className="bg-teal-50/50 p-4 rounded-2xl border border-teal-100 shadow-3xs flex flex-col justify-between">
-                                  <div>
-                                    <span className="text-[9px] text-teal-800 uppercase font-black tracking-widest font-mono">üèÜ Competition Standing</span>
-                                    <span className="block text-lg font-black text-teal-900 mt-1">
-                                      {currentComp.group}
-                                    </span>
-                                  </div>
-                                  <span className="text-[10px] font-semibold text-teal-650 mt-2 block border-t border-teal-100/50 pt-1.5">
-                                    Latest Monthly Score: <b className="text-teal-900">{currentComp.score.toFixed(1)}%</b>
-                                  </span>
-                                </div>
-                                <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-105 shadow-3xs flex flex-col justify-between">
-                                  <div>
-                                    <span className="text-[9px] text-[#2563eb] uppercase font-black tracking-widest font-mono">üìà Progress Outlook</span>
-                                    <span className="block text-lg font-black text-blue-900 mt-1 flex items-center gap-1.5">
-                                      {currentTrend.icon} {currentTrend.trend}
-                                    </span>
-                                  </div>
-                                  <span className="text-[10px] font-semibold text-blue-500 mt-2 block border-t border-blue-100/50 pt-1.5">
-                                    {currentTrend.diff !== 0 ? (
-                                      <span>Weekly change of {currentTrend.diff > 0 ? '+' : ''}{currentTrend.diff.toFixed(1)} mks</span>
-                                    ) : (
-                                      <span>Stable / No recent logs</span>
-                                    )}
-                                  </span>
-                                </div>
-                                <div className="bg-purple-50/50 p-4 rounded-2xl border border-purple-100 shadow-3xs flex flex-col justify-between">
-                                  <div>
-                                    <span className="text-[9px] text-purple-805 uppercase font-black tracking-widest font-mono">üí™ Program Syllabus</span>
-                                    <span className="block text-md font-black text-purple-900 mt-1 leading-tight truncate">
-                                      {s.className}
-                                    </span>
-                                  </div>
-                                  <span className="text-[10px] font-semibold text-purple-600 mt-2 block border-t border-purple-100/50 pt-1.5">
-                                    Current Classroom Level
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* 1. Weekly History Card Block */}
-                              <div className="border border-slate-150 rounded-2xl p-4 bg-slate-50/20">
-                                <h5 className="font-extrabold text-slate-800 text-[11px] uppercase tracking-wider mb-3">üìÖ Weekly Performance Record Table ({studentWeeklyExams.length} logs)</h5>
-                                {studentWeeklyExams.length === 0 ? (
-                                  <p className="text-slate-400 text-xs italic bg-white p-4 rounded-xl border border-slate-100 text-center">No weekly evaluations logged yet for this student.</p>
-                                ) : (
-                                  <div className="overflow-x-auto rounded-xl border border-slate-150 bg-white shadow-3xs">
-                                    <table className="w-full text-xs text-left border-collapse">
-                                      <thead>
-                                        <tr className="bg-slate-50 border-b border-slate-150 font-black text-slate-500 font-mono tracking-wide text-[10px] uppercase">
-                                          <th className="py-3 px-4">Evaluation</th>
-                                          <th className="py-3 px-2">Laxniga</th>
-                                          <th className="py-3 px-2">Imaanshaha</th>
-                                          <th className="py-3 px-2">Xifdiga</th>
-                                          <th className="py-3 px-2">Tajwiid</th>
-                                          <th className="py-3 px-2">Akhlaaq</th>
-                                          <th className="py-3 px-4">Total Score</th>
-                                          <th className="py-3 px-4 text-center">Grade</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                                        {studentWeeklyExams.map(ex => {
-                                          const sc = ex.scores.find(scoreSc => scoreSc.studentId === s.id);
-                                          if (!sc) return null;
-                                          return (
-                                            <tr key={ex.id} className="hover:bg-slate-50/50">
-                                              <td className="py-3 px-4 font-bold text-slate-800">
-                                                <span>Week {ex.weekNumber}</span>
-                                                <span className="text-[9.5px] text-slate-400 font-bold font-mono block mt-0.5">{ex.date}</span>
-                                              </td>
-                                              <td className="py-3 px-2 text-slate-500">{sc.scores['Laxniga'] !== undefined ? sc.scores['Laxniga'] : (sc.scores['Laxniga-old'] || 0)}/30</td>
-                                              <td className="py-3 px-2 text-slate-500">{(sc.scores['Imaanshaha'] !== undefined ? sc.scores['Imaanshaha'] : ((sc.scores['Higgaadda'] || 0) + (sc.scores['Far-Qurxinta'] || 0))) || 0}/30</td>
-                                              <td className="py-3 px-2 text-slate-500">{sc.scores['Xifdiga'] !== undefined ? sc.scores['Xifdiga'] : 0}/20</td>
-                                              <td className="py-3 px-2 text-slate-500">{sc.scores['Tajwiidka'] !== undefined ? sc.scores['Tajwiidka'] : 0}/10</td>
-                                              <td className="py-3 px-2 text-slate-500">{sc.scores['Akhlaaqda iyo Nadaafada'] !== undefined ? sc.scores['Akhlaaqda iyo Nadaafada'] : 0}/10</td>
-                                              <td className="py-3 px-4 font-black">
-                                                <span className="px-2 py-0.5 bg-teal-50 text-teal-800 border border-teal-100 rounded text-[11px]">
-                                                  {sc.averageScore} / 100
-                                                </span>
-                                              </td>
-                                              <td className="py-3 px-4 text-center">
-                                                <span className={`px-2.5 py-0.5 rounded font-black text-[10px] ${
-                                                  sc.grade === 'A' ? 'bg-emerald-50 text-emerald-700' :
-                                                  sc.grade === 'B' ? 'bg-teal-50 text-teal-700' :
-                                                  sc.grade === 'C' ? 'bg-blue-50 text-blue-700' :
-                                                  'bg-slate-100 text-slate-700'
-                                                }`}>
-                                                  Grade {sc.grade}
-                                                </span>
-                                              </td>
-                                            </tr>
-                                          );
-                                        })}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* 2. Monthly History Card Block */}
-                              <div className="border border-slate-150 rounded-2xl p-4 bg-slate-50/20">
-                                <h5 className="font-extrabold text-slate-800 text-[11px] uppercase tracking-wider mb-3">‚öôÔ∏è Monthly Evaluations (System Auto-Calculated) ({studentMonthlyExams.length} months)</h5>
-                                {studentMonthlyExams.length === 0 ? (
-                                  <p className="text-slate-400 text-xs italic bg-white p-4 rounded-xl border border-slate-100 text-center">Nidaamku wuxuu xisaabin doonaa dhibcaha bisha marka aad toddobaadka hore diiwaangeliso.</p>
-                                ) : (
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    {studentMonthlyExams.map(ex => {
-                                      return (
-                                        <div key={ex.id} className="bg-white border border-slate-150 rounded-xl p-3 shadow-3xs flex items-center justify-between">
-                                          <div>
-                                            <span className="text-[10px] text-indigo-700 font-extrabold font-mono uppercase block">{ex.month}</span>
-                                            <span className="text-xs font-black text-slate-800 mt-1 block">{ex.heading}</span>
-                                            <span className="text-[9.5px] text-slate-400 font-bold font-mono mt-0.5 block">Count: {ex.completedWeeks} active weeks</span>
-                                          </div>
-                                          <div className="text-right flex flex-col items-end gap-1.5 shrink-0">
-                                            <span className="text-xs font-black text-teal-705 bg-teal-50 px-2 py-0.5 rounded border border-teal-100 font-mono">
-                                              {ex.averageScore}%
-                                            </span>
-                                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${
-                                              ex.grade === 'A' ? 'bg-emerald-50 text-emerald-800 border-teal-100' :
-                                              ex.grade === 'B' ? 'bg-teal-50 text-teal-800 border-teal-100' :
-                                              'bg-slate-50 text-slate-705 border-slate-200'
-                                            }`}>
-                                              Grade {ex.grade}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })()}
-
-                      {/* Detail journal list */}
-                      <div>
-                        <h4 className="font-extrabold text-xs uppercase text-slate-705 text-slate-500 mb-4 tracking-wider">Diiwaanka Kulamada Fasalka ee Maalinlaha ah</h4>
-                        {studentLogs.length === 0 ? (
-                          <div className="text-center py-12 bg-slate-50 rounded-2xl border border-slate-100">
-                            <CalendarRange className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                            <p className="text-xs text-slate-500 font-bold">Diiwaan mada dhexdeeda laga helin muddadan</p>
-                            <p className="text-[11px] text-slate-455 mt-1">Hubi in macallimiintu galiyeen xogta inta u dhaxeysa {reportStartDate} iyo {reportEndDate}.</p>
-                          </div>
-                        ) : (
-                          <div className="space-y-4">
-                            {studentLogs.map((log, idx) => (
-                              <div key={log.id} className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 shadow-3xs hover:border-indigo-200 transition-all duration-300">
-                                {/* Flex alignment showing date & status badge */}
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5 mb-3">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-base">üìÖ</span>
-                                    <span className="font-extrabold text-[#111827] text-xs sm:text-sm">{log.date}</span>
-                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono">Diiwaanka {idx + 1}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest font-mono">Joogitaanka:</span>
-                                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
-                                      log.attendance === 'Present' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                                      log.attendance === 'Absent' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
-                                      'bg-amber-50 text-amber-700 border border-amber-100'
-                                    }`}>
-                                      {log.attendance === 'Present' ? 'Joogid' : log.attendance === 'Absent' ? 'Maqnansho' : 'Daahid'}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                {/* Suuraduu marayo Badge if present */}
-                                {(log.suuradeeMaraya || log.boggee || (log.inteeBog && log.inteeBog !== 'N/A' && log.inteeBog !== '')) && (
-                                  <div className="mb-3 bg-indigo-50/50 border border-indigo-105 rounded-xl p-2.5 px-3.5 text-xs flex items-center justify-between shadow-3xs">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-sm">üìñ</span>
-                                      <span className="font-extrabold text-slate-800">Casharka:</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      {log.suuradeeMaraya && (
-                                        <span className="font-black text-indigo-700 bg-white px-3 py-1 rounded-lg border border-indigo-100 shadow-3xs">Surada: {log.suuradeeMaraya}</span>
-                                      )}
-                                      {log.boggee && (
-                                        <span className="font-black text-purple-700 bg-purple-50 px-3 py-1 rounded-lg border border-purple-100 shadow-3xs">Boggee: {log.boggee}</span>
-                                      )}
-                                      {log.inteeBog && log.inteeBog !== 'N/A' && log.inteeBog !== '' && (
-                                        <span className="font-black text-violet-700 bg-violet-50/50 px-3 py-1 rounded-lg border border-violet-100 shadow-3xs">Intee Bog: {log.inteeBog}</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Matrix grid */}
-                                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                                  <div className="bg-white p-2.5 rounded-xl border border-slate-100 flex flex-col justify-center shadow-3xs">
-                                    <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest font-mono">Casharka</span>
-                                    <span className="text-xs font-black text-slate-800 mt-1">
-                                      {log.lessonCompleted === 'Completed' ? '‚úÖ Kabaxay' : '‚ùå Kama Bixin'}
-                                    </span>
-                                  </div>
-                                  <div className="bg-white p-2.5 rounded-xl border border-slate-100 flex flex-col justify-center shadow-3xs">
-                                    <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest font-mono">Suurad</span>
-                                    <span className="text-xs font-black text-slate-800 mt-1">
-                                      {log.surad === 'Completed' ? '‚úÖ Kabaxay' : log.surad === 'N/A' ? 'may' : '‚ùå Kama Bixin'}
-                                    </span>
-                                  </div>
-                                  <div className="bg-white p-2.5 rounded-xl border border-slate-100 flex flex-col justify-center shadow-3xs">
-                                    <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest font-mono">Subac</span>
-                                    <span className="text-xs font-black text-slate-800 mt-1">
-                                      {log.subac === 'Completed' ? '‚úÖ Galay' : '‚ùå Ma Galin'}
-                                    </span>
-                                  </div>
-                                  <div className="bg-white p-2.5 rounded-xl border border-slate-100 flex flex-col justify-center shadow-3xs">
-                                    <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest font-mono">Dhaqanka</span>
-                                    <span className="text-xs font-black text-indigo-700 mt-1">
-                                      {log.dhaqan === 'Excellent' ? '‚ú® Aad u Fiican' : log.dhaqan === 'Good' ? 'üëç Fiican' : log.dhaqan === 'Average' ? 'Dhexdhexaad' : log.dhaqan === 'Needs Improvement' ? '‚ö†Ô∏è Baahan' : log.dhaqan}
-                                    </span>
-                                  </div>
-                                  <div className="bg-white p-2.5 rounded-xl border border-slate-100 flex flex-col justify-center shadow-3xs">
-                                    <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest font-mono">Nadaafadda</span>
-                                    <span className="text-xs font-black text-emerald-700 mt-1">
-                                      {log.nadaafad === 'Excellent' ? '‚ú® Aad u Fiican' : log.nadaafad === 'Good' ? 'üëç Fiican' : log.nadaafad === 'Average' ? 'Dhexdhexaad' : log.nadaafad === 'Needs Improvement' ? '‚ö†Ô∏è Baahan' : log.nadaafad}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                {/* Full width comment section below */}
-                                {log.faahfaahin ? (
-                                  <div 
-                                    onClick={() => setExpandedComments(prev => ({ ...prev, [log.id]: !prev[log.id] }))}
-                                    className="mt-3 bg-amber-50 hover:bg-amber-100/60 text-amber-905 border border-amber-200/60 rounded-xl p-3 text-[11px] font-bold leading-relaxed flex flex-col cursor-pointer select-none transition-all duration-300 shadow-3xs"
-                                    title="Guji si aad u ballaariso ama u yarayso / Click to expand or collapse"
-                                  >
-                                    <div className="flex items-center gap-1.5 mb-1 bg-amber-100/50 pb-1 rounded px-1.5 w-fit">
-                                      <span className="text-xs select-none">üìù</span>
-                                      <span className="text-[9.5px] text-amber-800 font-black uppercase tracking-widest font-mono">Xogta Macallinka:</span>
-                                    </div>
-                                    <p className={`font-semibold text-slate-850 mt-1 text-xs px-1 ${expandedComments[log.id] ? '' : 'line-clamp-2'}`}>
-                                      {log.faahfaahin}
-                                    </p>
-                                  </div>
-                                ) : (
-                                  <div className="mt-2.5 text-[10px] text-slate-400 italic bg-white rounded-xl p-2.5 border border-slate-150/40">
-                                    Lama qorin wax faallo ah (No comments logged).
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            ) : reportViewMode === 'payments_range' ? (
-              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6 animate-fade-in">
-                {/* Single Student Tuition range history statements */}
-                {(() => {
-                  const s = database.students.find(st => st.id === payReportStudentId);
-                  if (!s) {
-                    return (
-                      <div className="text-center py-12 text-slate-400">
-                        Please select an active student to inspect financial statement logs.
-                      </div>
-                    );
-                  }
-
-                  const stats = getStudentPaymentRangeReport(s.id, payReportStartMonth, payReportEndMonth);
-                  if (!stats) return <p className="text-rose-500 font-bold">Error compiling payment ranges statement.</p>;
-
-                  const { records, totalDue, totalPaid, totalDebt } = stats;
-
-                  return (
-                    <div className="space-y-6">
-                      {/* Brand Label block with crest logo */}
-                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                        <div className="flex items-center gap-3">
-                          <div>
-                            <h4 className="font-extrabold text-slate-900 text-sm">{s.name} ({s.id})</h4>
-                            <p className="text-xs text-slate-400 font-semibold mt-0.5">Tuition Ledger Range Statement ({payReportStartMonth} to {payReportEndMonth})</p>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-2">
-                          <span className="text-[11px] text-slate-500 font-bold uppercase bg-slate-200 border border-slate-300 px-3 py-1.5 rounded-xl">
-                            Parent: {s.parentName} ({s.parentPhone})
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* 3 Metric cards for Financial Position */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                          <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Total Tuition Invoiced</span>
-                          <span className="block text-2xl font-black text-slate-800">${Number(totalDue).toFixed(2)}</span>
-                        </div>
-                        <div className="bg-emerald-50 text-emerald-700 p-4 rounded-2xl border border-emerald-100">
-                          <span className="text-[10px] uppercase font-bold block mb-1">Total Tuition Deposited</span>
-                          <span className="block text-2xl font-black text-emerald-800">${Number(totalPaid).toFixed(2)}</span>
-                        </div>
-                        <div className="bg-rose-50 text-rose-700 p-4 rounded-2xl border border-rose-100">
-                          <span className="text-[10px] uppercase font-bold block mb-1">Outstanding Balance Debt</span>
-                          <span className="block text-2xl font-black text-rose-800">${Number(totalDebt).toFixed(2)}</span>
-                        </div>
-                      </div>
-                      
-                      {/* Detail transactions list */}
-                      <div>
-                        <h4 className="font-extrabold text-xs uppercase text-slate-500 mb-4 tracking-wider">Tuition Journal Invoice Records</h4>
-                        {records.length === 0 ? (
-                          <div className="text-center py-12 bg-slate-50 rounded-2xl border border-slate-100">
-                            <CircleDollarSign className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                            <p className="text-xs text-slate-550 font-bold">No Records Found for the Selected Month Range</p>
-                          </div>
-                        ) : (
-                          <div className="overflow-x-auto rounded-2xl border border-slate-100 scrollbar-thin">
-                            <table className="w-full text-left border-collapse text-xs">
-                              <thead>
-                                <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider font-extrabold">
-                                  <th className="py-3 px-4">Billing Cycle Month</th>
-                                  <th className="py-3 px-4">Invoiced Amount</th>
-                                  <th className="py-3 px-4 text-emerald-700">Deposited Amount</th>
-                                  <th className="py-3 px-4 text-rose-700">Accrued Debt</th>
-                                  <th className="py-3 px-4 text-center">Payment Status</th>
-                                  <th className="py-3 px-4">Receipt Serial</th>
-                                  <th className="py-3 px-4">Receipt Notes</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                                {records.map(r => {
-                                  const feeAmt = r.amountDue ?? s.monthlyFee;
-                                  const curDebt = r.debtAmount ?? Math.max(0, feeAmt - r.amountPaid);
-                                  return (
-                                    <tr key={r.month} className="hover:bg-slate-50/50 transition-colors">
-                                      <td className="py-3.5 px-4 font-bold text-slate-900">{r.month}</td>
-                                      <td className="py-3.5 px-4">${Number(feeAmt).toFixed(2)}</td>
-                                      <td className="py-3.5 px-4 text-emerald-700">${Number(r.amountPaid).toFixed(2)}</td>
-                                      <td className="py-3.5 px-4 text-rose-700">${Number(curDebt).toFixed(2)}</td>
-                                      <td className="py-3.5 px-4 text-center">
-                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-                                          r.status === 'Paid' ? 'bg-emerald-50 text-emerald-800 border border-emerald-100' :
-                                          r.status === 'Partial' ? 'bg-amber-50 text-amber-850 border border-amber-100' :
-                                          'bg-rose-50 text-rose-800 border border-rose-100'
-                                        }`}>
-                                          {r.status}
-                                        </span>
-                                      </td>
-                                      <td className="py-3.5 px-4 text-slate-500">{r.receiptNo || '-'}</td>
-                                      <td className="py-3.5 px-4 text-[11px] font-medium text-slate-650 italic" title={r.notes}>{r.notes || '-'}</td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            ) : (
-              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6 animate-fade-in">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-                  <div>
-                    <h3 className="font-extrabold text-slate-900 text-lg">Registration Log & Chronicle / Diiwaanka Diiwangelinta</h3>
-                    <p className="text-slate-400 text-xs mt-0.5">Chronological audit list of all registered teachers, instructors, and students in the academy.</p>
-                  </div>
-                </div>
-
-                {(() => {
-                  const studentLogItems = database.students.map(s => ({
-                    id: s.id,
-                    name: s.name,
-                    role: 'Student',
-                    details: `${s.className} (${s.session || 'Both'} Session)`,
-                    registrationDate: s.registrationDate || '2026-05-15',
-                    active: s.active
-                  }));
-
-                  const teacherLogItems = database.teachers.map(t => ({
-                    id: t.id,
-                    name: t.name,
-                    role: 'Teacher/Staff',
-                    details: `Assigned Division: ${t.classAssigned || t.className || 'General'}`,
-                    registrationDate: t.registrationDate || '2026-05-15',
-                    active: true
-                  }));
-
-                  const combinedChronicle = [...studentLogItems, ...teacherLogItems].sort((a, b) => b.registrationDate.localeCompare(a.registrationDate));
-
-                  return (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                          <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Total Students Registered</span>
-                          <span className="block text-2xl font-black text-indigo-700">{studentLogItems.length}</span>
-                        </div>
-                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                          <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Total Staff Certified</span>
-                          <span className="block text-2xl font-black text-teal-700">{teacherLogItems.length}</span>
-                        </div>
-                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                          <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Combined Registrations</span>
-                          <span className="block text-2xl font-black text-slate-800">{combinedChronicle.length}</span>
-                        </div>
-                      </div>
-
-                      <div className="overflow-x-auto rounded-2xl border border-slate-150 bg-white shadow-3xs">
-                        <table className="w-full text-xs text-left border-collapse">
-                          <thead>
-                            <tr className="bg-slate-50 border-b border-slate-150 font-black text-slate-500 font-mono tracking-wide text-[10px] uppercase">
-                              <th className="py-3.5 px-4">Registration Date</th>
-                              <th className="py-3.5 px-4">ID</th>
-                              <th className="py-3.5 px-4">Name / Member</th>
-                              <th className="py-3.5 px-4 text-center">Role</th>
-                              <th className="py-3.5 px-4">Class Assignment / Details</th>
-                              <th className="py-3.5 px-4 text-center">Status</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                            {combinedChronicle.map((item, index) => (
-                              <tr key={`${item.id}-${index}`} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="py-4 px-4 font-mono font-bold text-indigo-600 shrink-0">{item.registrationDate}</td>
-                                <td className="py-4 px-4 font-bold text-slate-500">{item.id}</td>
-                                <td className="py-4 px-4 font-extrabold text-[#111827]">{item.name}</td>
-                                <td className="py-4 px-4 text-center">
-                                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${
-                                    item.role === 'Student' 
-                                      ? 'bg-blue-50 text-blue-700 border-blue-100' 
-                                      : 'bg-teal-50 text-teal-700 border-teal-100'
-                                  }`}>
-                                    {item.role}
-                                  </span>
-                                </td>
-                                <td className="py-4 px-4 text-slate-500">{item.details}</td>
-                                <td className="py-4 px-4 text-center">
-                                  <span className={`px-2 py-0.5 rounded text-[9px] font-black ${
-                                    item.active 
-                                      ? 'bg-emerald-50 text-emerald-700' 
-                                      : 'bg-slate-50 text-slate-450'
-                                  }`}>
-                                    {item.active ? 'Active' : 'Inactive'}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* --- EXAMS CENTER ADMINISTRATIVE REPORTS --- */}
-        {activeTab === 'exams' && (() => {
-          // Computations for filtering
-          const uniqueClasses = Array.from(new Set(database.students.map(s => s.className))).filter(Boolean);
-          const matchedExams = (database.exams || []).filter(ex => {
-            const matchClass = examFilterClass === 'All' ? true : ex.className === examFilterClass;
-            const matchTeacher = examFilterTeacher === 'All' ? true : ex.teacherId === examFilterTeacher;
-            const matchStart = examStartDate ? ex.date >= examStartDate : true;
-            const matchEnd = examEndDate ? ex.date <= examEndDate : true;
-            return matchClass && matchTeacher && matchStart && matchEnd;
-          });
-
-          // Summary aggregates
-          const totalExamsUploaded = matchedExams.length;
-          const totalGradedCount = matchedExams.reduce((sum, ex) => sum + ex.scores.length, 0);
-          const overallClassAverageSum = matchedExams.reduce((sum, ex) => {
-            const exAvg = ex.scores.reduce((sSum, sc) => sSum + sc.averageScore, 0) / Math.max(ex.scores.length, 1);
-            return sum + exAvg;
-          }, 0);
-          const computedTotalScoreAverage = totalExamsUploaded > 0 ? (overallClassAverageSum / totalExamsUploaded).toFixed(1) : '0';
-
-          const handleDeleteAdminExam = (examId: string) => {
-            const ex = (database.exams || []).find(e => e.id === examId);
-            const examDetails = ex 
-              ? `"${ex.heading}" for class "${ex.className}" on ${ex.date}` 
-              : "this exam score sheet";
-            setConfirmModal({
-              isOpen: true,
-              title: "Delete Exam Record?",
-              message: `Are you sure you want to permanently delete the exam record ${examDetails} from servers? This operation is irreversible.`,
-              accentColor: 'rose',
-              onConfirm: () => {
-                const updatedExams = (database.exams || []).filter(ex => ex.id !== examId);
-                onSaveDatabase({
-                  ...database,
-                  exams: updatedExams
-                });
-                setFeedbackMsg("Exam record successfully deleted from catalog!");
-                setTimeout(() => setFeedbackMsg(''), 4050);
-                setConfirmModal(null);
-              }
-            });
-          };
-
-          return (
-            <div className="space-y-8 animate-fade-in" id="portal-exams">
-              {/* Top Banner explaining Admin & Teacher dual rights */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-teal-50 to-indigo-50/50 p-6 rounded-3xl border border-slate-150/60 shadow-sm">
-                <div>
-                  <h3 className="font-extrabold text-[#113d3c] text-sm flex items-center gap-2">
-                    <span className="text-lg">üìä</span> Graded Evaluation Forms & Report Sheets
-                  </h3>
-                  <p className="text-xs text-slate-500 font-bold mt-1">
-                    Both administrators and classroom teachers can compile, grade, and record weekly or monthly assessments.
-                  </p>
-                </div>
-                {!isCreatingExam && !isCompilingMonthly && !editingExam && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCompilingMonthly(true);
-                        if (database.teachers.length > 0) {
-                          setMonthlyTeacherId(database.teachers[0].id);
-                        }
-                      }}
-                      className="py-3 px-5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/10 shrink-0 border-0 outline-none"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      Sami Qiimaynta Bisha (Generate Monthly)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCreatingExam(true);
-                        if (database.teachers.length > 0) {
-                          setExamTeacherId(database.teachers[0].id);
-                        }
-                      }}
-                      className="py-3 px-5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-teal-600/10 shrink-0 border-0 outline-none"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Record New Assessment
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {isCreatingExam ? (
-                /* Create/Fill Score Sheet Form for Admin */
-                <form onSubmit={handleSaveAdminCreatedExam} className="space-y-6">
-                  <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6">
-                    <div className="flex items-center justify-between border-b border-slate-150 pb-4">
-                      <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                        <Plus className="w-4 h-4 text-teal-600" />
-                        Record New Assessment / Exam Score Sheet (Admin Mode)
-                      </h3>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsCreatingExam(false);
-                          setAssessmentType('weekly');
-                          setStudentScores({});
-                          setStudentComments({});
-                        }}
-                        className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition-all cursor-pointer border-0 outline-none"
-                      >
-                        Cancel Entry
-                      </button>
-                    </div>
-
-                    {/* Teacher & Class Selector */}
-                    <div className="bg-teal-50/30 p-5 rounded-2xl border border-teal-100/50">
-                      <label className="block text-[10px] font-extrabold text-teal-800 uppercase tracking-widest mb-2 pl-0.5">Select Class Instructor & Classroom</label>
-                      <select
-                        value={examTeacherId}
-                        onChange={e => {
-                          setExamTeacherId(e.target.value);
-                          setStudentScores({});
-                          setStudentComments({});
-                        }}
-                        className="w-full px-4 py-3 bg-white border border-teal-200 rounded-xl text-xs font-bold text-slate-800 focus:border-teal-500 outline-none cursor-pointer"
-                        required
-                      >
-                        <option value="" disabled>-- Dooro Macallinka & Fasalka --</option>
-                        {database.teachers.map(t => (
-                          <option key={t.id} value={t.id}>
-                            Macallin: {t.name} (Fasalka: {t.classAssigned || 'N/A'} - ID: {t.id})
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-[10px] text-slate-400 font-bold mt-2 italic pl-0.5">
-                        * Marks entered below will be logged under the selected instructor and their assigned classroom automatically.
-                      </p>
-                    </div>
-
-                    {/* Assessment Type Selector */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-1.5 bg-slate-50 rounded-2xl border border-slate-200">
-                      <button
-                        type="button"
-                        onClick={() => setAssessmentType('weekly')}
-                        className={`py-3 px-4 rounded-xl text-xs font-extrabold uppercase tracking-wide transition-all border-0 outline-none cursor-pointer ${
-                          assessmentType === 'weekly'
-                            ? 'bg-teal-600 text-white shadow-md shadow-teal-600/10'
-                            : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100 bg-transparent'
-                        }`}
-                      >
-                        üìÖ Weekly Assessment
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAssessmentType('custom')}
-                        className={`py-3 px-4 rounded-xl text-xs font-extrabold uppercase tracking-wide transition-all border-0 outline-none cursor-pointer ${
-                          assessmentType === 'custom'
-                            ? 'bg-slate-850 text-white shadow-md'
-                            : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100 bg-transparent'
-                        }`}
-                      >
-                        üìù Custom (Traditional) Exam
-                      </button>
-                    </div>
-
-                    <div className="text-[11px] font-bold text-teal-700 bg-teal-50/50 rounded-xl px-4 py-2 border border-teal-100/65">
-                      üí° <b>FIIRO rasmiga ah:</b> Maamulow, waxaad halkan ku diiwaangeliyaa qiimaynta toddobaadlaha ah (Weekly). Nidaamka ayaa kuu xisaabin doona celceliska bisha (Monthly average) si toos ah oo dynamic ah, adigoon u baahnayn inaad adigu gacanta ku geliso!
-                    </div>
-
-                    {/* Mode Specific Inputs */}
-                    {assessmentType === 'weekly' && (
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-emerald-50/30 p-5 rounded-2xl border border-emerald-100">
-                        <div>
-                          <label className="block text-[10px] font-extrabold text-teal-800 uppercase tracking-widest mb-2">Week Number</label>
-                          <select
-                            value={weekNumber}
-                            onChange={e => setWeekNumber(parseInt(e.target.value, 10))}
-                            className="w-full px-4 py-3 bg-white border border-teal-200 rounded-xl text-xs font-bold text-slate-800 focus:border-teal-500 outline-none cursor-pointer"
-                          >
-                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map(wk => (
-                              <option key={wk} value={wk}>Week {wk} Assessment</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-extrabold text-teal-800 uppercase tracking-widest mb-2">Evaluation Month</label>
-                          <input
-                            type="month"
-                            value={selectedMonth}
-                            onChange={e => {
-                              setSelectedMonth(e.target.value);
-                            }}
-                            className="w-full px-4 py-3 bg-white border border-teal-200 rounded-xl text-xs font-bold text-slate-800 focus:border-teal-500 outline-none"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-extrabold text-teal-800 uppercase tracking-widest mb-2">Conducting Date</label>
-                          <input
-                            type="date"
-                            value={examDate}
-                            onChange={e => setExamDate(e.target.value)}
-                            className="w-full px-4 py-3 bg-white border border-teal-200 rounded-xl text-xs font-bold text-slate-800 focus:border-teal-500 outline-none"
-                            required
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {assessmentType === 'monthly' && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-indigo-50/30 p-5 rounded-2xl border border-indigo-100">
-                        <div>
-                          <label className="block text-[10px] font-extrabold text-indigo-800 uppercase tracking-widest mb-2">Select Month</label>
-                          <input
-                            type="month"
-                            value={selectedMonth}
-                            onChange={e => {
-                              setSelectedMonth(e.target.value);
-                            }}
-                            className="w-full px-4 py-3 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-slate-800 focus:border-indigo-500 outline-none"
-                            required
-                          />
-                        </div>
-                        <div className="flex flex-col justify-center">
-                          <span className="text-[11px] font-extrabold text-indigo-850 uppercase tracking-wide">Last Thursday Auto-Scheduled Date:</span>
-                          <span className="text-sm font-black text-slate-800 mt-1 font-mono">
-                            üìÖ {selectedMonth ? getLastThursdayOfMonth(parseInt(selectedMonth.split('-')[0], 10), parseInt(selectedMonth.split('-')[1], 10)) : 'N/A'}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {assessmentType === 'custom' && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6">
-                        <div>
-                          <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Exam Heading / Title</label>
-                          <input
-                            type="text"
-                            placeholder="e.g. Surat Al-Mulk Memorization Test, Term 1 Final"
-                            value={examHeading}
-                            onChange={e => setExamHeading(e.target.value)}
-                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:border-indigo-500 focus:bg-white outline-none"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Examining Date</label>
-                          <input
-                            type="date"
-                            value={examDate}
-                            onChange={e => setExamDate(e.target.value)}
-                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:border-indigo-500 focus:bg-white outline-none"
-                            required
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Mode Information & Categorization Display */}
-                    {assessmentType === 'weekly' && (
-                      <div className="border border-teal-100 rounded-2xl p-5 bg-teal-50/10 space-y-3">
-                        <h4 className="text-xs font-extrabold text-teal-800 uppercase tracking-wider flex items-center gap-2">
-                          üìñ Weekly Qur'anic Evaluation Categories & Maximum Marks
-                        </h4>
-                        <p className="text-[11px] text-slate-500 leading-relaxed font-semibold">
-                          The score scoreboard below lists the five official assessment categories. Standard entry enforces maximum marks allocation limits which automatically sums up out of 100 on submittal.
-                        </p>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-1">
-                          <div className="bg-white p-3 rounded-xl border border-slate-150 flex flex-col items-center">
-                            <span className="text-[10px] text-slate-400 font-extrabold uppercase">1. Laxniga</span>
-                            <span className="text-xs font-black text-teal-700 mt-1">Max: 30 dhibcood</span>
-                          </div>
-                          <div className="bg-white p-3 rounded-xl border border-slate-150 flex flex-col items-center">
-                            <span className="text-[10px] text-slate-400 font-extrabold uppercase">2. Imaanshaha</span>
-                            <span className="text-xs font-black text-teal-700 mt-1">Max: 30 dhibcood</span>
-                          </div>
-                          <div className="bg-white p-3 rounded-xl border border-slate-150 flex flex-col items-center">
-                            <span className="text-[10px] text-slate-400 font-extrabold uppercase">3. Xifdiga</span>
-                            <span className="text-xs font-black text-teal-700 mt-1">Max: 20 dhibcood</span>
-                          </div>
-                          <div className="bg-white p-3 rounded-xl border border-slate-150 flex flex-col items-center">
-                            <span className="text-[10px] text-slate-400 font-extrabold uppercase">4. Tajwiidka</span>
-                            <span className="text-xs font-black text-teal-700 mt-1">Max: 10 dhibcood</span>
-                          </div>
-                          <div className="bg-white p-3 rounded-xl border border-slate-150 flex flex-col items-center">
-                            <span className="text-[10px] text-slate-400 font-extrabold uppercase text-center leading-tight">5. Akhlaaq / Nadaafad</span>
-                            <span className="text-xs font-black text-teal-700 mt-1">Max: 10 dhibcood</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {assessmentType === 'monthly' && (
-                      <div className="border border-indigo-100 rounded-2xl p-5 bg-indigo-50/15 space-y-2">
-                        <h4 className="text-xs font-extrabold text-indigo-800 uppercase tracking-wider">
-                          üèÜ Automated Monthly Evaluation Engine
-                        </h4>
-                        <p className="text-[11px] text-slate-500 leading-relaxed font-semibold">
-                          Monthly assessments are calculated automatically by calculating the average of all logged weekly assessments within the selected month. If you modify any scores manually, they will be saved as custom monthly overrides.
-                        </p>
-                      </div>
-                    )}
-
-                    {assessmentType === 'custom' && (
-                      <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 space-y-4">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-200">
-                          <div>
-                            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-widest">Custom Grading Subjects Checklist</h4>
-                            <p className="text-[10px] text-slate-400 font-bold mt-0.5">Manage list of subjects that compose this custom exam paper.</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              value={newSubjectInput}
-                              onChange={e => setNewSubjectInput(e.target.value)}
-                              placeholder="Add Subject e.g. Tafsiir"
-                              className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none"
-                            />
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                if (newSubjectInput.trim()) {
-                                  if (!examSubjects.includes(newSubjectInput.trim())) {
-                                    setExamSubjects([...examSubjects, newSubjectInput.trim()]);
-                                  }
-                                  setNewSubjectInput('');
-                                }
-                              }}
-                              className="px-3 py-1.5 bg-slate-800 hover:bg-black text-white text-xs font-bold rounded-xl transition-all border-0 outline-none uppercase tracking-widest cursor-pointer"
-                            >
-                              Add
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2">
-                          {examSubjects.map(sub => (
-                            <span key={sub} className="inline-flex items-center gap-1.5 bg-white text-slate-700 pl-3 pr-2 py-1.5 rounded-xl border border-slate-200 text-xs font-bold">
-                              {sub}
-                              <button
-                                type="button"
-                                onClick={() => setExamSubjects(examSubjects.filter(s => s !== sub))}
-                                className="w-4 h-4 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-full flex items-center justify-center font-bold text-[10px] cursor-pointer border-0 outline-none"
-                              >
-                                &times;
-                              </button>
-                            </span>
-                          ))}
-                          {examSubjects.length === 0 && (
-                            <p className="text-xs text-rose-500 font-black italic">No subjects added. Add custom subjects above to proceed.</p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Students Marks Scoreboard Table */}
-                    <div>
-                      <h4 className="text-xs font-extrabold text-slate-600 uppercase tracking-widest mb-4">
-                        üéØ Students Academic Marks Scoreboard
-                      </h4>
-                      
-                      {!examTeacherId ? (
-                        <div className="text-center py-12 bg-slate-50 border border-slate-150 rounded-2xl">
-                          <p className="text-xs text-slate-450 font-bold italic">Please select a class instructor above to display student roster list.</p>
-                        </div>
-                      ) : (() => {
-                        const selectedTeacherObj = database.teachers.find(t => t.id === examTeacherId);
-                        const teacherClassSelected = selectedTeacherObj ? (selectedTeacherObj.classAssigned || selectedTeacherObj.className || '') : '';
-                        const classStudents = database.students.filter(s => s.active && s.className === teacherClassSelected);
-
-                        if (classStudents.length === 0) {
-                          return (
-                            <div className="text-center py-12 bg-slate-50 border border-dashed border-slate-200 rounded-2xl">
-                              <p className="text-xs text-slate-500 font-extrabold">No active students found in Fasalka: "{teacherClassSelected || 'N/A'}"</p>
-                              <p className="text-[10px] text-slate-400 font-bold mt-1">Assign active students to this classroom to grade assessments.</p>
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <div className="overflow-x-auto rounded-3xl border border-slate-100 shadow-sm">
-                            <table className="w-full text-left border-collapse text-xs">
-                              <thead>
-                                <tr className="bg-slate-50 font-extrabold text-slate-500 uppercase tracking-wider border-b border-slate-150 text-[10px]">
-                                  <th className="py-4 px-5">Student Full Name</th>
-                                  {examSubjects.map(sub => (
-                                    <th key={sub} className="py-4 px-5 text-center min-w-[95px] uppercase">
-                                      {sub}
-                                      {assessmentType === 'weekly' && WEEKLY_MAX_SCORES_ADMIN[sub] !== undefined && (
-                                        <span className="block text-[8px] text-slate-400 font-bold tracking-normal mt-0.5 lowercase">
-                                          max: {WEEKLY_MAX_SCORES_ADMIN[sub]}m
-                                        </span>
-                                      )}
-                                    </th>
-                                  ))}
-                                  <th className="py-4 px-5 font-bold text-slate-500">Faallo (Comments)</th>
-                                  <th className="py-4 px-5 text-right font-black text-slate-700 pr-5">Avg/Total Marks</th>
-                                  <th className="py-4 px-5 text-center font-black text-slate-700 min-w-[70px]">Grade</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100 font-medium text-slate-700 bg-white">
-                                {classStudents.map(student => {
-                                  const metrics = getAdminStudentMetrics(student.id, teacherClassSelected);
-                                  const scoresObj = studentScores[student.id] || {};
-
-                                  return (
-                                    <tr key={student.id} className="hover:bg-slate-50/40">
-                                      <td className="py-3 px-5 font-bold text-slate-900 border-r border-slate-100/50">
-                                        {student.name}
-                                        <p className="text-[9px] font-extrabold text-slate-400 mt-0.5">ID: {student.id}</p>
-                                      </td>
-                                      {examSubjects.map(sub => {
-                                        const maxMarksVal = assessmentType === 'weekly' ? WEEKLY_MAX_SCORES_ADMIN[sub] : 100;
-                                        return (
-                                          <td key={sub} className="py-3 px-5 text-center border-r border-slate-100/50">
-                                            <div className="flex items-center justify-center gap-1.5">
-                                              <input
-                                                type="number"
-                                                step="any"
-                                                disabled={assessmentType === 'monthly'}
-                                                min={0}
-                                                max={maxMarksVal}
-                                                value={scoresObj[sub] !== undefined ? scoresObj[sub] : '0'}
-                                                onChange={e => handleAdminScoreChange(student.id, sub, e.target.value)}
-                                                className="w-16 px-1.5 py-1 text-center bg-slate-50 hover:bg-slate-100 disabled:opacity-60 focus:bg-white border border-slate-200 outline-none text-xs font-black rounded-lg text-slate-800 focus:border-teal-500"
-                                              />
-                                              {assessmentType !== 'monthly' && (
-                                                <span className="text-[10px] font-bold text-slate-400">/{maxMarksVal}</span>
-                                              )}
-                                            </div>
-                                          </td>
-                                        );
-                                      })}
-                                      <td className="py-3 px-5 min-w-[180px] border-r border-slate-100/50">
-                                        <input
-                                          type="text"
-                                          placeholder="Ku qor faallo halkan (t.s. ku fiican subaca)..."
-                                          value={studentComments[student.id] || ''}
-                                          onChange={e => setStudentComments(prev => ({ ...prev, [student.id]: e.target.value }))}
-                                          className="w-full px-3 py-1.5 border rounded-lg text-xs bg-slate-50 border-slate-200 focus:border-indigo-500 focus:bg-white text-slate-800 font-medium"
-                                        />
-                                      </td>
-                                      <td className="py-3 px-5 text-right font-black text-slate-900 border-r border-slate-100/50 pr-5">
-                                        {metrics.average}%
-                                      </td>
-                                      <td className="py-3 px-5 text-center">
-                                        <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black border ${
-                                          metrics.grade === 'A' ? 'bg-emerald-50 text-emerald-850 border-emerald-100' :
-                                          metrics.grade === 'B' ? 'bg-teal-50 text-teal-850 border-teal-100' :
-                                          metrics.grade === 'C' ? 'bg-indigo-50 text-indigo-850 border-indigo-100' :
-                                          metrics.grade === 'D' ? 'bg-amber-50 text-amber-800 border-amber-100' :
-                                          'bg-rose-50 text-rose-800 border-rose-100'
-                                        }`}>
-                                          {metrics.grade}
-                                        </span>
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Form submissions footer action buttons */}
-                    <div className="flex flex-col sm:flex-row items-center sm:justify-end gap-3 border-t border-slate-150 pt-6">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsCreatingExam(false);
-                          setAssessmentType('weekly');
-                        }}
-                        className="w-full sm:w-auto py-3 px-6 bg-slate-150 hover:bg-slate-200 text-slate-700 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all cursor-pointer border-0 outline-none"
-                      >
-                        Abort Assessment Logbook
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={!examTeacherId || examSubjects.length === 0}
-                        className="w-full sm:w-auto py-3 px-8 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white text-xs font-extrabold uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-teal-600/15 border-0 outline-none"
-                      >
-                        <Save className="w-4 h-4" />
-                        Compile & Synchronize Results
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              ) : isCompilingMonthly ? (
-                /* Compile Monthly Assessment view */
-                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6">
-                  <div className="flex items-center justify-between border-b border-slate-150 pb-4">
-                    <h3 className="font-bold text-slate-800 text-sm flex items-center gap-4">
-                      <Sparkles className="w-5 h-5 text-indigo-600" />
-                      Sami Qiimaynta Bisha (Generate Monthly Assessment from Chosen Weeks)
-                    </h3>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCompilingMonthly(false);
-                        setSelectedWeeklyExamIds([]);
-                      }}
-                      className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition-all cursor-pointer border-0 outline-none"
-                    >
-                      Baji (Cancel)
-                    </button>
-                  </div>
-
-                  {/* Instructor Selector */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-indigo-50/30 p-5 rounded-2xl border border-indigo-150/50">
-                    <div>
-                      <label className="block text-[10px] font-extrabold text-indigo-800 uppercase tracking-widest mb-2 pl-0.5">Select Class Instructor</label>
-                      <select
-                        value={monthlyTeacherId}
-                        onChange={e => {
-                          setMonthlyTeacherId(e.target.value);
-                          setSelectedWeeklyExamIds([]); // Reset selected weeks when teacher changes
-                        }}
-                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                      >
-                        <option value="">-- Choose Instructor --</option>
-                        {database.teachers.map(t => (
-                          <option key={t.id} value={t.id}>
-                            {t.name} ({t.classAssigned || t.className || 'No Class'})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-extrabold text-indigo-800 uppercase tracking-widest mb-2 pl-0.5">Select Assessment Month</label>
-                      <input
-                        type="month"
-                        value={monthlyMonth}
-                        onChange={e => {
-                          setMonthlyMonth(e.target.value);
-                          setSelectedWeeklyExamIds([]);
-                        }}
-                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                      />
-                    </div>
-                  </div>
-
-                  {/* List of Weeks */}
-                  <div>
-                    <h4 className="font-extrabold text-slate-700 text-xs uppercase tracking-wider mb-3">Choose the Weeks to Compile:</h4>
-                    {(() => {
-                      const teacherObj = database.teachers.find(t => t.id === monthlyTeacherId);
-                      const className = teacherObj ? (teacherObj.classAssigned || teacherObj.className || '') : '';
-                      const weeklyExams = (database.exams || []).filter(ex => 
-                        ex.teacherId === teacherObj.id && 
-                        ex.assessmentType === 'weekly' &&
-                        ex.month === monthlyMonth
-                      );
-
-                      if (!monthlyTeacherId) {
-                        return (
-                          <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl">
-                            <p className="text-xs text-slate-400 font-bold">Fadlan marka hore dooro macallinka bixiyay qiimaynta. (Please choose an instructor first.)</p>
-                          </div>
-                        );
-                      }
-
-                      if (weeklyExams.length === 0) {
-                        return (
-                          <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl">
-                            <BookOpen className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                            <p className="text-xs text-slate-500 font-bold">Lama helin wax qiimayn toddobaadle ah bishaan ee fasalka barahan. (No weekly assessments found for this month of this teacher's class.)</p>
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                          {weeklyExams.map(ex => {
-                            const isChecked = selectedWeeklyExamIds.includes(ex.id);
-                            return (
-                              <label
-                                key={ex.id}
-                                className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
-                                  isChecked 
-                                    ? 'bg-indigo-50/50 border-indigo-200 ring-2 ring-indigo-500/10' 
-                                    : 'bg-white border-slate-200 hover:bg-slate-50'
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={e => {
-                                    if (e.target.checked) {
-                                      setSelectedWeeklyExamIds([...selectedWeeklyExamIds, ex.id]);
-                                    } else {
-                                      setSelectedWeeklyExamIds(selectedWeeklyExamIds.filter(id => id !== ex.id));
-                                    }
-                                  }}
-                                  className="mt-0.5 h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-305 accent-indigo-650"
-                                />
-                                <div className="text-left">
-                                  <p className="font-extrabold text-slate-800 text-xs">{ex.heading}</p>
-                                  <p className="text-[10px] font-bold text-slate-400 mt-1">Date: {ex.date}</p>
-                                  <p className="text-[10px] font-bold text-indigo-600 mt-0.5">Students Checked: {ex.scores.length}</p>
-                                </div>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCompilingMonthly(false);
-                        setSelectedWeeklyExamIds([]);
-                      }}
-                      className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition-all cursor-pointer border-0 outline-none"
-                    >
-                      Baji (Cancel)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleCompileMonthlyAssessment('admin')}
-                      disabled={selectedWeeklyExamIds.length === 0}
-                      className="py-2.5 px-5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-indigo-600/10 border-0 outline-none"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      Kici Qiimaynta Bisha (Compile & Save)
-                    </button>
-                  </div>
-                </div>
-              ) : editingExam ? (
-                /* Edit weekly assessment form */
-                <form onSubmit={handleUpdateAdminExam} className="space-y-6">
-                  <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6">
-                    <div className="flex items-center justify-between border-b border-slate-150 pb-4">
-                      <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                        <Plus className="w-4 h-4 text-indigo-600" />
-                        Wax ka beddel Qiimaynta (Edit Assessment Sheet)
-                      </h3>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingExam(null);
-                          setStudentScores({});
-                          setStudentComments({});
-                        }}
-                        className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition-all cursor-pointer border-0 outline-none"
-                      >
-                        Baji (Cancel)
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-5 rounded-2xl border border-slate-205/50">
-                      <div>
-                        <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">Assessment Heading / Title *</label>
-                        <input
-                          type="text"
-                          required
-                          value={editingExam.heading}
-                          onChange={e => setEditingExam({ ...editingExam, heading: e.target.value })}
-                          className="w-full px-4 py-2.5 bg-white border border-slate-205 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">Evaluation Recorded Date</label>
-                        <input
-                          type="date"
-                          required
-                          value={editingExam.date}
-                          onChange={e => setEditingExam({ ...editingExam, date: e.target.value })}
-                          className="w-full px-4 py-2.5 bg-white border border-slate-205 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-indigo-500"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Student Scores Input Table */}
-                    <div className="border border-slate-150 rounded-2xl overflow-hidden shadow-sm">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse text-xs">
-                          <thead>
-                            <tr className="bg-slate-100 font-extrabold text-slate-500 uppercase tracking-widest border-b border-slate-200">
-                              <th className="py-3 px-5">Student Full Name</th>
-                              {editingExam.subjects.map(sub => {
-                                const isWk = editingExam.assessmentType === 'weekly';
-                                const maxVal = isWk ? WEEKLY_MAX_SCORES_ADMIN[sub] : undefined;
-                                return (
-                                  <th key={sub} className="py-3 px-5 min-w-[100px]">
-                                    {sub}
-                                    {maxVal !== undefined && (
-                                      <span className="block text-[9px] font-bold text-slate-400 mt-0.5 normal-case">Max: {maxVal}</span>
-                                    )}
-                                  </th>
-                                );
-                              })}
-                              <th className="py-3 px-5 font-bold text-slate-600">Somali Comments (Talooyin)</th>
-                              <th className="py-3 px-5 font-bold text-teal-800 text-right">Average / Total</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 font-bold text-slate-700">
-                            {editingExam.scores.map(sc => {
-                              const sScoresObj = studentScores[sc.studentId] || {};
-                              
-                              // recalculate student metrics on the fly
-                              let total = 0;
-                              let count = 0;
-                              editingExam.subjects.forEach(sub => {
-                                total += parseFloat(sScoresObj[sub] || '0') || 0;
-                                count++;
-                              });
-                              const avg = count > 0 ? parseFloat((total / (editingExam.assessmentType === 'weekly' ? 1 : count)).toFixed(1)) : 0;
-
-                              return (
-                                <tr key={sc.studentId} className="hover:bg-slate-50/30">
-                                  <td className="py-3 px-5">
-                                    <p className="font-extrabold text-slate-800">{sc.studentName}</p>
-                                    <p className="text-[9px] font-bold text-slate-400 mt-0.5">ID: {sc.studentId}</p>
-                                  </td>
-                                  {editingExam.subjects.map(sub => {
-                                    const isWk = editingExam.assessmentType === 'weekly';
-                                    const maxVal = isWk ? (WEEKLY_MAX_SCORES_ADMIN[sub] || 100) : 100;
-                                    return (
-                                      <td key={sub} className="py-2 px-5">
-                                        <input
-                                          type="number"
-                                          step="any"
-                                          required
-                                          min={0}
-                                          max={maxVal}
-                                          value={sScoresObj[sub] || '0'}
-                                          onChange={e => {
-                                            let v = e.target.value;
-                                            const num = parseFloat(v);
-                                            if (!isNaN(num) && num > maxVal) {
-                                              v = String(maxVal);
-                                            }
-                                            setStudentScores(prev => ({
-                                              ...prev,
-                                              [sc.studentId]: {
-                                                ...(prev[sc.studentId] || {}),
-                                                [sub]: v
-                                              }
-                                            }));
-                                          }}
-                                          disabled={editingExam.assessmentType === 'monthly'}
-                                          className="w-20 px-2 py-1.5 bg-slate-50 border border-slate-205 rounded-lg text-center outline-none focus:bg-white"
-                                        />
-                                      </td>
-                                    );
-                                  })}
-                                  <td className="py-2 px-5">
-                                    <textarea
-                                      rows={1}
-                                      value={studentComments[sc.studentId] || ''}
-                                      onChange={e => {
-                                        const v = e.target.value;
-                                        setStudentComments(prev => ({
-                                          ...prev,
-                                          [sc.studentId]: v
-                                        }));
-                                      }}
-                                      className="w-full min-w-[200px] px-3 py-1.5 bg-slate-50 border border-slate-205 rounded-xl outline-none focus:bg-white text-xs"
-                                      placeholder="Sii talo ama faallo..."
-                                    />
-                                  </td>
-                                  <td className="py-3 px-5 text-teal-700 font-extrabold font-mono text-sm text-right">
-                                    {avg}%
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingExam(null);
-                          setStudentScores({});
-                          setStudentComments({});
-                        }}
-                        className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition-all cursor-pointer border-0 outline-none"
-                      >
-                        Baji (Cancel)
-                      </button>
-                      <button
-                        type="submit"
-                        className="py-3 px-6 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-lg shadow-indigo-600/10 border-0 outline-none"
-                      >
-                        Nadiifi / Kaydi Isbeddelada (Save Edits)
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              ) : (
-                <>
-                  {/* Header section with Stats widgets */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6" id="exams-summary-widgets">
-                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
-                    <FileCheck2 className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Active Exams</p>
-                    <p className="text-2xl font-black text-slate-800 mt-1">{totalExamsUploaded} records</p>
-                  </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                    <Users className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Students Graded Marks</p>
-                    <p className="text-2xl font-black text-slate-800 mt-1">{totalGradedCount} entries</p>
-                  </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                    <Sparkles className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Academic General Average</p>
-                    <p className="text-2xl font-black text-amber-600 mt-1">{computedTotalScoreAverage}%</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Master Search & Filter Box */}
-              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6" id="exams-filter-panel">
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                  {/* Class Filter */}
-                  <div>
-                    <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">Dooro Fasalka</label>
-                    <select
-                      value={examFilterClass}
-                      onChange={e => {
-                        setExamFilterClass(e.target.value);
-                        setExamStudentFilter('All');
-                      }}
-                      className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none cursor-pointer focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                    >
-                      <option value="All">üåå Dhamaan Fasallada</option>
-                      {uniqueClasses.map(cls => (
-                        <option key={cls} value={cls}>{cls}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Teacher Filter */}
-                  <div>
-                    <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">Dooro Macalinka</label>
-                    <select
-                      value={examFilterTeacher}
-                      onChange={e => setExamFilterTeacher(e.target.value)}
-                      className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none cursor-pointer focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                    >
-                      <option value="All">üë®‚Äçüè´ Dhamaan Macallimiinta</option>
-                      {database.teachers.map(t => (
-                        <option key={t.id} value={t.id}>{t.name} (ID: {t.id})</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Student Filter */}
-                  <div>
-                    <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">Dooro Ardayga</label>
-                    <select
-                      value={examStudentFilter}
-                      onChange={e => setExamStudentFilter(e.target.value)}
-                      className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none cursor-pointer focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                    >
-                      <option value="All">üë®‚Äçüéì Dhamaan Ardayda</option>
-                      {database.students
-                        .filter(s => examFilterClass === 'All' ? true : s.className === examFilterClass)
-                        .map(s => (
-                          <option key={s.id} value={s.id}>{s.name} (ID: {s.id})</option>
-                        ))}
-                    </select>
-                  </div>
-
-                  {/* Start Date */}
-                  <div>
-                    <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">Taariikhda Bilowga</label>
-                    <input
-                      type="date"
-                      value={examStartDate}
-                      onChange={e => setExamStartDate(e.target.value)}
-                      className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                    />
-                  </div>
-
-                  {/* End Date */}
-                  <div>
-                    <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">Taariikhda Dhamaadka</label>
-                    <input
-                      type="date"
-                      value={examEndDate}
-                      onChange={e => setExamEndDate(e.target.value)}
-                      className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                    />
-                  </div>
-                </div>
-
-                {/* Filter Clear Trigger */}
-                {(examFilterClass !== 'All' || examFilterTeacher !== 'All' || examStudentFilter !== 'All' || examStartDate || examEndDate) && (
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setExamFilterClass('All');
-                        setExamFilterTeacher('All');
-                        setExamStudentFilter('All');
-                        setExamStartDate('');
-                        setExamEndDate('');
-                      }}
-                      className="text-xs font-bold text-teal-600 hover:text-teal-800 flex items-center gap-1 cursor-pointer"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      Reset Active Filters
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Match list grids */}
-              <div className="space-y-4" id="exams-admin-record-cards">
-                {matchedExams.length === 0 ? (
-                  <div className="bg-white p-12 text-center rounded-3xl border border-dashed border-slate-200" id="no-matched-exams">
-                    <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                    <h3 className="text-slate-800 font-bold text-sm">No uploaded exams record match criteria</h3>
-                    <p className="text-slate-400 text-xs mt-1">Change timeframe range constraints or filter selections to inspect records.</p>
-                  </div>
-                ) : (
-                  matchedExams.map(ex => {
-                    const exAvg = parseFloat((ex.scores.reduce((sum, s) => sum + s.averageScore, 0) / Math.max(ex.scores.length, 1)).toFixed(1));
-                    const isExpanded = expandedAdminExamId === ex.id;
-                    const examiningTeacher = database.teachers.find(t => t.id === ex.teacherId)?.name || ex.teacherName || 'Assigned Instructor';
-
-                    return (
-                      <div key={ex.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden transition-all duration-300" id={`admin-exam-card-${ex.id}`}>
-                        <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-150 px-2 py-0.5 rounded-md uppercase">
-                                {ex.className}
-                              </span>
-                              <span className="text-[10px] font-extrabold text-teal-700 bg-teal-50 border border-teal-150 px-2 py-0.5 rounded-md uppercase">
-                                Grade Sheet ID: {ex.id}
-                              </span>
-                              <span className="text-xs text-slate-400 font-semibold">{ex.date}</span>
-                            </div>
-                            <h4 className="font-extrabold text-slate-800 text-base mt-2">{ex.heading}</h4>
-                            <p className="text-xs text-slate-500 font-semibold mt-1">
-                              Exam uploaded by: <span className="font-bold text-slate-800">{examiningTeacher}</span> (ID: {ex.teacherId})
-                            </p>
-                          </div>
-
-                          <div className="flex items-center gap-6">
-                            <div className="text-right">
-                              <p className="text-[10px] font-bold text-slate-400 uppercase">Class Average</p>
-                              <p className="text-xl font-black text-teal-600 mt-1">{exAvg}%</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-[10px] font-bold text-slate-400 uppercase">Students Checked</p>
-                              <p className="text-xl font-black text-slate-800 mt-1">{ex.scores.length}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {/* Open detail list ledger */}
-                              <button
-                                type="button"
-                                onClick={() => setExpandedAdminExamId(isExpanded ? null : ex.id)}
-                                className="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-600 transition-colors cursor-pointer"
-                                title="Expand Marks Details"
-                              >
-                                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                              </button>
-                              {/* Open Print & PDF Download Preview Modal */}
-                              <button
-                                type="button"
-                                onClick={() => setShowPrintExamModal(ex)}
-                                className="p-2.5 bg-slate-50 hover:bg-teal-100 hover:text-teal-700 border border-slate-200 rounded-xl text-slate-600 transition-all cursor-pointer flex items-center gap-1.5"
-                                title="Print & Download PDF Report Card"
-                              >
-                                <Printer className="w-4 h-4" />
-                              </button>
-                              {/* Edit Assessment Sheet button */}
-                              {ex.assessmentType === 'weekly' && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleStartEditExam(ex)}
-                                  className="p-2.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-150 rounded-xl text-indigo-600 transition-colors cursor-pointer"
-                                  title="Wax ka beddel Qiimaynta (Edit Weekly Assessment)"
-                                >
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
-                              )}
-                              {/* Delete button (satisfies absolute constraint) */}
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteAdminExam(ex.id)}
-                                className="p-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-100 rounded-xl text-rose-600 transition-colors cursor-pointer"
-                                title="Delete Graded Sheet"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Expandable student ledger list */}
-                        {isExpanded && (
-                          <div className="border-t border-slate-100 bg-slate-50/50 p-6 overflow-hidden">
-                            <h5 className="font-extrabold text-slate-600 text-[10px] uppercase tracking-widest mb-4">Detailed Student Marks Ledger</h5>
-                            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-                              <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse text-xs min-w-[800px]">
-                                  <thead>
-                                    <tr className="bg-slate-100 font-extrabold text-slate-500 uppercase tracking-widest border-b border-slate-200">
-                                      <th className="py-3 px-5">Student Full Name</th>
-                                      {ex.subjects.map(sub => (
-                                        <th key={sub} className="py-3 px-5">{sub}</th>
-                                      ))}
-                                      <th className="py-3 px-5 text-indigo-750">Fikir / Faallo</th>
-                                      <th className="py-3 px-5 text-teal-800 text-right font-black">Average Marks</th>
-                                      <th className="py-3 px-5 text-indigo-800 text-center font-black">Calculated Grade</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                                    {ex.scores.map(sc => (
-                                      <tr key={sc.studentId} className="hover:bg-slate-50/30">
-                                        <td className="py-3 px-5 font-bold text-slate-900">
-                                          {sc.studentName}
-                                          <p className="text-[9px] font-bold text-slate-400 mt-0.5">ID: {sc.studentId}</p>
-                                        </td>
-                                        {ex.subjects.map(sub => (
-                                          <td key={sub} className="py-3 px-5 font-bold">{sc.scores[sub] || '0'}%</td>
-                                        ))}
-                                        <td className="py-3 px-5 text-indigo-950 italic min-w-[200px] max-w-sm">
-                                          <div className="whitespace-normal break-words font-semibold text-xs leading-relaxed" title={sc.comment || 'No comment'}>
-                                            {sc.comment || <span className="text-slate-300 font-normal">‚Äî</span>}
-                                          </div>
-                                        </td>
-                                        <td className="py-3 px-5 text-right font-black text-slate-900">{sc.averageScore}%</td>
-                                        <td className="py-3 px-5 text-center">
-                                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
-                                            sc.grade === 'A' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                                            sc.grade === 'B' ? 'bg-teal-50 text-teal-700 border border-teal-100' :
-                                            sc.grade === 'C' ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' :
-                                            sc.grade === 'D' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
-                                            'bg-rose-50 text-rose-700 border border-rose-100'
-                                          }`}>
-                                            {sc.grade}
-                                          </span>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* PRINT FRIENDLY CANVAS FOR INDIVIDUAL EXAM */}
-                        <div className="hidden">
-                          <div id={`printable-exam-single-${ex.id}`} className="p-8 max-w-4xl mx-auto bg-white text-slate-800 font-sans" style={{ fontFamily: "sans-serif" }}>
-                            <div className="text-center border-b-2 border-dashed border-teal-600 pb-6 mb-6">
-                              <h1 className="text-xl font-bold tracking-tight text-teal-800">DUGSIGA SUBUC ISLAMIC CENTER</h1>
-                              <p className="text-[11px] uppercase tracking-widest text-slate-500 font-semibold mt-1">Graded Student Exam Performance Report card</p>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4 text-xs mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                              <div>
-                                <p className="font-semibold text-slate-500">EXAM TITLE / HEAD:</p>
-                                <p className="font-extrabold text-sm text-slate-800 mt-0.5">{ex.heading}</p>
-                                <p className="font-semibold text-slate-500 mt-2">CLASS ASSIGNED:</p>
-                                <p className="font-black text-slate-700 mt-0.5">{ex.className}</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-semibold text-slate-500">EXAMINING DATE:</p>
-                                <p className="font-bold text-slate-800 mt-0.5">{ex.date}</p>
-                                <p className="font-semibold text-slate-500 mt-2">EVALUATING SCHOLAR:</p>
-                                <p className="font-bold text-slate-700 mt-0.5">{examiningTeacher} (ID: {ex.teacherId})</p>
-                              </div>
-                            </div>
-
-                            <table className="w-full text-left border-collapse text-xs mb-8">
-                              <thead>
-                                <tr className="bg-slate-100 font-extrabold text-slate-700 uppercase border-b border-slate-350 text-[10px]">
-                                  <th className="py-2 px-3">Student Name</th>
-                                  {ex.subjects.map(s => (
-                                    <th key={s} className="py-2 px-3">{s}</th>
-                                  ))}
-                                  <th className="py-2 px-3 text-right">Average</th>
-                                  <th className="py-2 px-3 text-center">Grade</th>
-                                  <th className="py-2 px-3">Ra'yiga Macallinka / Feedback</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-200">
-                                {ex.scores.map(sc => (
-                                  <tr key={sc.studentId}>
-                                    <td className="py-2 px-3 font-bold text-slate-900">{sc.studentName} ({sc.studentId})</td>
-                                    {ex.subjects.map(s => (
-                                      <td key={s} className="py-2 px-3 font-semibold">{sc.scores[s] || 0}%</td>
-                                    ))}
-                                    <td className="py-2 px-3 text-right font-black">{sc.averageScore}%</td>
-                                    <td className="py-2 px-3 text-center">
-                                      <span className="px-2 py-0.5 bg-slate-100 border border-slate-300 rounded font-black text-[11px]">{sc.grade}</span>
-                                    </td>
-                                    <td className="py-2 px-3 text-indigo-950 italic text-[11px] max-w-[280px] break-words whitespace-normal font-semibold">
-                                      {sc.comment || <span className="text-slate-350 font-normal">‚Äî</span>}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-
-                            <div className="grid grid-cols-2 gap-8 pt-12 border-t border-slate-200 text-center text-xs">
-                              <div>
-                                <div className="border-b border-slate-400 h-8"></div>
-                                <p className="text-slate-500 mt-2">Assigned Teacher Signature & Date</p>
-                              </div>
-                              <div>
-                                <div className="border-b border-slate-400 h-8"></div>
-                                <p className="text-slate-500 mt-2">Principal Audit Seal</p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* TIMEFRAME PRINT PREVIEW SHEET CANVAS (Satisfies: range of time print/download constraint) */}
-              <div className="hidden">
-                <div id="printable-exams-timeframe-report" className="p-8 bg-white text-slate-800 font-sans" style={{ fontFamily: "sans-serif" }}>
-                  <div className="text-center border-b-2 border-dashed border-indigo-600 pb-6 mb-6">
-                    <h1 className="text-2xl font-bold tracking-tight text-indigo-900">DUGSIGA SUBUC ISLAMIC CENTER</h1>
-                    <h2 className="text-sm font-extrabold text-indigo-700 tracking-wider mt-1 uppercase">WARBIXINTA QIIMAYNTA WAALIDKA - REER SUBUC</h2>
-                    <p className="text-xs font-semibold text-slate-400 mt-1">
-                      Muddada Warbixinta: {examStartDate || 'Bilowgii'} &nbsp;‚ûî&nbsp; {examEndDate || 'Hadda'}
-                    </p>
-                  </div>
-
-                  {examStudentFilter !== 'All' ? (() => {
-                    const studentObj = database.students.find(s => s.id === examStudentFilter);
-                    if (!studentObj) return <p className="text-xs text-rose-500 font-bold">Ardayga lama helin.</p>;
-
-                    return (
-                      <div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs mb-6 bg-slate-50 p-4 border border-slate-200 rounded-xl">
-                          <div>
-                            <p className="font-semibold text-slate-500 uppercase">MAGACA ARDAYGA:</p>
-                            <p className="font-extrabold text-slate-800 mt-0.5">{studentObj.name}</p>
-                          </div>
-                          <div>
-                            <p className="font-semibold text-slate-500 uppercase">ID ARDAYGA:</p>
-                            <p className="font-extrabold text-slate-800 mt-0.5">{studentObj.id}</p>
-                          </div>
-                          <div>
-                            <p className="font-semibold text-slate-500 uppercase">FASALKA HOOSE:</p>
-                            <p className="font-extrabold text-slate-800 mt-0.5">{studentObj.className || 'N/A'}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-slate-500 font-black">CELCELISKA GUUD:</p>
-                            {(() => {
-                              const rangeScores = matchedExams.map(ex => ex.scores.find(sc => sc.studentId === studentObj.id)).filter(Boolean);
-                              if (rangeScores.length > 0) {
-                                const avg = parseFloat((rangeScores.reduce((sum, s) => sum + s!!.averageScore, 0) / rangeScores.length).toFixed(1));
-                                return <p className="font-black text-indigo-700 text-sm mt-0.5">{avg}%</p>;
-                              }
-                              return <p className="font-bold text-slate-400 mt-0.5">‚Äî</p>;
-                            })()}
-                          </div>
-                        </div>
-
-                        <h3 className="font-extrabold text-indigo-900 text-xs uppercase tracking-wider mb-3">Xogta Toddobaadyada la Qiimeeyay</h3>
-                        <table className="w-full text-left border-collapse text-xs mb-8">
-                          <thead>
-                            <tr className="bg-slate-100 font-extrabold text-slate-700 border-b border-slate-350 uppercase text-[10px]">
-                              <th className="py-2 px-3">Taariikhda</th>
-                              <th className="py-2 px-3">Cinwaanka Qiimaynta</th>
-                              <th className="py-2 px-3">Natiijada Maadooyinka</th>
-                              <th className="py-2 px-3 text-right">Celceliska</th>
-                              <th className="py-2 px-3 text-center">Darajada</th>
-                              <th className="py-2 px-3">Talo & Faallada Macallinka</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-150 font-medium">
-                            {matchedExams.map(ex => {
-                              const sc = ex.scores.find(scoreSc => scoreSc.studentId === studentObj.id);
-                              if (!sc) return null;
-                              return (
-                                <tr key={ex.id} className="hover:bg-slate-50/50">
-                                  <td className="py-2.5 px-3 font-semibold text-slate-500 text-[11px] shrink-0">{ex.date}</td>
-                                  <td className="py-2.5 px-3 font-bold text-slate-850">
-                                    <p>{ex.heading}</p>
-                                    <p className="text-[10px] text-slate-400">Week: {ex.weekNumber || 'N/A'}</p>
-                                  </td>
-                                  <td className="py-2.5 px-3 text-slate-600">
-                                    <div className="flex flex-wrap gap-x-3 gap-y-1 max-w-[280px]">
-                                      {Object.entries(sc.scores).map(([sub, val]) => (
-                                        <span key={sub} className="text-[10px] bg-slate-50 border border-slate-150 px-1.5 py-0.5 rounded font-black text-slate-700 shrink-0">
-                                          {sub}: <strong className="text-slate-900">{val}%</strong>
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </td>
-                                  <td className="py-2.5 px-3 text-right font-black text-indigo-900">{sc.averageScore}%</td>
-                                  <td className="py-2.5 px-3 text-center">
-                                    <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-150 rounded text-[10px] font-black text-indigo-850">
-                                      {sc.grade}
-                                    </span>
-                                  </td>
-                                  <td className="py-2.5 px-3 text-indigo-950 italic text-[11px] max-w-[200px] break-words">
-                                    {sc.comment || <span className="text-slate-350 font-normal">‚Äî</span>}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    );
-                  })() : (
-                    <div>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs mb-6 bg-slate-50 p-4 border border-slate-200 rounded-xl">
-                        <div>
-                          <p className="font-semibold text-slate-500 uppercase">FASALKA DHAMAAN:</p>
-                          <p className="font-extrabold text-slate-800 mt-0.5">{examFilterClass === 'All' ? 'Qolalka oo dhan' : examFilterClass}</p>
-                        </div>
-                        <div>
-                          <p className="font-semibold text-slate-500 uppercase">MACALLINKA DUWEYNAYAA:</p>
-                          <p className="font-extrabold text-slate-800 mt-0.5">{examFilterTeacher === 'All' ? 'Dhamaan Macallimiinta' : (database.teachers.find(t => t.id === examFilterTeacher)?.name || examFilterTeacher)}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-slate-500 uppercase font-black">CELCELISKA GUUD EE FASALKA:</p>
-                          <p className="font-black text-indigo-700 text-sm mt-0.5">{computedTotalScoreAverage}%</p>
-                        </div>
-                      </div>
-
-                      <h3 className="font-extrabold text-indigo-900 text-xs uppercase tracking-wider mb-3">LIISKA QIIMAYNTA GUUD EE FASALKA (CONSOLIDATED ATTENDANCE & ACADEMICS)</h3>
-                      <table className="w-full text-left border-collapse text-xs mb-8">
-                        <thead>
-                          <tr className="bg-slate-100 font-extrabold text-slate-700 border-b border-slate-350 uppercase text-[10px]">
-                            <th className="py-2 px-3">ID</th>
-                            <th className="py-2 px-3">Magaca Ardayga</th>
-                            <th className="py-2 px-3">Fasalka</th>
-                            <th className="py-2 px-3 text-center">Kulamada Qiimaynta</th>
-                            <th className="py-2 px-3 text-right">Celcelis dhibco</th>
-                            <th className="py-2 px-3">Faallooyinkii u Dambeeyay (Recent Comments)</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-150 font-semibold text-slate-700">
-                          {database.students
-                            .filter(s => {
-                              const matchC = examFilterClass === 'All' ? true : s.className === examFilterClass;
-                              const matchT = examFilterTeacher === 'All' ? true : (s.teacherId === examFilterTeacher || s.secondTeacherId === examFilterTeacher);
-                              return s.active && matchC && matchT;
-                            })
-                            .map(s => {
-                              let rangeTotal = 0;
-                              let rangeCount = 0;
-                              const commentsList: string[] = [];
-
-                              matchedExams.forEach(ex => {
-                                const sc = ex.scores.find(scoreSc => scoreSc.studentId === s.id);
-                                if (sc) {
-                                  rangeTotal += sc.averageScore;
-                                  rangeCount++;
-                                  if (sc.comment) {
-                                    commentsList.push(`Wiigga ${ex.weekNumber || ''}: ${sc.comment}`);
-                                  }
-                                }
-                              });
-
-                              if (rangeCount === 0) return null;
-
-                              const finalAvg = (rangeTotal / rangeCount).toFixed(1);
-
-                              return (
-                                <tr key={s.id} className="hover:bg-slate-50/50">
-                                  <td className="py-2 px-3 font-semibold text-slate-400 text-[10px]">{s.id}</td>
-                                  <td className="py-2 px-3 font-bold text-slate-900">{s.name}</td>
-                                  <td className="py-2 px-3 text-slate-600">{s.className}</td>
-                                  <td className="py-2 px-3 text-center font-bold text-slate-800">{rangeCount} kulan</td>
-                                  <td className="py-2 px-3 text-right font-black text-indigo-900">{finalAvg}%</td>
-                                  <td className="py-2 px-3 text-indigo-950 italic text-[10px] max-w-[285px] break-words">
-                                    {commentsList.length > 0 ? (
-                                      <div className="space-y-0.5">
-                                        {commentsList.map((str, idx) => (
-                                          <p key={idx} className="truncate" title={str}>‚Ä¢ {str}</p>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <span className="text-slate-300 font-normal">‚Äî</span>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-8 pt-12 border-t border-slate-250 text-center text-xs">
-                    <div>
-                      <div className="border-b border-slate-400 h-8"></div>
-                      <p className="text-slate-600 font-bold mt-2">Saxiixa Macallinka Mas'uulka ah (Teacher Signature)</p>
-                    </div>
-                    <div>
-                      <div className="border-b border-slate-400 h-8"></div>
-                      <p className="text-slate-605 font-bold mt-2">Ku-simaha Maamulka (Principal Office Approval Seal)</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              </>)}
-
-              {showPrintExamModal && (
-                <div 
-                  className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto pointer-print-none" 
-                  id="exam-modal-bg"
-                  onClick={(e) => {
-                    if ((e.target as HTMLElement).id === 'exam-modal-bg') {
-                      setShowPrintExamModal(null);
-                    }
-                  }}
-                >
-                  <motion.div
-                    initial={{ scale: 0.95, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] my-auto"
-                    id="exam-print-wrapper"
-                  >
-                    {/* Modal actions */}
-                    <div className="p-4 bg-slate-900 text-white flex items-center justify-between shrink-0 pointer-print-none flex-wrap gap-2">
-                      <span className="font-bold text-xs uppercase tracking-widest text-slate-400 font-bold">
-                        Foomka Qiimaynta Toddobaadka
-                      </span>
-                      <div className="flex gap-1.5 flex-wrap">
-                        <button
-                          type="button"
-                          onClick={() => setShowPrintExamModal(null)}
-                          className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg cursor-pointer inline-flex items-center gap-1 transition-colors border border-slate-700 font-bold"
-                        >
-                          <ArrowLeft className="w-3.5 h-3.5" />
-                          Gadaal
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadExamPDF(showPrintExamModal)}
-                          className="py-1.5 px-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg inline-flex items-center gap-1 transition-all cursor-pointer font-bold"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          La soo deg PDF
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handlePrintElement('printable-exam-single-modal')}
-                          className="py-1.5 px-3 bg-teal-500 hover:bg-teal-600 text-slate-900 font-bold text-xs rounded-lg inline-flex items-center gap-1 transition-all cursor-pointer font-bold"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                          Daabac Report-ka
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* printable canvas */}
-                    <div className="flex-1 p-8 md:p-12 text-slate-900 bg-white overflow-y-auto" id="printable-exam-single-modal">
-                      <div className="text-center border-b-2 border-dashed border-teal-600 pb-6 mb-6">
-                        <h1 className="text-xl font-bold tracking-tight text-teal-800 font-lutfey">DUGSIGA SUBUC ISLAMIC CENTER</h1>
-                        <p className="text-[11px] uppercase tracking-widest text-slate-500 font-semibold mt-1">Graded Student Exam Performance Report card</p>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                        <div>
-                          <p className="font-semibold text-slate-500">EXAM TITLE / HEAD:</p>
-                          <p className="font-extrabold text-sm text-slate-800 mt-0.5">{showPrintExamModal.heading}</p>
-                          <p className="font-semibold text-slate-500 mt-2">CLASS ASSIGNED:</p>
-                          <p className="font-black text-slate-700 mt-0.5">{showPrintExamModal.className}</p>
-                        </div>
-                        <div className="sm:text-right">
-                          <p className="font-semibold text-slate-500">EXAMINING DATE:</p>
-                          <p className="font-bold text-slate-800 mt-0.5">{showPrintExamModal.date}</p>
-                          <p className="font-semibold text-slate-500 mt-2">EVALUATING SCHOLAR:</p>
-                          <p className="font-bold text-slate-700 mt-0.5">
-                            {database.teachers.find(t => t.id === showPrintExamModal.teacherId)?.name || showPrintExamModal.teacherName || 'Assigned Scholar'} (ID: {showPrintExamModal.teacherId})
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                        <table className="w-full text-left border-collapse text-xs">
-                          <thead>
-                            <tr className="bg-slate-100 font-bold text-slate-700 border-b border-slate-200 uppercase text-[9px] tracking-wider">
-                              <th className="py-2.5 px-3">Student Grid (ID)</th>
-                              {showPrintExamModal.subjects.map(sub => (
-                                <th key={sub} className="py-2.5 px-3">{sub}</th>
-                              ))}
-                              <th className="py-2.5 px-3 text-teal-700">Average %</th>
-                              <th className="py-2.5 px-3 text-teal-700">Grade</th>
-                              <th className="py-2.5 px-3 text-slate-600 min-w-[200px]">Class Mentor Feedback (Somali Comments)</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {showPrintExamModal.scores.map(sc => (
-                              <tr key={sc.studentId} className="border-b border-slate-150 hover:bg-slate-50/50">
-                                <td className="py-2.5 px-3 font-extrabold text-slate-800">{sc.studentName} <span className="text-[10px] font-normal text-slate-400 block font-mono">ID: {sc.studentId}</span></td>
-                                {showPrintExamModal.subjects.map(sub => (
-                                  <td key={sub} className="py-2.5 px-3 font-medium text-slate-600">{sc.scores[sub] !== undefined ? `${sc.scores[sub]}%` : '‚Äî'}</td>
-                                ))}
-                                <td className="py-2.5 px-3 font-bold text-teal-600">{sc.averageScore}%</td>
-                                <td className="py-2.5 px-3">
-                                  <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded-md ${
-                                    sc.grade === 'A' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                                    sc.grade === 'B' ? 'bg-teal-50 text-teal-700 border border-teal-100' :
-                                    sc.grade === 'C' ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' :
-                                    sc.grade === 'D' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
-                                    'bg-rose-50 text-rose-700 border border-rose-100'
-                                  }`}>
-                                    {sc.grade}
-                                  </span>
-                                </td>
-                                <td className="py-2.5 px-3 text-slate-500 italic max-w-sm break-words leading-relaxed whitespace-pre-wrap">{sc.comment || '‚Äî'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Sign-offs */}
-                      <div className="pt-16 grid grid-cols-2 gap-16">
-                        <div>
-                          <span className="text-slate-500 font-semibold block text-xs">Saxiixa Macallinka mas'uulka ah</span>
-                          <div className="w-full h-px bg-slate-300 mt-10" />
-                        </div>
-                        <div className="text-right">
-                          <span className="text-slate-500 font-semibold block text-xs font-bold text-slate-700">Ansixinta Maamulaha</span>
-                          <div className="w-full h-px bg-slate-300 mt-10" />
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                </div>
-              )}
-
-              {showExamTimeframePrintModal && (
-                <div 
-                  className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto pointer-print-none" 
-                  id="timeframe-modal-bg"
-                  onClick={(e) => {
-                    if ((e.target as HTMLElement).id === 'timeframe-modal-bg') {
-                      setShowExamTimeframePrintModal(false);
-                    }
-                  }}
-                >
-                  <motion.div
-                    initial={{ scale: 0.95, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] my-auto"
-                    id="timeframe-print-wrapper"
-                  >
-                    {/* Modal actions */}
-                    <div className="p-4 bg-slate-900 text-white flex items-center justify-between shrink-0 pointer-print-none flex-wrap gap-2">
-                      <span className="font-bold text-xs uppercase tracking-widest text-slate-400 font-bold">
-                        Warbixinta Qiimaynta Waalidka (Timeframe Assessment)
-                      </span>
-                      <div className="flex gap-1.5 flex-wrap">
-                        <button
-                          type="button"
-                          onClick={() => setShowExamTimeframePrintModal(false)}
-                          className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg cursor-pointer inline-flex items-center gap-1 transition-colors border border-slate-700 font-bold"
-                        >
-                          <ArrowLeft className="w-3.5 h-3.5" />
-                          Gadaal
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadExamTimeframePDF(matchedExams)}
-                          className="py-1.5 px-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg inline-flex items-center gap-1 transition-all cursor-pointer font-bold"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          La soo deg PDF
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handlePrintElement('printable-exams-timeframe-report-modal')}
-                          className="py-1.5 px-3 bg-teal-500 hover:bg-teal-600 text-slate-900 font-bold text-xs rounded-lg inline-flex items-center gap-1 transition-all cursor-pointer font-bold"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                          Daabac Report-ka
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* printable canvas */}
-                    <div className="flex-1 p-8 md:p-12 text-slate-900 bg-white overflow-y-auto" id="printable-exams-timeframe-report-modal">
-                      <div className="text-center border-b-2 border-dashed border-indigo-600 pb-6 mb-6">
-                        <h1 className="text-2xl font-bold tracking-tight text-indigo-900 font-lutfey">DUGSIGA SUBUC ISLAMIC CENTER</h1>
-                        <h2 className="text-sm font-extrabold text-indigo-700 tracking-wider mt-1 uppercase">WARBIXINTA QIIMAYNTA WAALIDKA - REER SUBUC</h2>
-                        <p className="text-xs font-semibold text-slate-400 mt-1">
-                          Muddada Warbixinta: {examStartDate || 'Bilowgii'} &nbsp;‚ûî&nbsp; {examEndDate || 'Hadda'}
-                        </p>
-                      </div>
-
-                      {examStudentFilter !== 'All' ? (() => {
-                        const studentObj = database.students.find(s => s.id === examStudentFilter);
-                        if (!studentObj) return <p className="text-xs text-rose-500 font-bold">Ardayga lama helin.</p>;
-
-                        return (
-                          <div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs mb-6 bg-slate-50 p-4 border border-slate-200 rounded-xl">
-                              <div>
-                                <p className="font-semibold text-slate-500 uppercase">MAGACA ARDAYGA:</p>
-                                <p className="font-extrabold text-slate-800 mt-0.5">{studentObj.name}</p>
-                              </div>
-                              <div>
-                                <p className="font-semibold text-slate-500 uppercase">ID ARDAYGA:</p>
-                                <p className="font-extrabold text-slate-800 mt-0.5">{studentObj.id}</p>
-                              </div>
-                              <div>
-                                <p className="font-semibold text-slate-500 uppercase">FASALKA HOOSE:</p>
-                                <p className="font-extrabold text-slate-800 mt-0.5">{studentObj.className || 'N/A'}</p>
-                              </div>
-                              <div className="sm:text-right">
-                                <p className="font-semibold text-slate-500 font-black">CELCELISKA GUUD:</p>
-                                {(() => {
-                                  const rangeScores = matchedExams.map(ex => ex.scores.find(sc => sc.studentId === studentObj.id)).filter(Boolean);
-                                  if (rangeScores.length > 0) {
-                                    const avg = parseFloat((rangeScores.reduce((sum, s) => sum + s!!.averageScore, 0) / rangeScores.length).toFixed(1));
-                                    return <p className="font-black text-indigo-700 text-sm mt-0.5">{avg}%</p>;
-                                  }
-                                  return <p className="font-bold text-slate-400 mt-0.5">‚Äî</p>;
-                                })()}
-                              </div>
-                            </div>
-
-                            <h3 className="font-extrabold text-indigo-900 text-xs uppercase tracking-wider mb-3">Xogta Toddobaadyada la Qiimeeyay</h3>
-                            <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                              <table className="w-full text-left border-collapse text-xs mb-0">
-                                <thead>
-                                  <tr className="bg-slate-100 font-extrabold text-slate-705 border-b border-slate-300 uppercase text-[10px]">
-                                    <th className="py-2 px-3">Taariikhda</th>
-                                    <th className="py-2 px-3">Cinwaanka Qiimaynta</th>
-                                    <th className="py-2 px-3">Fasalka</th>
-                                    {matchedExams[0]?.subjects.map(sub => (
-                                      <th key={sub} className="py-2 px-3">{sub}</th>
-                                    ))}
-                                    <th className="py-2 px-3 text-indigo-755">Celcelis</th>
-                                    <th className="py-2 px-3 text-indigo-755">Grade</th>
-                                    <th className="py-2 px-3 min-w-[150px]">Faallo / Talobixin (Somali Feedback)</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {matchedExams.map(ex => {
-                                    const sc = ex.scores.find(scoreSc => scoreSc.studentId === studentObj.id);
-                                    if (!sc) return null;
-                                    return (
-                                      <tr key={ex.id} className="border-b border-slate-250 hover:bg-slate-55/50">
-                                        <td className="py-2 px-3 font-semibold text-slate-600">{ex.date}</td>
-                                        <td className="py-2 px-3 font-extrabold text-slate-800">{ex.heading}</td>
-                                        <td className="py-2 px-3 font-medium text-slate-650">{ex.className}</td>
-                                        {ex.subjects.map(sub => (
-                                          <td key={sub} className="py-2 px-3">{sc.scores[sub] !== undefined ? `${sc.scores[sub]}%` : '‚Äî'}</td>
-                                        ))}
-                                        <td className="py-2 px-3 font-extrabold text-indigo-705">{sc.averageScore}%</td>
-                                        <td className="py-2 px-3 font-bold">
-                                          <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
-                                            sc.grade === 'A' ? 'bg-emerald-50 text-emerald-700' :
-                                            sc.grade === 'B' ? 'bg-teal-50 text-teal-700' :
-                                            sc.grade === 'C' ? 'bg-indigo-50 text-indigo-700' :
-                                            sc.grade === 'D' ? 'bg-amber-50 text-amber-700' :
-                                            'bg-rose-50 text-rose-705'
-                                          }`}>
-                                            {sc.grade}
-                                          </span>
-                                        </td>
-                                        <td className="py-2 px-3 text-slate-500 italic whitespace-normal break-words leading-relaxed">{sc.comment || '‚Äî'}</td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        );
-                      })() : (
-                        <div>
-                          <h3 className="font-extrabold text-indigo-900 text-xs uppercase tracking-wider mb-3">Xogta Labada Waqti ee la qiimeeyey</h3>
-                          <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                            <table className="w-full text-left border-collapse text-xs mb-0">
-                              <thead>
-                                <tr className="bg-slate-100 font-extrabold text-slate-700 border-b border-slate-350 uppercase text-[10px]">
-                                  <th className="py-2 px-3">Cinwaanka Imtixaanka</th>
-                                  <th className="py-2 px-3">Fasalka</th>
-                                  <th className="py-2 px-3">Taariikhda</th>
-                                  <th className="py-2 px-3">Maadooyinka la imtixaanay</th>
-                                  <th className="py-2 px-3">Celceliska Fasalka</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {matchedExams.map(ex => {
-                                  const exAvg = parseFloat((ex.scores.reduce((sum, s) => sum + s.averageScore, 0) / Math.max(ex.scores.length, 1)).toFixed(1));
-                                  return (
-                                    <tr key={ex.id} className="border-b border-slate-200">
-                                      <td className="py-2 px-3 font-black text-slate-800">{ex.heading}</td>
-                                      <td className="py-2 px-3 font-semibold text-slate-s00">{ex.className}</td>
-                                      <td className="py-2 px-3 font-medium text-slate-s00">{ex.date}</td>
-                                      <td className="py-2 px-3 max-w-[200px] truncate" title={ex.subjects.join(', ')}>{ex.subjects.join(', ')}</td>
-                                      <td className="py-2 px-3 font-black text-teal-650">{exAvg}%</td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                </div>
-              )}
-            </div>
-          );
-        })()}
-
-        {/* --- BILLING TAB --- */}
-        {activeTab === 'billing' && (
-          <div className="space-y-8 animate-fade-in" id="portal-billing">
-            
-            {/* Elegant Sub-tab navigation inside Billing Tab */}
-            <div className="flex border-b border-slate-200 shrink-0 select-none overflow-x-auto scrollbar-none pointer-print-none" id="billing-sub-tab-nav">
-              <button
-                type="button"
-                onClick={() => setBillingSubTab('fees')}
-                className={`py-3.5 px-6 font-extrabold text-xs tracking-wider uppercase border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                  billingSubTab === 'fees'
-                    ? 'border-emerald-600 text-emerald-700'
-                    : 'border-transparent text-slate-400 hover:text-slate-800'
-                }`}
-              >
-                Kharashrada Ardayda (Student Tuition Fees)
-              </button>
-              <button
-                type="button"
-                onClick={() => setBillingSubTab('custom_invoices')}
-                className={`py-3.5 px-6 font-extrabold text-xs tracking-wider uppercase border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                  billingSubTab === 'custom_invoices'
-                    ? 'border-emerald-600 text-emerald-700'
-                    : 'border-transparent text-slate-400 hover:text-slate-800'
-                }`}
-              >
-                Invoices-ka Gaarka ah (Parent & Business Invoices)
-              </button>
-            </div>
-
-            {billingSubTab === 'fees' && (
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              
-              {/* Filter inputs header */}
-              <div className="lg:col-span-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full md:w-auto">
-                  
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 pl-0.5">Accounting Year & Month</label>
-                    <div className="flex gap-2">
-                      <select
-                        value={selectedBillingMonth.split('-')[0] || '2026'}
-                        onChange={(e) => {
-                          const month = selectedBillingMonth.split('-')[1] || '05';
-                          setSelectedBillingMonth(`${e.target.value}-${month}`);
-                        }}
-                        className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 outline-none cursor-pointer focus:bg-white transition-colors"
-                      >
-                        {['2024', '2025', '2026', '2027', '2028', '2029', '2030', '2031', '2032'].map(yy => (
-                          <option key={yy} value={yy}>{yy}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={selectedBillingMonth.split('-')[1] || '05'}
-                        onChange={(e) => {
-                          const year = selectedBillingMonth.split('-')[0] || '2026';
-                          setSelectedBillingMonth(`${year}-${e.target.value}`);
-                        }}
-                        className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 outline-none cursor-pointer focus:bg-white transition-colors"
-                      >
-                        {[
-                          { val: '01', label: '01 - January' },
-                          { val: '02', label: '02 - February' },
-                          { val: '03', label: '03 - March' },
-                          { val: '04', label: '04 - April' },
-                          { val: '05', label: '05 - May' },
-                          { val: '06', label: '06 - June' },
-                          { val: '07', label: '07 - July' },
-                          { val: '08', label: '08 - August' },
-                          { val: '09', label: '09 - September' },
-                          { val: '10', label: '10 - October' },
-                          { val: '11', label: '11 - November' },
-                          { val: '12', label: '12 - December' },
-                        ].map(m => (
-                          <option key={m.val} value={m.val}>{m.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="flex-1 sm:w-64">
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 pl-0.5">Quick Search</label>
-                    <div className="relative">
-                      <Search className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 w-4 h-4 pointer-events-none" />
-                      <input
-                        type="text"
-                        placeholder="Search student billings..."
-                        value={billingSearch}
-                        onChange={(e) => setBillingSearch(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white outline-none"
-                      />
-                    </div>
-                  </div>
-
-                </div>
-
-                <div className="flex items-center gap-6" id="billing-summary-block">
-                  <div className="text-right">
-                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Month Total Billings</p>
-                    <p className="text-sm font-extrabold text-slate-900">
-                      ${(activeStudents.reduce((sum, s) => sum + s.monthlyFee, 0) + getInvoiceInvoicedForMonth(selectedBillingMonth).total).toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="w-px h-10 bg-slate-200" />
-                  <div className="text-right">
-                    <p className="text-[10px] text-emerald-600 uppercase font-bold tracking-wider">Deposited Fees</p>
-                    <p className="text-sm font-extrabold text-emerald-700">
-                      ${(activeStudents.map(s => getBillingStatusForStudent(s, selectedBillingMonth)).reduce((sum, b) => sum + Number(b.amountPaid || 0), 0) + getInvoicePaymentsForMonth(selectedBillingMonth).total).toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Billing ledger listing */}
-              <div className="lg:col-span-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between mb-5 border-b border-slate-50 pb-3 gap-2.5" id="ledger-headline">
-                  <div className="flex items-center gap-3">
-                    <h3 className="font-extrabold text-slate-900 text-lg">Billing Statement Ledger</h3>
-                    {database.billing.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={handleDeleteAllBilling}
-                        className="py-1.5 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-[10px] uppercase tracking-wider rounded-lg inline-flex items-center gap-1.5 cursor-pointer transition-all border border-rose-200/50 shadow-sm"
-                        id="btn-delete-all-billing"
-                      >
-                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                        Futa Dhammaan (Delete All)
-                      </button>
-                    )}
-                  </div>
-                  <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">{selectedBillingMonth} invoice collection cycle</span>
-                </div>
-
-                <div className="overflow-x-auto rounded-2xl border border-slate-100 scrollbar-thin">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider">
-                        <th className="py-3 px-4">Student ID</th>
-                        <th className="py-3 px-4">Full Student Name</th>
-                        <th className="py-3 px-4">Class Space</th>
-                        <th className="py-3 px-4">Invoice Amount</th>
-                        <th className="py-3 px-4">Status</th>
-                        <th className="py-3 px-4">Date Paid</th>
-                        <th className="py-3 px-4">Receipt Serial</th>
-                        <th className="py-3 px-4 text-center">Action Item</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {activeStudents
-                        .filter(s => s.name.toLowerCase().includes(billingSearch.toLowerCase()) || s.id.toLowerCase().includes(billingSearch.toLowerCase()))
-                        .map(student => {
-                          const record = getBillingStatusForStudent(student, selectedBillingMonth);
-                          
-                          return (
-                            <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="py-3.5 px-4 font-bold text-slate-900">{student.id}</td>
-                              <td className="py-3.5 px-4 animate-fadeIn">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setPayReportStudentId(student.id);
-                                    setPayReportStudentSearchQuery(student.name);
-                                    setReportViewMode('payments_range');
-                                    setActiveTab('reports');
-                                  }}
-                                  className="text-left group cursor-pointer focus:outline-none block w-full"
-                                  title="Click to view, print, or download student's custom payment range ledger"
-                                >
-                                  <div className="font-extrabold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1.5 flex-wrap">
-                                    <span>{student.name}</span>
-                                    <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[9.5px] bg-indigo-50 text-indigo-600 font-bold px-1.5 py-0.5 rounded border border-indigo-100 tracking-wider">
-                                      View Range Statement ‚éô
-                                    </span>
-                                  </div>
-                                </button>
-                                {record.notes && (
-                                  <div className="text-[10px] text-indigo-500 font-medium italic mt-0.5 max-w-[200px] truncate" title={record.notes}>
-                                    Note: {record.notes}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="py-3.5 px-4 text-slate-400 font-medium">{student.className}</td>
-                              <td className="py-3.5 px-4">
-                                <div className="font-extrabold text-slate-800">${student.monthlyFee}</div>
-                                {record.status === 'Partial' && (
-                                  <div className="text-[10px] font-bold text-amber-600 mt-0.5 whitespace-nowrap">
-                                    Paid: ${record.amountPaid} ‚Ä¢ Debt: ${record.debtAmount}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="py-3.5 px-4">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                                  record.status === 'Paid'
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                                    : record.status === 'Partial'
-                                    ? 'bg-amber-50 text-amber-700 border-amber-100'
-                                    : 'bg-rose-50 text-rose-700 border-rose-100'
-                                }`}>
-                                  {record.status}
-                                </span>
-                              </td>
-                              <td className="py-3.5 px-4 text-slate-500 font-semibold">{record.paymentDate || '-'}</td>
-                              <td className="py-3.5 px-4 font-mono text-slate-400">{record.receiptNo || '-'}</td>
-                              <td className="py-3.5 px-4 text-center animate-fade-in">
-                                {record.status === 'Paid' ? (
-                                  <div className="flex items-center justify-center gap-1.5 text-xs">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenReceiptForRecord(record)}
-                                      className="px-2 py-1.5 bg-slate-50 hover:bg-slate-150 border border-slate-200 text-slate-750 font-extrabold text-[10px] tracking-wide uppercase rounded-xl inline-flex items-center gap-1 cursor-pointer transition-colors shrink-0"
-                                    >
-                                      <Receipt className="w-3.5 h-3.5" />
-                                      Receipt
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenPayModal(student)}
-                                      className="px-2 py-1 text-slate-450 hover:text-indigo-600 font-extrabold text-[10px] tracking-wide uppercase rounded cursor-pointer hover:underline shrink-0"
-                                    >
-                                      Adjust
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteBillingRecord(record.id, student.name)}
-                                      className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-600/10 text-rose-600 border border-rose-100 cursor-pointer transition-all shrink-0"
-                                      title="Delete this payment receipt to mark unpaid"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                ) : record.status === 'Partial' ? (
-                                  <div className="flex items-center justify-center gap-1.5 text-xs">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenReceiptForRecord(record)}
-                                      className="px-2 py-1.5 bg-slate-50 hover:bg-slate-150 border border-slate-200 text-slate-755 font-extrabold text-[10px] tracking-wide uppercase rounded-xl inline-flex items-center gap-1 cursor-pointer transition-colors shrink-0"
-                                    >
-                                      <Receipt className="w-3.5 h-3.5" />
-                                      Receipt
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenPayModal(student)}
-                                      className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-[10px] tracking-wide uppercase rounded-xl inline-flex items-center gap-1 cursor-pointer transition-colors shadow-sm shadow-amber-500/15 shrink-0"
-                                    >
-                                      <CircleDollarSign className="w-3.5 h-3.5" />
-                                      Collect
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteBillingRecord(record.id, student.name)}
-                                      className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-600/10 text-rose-600 border border-rose-100 cursor-pointer transition-all shrink-0"
-                                      title="Delete partial payment record"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenPayModal(student)}
-                                    className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-[10px] tracking-wider uppercase rounded-xl inline-flex items-center gap-1.5 cursor-pointer shadow-md shadow-teal-600/10 transition-colors"
-                                  >
-                                    <CircleDollarSign className="w-3 h-3" />
-                                    Collect
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-            </div>
-          )}
-
-          {/* Custom Invoices View */}
-          {billingSubTab === 'custom_invoices' && (() => {
-            const list = database.invoices || [];
-            const filteredInvoices = list.filter(inv => {
-              const term = invoiceSearch.toLowerCase();
-              const matchSearch = 
-                inv.invoiceNo.toLowerCase().includes(term) ||
-                inv.recipientName.toLowerCase().includes(term) ||
-                inv.recipientPhone.toLowerCase().includes(term) ||
-                (inv.recipientEmail && inv.recipientEmail.toLowerCase().includes(term)) ||
-                (inv.studentName && inv.studentName.toLowerCase().includes(term));
-              
-              const matchType = invoiceTypeFilter === 'all' || inv.recipientType === invoiceTypeFilter;
-              const matchStatus = invoiceStatusFilter === 'all' || inv.status === invoiceStatusFilter;
-              const matchMonth = invoiceMonthFilter === 'all' || (inv.date && inv.date.startsWith(invoiceMonthFilter));
-
-              return matchSearch && matchType && matchStatus && matchMonth;
-            });
-
-            const invoiceStats = filteredInvoices.reduce((acc, inv) => {
-              let busAmount = 0;
-              let feeAmount = 0;
-
-              (inv.items || []).forEach(item => {
-                const desc = (item.description || '').toLowerCase();
-                const isBus = desc.includes('baska') || desc.includes('bus');
-                const itemTotal = Number(item.total || (item.quantity * item.unitPrice) || 0);
-                if (isBus) {
-                  busAmount += itemTotal;
-                } else {
-                  feeAmount += itemTotal;
-                }
-              });
-
-              const itemsSum = busAmount + feeAmount;
-              if (itemsSum === 0 && inv.totalAmount > 0) {
-                feeAmount = inv.totalAmount;
-              }
-
-              const total = Number(inv.totalAmount || 0);
-              const paid = Number(inv.amountPaid || 0);
-              const ratio = total > 0 ? Math.min(1, Math.max(0, paid / total)) : 0;
-
-              const busPaid = busAmount * ratio;
-              const feePaid = feeAmount * ratio;
-
-              const busDue = Math.max(0, busAmount - busPaid);
-              const feeDue = Math.max(0, feeAmount - feePaid);
-
-              acc.busIssued += busAmount;
-              acc.feeIssued += feeAmount;
-
-              acc.busCollected += busPaid;
-              acc.feeCollected += feePaid;
-
-              acc.busOutstanding += busDue;
-              acc.feeOutstanding += feeDue;
-
-              acc.totalIssued += total;
-              acc.totalCollected += paid;
-              acc.totalOutstanding += Math.max(0, total - paid);
-
-              return acc;
-            }, {
-              busIssued: 0,
-              feeIssued: 0,
-              busCollected: 0,
-              feeCollected: 0,
-              busOutstanding: 0,
-              feeOutstanding: 0,
-              totalIssued: 0,
-              totalCollected: 0,
-              totalOutstanding: 0
-            });
-
-            return (
-              <div className="space-y-6 animate-fade-in" id="custom-invoices-pane">
-                {/* Metrics Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Total Invoiced */}
-                  <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between space-y-3.5">
-                    <div className="flex items-center gap-4">
-                      <span className="p-3.5 bg-emerald-50 text-emerald-600 rounded-2xl shrink-0"><CircleDollarSign className="w-6 h-6" /></span>
-                      <div className="min-w-0">
-                        <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest truncate">Guud ahaan Invoices-ka (Total Issued)</p>
-                        <p className="text-2xl font-black text-slate-900 leading-tight">
-                          ${invoiceStats.totalIssued.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </p>
-                        <p className="text-xs text-slate-400 mt-0.5">Total Custom Invoices Issued</p>
-                      </div>
-                    </div>
-                    {/* Separated Statistics */}
-                    <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-2 text-[11px]">
-                      <button
-                        type="button"
-                        onClick={() => { setInvoiceCategoryModal('fee'); setCategoryModalFilter('all'); }}
-                        className="bg-slate-50 hover:bg-indigo-50/70 p-2 rounded-xl border border-slate-150 hover:border-indigo-300 flex flex-col text-left transition-all cursor-pointer group shadow-xs hover:shadow-sm"
-                        title="Daawo ardayda bixisa ama lagu leeyahay School Fee"
-                      >
-                        <span className="text-[9px] font-black text-slate-500 group-hover:text-indigo-700 uppercase tracking-wider flex items-center justify-between">
-                          <span>üìö School Fee</span>
-                          <span className="text-[8px] opacity-0 group-hover:opacity-100 transition-opacity">Daawo ‚Üí</span>
-                        </span>
-                        <span className="font-extrabold text-slate-800 group-hover:text-indigo-950 text-xs mt-0.5">
-                          ${invoiceStats.feeIssued.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setInvoiceCategoryModal('bus'); setCategoryModalFilter('all'); }}
-                        className="bg-amber-50/70 hover:bg-amber-100/80 p-2 rounded-xl border border-amber-200/60 hover:border-amber-300 flex flex-col text-left transition-all cursor-pointer group shadow-xs hover:shadow-sm"
-                        title="Daawo ardayda bixisa ama lagu leeyahay Bus Fare"
-                      >
-                        <span className="text-[9px] font-black text-amber-800 uppercase tracking-wider flex items-center justify-between">
-                          <span>üöå Bus Fare (Baska)</span>
-                          <span className="text-[8px] opacity-0 group-hover:opacity-100 transition-opacity">Daawo ‚Üí</span>
-                        </span>
-                        <span className="font-extrabold text-amber-900 text-xs mt-0.5">
-                          ${invoiceStats.busIssued.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Total Amount Collected */}
-                  <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between space-y-3.5">
-                    <div className="flex items-center gap-4">
-                      <span className="p-3.5 bg-teal-50 text-teal-600 rounded-2xl shrink-0"><Check className="w-6 h-6 animate-pulse" /></span>
-                      <div className="min-w-0">
-                        <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest truncate">Lacagta la Qabtay (Total Collected)</p>
-                        <p className="text-2xl font-black text-emerald-700 leading-tight">
-                          ${invoiceStats.totalCollected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </p>
-                        <p className="text-xs text-slate-400 mt-0.5">Total Payments Collected</p>
-                      </div>
-                    </div>
-                    {/* Separated Statistics */}
-                    <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-2 text-[11px]">
-                      <button
-                        type="button"
-                        onClick={() => { setInvoiceCategoryModal('fee'); setCategoryModalFilter('collected'); }}
-                        className="bg-teal-50/60 hover:bg-teal-100/80 p-2 rounded-xl border border-teal-150 hover:border-teal-300 flex flex-col text-left transition-all cursor-pointer group shadow-xs hover:shadow-sm"
-                        title="Daawo ardayda bixisay School Fee"
-                      >
-                        <span className="text-[9px] font-black text-teal-800 uppercase tracking-wider flex items-center justify-between">
-                          <span>üìö School Fee</span>
-                          <span className="text-[8px] opacity-0 group-hover:opacity-100 transition-opacity">Daawo ‚Üí</span>
-                        </span>
-                        <span className="font-extrabold text-teal-900 text-xs mt-0.5">
-                          ${invoiceStats.feeCollected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setInvoiceCategoryModal('bus'); setCategoryModalFilter('collected'); }}
-                        className="bg-emerald-50/70 hover:bg-emerald-100/80 p-2 rounded-xl border border-emerald-200/60 hover:border-emerald-300 flex flex-col text-left transition-all cursor-pointer group shadow-xs hover:shadow-sm"
-                        title="Daawo ardayda bixisay Bus Fare"
-                      >
-                        <span className="text-[9px] font-black text-emerald-800 uppercase tracking-wider flex items-center justify-between">
-                          <span>üöå Bus Fare (Baska)</span>
-                          <span className="text-[8px] opacity-0 group-hover:opacity-100 transition-opacity">Daawo ‚Üí</span>
-                        </span>
-                        <span className="font-extrabold text-emerald-900 text-xs mt-0.5">
-                          ${invoiceStats.busCollected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Outstanding Balance Due */}
-                  <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between space-y-3.5">
-                    <div className="flex items-center gap-4">
-                      <span className="p-3.5 bg-rose-50 text-rose-600 rounded-2xl shrink-0"><AlertCircle className="w-6 h-6" /></span>
-                      <div className="min-w-0">
-                        <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest truncate">Deynta ka maqan (Total Outstanding)</p>
-                        <p className="text-2xl font-black text-rose-600 leading-tight">
-                          ${invoiceStats.totalOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </p>
-                        <p className="text-xs text-slate-400 mt-0.5">Total Outstanding Balance Due</p>
-                      </div>
-                    </div>
-                    {/* Separated Statistics */}
-                    <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-2 text-[11px]">
-                      <button
-                        type="button"
-                        onClick={() => { setInvoiceCategoryModal('fee'); setCategoryModalFilter('outstanding'); }}
-                        className="bg-rose-50/70 hover:bg-rose-100/80 p-2 rounded-xl border border-rose-200/60 hover:border-rose-300 flex flex-col text-left transition-all cursor-pointer group shadow-xs hover:shadow-sm"
-                        title="Daawo ardayda lagu leeyahay School Fee"
-                      >
-                        <span className="text-[9px] font-black text-rose-800 uppercase tracking-wider flex items-center justify-between">
-                          <span>üìö School Fee</span>
-                          <span className="text-[8px] opacity-0 group-hover:opacity-100 transition-opacity">Daawo ‚Üí</span>
-                        </span>
-                        <span className="font-extrabold text-rose-900 text-xs mt-0.5">
-                          ${invoiceStats.feeOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setInvoiceCategoryModal('bus'); setCategoryModalFilter('outstanding'); }}
-                        className="bg-amber-50/70 hover:bg-amber-100/80 p-2 rounded-xl border border-amber-200/60 hover:border-amber-300 flex flex-col text-left transition-all cursor-pointer group shadow-xs hover:shadow-sm"
-                        title="Daawo ardayda lagu leeyahay Bus Fare"
-                      >
-                        <span className="text-[9px] font-black text-amber-800 uppercase tracking-wider flex items-center justify-between">
-                          <span>üöå Bus Fare (Baska)</span>
-                          <span className="text-[8px] opacity-0 group-hover:opacity-100 transition-opacity">Daawo ‚Üí</span>
-                        </span>
-                        <span className="font-extrabold text-amber-900 text-xs mt-0.5">
-                          ${invoiceStats.busOutstanding.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Filter and Quick Actions Header bar */}
-                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 w-full xl:w-auto flex-1">
-                  {/* Search Field */}
-                  <div className="relative">
-                    <Search className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 w-4 h-4 pointer-events-none" />
-                    <input
-                      type="text"
-                      placeholder="Raadi magac, telefoon..."
-                      value={invoiceSearch}
-                      onChange={(e) => setInvoiceSearch(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:bg-white transition-all"
-                    />
-                  </div>
-
-                  {/* Filter Type */}
-                  <select
-                    value={invoiceTypeFilter}
-                    onChange={(e) => setInvoiceTypeFilter(e.target.value as any)}
-                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:bg-white"
-                  >
-                    <option value="all">Nooca: Dhammaan Macmiisha (All Recipients)</option>
-                    <option value="parent">Nooca: Waalidiinta (Parents only)</option>
-                    <option value="business">Nooca: Shirkadaha (Businesses only)</option>
-                  </select>
-
-                  {/* Filter Status */}
-                  <select
-                    value={invoiceStatusFilter}
-                    onChange={(e) => setInvoiceStatusFilter(e.target.value as any)}
-                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-705 outline-none cursor-pointer focus:bg-white"
-                  >
-                    <option value="all">Heerka: Dhammaan (All Statuses)</option>
-                    <option value="Paid">Heerka: Waa la bixiyay (Paid)</option>
-                    <option value="Partial">Heerka: Qeyb baa la bixiyay (Partial)</option>
-                    <option value="Unpaid">Heerka: Lama bixin (Unpaid)</option>
-                  </select>
-
-                  {/* Filter Month */}
-                  <select
-                    value={invoiceMonthFilter}
-                    onChange={(e) => setInvoiceMonthFilter(e.target.value)}
-                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:bg-white"
-                  >
-                    <option value="all">Muddada: Dhammaan (All Months)</option>
-                    {invoiceMonths.map(month => (
-                      <option key={month} value={month}>
-                        Muddada: {getFriendlyMonthName(month)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-start xl:self-auto">
-                  {(database.invoices || []).length > 0 && (
-                    <button
-                      type="button"
-                      onClick={handleDeleteAllInvoices}
-                      className="py-2.5 px-4 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs uppercase tracking-wider rounded-xl inline-flex items-center gap-2 cursor-pointer transition-all border border-rose-200/50 shadow-sm"
-                    >
-                      <Trash2 className="w-4 h-4 text-rose-600" />
-                      Futa Dhammaan (Delete All)
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleOpenCreateInvoice}
-                    className="py-2.5 px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl inline-flex items-center gap-2 cursor-pointer transition-all shadow-md shadow-emerald-600/10"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Biil Cusub (Create custom invoice)
-                  </button>
-                </div>
-              </div>
-
-              {/* Ledger Invoices listing */}
-              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
-                <div className="overflow-x-auto scrollbar-thin">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-100 text-[10px] font-extrabold tracking-widest text-slate-400 uppercase">
-                        <th className="pb-4 pt-1 pl-4">Invoice No</th>
-                        <th className="pb-4 pt-1">Macmiilka (Recipient Name)</th>
-                        <th className="pb-4 pt-1">Nooca</th>
-                        <th className="pb-4 pt-1">Diiwaanka Ardayda</th>
-                        <th className="pb-4 pt-1">Muddada</th>
-                        <th className="pb-4 pt-1 text-right">Lacagta (Total)</th>
-                        <th className="pb-4 pt-1 text-right">La bixiyay (Paid)</th>
-                        <th className="pb-4 pt-1 text-right">Deynta (Balance)</th>
-                        <th className="pb-4 pt-1 text-center">Status</th>
-                        <th className="pb-4 pt-1 pr-4 text-center">Tallaabooyin (Actions)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {(() => {
-                        if (filteredInvoices.length === 0) {
-                          return (
-                            <tr>
-                              <td colSpan={10} className="py-12 text-center text-xs text-slate-400 font-semibold italic">
-                                Ma jiraan biili weheliya shuruudahan la baaray.
-                              </td>
-                            </tr>
-                          );
-                        }
-
-                        return filteredInvoices.map(invoice => {
-                          const balanceDue = invoice.totalAmount - invoice.amountPaid;
-                          return (
-                            <tr key={invoice.id} className="hover:bg-slate-50/50 transition-colors text-xs text-slate-800">
-                              <td className="py-4 pl-4 font-mono font-extrabold text-slate-600">{invoice.invoiceNo}</td>
-                              <td className="py-4">
-                                <div className="font-extrabold text-slate-900">{invoice.recipientName}</div>
-                                <div className="font-mono text-[10px] text-slate-400 mt-0.5">{invoice.recipientPhone}</div>
-                              </td>
-                              <td className="py-4">
-                                <span className={`px-2 py-0.5 text-[9px] font-black uppercase rounded ${
-                                  invoice.recipientType === 'parent' 
-                                    ? 'bg-indigo-50 text-indigo-700' 
-                                    : 'bg-sky-50 text-sky-750'
-                                }`}>
-                                  {invoice.recipientType === 'parent' ? 'Waalid' : 'Business'}
-                                </span>
-                              </td>
-                              <td className="py-4 font-semibold text-[11px] text-slate-500">
-                                {invoice.studentName ? (
-                                  <span>
-                                    Aabbe/Hoyo: <span className="font-bold text-slate-700">{invoice.studentName}</span>
-                                    <br/><span className="text-[9px] font-mono">ID: {invoice.studentId}</span>
-                                  </span>
-                                ) : (
-                                  <span className="italic text-slate-300">-</span>
-                                )}
-                              </td>
-                              <td className="py-4">
-                                <div className="text-[10px] text-slate-400">Issue: <span className="font-mono font-bold text-slate-600">{invoice.date}</span></div>
-                                <div className="text-[10px] text-slate-400 mt-0.5">Due: <span className="font-mono font-bold text-slate-600">{invoice.dueDate}</span></div>
-                              </td>
-                              <td className="py-4 text-right font-black text-slate-900">${invoice.totalAmount.toFixed(2)}</td>
-                              <td className="py-4 text-right font-black text-emerald-700">${invoice.amountPaid.toFixed(2)}</td>
-                              <td className="py-4 text-right font-black text-rose-600">${balanceDue.toFixed(2)}</td>
-                              <td className="py-4 text-center">
-                                <span className={`px-2.5 py-1 text-[9px] font-black tracking-wider uppercase rounded-xl inline-block ${
-                                  invoice.status === 'Paid'
-                                    ? 'bg-emerald-50 text-emerald-700'
-                                    : invoice.status === 'Partial'
-                                    ? 'bg-amber-50 text-amber-700'
-                                    : 'bg-rose-50 text-rose-700'
-                                }`}>
-                                  {invoice.status === 'Paid' ? 'Paid' : invoice.status === 'Partial' ? 'Partial' : 'Unpaid'}
-                                </span>
-                              </td>
-                              <td className="py-4 text-center pr-4">
-                                <div className="flex items-center justify-center gap-1.5">
-                                  {/* Edit Button */}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenEditInvoice(invoice)}
-                                    className="p-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 cursor-pointer transition-colors"
-                                    title="Edit details"
-                                  >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                  </button>
-
-                                  {/* Print/View Voucher Receipt Button */}
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowInvoiceReceipt(invoice)}
-                                    className="p-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-150 cursor-pointer transition-colors"
-                                    title="View / Print Invoice"
-                                  >
-                                    <Receipt className="w-3.5 h-3.5" />
-                                  </button>
-
-                                  {/* Download PDF Quick Action */}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDownloadInvoicePDF(invoice)}
-                                    className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100/80 text-rose-700 border border-rose-150 cursor-pointer transition-colors"
-                                    title="Download PDF"
-                                  >
-                                    <Download className="w-3.5 h-3.5" />
-                                  </button>
-
-                                  {/* Delete Button */}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteInvoice(invoice.id, invoice.invoiceNo)}
-                                    className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-600/10 text-rose-600 border border-rose-100 cursor-pointer transition-colors"
-                                    title="Delete custom invoice"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        });
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              </div>
-            );
-          })()}
-
-          </div>
-        )}
-
-        {activeTab === 'moneyTransfers' && (
-          <MoneyTransferTab 
-            database={database} 
-            onSaveDatabase={onSaveDatabase} 
-          />
-        )}
-
-        {/* --- CLOUD BACKUP TAB (GOOGLE CLOUD STORAGE & FIRESTORE) --- */}
-        {activeTab === 'backup' && (
-          <div className="space-y-8 animate-fade-in" id="portal-backup">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              
-              {/* Left explanation container */}
-              <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-emerald-500 to-teal-500" />
-                
-                <span className="p-3 bg-emerald-50 text-emerald-700 rounded-2xl inline-flex mb-5"><Cloud className="w-6 h-6 animate-pulse" /></span>
-                <h3 className="font-extrabold text-slate-930 text-xl tracking-tight">Google Cloud Storage Backup System</h3>
-                
-                <p className="text-slate-500 text-sm mt-3 leading-relaxed">
-                  Badbaadinta xogtaada waa mid si buuxda u toos ah (Fully Automated Cloud Backups). Mar kasta oo xogta wax laga beddelo ama 24-kii saacba mar, nidaamku wuxuu si toos ah ugu kaydiyaa koobi ammaan ah Google Cloud Storage bucket.
-                </p>
-
-                <p className="text-slate-500 text-sm mt-3 leading-relaxed">
-                  Tani waa habka caadiga ah ee wax-soosaarka ee heer caalami (Standard Production Approach):
-                </p>
-
-                <div className="space-y-4 pt-6" id="strategy-bullets">
-                  <div className="flex gap-3">
-                    <span className="w-6 h-6 shrink-0 bg-emerald-600 text-white rounded-full font-bold text-xs flex items-center justify-center">‚úì</span>
-                    <p className="text-xs text-slate-600 font-semibold leading-relaxed">
-                      <strong className="text-slate-800">Toos u Shaqeeya:</strong> Kaydinta waxay dhacdaa xataa haddii laptop-kaagu uu xiran yahay ama uu damo.
-                    </p>
-                  </div>
-                  <div className="flex gap-3">
-                    <span className="w-6 h-6 shrink-0 bg-emerald-600 text-white rounded-full font-bold text-xs flex items-center justify-center">‚úì</span>
-                    <p className="text-xs text-slate-600 font-semibold leading-relaxed">
-                      <strong className="text-slate-800">Soo-celin Hal Guji ah:</strong> Waxaad dib u soo celin kartaa xaalad kasta oo hore oo xogta ka mid ah adigoo isticmaalaya badhanka "Restore" ee hoose.
-                    </p>
-                  </div>
-                  <div className="flex gap-3">
-                    <span className="w-6 h-6 shrink-0 bg-emerald-600 text-white rounded-full font-bold text-xs flex items-center justify-center">‚úì</span>
-                    <p className="text-xs text-slate-600 font-semibold leading-relaxed">
-                      <strong className="text-slate-800">Triple Redundant:</strong> Koobi kasta oo backup ah waxaa lagu kaydiyaa Firestore Cloud, local server disk, iyo Cloudflare R2 (haddii la dhowray).
-                    </p>
-                  </div>
-                </div>
-
-                <div className="pt-8 flex flex-col sm:flex-row gap-3">
-                  <button
-                    type="button"
-                    onClick={handleTriggerCloudBackup}
-                    disabled={isTriggeringBackup}
-                    className="flex-1 py-4 px-6 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-600/10 active:scale-95"
-                    id="trigger-cloud-backup-btn"
-                  >
-                    <Cloud className="w-4 h-4 animate-bounce" />
-                    {isTriggeringBackup ? "Creating Cloud Backup..." : "Trigger Manual Cloud Backup Now ‚≠ê"}
-                  </button>
-                </div>
-              </div>
-
-              {/* Right Restore Module */}
-              <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden flex flex-col justify-between" id="restore-block">
-                <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-indigo-500 to-purple-500" />
-                <div>
-                  <span className="p-3.5 bg-indigo-50 text-indigo-600 rounded-3xl inline-flex mb-4"><UploadCloud className="w-8 h-8" /></span>
-                  <h4 className="font-extrabold text-slate-900 text-lg">Offline Backup Import & Export</h4>
-                  <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                    Waxaad sidoo kale u soo dejisan kartaa koobi JSON ah laptop-kaaga si aad u haysato backup offline ah, ama aad u soo upload-gareyn karto fayl backup ah oo hore.
-                  </p>
-                </div>
-
-                <div className="my-5 p-5 bg-slate-50 rounded-2xl border border-slate-100/80 text-left">
-                  <h5 className="font-bold text-slate-800 text-xs uppercase flex items-center gap-1.5 mb-2">
-                    <AlertCircle className="w-4 h-4 text-amber-500" />
-                    Offline Data Controls
-                  </h5>
-                  <p className="text-[11px] text-slate-400 leading-normal font-semibold">
-                    Markaad soo upload-garayso fayl backup ah, xogta hadda jirta waxaa lagu beddelayaa faylkaas. Hubi in faylku yahay mid sax ah oo aan kharribnayn.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <button
-                    type="button"
-                    onClick={handleBackupExport}
-                    className="w-full py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all border border-slate-200 cursor-pointer active:scale-95"
-                  >
-                    <Download className="w-4 h-4" />
-                    Download JSON Backup
-                  </button>
-
-                  <div className="relative">
-                    <input
-                      type="file"
-                      accept=".json"
-                      onChange={handlePreviewJsonFile}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      id="db-backup-preview-file-picker"
-                    />
-                    <div className="w-full h-full py-4 bg-amber-50 hover:bg-amber-100 text-amber-800 font-extrabold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all border border-amber-200 cursor-pointer active:scale-95 shadow-xs">
-                      <Eye className="w-4 h-4 text-amber-600" />
-                      Preview Backup File üëÅÔ∏è
-                    </div>
-                  </div>
-
-                  <div className="relative">
-                    <input
-                      type="file"
-                      accept=".json"
-                      onChange={handleBackupImport}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      id="db-backup-file-picker"
-                    />
-                    <div className="w-full h-full py-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all border border-indigo-100 cursor-pointer active:scale-95">
-                      <UploadCloud className="w-4 h-4" />
-                      Direct Restore JSON File
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
-            {/* --- LIST OF AUTOMATED CLOUD BACKUPS --- */}
-            <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
-              <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-teal-500 to-emerald-500" />
-              
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                <div>
-                  <h3 className="font-extrabold text-slate-900 text-lg flex items-center gap-2">
-                    Recent Automated Cloud Backups
-                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                      Google Cloud Storage
-                    </span>
-                  </h3>
-                  <p className="text-slate-400 text-xs mt-1">Nidaamku wuxuu si otomaatig ah u hayaa 10-kii backup ee ugu dambeeyay (Pruned automatically to last 10 snapshots)</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={fetchCloudBackups}
-                  disabled={isLoadingBackups}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-55 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer active:scale-95"
-                >
-                  {isLoadingBackups ? "Updating List..." : "Cusboonaysii Liiska (Refresh List) üîÑ"}
-                </button>
-              </div>
-
-              {isLoadingBackups && cloudBackups.length === 0 ? (
-                <div className="py-12 text-center">
-                  <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                  <p className="text-xs font-bold text-slate-400 font-mono animate-pulse">LIISKA BACKUP-YADA CLOUD-KA AYAA LA SOO BULSHEYNAYAA...</p>
-                </div>
-              ) : cloudBackups.length === 0 ? (
-                <div className="py-12 text-center border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/50">
-                  <span className="p-4 bg-slate-100 text-slate-400 rounded-2xl inline-flex mb-3"><Cloud className="w-8 h-8" /></span>
-                  <p className="text-slate-500 text-xs font-bold">Weli ma jiraan backups ku kaydsan Cloud-ka.</p>
-                  <p className="text-slate-400 text-[10px] mt-1 max-w-sm mx-auto">Riix badhanka "Trigger Manual Cloud Backup Now" ee kore si aad u abuurto backup-kaagii ugu horreeyay.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto rounded-2xl border border-slate-100">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50/70 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">
-                        <th className="py-4 px-5">Backup ID & Taariikhda (Date)</th>
-                        <th className="py-4 px-5">What Changed (Isbeddellada)</th>
-                        <th className="py-4 px-5">Storage Location</th>
-                        <th className="py-4 px-5">Size</th>
-                        <th className="py-4 px-5">Students</th>
-                        <th className="py-4 px-5">Teachers</th>
-                        <th className="py-4 px-5">Invoices</th>
-                        <th className="py-4 px-5 text-right">Maareynta (Actions)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs">
-                      {cloudBackups.map((backup) => {
-                        const dateObj = new Date(backup.timestamp);
-                        const formattedDate = dateObj.toLocaleDateString('so-SO', {
-                          weekday: 'long',
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
-                        }) + ' ' + dateObj.toLocaleTimeString('so-SO', { hour: '2-digit', minute: '2-digit' });
-
-                        const sizeKb = (backup.size / 1024).toFixed(1);
-                        const changesSummary = backup.changes?.summary || "Routine snapshot";
-                        const hasNewStudents = backup.changes?.newStudents && backup.changes.newStudents.length > 0;
-                        const hasUpdatedStudents = backup.changes?.updatedStudents && backup.changes.updatedStudents.length > 0;
-
-                        return (
-                          <tr key={backup.id} className="hover:bg-slate-50/40 transition-colors">
-                            <td className="py-4 px-5 font-bold text-slate-800">
-                              <span className="block font-mono text-[11px] text-slate-500">{backup.id}</span>
-                              <span className="text-[10px] text-slate-400 font-normal">{formattedDate}</span>
-                            </td>
-                            <td className="py-4 px-5">
-                              <div className="flex flex-col gap-1 max-w-xs">
-                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold ${
-                                  hasNewStudents
-                                    ? 'bg-emerald-100 text-emerald-900 border border-emerald-200'
-                                    : hasUpdatedStudents
-                                    ? 'bg-blue-50 text-blue-800 border border-blue-100'
-                                    : 'bg-slate-100 text-slate-600'
-                                }`}>
-                                  {hasNewStudents ? '‚ú® ' : ''}{changesSummary}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="py-4 px-5 font-semibold text-slate-500 font-mono text-[10px]">
-                              <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded border border-emerald-100/50">
-                                {backup.storageType || "Google Cloud Storage & Firestore"}
-                              </span>
-                            </td>
-                            <td className="py-4 px-5 text-slate-600 font-mono font-bold text-[11px]">{sizeKb} KB</td>
-                            <td className="py-4 px-5 text-slate-600 font-bold">{backup.studentCount}</td>
-                            <td className="py-4 px-5 text-slate-600 font-bold">{backup.teacherCount}</td>
-                            <td className="py-4 px-5 text-slate-600 font-bold">{backup.invoiceCount}</td>
-                            <td className="py-4 px-5 text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handlePreviewCloudBackup(backup.id)}
-                                  disabled={isPreviewLoading}
-                                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-[10px] uppercase rounded-xl cursor-pointer active:scale-95 transition-all flex items-center gap-1 shadow-xs"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                  Preview üëÅÔ∏è
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRestoreCloudBackup(backup.id)}
-                                  className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-[10px] uppercase rounded-xl cursor-pointer active:scale-95 transition-all"
-                                >
-                                  Restore Backup üîÑ
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteCloudBackup(backup.id)}
-                                  className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl cursor-pointer active:scale-95 transition-all"
-                                  title="Tirtir backup-kan"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* --- DATA RECOVERY & CSV IMPORT SYSTEMS --- */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8 border-t border-slate-100 pt-8">
-              
-              {/* Browser Cache Scan module */}
-              <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-indigo-500 to-purple-500" />
-                <span className="p-3 bg-indigo-50 text-indigo-700 rounded-2xl inline-flex mb-5"><RotateCcw className="w-6 h-6" /></span>
-                <h3 className="font-extrabold text-slate-930 text-xl tracking-tight">Browser Cache Recovery Scanner</h3>
-                <p className="text-slate-500 text-sm mt-3 leading-relaxed">
-                  If your students were deleted due to a cloud database reset, they might still reside inside your web browser's offline local storage cache. Use this tool to scan your browser.
-                </p>
-
-                <div className="pt-6">
-                  <button
-                    type="button"
-                    onClick={handleScanBrowserCache}
-                    className="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-indigo-600/10"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    Scan Browser Cache for Lost Data
-                  </button>
-                </div>
-
-                {hasScannedCache && (
-                  <div className="mt-6 space-y-4">
-                    <h4 className="font-bold text-slate-900 text-xs uppercase">Scan Results:</h4>
-                    {foundCacheBackups.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic">No older backups found in this browser's local storage.</p>
-                    ) : (
-                      <div className="space-y-2 max-h-48 overflow-y-auto">
-                        {foundCacheBackups.map((b, idx) => (
-                          <div key={idx} className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between">
-                            <div>
-                              <span className="font-bold text-slate-800 text-xs block">{b.key} ({b.origin})</span>
-                              <span className="text-[10px] text-slate-400 block">Found: {b.studentCount} Students | Updated: {b.timestamp}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handlePreviewCacheBackup(b)}
-                                className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-lg cursor-pointer flex items-center gap-1"
-                              >
-                                <Eye className="w-3 h-3" />
-                                Preview üëÅÔ∏è
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleRestoreCacheBackup(b.state)}
-                                className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-[10px] font-bold rounded-lg cursor-pointer"
-                              >
-                                Restore
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* CSV Importer module */}
-              <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-emerald-500 to-teal-500" />
-                <span className="p-3 bg-emerald-50 text-emerald-700 rounded-2xl inline-flex mb-5"><FileSpreadsheet className="w-6 h-6" /></span>
-                <h3 className="font-extrabold text-slate-930 text-xl tracking-tight">Somali/English CSV Batch Importer</h3>
-                <p className="text-slate-500 text-sm mt-3 leading-relaxed">
-                  Easily batch import 31+ students at once from Excel or any spreadsheet list! Download the template, populate it, and upload it below.
-                </p>
-
-                <div className="pt-6 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={handleDownloadCsvTemplate}
-                    className="flex-1 py-4 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] uppercase tracking-wider rounded-2xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    Download Template CSV
-                  </button>
-                  
-                  <div className="flex-1 relative">
-                    <input
-                      type="file"
-                      accept=".csv"
-                      onChange={handleCsvImportChange}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    />
-                    <div className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] uppercase tracking-wider rounded-2xl flex items-center justify-center gap-1.5 transition-all cursor-pointer">
-                      <UploadCloud className="w-3.5 h-3.5" />
-                      Upload Filled CSV
-                    </div>
-                  </div>
-                </div>
-
-                {csvError && (
-                  <p className="text-xs text-rose-500 font-bold mt-4 flex items-center gap-1"><AlertCircle className="w-4 h-4" />{csvError}</p>
-                )}
-
-                {csvPreviewStudents.length > 0 && (
-                  <div className="mt-6 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-slate-900 text-xs uppercase">Preview {csvPreviewStudents.length} Students:</h4>
-                      <button
-                        type="button"
-                        onClick={handleBulkImportStudents}
-                        className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg cursor-pointer"
-                      >
-                        Import Now
-                      </button>
-                    </div>
-                    <div className="overflow-x-auto max-h-48 border border-slate-100 rounded-xl">
-                      <table className="min-w-full divide-y divide-slate-100 text-left text-xs">
-                        <thead className="bg-slate-50">
-                          <tr>
-                            <th className="p-2 font-bold text-slate-600">Name</th>
-                            <th className="p-2 font-bold text-slate-600">Parent</th>
-                            <th className="p-2 font-bold text-slate-600">Phone</th>
-                            <th className="p-2 font-bold text-slate-600">Class</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {csvPreviewStudents.slice(0, 10).map((st, i) => (
-                            <tr key={i} className="hover:bg-slate-50">
-                              <td className="p-2 text-slate-800 font-semibold">{st.name}</td>
-                              <td className="p-2 text-slate-500">{st.parentName}</td>
-                              <td className="p-2 text-slate-500">{st.parentPhone}</td>
-                              <td className="p-2 text-slate-400">{st.className}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      {csvPreviewStudents.length > 10 && (
-                        <p className="text-[10px] text-slate-400 italic p-2 text-center border-t border-slate-50">And {csvPreviewStudents.length - 10} more rows...</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-            </div>
-
-          </div>
-        )}
-
-        {/* --- LANDING PAGE CONTROL PANEL TAB --- */}
-        {activeTab === 'landing' && (
-          <LandingControlTab 
-            database={database} 
-            onSaveDatabase={onSaveDatabase} 
-          />
-        )}
-
-        {/* --- TEACHER SUBMISSIONS AUDIT LOG TAB --- */}
-        {activeTab === 'submissions' && (() => {
-          const teacherSubmissions = database.submissions || [];
-          
-          return (
-            <div className="space-y-6 animate-fade-in" id="portal-submissions">
-              {/* Header card with metrics */}
-              <div className="p-6 bg-white rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-violet-500 to-indigo-500" />
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <h3 className="font-extrabold text-slate-930 text-xl tracking-tight">Teacher Submissions Audit Trail</h3>
-                    <p className="text-slate-500 text-xs mt-1">
-                      Monitor real-time academic records, progress reports, and graded examinations uploaded by assigned teachers.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Submissions Stats Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                  <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
-                    <span className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Submissions</span>
-                    <span className="block text-2xl font-black text-slate-900 mt-1">{teacherSubmissions.length}</span>
-                  </div>
-                  <div className="p-4 bg-emerald-50/50 border border-emerald-100/50 rounded-2xl">
-                    <span className="block text-[10px] uppercase font-bold text-emerald-600 tracking-wider">Daily Work Logs</span>
-                    <span className="block text-2xl font-black text-emerald-700 mt-1">
-                      {teacherSubmissions.filter(s => s.type === 'attendance').length}
-                    </span>
-                  </div>
-                  <div className="p-4 bg-violet-50/50 border border-violet-100/50 rounded-2xl">
-                    <span className="block text-[10px] uppercase font-bold text-violet-600 tracking-wider">Class Exams Graded</span>
-                    <span className="block text-2xl font-black text-violet-700 mt-1">
-                      {teacherSubmissions.filter(s => s.type === 'exam').length}
-                    </span>
-                  </div>
-                  <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
-                    <span className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">Last Sync Status</span>
-                    <span className="block text-xs font-bold text-slate-600 mt-2.5 flex items-center gap-1.5 leading-none">
-                      <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse inline-block" /> Live Connected
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Filtering Controls */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row items-center gap-4">
-                <div className="relative w-full md:w-64 shrink-0">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                  <input
-                    type="text"
-                    value={submissionSearchQuery}
-                    onChange={(e) => setSubmissionSearchQuery(e.target.value)}
-                    placeholder="Search by teacher or title..."
-                    className="w-full pl-10 pr-4 py-2.5 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition-all font-semibold"
-                  />
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 w-full md:justify-end">
-                  {/* Teacher filter dropdown */}
-                  <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Teacher:</span>
-                    <select
-                      value={submissionSelectedTeacher}
-                      onChange={(e) => setSubmissionSelectedTeacher(e.target.value)}
-                      className="text-xs font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer"
-                    >
-                      <option value="All">All Staff</option>
-                      {database.teachers.map(t => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Type filter dropdown */}
-                  <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Category:</span>
-                    <select
-                      value={submissionSelectedType}
-                      onChange={(e) => setSubmissionSelectedType(e.target.value)}
-                      className="text-xs font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer"
-                    >
-                      <option value="All">All Types</option>
-                      <option value="attendance">Daily Attendance Logs</option>
-                      <option value="exam">Grades & Exams</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Submissions List */}
-              <div className="space-y-4">
-                {(() => {
-                  const queryLower = submissionSearchQuery.toLowerCase();
-                  const filtered = teacherSubmissions.filter(sub => {
-                    const matchesSearch = sub.teacherName.toLowerCase().includes(queryLower) ||
-                                          sub.title.toLowerCase().includes(queryLower) ||
-                                          sub.className.toLowerCase().includes(queryLower);
-                    const matchesTeacher = submissionSelectedTeacher === 'All' || sub.teacherId === submissionSelectedTeacher;
-                    const matchesType = submissionSelectedType === 'All' || sub.type === submissionSelectedType;
-                    return matchesSearch && matchesTeacher && matchesType;
-                  });
-
-                  if (filtered.length === 0) {
-                    return (
-                      <div className="text-center p-12 bg-white rounded-3xl border border-dashed border-slate-200">
-                        <span className="text-slate-400 text-sm font-semibold">No matching submissions found system-wide.</span>
-                        <p className="text-xs text-slate-400 mt-1">Try softening your search query or choosing alternate filter targets.</p>
-                      </div>
-                    );
-                  }
-
-                  return filtered.map((sub) => {
-                    const isExpanded = expandedSubmissionId === sub.id;
-                    const dateFormatted = new Date(sub.timestamp).toLocaleString(undefined, {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    });
-
-                    const initials = sub.teacherName
-                      .split(' ')
-                      .filter(n => !n.startsWith('Sh.') && !n.startsWith('Malm.'))
-                      .slice(0, 1)
-                      .map(n => n[0])
-                      .join('') || sub.teacherName[0];
-
-                    return (
-                      <div key={sub.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-all duration-300">
-                        {/* Header clickable bar */}
-                        <div 
-                          onClick={() => setExpandedSubmissionId(isExpanded ? null : sub.id)}
-                          className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer hover:bg-slate-50/50 transition-colors"
-                        >
-                          <div className="flex items-start gap-4">
-                            <div className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center font-extrabold text-sm ${
-                              sub.type === 'attendance' ? 'bg-emerald-50 text-emerald-700' : 'bg-violet-50 text-violet-700'
-                            }`}>
-                              {initials}
-                            </div>
-                            
-                            <div className="space-y-1">
-                              <div className="flex gap-2 flex-wrap items-center">
-                                <h4 className="font-extrabold text-slate-900 text-xs leading-none">
-                                  {sub.teacherName}
-                                </h4>
-                                <span className="text-slate-300 text-xs font-light">‚Ä¢</span>
-                                <span className="text-[10px] text-slate-400 leading-none font-semibold">
-                                  Classroom: <span className="text-slate-700 font-bold">{sub.className}</span>
-                                </span>
-                              </div>
-                              <p className="text-xs font-bold text-slate-800 tracking-tight leading-normal mt-0.5">{sub.title}</p>
-                              
-                              <div className="flex flex-wrap items-center gap-2 pt-1 font-mono text-[10px] text-slate-400">
-                                <span>Timestamp: {dateFormatted}</span>
-                                <span>‚Ä¢</span>
-                                <span>Log Scale: {sub.studentCount} students logged</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between md:justify-end gap-3 self-stretch md:self-auto pt-3 md:pt-0 border-t md:border-none border-slate-50" onClick={(e) => e.stopPropagation()}>
-                            <div className="text-right">
-                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold inline-block ${
-                                sub.type === 'attendance' ? 'bg-emerald-100 text-emerald-800' : 'bg-violet-100 text-violet-800'
-                              }`}>
-                                {sub.type === 'attendance' ? 'Progress Record' : 'Exam Scoreboard'}
-                              </span>
-                              <span className="block text-[10px] font-bold text-slate-500 mt-1.5">{sub.summary}</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteSubmission(sub.id);
-                              }}
-                              className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl border border-rose-100/60 cursor-pointer transition-all inline-flex items-center justify-center shrink-0"
-                              title="Delete Submission Audit Log"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                            <ChevronDown 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedSubmissionId(isExpanded ? null : sub.id);
-                              }}
-                              className="w-5 h-5 text-slate-400 shrink-0 transform transition-transform duration-300 cursor-pointer" 
-                              style={{ transform: isExpanded ? 'rotate(180deg)' : 'none' }}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Expandable Inner Table Section */}
-                        <AnimatePresence>
-                          {isExpanded && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.2 }}
-                              className="border-t border-slate-100 bg-slate-50/50"
-                            >
-                              <div className="p-5 overflow-x-auto">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-                                  <h5 className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Record Details Inspect:</h5>
-                                  <span className="text-[10px] text-teal-700 font-extrabold bg-teal-50 border border-teal-100/80 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-sm shrink-0">
-                                    üñ±Ô∏è Double-click any student row to edit their attendance of that day
-                                  </span>
-                                </div>
-                                
-                                <div className="border border-slate-200/50 rounded-xl overflow-hidden bg-white max-w-full">
-                                  <table className="min-w-full text-xs text-left text-slate-705 font-medium leading-normal border-collapse">
-                                    {sub.type === 'attendance' ? (
-                                      <>
-                                        <thead className="bg-slate-50 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider border-b border-slate-100">
-                                          <tr>
-                                            <th className="px-4 py-2.5">ID</th>
-                                            <th className="px-4 py-2.5">Student Name</th>
-                                            <th className="px-4 py-2.5 text-center">Attendance</th>
-                                            <th className="px-4 py-2.5 text-center">Lesson Progress</th>
-                                            <th className="px-4 py-2.5">Specific Remarks & Comments</th>
-                                          </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                          {(sub.studentsDetail || []).map((stu, i) => (
-                                            <tr 
-                                              key={i} 
-                                              onDoubleClick={() => setEditingStudentDetail({
-                                                submissionId: sub.id,
-                                                studentId: stu.studentId,
-                                                studentName: stu.studentName,
-                                                attendanceSent: (stu.attendanceSent as any) || 'Present',
-                                                lessonSent: (stu.lessonSent as any) || 'Completed',
-                                                notesSent: stu.notesSent || '',
-                                                type: 'attendance'
-                                              })}
-                                              className="hover:bg-teal-50/60 cursor-pointer select-none transition-colors duration-150"
-                                              title="Double-click to edit attendance details for this day"
-                                            >
-                                              <td className="px-4 py-2.5 font-mono text-[10px] text-slate-400 font-bold">{stu.studentId}</td>
-                                              <td className="px-4 py-2.5 text-slate-900 font-bold">{stu.studentName}</td>
-                                              <td className="px-4 py-2.5 text-center">
-                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                                                  stu.attendanceSent === 'Present' ? 'bg-emerald-50 text-emerald-700' :
-                                                  stu.attendanceSent === 'Late' ? 'bg-amber-50 text-amber-700' :
-                                                  'bg-rose-50 text-rose-700'
-                                                }`}>
-                                                  {stu.attendanceSent}
-                                                </span>
-                                              </td>
-                                              <td className="px-4 py-2.5 text-center">
-                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                                  stu.lessonSent === 'Completed' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
-                                                }`}>
-                                                  {stu.lessonSent}
-                                                </span>
-                                              </td>
-                                              <td className="px-4 py-2.5 text-slate-500 italic max-w-xs truncate" title={stu.notesSent}>
-                                                {stu.notesSent || <span className="text-slate-300 font-normal">None recorded</span>}
-                                              </td>
-                                            </tr>
-                                          ))}
-                                        </tbody>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <thead className="bg-slate-50 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider border-b border-slate-100">
-                                          <tr>
-                                            <th className="px-4 py-2.5">ID</th>
-                                            <th className="px-4 py-2.5">Student Name</th>
-                                            <th className="px-4 py-2.5">Evaluated Subject Scores</th>
-                                            <th className="px-4 py-2.5 text-center">Average Progress</th>
-                                            <th className="px-4 py-2.5 text-center">Grade</th>
-                                          </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                          {(sub.studentsDetail || []).map((stu, i) => (
-                                            <tr key={i} className="hover:bg-slate-50/20">
-                                              <td className="px-4 py-2.5 font-mono text-[10px] text-slate-400 font-bold">{stu.studentId}</td>
-                                              <td className="px-4 py-2.5 text-slate-900 font-bold">{stu.studentName}</td>
-                                              <td className="px-4 py-2.5">
-                                                <div className="flex flex-wrap gap-1.5">
-                                                  {Object.entries(stu.scoresSent || {}).map(([subj, score]) => (
-                                                    <span key={subj} className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded font-mono text-[10px] text-slate-600 font-medium">
-                                                      <span className="font-bold font-sans text-slate-400">{subj}:</span> {score}%
-                                                    </span>
-                                                  ))}
-                                                </div>
-                                              </td>
-                                              <td className="px-4 py-2.5 text-center text-slate-900 font-black">
-                                                {stu.averageScoreSent ? `${stu.averageScoreSent.toFixed(1)}%` : '-'}
-                                              </td>
-                                              <td className="px-4 py-2.5 text-center">
-                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black font-mono ${
-                                                  stu.gradeSent === 'A' ? 'bg-emerald-50 text-emerald-700' :
-                                                  stu.gradeSent === 'B' ? 'bg-sky-50 text-sky-700' :
-                                                  stu.gradeSent === 'C' ? 'bg-amber-50 text-amber-700' :
-                                                  'bg-rose-50 text-rose-700'
-                                                }`}>
-                                                  {stu.gradeSent}
-                                                </span>
-                                              </td>
-                                            </tr>
-                                          ))}
-                                        </tbody>
-                                      </>
-                                    )}
-                                  </table>
-                                </div>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* --- STUDENT ATTENDANCE WORKSPACE PANEL TAB --- */}
-        {activeTab === 'studentAttendance' && (() => {
-          const uniqueClasses = Array.from(new Set(database.students.map(s => s.className))).filter(Boolean);
-          const teachers = database.teachers || [];
-          
-          // Filter active students based on choices
-          const filteredStudentsForAttendance = database.students.filter(stud => {
-            const matchesClass = studAttClass === 'All' || stud.className === studAttClass;
-            let matchesTeacher = true;
-            if (studAttTeacher !== 'All') {
-              matchesTeacher = stud.teacherId === studAttTeacher || stud.secondTeacherId === studAttTeacher;
-            }
-            const matchesSearch = studAttSearch === '' || 
-              stud.name.toLowerCase().includes(studAttSearch.toLowerCase()) ||
-              stud.id.toLowerCase().includes(studAttSearch.toLowerCase());
-            return matchesClass && matchesTeacher && matchesSearch && stud.active;
-          });
-
-          // Calculate stats dynamically for selected day across all filtered students
-          let presentCount = 0;
-          let lateCount = 0;
-          let absentCount = 0;
-          let unloggedCount = 0;
-
-          filteredStudentsForAttendance.forEach(stud => {
-            const prog = (database.progress || []).find(p => p.studentId === stud.id && p.date === studAttDate);
-            if (!prog) {
-              unloggedCount++;
-            } else if (prog.attendance === 'Present') {
-              presentCount++;
-            } else if (prog.attendance === 'Late') {
-              lateCount++;
-            } else if (prog.attendance === 'Absent') {
-              absentCount++;
-            }
-          });
-
-          // Filter displayed students based on the interactive status filter button selected
-          const displayedStudentsForAttendance = filteredStudentsForAttendance.filter(stud => {
-            if (studAttStatusFilter === 'All') return true;
-            const prog = (database.progress || []).find(p => p.studentId === stud.id && p.date === studAttDate);
-            if (studAttStatusFilter === 'Unlogged') {
-              return !prog;
-            }
-            return prog?.attendance === studAttStatusFilter;
-          });
-
-          const handleRowDoubleClick = (student: Student, progressRecord?: DailyProgress) => {
-            if (progressRecord) {
-              setSelectedAttendanceDetail(progressRecord);
-            } else {
-              // Construct informational record
-              const infoProgress: DailyProgress = {
-                id: `mock-${student.id}-${studAttDate}`,
-                date: studAttDate,
-                studentId: student.id,
-                studentName: student.name,
-                teacherId: student.teacherId,
-                className: student.className,
-                attendance: 'Absent', // placeholder
-                lessonCompleted: 'Not Completed',
-                surad: 'N/A',
-                subac: 'N/A',
-                dhaqan: 'Average',
-                nadaafad: 'Average',
-                faahfaahin: 'Diiwaan ma jiro: Macallinku weli ma soo gudbin joogitaanka casharka ee maanta.' // Attendance for this date has not been submitted by the teacher.
-              };
-              setSelectedAttendanceDetail(infoProgress);
-            }
-          };
-
-          return (
-            <div className="space-y-6 animate-fade-in" id="portal-student-attendance">
-              
-              {/* Header card with metadata */}
-              <div className="p-6 bg-white rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-emerald-500 to-indigo-500" />
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <h3 className="font-extrabold text-slate-900 text-xl tracking-tight">Joogitaanka Ardayda (Student Attendance Explorer)</h3>
-                    <p className="text-slate-400 text-xs mt-1">
-                      Kormeer joogitaanka fasallada, hubi casharrada la qaatay, guji badhamada hoose si aad u kala shaandhayso ardayda.
-                    </p>
-                  </div>
-                  <div className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl self-start flex items-center gap-1.5 animate-pulse">
-                    <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full" /> Live Connected
-                  </div>
-                </div>
-
-                {/* Quick Metrics Cards / Interactive Filter Buttons */}
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5 mt-6">
-                  {/* Card 1: Total Students */}
-                  <button
-                    type="button"
-                    onClick={() => setStudAttStatusFilter('All')}
-                    className={`p-4 rounded-2xl flex flex-col justify-between text-left transition-all duration-200 cursor-pointer relative overflow-hidden group active:scale-[0.98] ${
-                      studAttStatusFilter === 'All'
-                        ? 'bg-indigo-50/90 border-2 border-indigo-600 shadow-sm ring-2 ring-indigo-500/20'
-                        : 'bg-slate-50 border border-slate-200/80 hover:bg-indigo-50/40 hover:border-indigo-200 hover:shadow-xs'
-                    }`}
-                    id="metric-class-students"
-                    title="Guji si aad u aragto dhammaan ardayda (Click to view all students)"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className={`text-[10px] uppercase font-bold tracking-wider ${
-                        studAttStatusFilter === 'All' ? 'text-indigo-800' : 'text-slate-500'
-                      }`}>Ardayda Fasalka</span>
-                      {studAttStatusFilter === 'All' ? (
-                        <span className="text-[9px] bg-indigo-600 text-white font-extrabold px-1.5 py-0.5 rounded-md">Shaandho</span>
-                      ) : (
-                        <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">üë•</span>
-                      )}
-                    </div>
-                    <div className="flex items-baseline gap-1.5 mt-2">
-                      <span className="text-2xl font-black text-slate-900">{filteredStudentsForAttendance.length}</span>
-                      <span className="text-[10px] font-bold text-slate-400">Total</span>
-                    </div>
-                    <div className={`text-[10px] font-bold mt-1.5 flex items-center gap-1 ${
-                      studAttStatusFilter === 'All' ? 'text-indigo-700' : 'text-slate-400 group-hover:text-indigo-600'
-                    }`}>
-                      {studAttStatusFilter === 'All' ? '‚úì Dhammaan ardayda' : 'Guji si aad u aragto'}
-                    </div>
-                  </button>
-                  
-                  {/* Card 2: Present */}
-                  <button
-                    type="button"
-                    onClick={() => setStudAttStatusFilter(prev => prev === 'Present' ? 'All' : 'Present')}
-                    className={`p-4 rounded-2xl flex flex-col justify-between text-left transition-all duration-200 cursor-pointer relative overflow-hidden group active:scale-[0.98] ${
-                      studAttStatusFilter === 'Present'
-                        ? 'bg-emerald-100/90 border-2 border-emerald-600 shadow-sm ring-2 ring-emerald-500/20'
-                        : 'bg-emerald-50/50 border border-emerald-100 hover:bg-emerald-100/60 hover:border-emerald-300 hover:shadow-xs'
-                    }`}
-                    id="metric-class-present"
-                    title="Guji si aad u aragto kuwa jooga oo keliya (Click to filter Present)"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider">Halka Jooga</span>
-                      <span className="text-xs">üü¢</span>
-                    </div>
-                    <div className="flex items-baseline gap-1.5 mt-2">
-                      <span className="text-2xl font-black text-emerald-800">{presentCount}</span>
-                      <span className="text-[10px] font-bold text-emerald-600">Present</span>
-                    </div>
-                    <div className={`text-[10px] font-bold mt-1.5 flex items-center gap-1 ${
-                      studAttStatusFilter === 'Present' ? 'text-emerald-800' : 'text-emerald-600 group-hover:text-emerald-700'
-                    }`}>
-                      {studAttStatusFilter === 'Present' ? '‚úì Kuwa jooga (Active)' : 'Guji si aad u aragto'}
-                    </div>
-                  </button>
-
-                  {/* Card 3: Late */}
-                  <button
-                    type="button"
-                    onClick={() => setStudAttStatusFilter(prev => prev === 'Late' ? 'All' : 'Late')}
-                    className={`p-4 rounded-2xl flex flex-col justify-between text-left transition-all duration-200 cursor-pointer relative overflow-hidden group active:scale-[0.98] ${
-                      studAttStatusFilter === 'Late'
-                        ? 'bg-amber-100/90 border-2 border-amber-600 shadow-sm ring-2 ring-amber-500/20'
-                        : 'bg-amber-50/50 border border-amber-100 hover:bg-amber-100/60 hover:border-amber-300 hover:shadow-xs'
-                    }`}
-                    id="metric-class-late"
-                    title="Guji si aad u aragto kuwa soo daahay oo keliya (Click to filter Late)"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider">Soo Daahay</span>
-                      <span className="text-xs">üü°</span>
-                    </div>
-                    <div className="flex items-baseline gap-1.5 mt-2">
-                      <span className="text-2xl font-black text-amber-800">{lateCount}</span>
-                      <span className="text-[10px] font-bold text-amber-600">Late</span>
-                    </div>
-                    <div className={`text-[10px] font-bold mt-1.5 flex items-center gap-1 ${
-                      studAttStatusFilter === 'Late' ? 'text-amber-800' : 'text-amber-600 group-hover:text-amber-700'
-                    }`}>
-                      {studAttStatusFilter === 'Late' ? '‚úì Kuwa soo daahay' : 'Guji si aad u aragto'}
-                    </div>
-                  </button>
-
-                  {/* Card 4: Absent */}
-                  <button
-                    type="button"
-                    onClick={() => setStudAttStatusFilter(prev => prev === 'Absent' ? 'All' : 'Absent')}
-                    className={`p-4 rounded-2xl flex flex-col justify-between text-left transition-all duration-200 cursor-pointer relative overflow-hidden group active:scale-[0.98] ${
-                      studAttStatusFilter === 'Absent'
-                        ? 'bg-rose-100/90 border-2 border-rose-600 shadow-sm ring-2 ring-rose-500/20'
-                        : 'bg-rose-50/50 border border-rose-100 hover:bg-rose-100/60 hover:border-rose-300 hover:shadow-xs'
-                    }`}
-                    id="metric-class-absent"
-                    title="Guji si aad u aragto kuwa maqan oo keliya (Click to filter Absent)"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] uppercase font-bold text-rose-800 tracking-wider">Ma Jogo</span>
-                      <span className="text-xs">üî¥</span>
-                    </div>
-                    <div className="flex items-baseline gap-1.5 mt-2">
-                      <span className="text-2xl font-black text-rose-800">{absentCount}</span>
-                      <span className="text-[10px] font-bold text-rose-600">Absent</span>
-                    </div>
-                    <div className={`text-[10px] font-bold mt-1.5 flex items-center gap-1 ${
-                      studAttStatusFilter === 'Absent' ? 'text-rose-800' : 'text-rose-600 group-hover:text-rose-700'
-                    }`}>
-                      {studAttStatusFilter === 'Absent' ? '‚úì Kuwa maqan' : 'Guji si aad u aragto'}
-                    </div>
-                  </button>
-
-                  {/* Card 5: Unlogged */}
-                  <button
-                    type="button"
-                    onClick={() => setStudAttStatusFilter(prev => prev === 'Unlogged' ? 'All' : 'Unlogged')}
-                    className={`p-4 rounded-2xl col-span-2 lg:col-span-1 flex flex-col justify-between text-left transition-all duration-200 cursor-pointer relative overflow-hidden group active:scale-[0.98] ${
-                      studAttStatusFilter === 'Unlogged'
-                        ? 'bg-slate-200/90 border-2 border-slate-600 shadow-sm ring-2 ring-slate-500/20'
-                        : 'bg-slate-100 border border-slate-200/60 hover:bg-slate-200/60 hover:border-slate-300 hover:shadow-xs'
-                    }`}
-                    id="metric-class-unlogged"
-                    title="Guji si aad u aragto kuwa aan weli la diiwaangelin (Click to filter Unlogged)"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] uppercase font-bold text-slate-700 tracking-wider">Aan Diiwaangashanayn</span>
-                      <span className="text-xs">üîò</span>
-                    </div>
-                    <div className="flex items-baseline gap-1.5 mt-2">
-                      <span className="text-2xl font-black text-slate-700">{unloggedCount}</span>
-                      <span className="text-[10px] font-bold text-slate-500">Unlogged</span>
-                    </div>
-                    <div className={`text-[10px] font-bold mt-1.5 flex items-center gap-1 ${
-                      studAttStatusFilter === 'Unlogged' ? 'text-slate-800' : 'text-slate-500 group-hover:text-slate-700'
-                    }`}>
-                      {studAttStatusFilter === 'Unlogged' ? '‚úì Aan la diiwaangelin' : 'Guji si aad u aragto'}
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Advanced Filter Toolbar */}
-              <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  
-                  {/* Date Picker Filter */}
-                  <div className="flex flex-col" id="filter-date-wrapper">
-                    <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider mb-1.5 pl-0.5">Taariikh / Choose Date</label>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        value={studAttDate}
-                        onChange={(e) => setStudAttDate(e.target.value)}
-                        className="px-4 py-2.5 pl-9 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-805 outline-none focus:bg-white focus:border-indigo-500 w-full transition-all"
-                      />
-                      <CalendarRange className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
-                    </div>
-                  </div>
-
-                  {/* Class Selector Dropdown */}
-                  <div className="flex flex-col" id="filter-class-wrapper">
-                    <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider mb-1.5 pl-0.5">Fasalka / Select Class</label>
-                    <div className="relative">
-                      <select
-                        value={studAttClass}
-                        onChange={(e) => setStudAttClass(e.target.value)}
-                        className="px-4 py-2.5 pl-9 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-805 outline-none cursor-pointer focus:bg-white focus:border-indigo-500 w-full transition-all appearance-none"
-                      >
-                        <option value="All">Dhammaan Fasallada (All Classes)</option>
-                        {uniqueClasses.map(cls => (
-                           <option key={cls} value={cls}>{cls}</option>
-                         ))}
-                      </select>
-                      <BookOpen className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3.5 pointer-events-none" />
-                    </div>
-                  </div>
-
-                  {/* Teacher Selector Dropdown */}
-                  <div className="flex flex-col" id="filter-teacher-wrapper">
-                    <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider mb-1.5 pl-0.5">Macallinka / Assigned Teacher</label>
-                    <div className="relative">
-                      <select
-                        value={studAttTeacher}
-                        onChange={(e) => setStudAttTeacher(e.target.value)}
-                        className="px-4 py-2.5 pl-9 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-805 outline-none cursor-pointer focus:bg-white focus:border-indigo-500 w-full transition-all appearance-none"
-                      >
-                        <option value="All">Dhammaan Macallimiinta (All Teachers)</option>
-                        {teachers.map(teach => (
-                          <option key={teach.id} value={teach.id}>{teach.name}</option>
-                        ))}
-                      </select>
-                      <GraduationCap className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3.5 pointer-events-none" />
-                    </div>
-                  </div>
-
-                  {/* Name Search box */}
-                  <div className="flex flex-col" id="filter-search-wrapper">
-                    <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider mb-1.5 pl-0.5">Raadi / Search Name or ID</label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={studAttSearch}
-                        onChange={(e) => setStudAttSearch(e.target.value)}
-                        placeholder="E.g. Cabdisalaan, STD-03..."
-                        className="px-4 py-2.5 pl-9 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 outline-none focus:bg-white focus:border-indigo-500 w-full transition-all"
-                      />
-                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
-                      {studAttSearch && (
-                        <button 
-                          onClick={() => setStudAttSearch('')}
-                          className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 cursor-pointer"
-                          type="button"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-
-              {/* Attendance Logs List / Table */}
-              <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden" id="attendance-tracking-workspace-table">
-                <div className="p-5 border-b border-slate-100 bg-slate-50/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-slate-800">
-                   <div>
-                     <div className="flex items-center flex-wrap gap-2">
-                       <h4 className="font-extrabold text-sm text-slate-900">Diiwaanka Casharka & Joogitaanka</h4>
-                       {studAttStatusFilter !== 'All' && (
-                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1.5 shadow-xs ${
-                           studAttStatusFilter === 'Present' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
-                           studAttStatusFilter === 'Late' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
-                           studAttStatusFilter === 'Absent' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
-                           'bg-slate-200 text-slate-800 border border-slate-300'
-                         }`}>
-                           <span>
-                             {studAttStatusFilter === 'Present' ? 'üü¢ Halka Jooga (Present)' :
-                              studAttStatusFilter === 'Late' ? 'üü° Soo Daahay (Late)' :
-                              studAttStatusFilter === 'Absent' ? 'üî¥ Ma Jogo (Absent)' :
-                              'üîò Aan Diiwaangashanayn (Unlogged)'}
-                           </span>
-                           <button
-                             type="button"
-                             onClick={() => setStudAttStatusFilter('All')}
-                             className="hover:bg-black/10 px-1 py-0.2 rounded font-extrabold cursor-pointer transition-colors"
-                             title="Tir-tir shaandhaynta (Show All)"
-                           >
-                             ‚úï
-                           </button>
-                         </span>
-                       )}
-                     </div>
-                     <p className="text-[11px] text-slate-450 mt-1">
-                       Waxaa la muujinayaa: <span className="font-black text-slate-800">{displayedStudentsForAttendance.length}</span> arday (Wadarta: {filteredStudentsForAttendance.length}). Laba-jeer guji magaca si aad u aragto macluumaadka oo dhan.
-                     </p>
-                   </div>
-                   <div className="flex items-center gap-2 shrink-0">
-                     <button
-                       type="button"
-                       onClick={() => {
-                         const report = generateStudentBehaviorCommentsReport(database);
-                         triggerFileDownload(`dugsiga_subuc_student_behavior_comments_${new Date().toISOString().split('T')[0]}.txt`, report);
-                         setFeedbackMsg("Warbixinta Akhlaaqda & Faallooyinka Ardayda waa la soo dejiyay!");
-                         setTimeout(() => setFeedbackMsg(''), 4000);
-                       }}
-                       className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 border border-rose-200"
-                       title="Download full student behavior comments history in TXT"
-                     >
-                       <Download className="w-3.5 h-3.5 text-rose-600" />
-                       Behavior (.TXT)
-                     </button>
-                     <button
-                       type="button"
-                       onClick={() => {
-                         const csv = generateStudentBehaviorCommentsCSV(database);
-                         const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-                         const url = URL.createObjectURL(blob);
-                         const link = document.createElement("a");
-                         link.setAttribute("href", url);
-                         link.setAttribute("download", `dugsiga_subuc_student_behavior_comments_${new Date().toISOString().split('T')[0]}.csv`);
-                         document.body.appendChild(link);
-                         link.click();
-                         document.body.removeChild(link);
-                         setFeedbackMsg("Warbixinta Akhlaaqda CSV (Excel) waa la soo dejiyay!");
-                         setTimeout(() => setFeedbackMsg(''), 4000);
-                       }}
-                       className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
-                       title="Download full student behavior comments history in Excel CSV"
-                     >
-                       <Download className="w-3.5 h-3.5 text-white" />
-                       Behavior (.CSV)
-                     </button>
-                   </div>
-                </div>
-
-                {displayedStudentsForAttendance.length === 0 ? (
-                  <div className="text-center py-16 text-slate-400 italic text-xs font-bold bg-slate-50/20 flex flex-col items-center gap-2">
-                    <AlertCircle className="w-8 h-8 text-slate-300" />
-                    <span>
-                      {studAttStatusFilter !== 'All'
-                        ? `Ma jiraan arday ku jira heerka "${studAttStatusFilter}" ee taariikhda la doortay.`
-                        : 'Eeg shaandheynta: Ma jiraan arday buuxiya shuruudaha shaandheynta ee hadda.'}
-                    </span>
-                    {studAttStatusFilter !== 'All' && (
-                      <button
-                        type="button"
-                        onClick={() => setStudAttStatusFilter('All')}
-                        className="mt-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold rounded-xl transition-all cursor-pointer not-italic"
-                      >
-                        Muuji Dhammaan Ardayda (Show All)
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-slate-50 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider border-b border-slate-100">
-                          <th className="px-5 py-3">Student ID</th>
-                          <th className="px-5 py-3">Student Name</th>
-                          <th className="px-5 py-3">Fasalka (Class)</th>
-                          <th className="px-5 py-3">Macallinka (Teacher)</th>
-                          <th className="px-5 py-3 text-center">Joogitaanka</th>
-                          <th className="px-5 py-3 text-center">Natiijada Casharka</th>
-                          <th className="px-5 py-3">Xogta Casharka / Note</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {displayedStudentsForAttendance.map(stud => {
-                          const prog = (database.progress || []).find(p => p.studentId === stud.id && p.date === studAttDate);
-                          const teacherName = teachers.find(t => t.id === stud.teacherId)?.name || 'Unassigned';
-                          
-                          return (
-                            <tr
-                              key={stud.id}
-                              onDoubleClick={() => handleRowDoubleClick(stud, prog)}
-                              className="hover:bg-emerald-50/40 transition-colors duration-150 cursor-pointer select-none"
-                              title="Laba-jeer guji si aad u aragto diiwaanka xogta magaca oo dhammaystiran"
-                            >
-                              <td className="px-5 py-3.5 font-mono text-[10.5px] font-bold text-slate-400">{stud.id}</td>
-                              <td className="px-5 py-3.5 text-slate-900 font-extrabold flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-lg bg-indigo-50 text-[10px] text-indigo-600 flex items-center justify-center font-black">
-                                  üéì
-                                </div>
-                                {stud.name}
-                              </td>
-                              <td className="px-5 py-3.5 text-slate-705 font-black">{stud.className}</td>
-                              <td className="px-5 py-3.5 text-slate-500 font-bold">{teacherName}</td>
-                              <td className="px-5 py-3.5 text-center">
-                                {prog ? (
-                                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wide ${
-                                    prog.attendance === 'Present' ? 'bg-emerald-50 text-emerald-700' :
-                                    prog.attendance === 'Late' ? 'bg-amber-50 text-amber-700' :
-                                    'bg-rose-50 text-rose-700'
-                                  }`}>
-                                    {prog.attendance === 'Present' ? 'üü¢ Present' : prog.attendance === 'Late' ? 'üü° Late' : 'üî¥ Absent'}
-                                  </span>
-                                ) : (
-                                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-500">
-                                    üîò Not Logged
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-5 py-3.5 text-center">
-                                {prog ? (
-                                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                    prog.lessonCompleted === 'Completed' ? 'bg-emerald-100/60 text-emerald-700' : 'bg-rose-50 text-rose-700'
-                                  }`}>
-                                    {prog.lessonCompleted}
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-300 font-mono">-</span>
-                                )}
-                              </td>
-                              <td className="px-5 py-3.5 text-slate-500 font-medium italic max-w-xs truncate" title={prog?.faahfaahin || ''}>
-                                {prog?.faahfaahin ? prog.faahfaahin : <span className="text-slate-300 font-normal">No specific note recorded</span>}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-
-              {/* Elegant details modal when double-clicked */}
-              <AnimatePresence>
-                {selectedAttendanceDetail && (
-                  <div 
-                    className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4" 
-                    id="att-detail-modal-layer"
-                    onClick={() => setSelectedAttendanceDetail(null)}
-                  >
-                    <motion.div 
-                      initial={{ opacity: 0, y: 15, scale: 0.98 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 15, scale: 0.98 }}
-                      className="bg-white rounded-3xl border border-slate-100 shadow-2xl max-w-xl w-full overflow-hidden" 
-                      id="att-detail-modal-card"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {/* Header styling banner */}
-                      <div className="bg-gradient-to-r from-indigo-600 to-blue-600 p-6 text-white flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-11 h-11 rounded-2xl bg-white/20 text-white flex items-center justify-center text-xl shadow-inner">
-                            üìã
-                          </div>
-                          <div>
-                            <span className="text-[10px] uppercase font-bold tracking-widest opacity-80 block">Xogta Casharka & Joogitaanka</span>
-                            <h3 className="text-base font-extrabold tracking-tight mt-0.5">
-                              {selectedAttendanceDetail.studentName}
-                            </h3>
-                          </div>
-                        </div>
-                        <button 
-                          type="button"
-                          onClick={() => setSelectedAttendanceDetail(null)}
-                          className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center transition-all cursor-pointer shadow-xs"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      <div className="p-6 space-y-4">
-                        {/* Basic Row 1 */}
-                        <div className="grid grid-cols-3 gap-3">
-                          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                            <span className="block text-[9px] uppercase font-bold text-slate-400 tracking-wider">Student ID</span>
-                            <span className="block text-xs font-black text-slate-700 font-mono mt-0.5">{selectedAttendanceDetail.studentId}</span>
-                          </div>
-                          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                            <span className="block text-[9px] uppercase font-bold text-slate-400 tracking-wider">Taariikh / Date</span>
-                            <span className="block text-xs font-black text-slate-800 mt-0.5">{selectedAttendanceDetail.date}</span>
-                          </div>
-                          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                            <span className="block text-[9px] uppercase font-bold text-slate-400 tracking-wider font-sans">Fasalka / Class</span>
-                            <span className="block text-xs font-black text-slate-800 mt-0.5">{selectedAttendanceDetail.className}</span>
-                          </div>
-                        </div>
-
-                        {/* Basic Row 2 - status displays */}
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className={`p-4 rounded-2xl border flex items-center gap-3 ${
-                            selectedAttendanceDetail.attendance === 'Present' ? 'bg-emerald-50/65 border-emerald-100 text-slate-800' :
-                            selectedAttendanceDetail.attendance === 'Late' ? 'bg-amber-50/65 border-amber-100 text-slate-800' :
-                            'bg-rose-50/65 border-rose-100 text-slate-800'
-                          }`}>
-                            <div className="text-xl">
-                              {selectedAttendanceDetail.attendance === 'Present' ? 'üü¢' : selectedAttendanceDetail.attendance === 'Late' ? 'üü°' : 'üî¥'}
-                            </div>
-                            <div>
-                              <span className="block text-[9px] uppercase font-extrabold text-slate-400 tracking-wider">Attendance Status</span>
-                              <span className="block text-xs font-black">{selectedAttendanceDetail.attendance}</span>
-                            </div>
-                          </div>
-
-                          <div className={`p-4 rounded-2xl border flex items-center gap-3 ${
-                            selectedAttendanceDetail.lessonCompleted === 'Completed' ? 'bg-emerald-50/65 border-emerald-100 text-slate-800' : 'bg-slate-50 border-slate-100 text-slate-800'
-                          }`}>
-                            <div className="text-xl">
-                              {selectedAttendanceDetail.lessonCompleted === 'Completed' ? '‚úÖ' : '‚è≥'}
-                            </div>
-                            <div>
-                              <span className="block text-[9px] uppercase font-extrabold text-slate-400 tracking-wider">Lesson Progress</span>
-                              <span className="block text-xs font-black">{selectedAttendanceDetail.lessonCompleted}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Core progress tasks */}
-                        <div className="grid grid-cols-2 gap-3.5">
-                          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 space-y-1">
-                            <span className="block text-[9px] uppercase font-extrabold text-slate-400 tracking-wider">Surad (Single Revision)</span>
-                            <span className={`inline-block text-[11px] font-black px-2.5 py-0.5 rounded-full ${
-                              selectedAttendanceDetail.surad === 'Completed' ? 'bg-emerald-50 text-emerald-700' :
-                              selectedAttendanceDetail.surad === 'Not Completed' ? 'bg-rose-50 text-rose-700' :
-                              'bg-slate-100 text-slate-600'
-                            }`}>{selectedAttendanceDetail.surad}</span>
-                          </div>
-
-                          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 space-y-1">
-                            <span className="block text-[9px] uppercase font-extrabold text-slate-400 tracking-wider">Subac (Group Revision)</span>
-                            <span className={`inline-block text-[11px] font-black px-2.5 py-0.5 rounded-full ${
-                              selectedAttendanceDetail.subac === 'Completed' ? 'bg-emerald-50 text-emerald-700' :
-                              selectedAttendanceDetail.subac === 'Not Completed' ? 'bg-rose-50 text-rose-700' :
-                              'bg-slate-100 text-slate-600'
-                            }`}>{selectedAttendanceDetail.subac}</span>
-                          </div>
-                        </div>
-
-                        {/* Performance grades */}
-                        <div className="grid grid-cols-2 gap-3.5">
-                          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 space-y-1">
-                            <span className="block text-[9px] uppercase font-extrabold text-slate-400 tracking-wider">Conduct / Dhaqan</span>
-                            <span className="block text-xs font-black text-slate-800">‚≠êÔ∏è {selectedAttendanceDetail.dhaqan}</span>
-                          </div>
-
-                          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 space-y-1">
-                            <span className="block text-[9px] uppercase font-extrabold text-slate-400 tracking-wider">Hygene / Nadaafad</span>
-                            <span className="block text-xs font-black text-slate-805">‚ú® {selectedAttendanceDetail.nadaafad}</span>
-                          </div>
-                        </div>
-
-                        {/* Suuraduu marayo Section */}
-                        {(selectedAttendanceDetail.suuradeeMaraya || selectedAttendanceDetail.boggee || (selectedAttendanceDetail.inteeBog && selectedAttendanceDetail.inteeBog !== 'N/A' && selectedAttendanceDetail.inteeBog !== '')) && (
-                          <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 flex items-center justify-between">
-                            <div>
-                              <span className="block text-[9px] uppercase font-extrabold text-indigo-400 tracking-wider">Surada</span>
-                              <span className="block text-xs font-black text-slate-800">Current Surah & Pages</span>
-                            </div>
-                            <div className="flex items-center gap-2 flex-wrap justify-end">
-                              {selectedAttendanceDetail.suuradeeMaraya && (
-                                <span className="text-xs font-black text-indigo-700 bg-white border border-indigo-100 px-3 py-1 rounded-xl shadow-md">
-                                  Surada: {selectedAttendanceDetail.suuradeeMaraya}
-                                </span>
-                              )}
-                              {selectedAttendanceDetail.boggee && (
-                                <span className="text-xs font-black text-purple-700 bg-purple-50 border border-purple-100 px-3 py-1 rounded-xl shadow-md">
-                                  Boggee: {selectedAttendanceDetail.boggee}
-                                </span>
-                              )}
-                              {selectedAttendanceDetail.inteeBog && selectedAttendanceDetail.inteeBog !== 'N/A' && selectedAttendanceDetail.inteeBog !== '' && (
-                                <span className="text-xs font-black text-violet-700 bg-violet-50 border border-violet-100 px-3 py-1 rounded-xl shadow-md">
-                                  Intee Bog: {selectedAttendanceDetail.inteeBog}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Core Note Section */}
-                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-150 space-y-1.5 shadow-inner">
-                          <span className="block text-[9px] uppercase font-extrabold text-slate-500 tracking-wider pl-0.5 font-sans">Diiwaanka faahfaahinta / Remarks & Notes</span>
-                          <div className="text-xs font-medium text-slate-700 italic bg-white border border-slate-100 p-4 rounded-xl leading-relaxed whitespace-pre-wrap font-sans">
-                            {selectedAttendanceDetail.faahfaahin || "No notes coordinates or comments were filled by the teacher for this lesson."}
-                          </div>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex justify-end pt-3 border-t border-slate-100">
-                          <button 
-                            type="button"
-                            onClick={() => setSelectedAttendanceDetail(null)}
-                            className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-[10px] tracking-wider uppercase rounded-xl transition-all cursor-pointer shadow-sm"
-                          >
-                            Close
-                          </button>
-                        </div>
-
-                      </div>
-                    </motion.div>
-                  </div>
-                )}
-              </AnimatePresence>
-
-            </div>
-          );
-        })()}
-
-        {/* --- XEERARKA QIIMAYNTA (EVALUATING & GRADING RULES) TAB --- */}
-        {false && (
-          <div className="space-y-8 animate-fade-in text-slate-800" id="portal-eval-rules">
-            <div className="bg-gradient-to-r from-teal-50 to-indigo-50/50 p-6 rounded-3xl border border-slate-150/60 shadow-sm">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h3 className="font-extrabold text-[#113d3c] text-sm flex items-center gap-2">
-                    <span className="text-lg">üèÜ</span> Xeerarka Qiimaynta Imtixaanada & Kooxaha Tartanka
-                  </h3>
-                  <p className="text-xs text-slate-500 font-bold mt-1">
-                    Standardized Weekly & Monthly Qur'anic Grading Scale, Mark Distributions, and Competition Standing Categories.
-                  </p>
-                </div>
-                <div className="text-[10px] font-black text-slate-500 bg-white px-3.5 py-1.5 rounded-xl border border-slate-150 self-start flex items-center gap-1.5 shadow-xs uppercase tracking-wider">
-                  <span className="w-2.5 h-2.5 bg-indigo-500 rounded-full animate-pulse" /> Somali & English Standard
-                </div>
-              </div>
-            </div>
-
-            {/* Part 1: Weekly Mark Distributions */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6">
-              <div>
-                <h4 className="text-xs font-black text-slate-900 border-b border-slate-100 pb-3 uppercase tracking-widest flex items-center gap-2">
-                  <span className="text-teal-650">üìä</span> 1. Qiimaynta casharada ee toddobaadlaha ah / weekly scoring weight distribution
-                </h4>
-                <p className="text-[11px] text-slate-400 mt-1 font-semibold">
-                  Sida loo qiimeeyo dhibcaha toddobaadlaha ah ee ardayga si loogu soo saaro dhibco dhan 100%. Hoos ka eeg shanta qaybood ee rasmiga ah:
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Rule Item 1 */}
-                <div className="p-5 rounded-2xl bg-teal-50/20 border border-teal-100/50 relative overflow-hidden flex flex-col justify-between">
-                  <div className="absolute top-0 right-0 w-16 h-16 bg-teal-500/5 rounded-full -mr-4 -mt-4" />
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="bg-teal-600 text-white font-extrabold text-[10px] px-2 py-0.5 rounded-md uppercase">Max: 30 dhibcood</span>
-                      <span className="text-lg">üéº</span>
-                    </div>
-                    <h5 className="font-black text-slate-900 text-xs mt-3">Laxniga / Qaab Akhriska (Melody)</h5>
-                    <p className="text-[11px] text-slate-500 leading-relaxed font-semibold mt-1.5">
-                      Hubinta joogtaynta akhris xawaare dhexdhexaad ah ah oo deggen. Waxaa dhibcaha lagu koontaroolaa laxan-baxa gariiraya, degdegga weyn ama akhriska qalafsan.
-                    </p>
-                  </div>
-                  <div className="bg-white px-2.5 py-1.5 rounded-xl border border-teal-100/30 mt-4">
-                    <span className="text-[10px] text-teal-800 font-extrabold font-mono">Dhegeysiga Qurxoon (30%)</span>
-                  </div>
-                </div>
-
-                {/* Rule Item 2 */}
-                <div className="p-5 rounded-2xl bg-indigo-50/20 border border-indigo-100/50 relative overflow-hidden flex flex-col justify-between">
-                  <div className="absolute top-0 right-0 w-16 h-16 bg-indigo-500/5 rounded-full -mr-4 -mt-4" />
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="bg-indigo-600 text-white font-extrabold text-[10px] px-2 py-0.5 rounded-md uppercase">Max: 30 dhibcood</span>
-                      <span className="text-lg">üìÖ</span>
-                    </div>
-                    <h5 className="font-black text-slate-900 text-xs mt-3">Imaanshaha & Joogitaanka (Attendance)</h5>
-                    <p className="text-[11px] text-slate-500 leading-relaxed font-semibold mt-1.5">
-                      Qiimaynta imaanshaha joogtada ah ee casharka iyo firfircoonida maalinlaha ah inta uu casharku socdo.
-                    </p>
-                  </div>
-                  <div className="bg-white px-2.5 py-1.5 rounded-xl border border-indigo-100/30 mt-4">
-                    <span className="text-[10px] text-indigo-800 font-extrabold font-mono">Joogitaanka Casharka (30%)</span>
-                  </div>
-                </div>
-
-                {/* Rule Item 3 */}
-                <div className="p-5 rounded-2xl bg-emerald-50/20 border border-emerald-100/50 relative overflow-hidden flex flex-col justify-between">
-                  <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/5 rounded-full -mr-4 -mt-4" />
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="bg-emerald-600 text-white font-extrabold text-[10px] px-2 py-0.5 rounded-md uppercase">Max: 20 dhibcood</span>
-                      <span className="text-lg">üìñ</span>
-                    </div>
-                    <h5 className="font-black text-slate-900 text-xs mt-3">Xifdiga (Memorization Retention)</h5>
-                    <p className="text-[11px] text-slate-500 leading-relaxed font-semibold mt-1.5">
-                      Hubinta sida uu ardaygu u xifdiyay aayadaha cusub ama qorshaha maalinlaha ah. Dhibcaha waxaa loo jaraa si waafaqsan khaladaadka akhris-hagaajinta iyo hifdiga.
-                    </p>
-                  </div>
-                  <div className="bg-white px-2.5 py-1.5 rounded-xl border border-emerald-100/30 mt-4">
-                    <span className="text-[10px] text-emerald-800 font-extrabold font-mono">Qaybta Xifdiga (20%)</span>
-                  </div>
-                </div>
-
-                {/* Rule Item 4 */}
-                <div className="p-5 rounded-2xl bg-amber-50/20 border border-amber-100/50 relative overflow-hidden flex flex-col justify-between">
-                  <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/5 rounded-full -mr-4 -mt-4" />
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="bg-amber-600 text-white font-extrabold text-[10px] px-2 py-0.5 rounded-md uppercase">Max: 10 dhibcood</span>
-                      <span className="text-lg">üîä</span>
-                    </div>
-                    <h5 className="font-black text-slate-900 text-xs mt-3">Tajwiidka (Tajweed Practicality)</h5>
-                    <p className="text-[11px] text-slate-500 leading-relaxed font-semibold mt-1.5">
-                      Codbixinta saxda ah, ku dhawaaqista xarfaha (Makhraj) iyo fulinta xeerarka asaasiga ah ee Tajwiidka.
-                    </p>
-                  </div>
-                  <div className="bg-white px-2.5 py-1.5 rounded-xl border border-amber-100/30 mt-4">
-                    <span className="text-[10px] text-amber-800 font-extrabold font-mono">Xeerarka dhawaaq (10%)</span>
-                  </div>
-                </div>
-
-                {/* Rule Item 5 */}
-                <div className="p-5 rounded-2xl bg-rose-50/20 border border-rose-100/50 relative overflow-hidden flex flex-col justify-between">
-                  <div className="absolute top-0 right-0 w-16 h-16 bg-rose-500/5 rounded-full -mr-4 -mt-4" />
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="bg-rose-600 text-white font-extrabold text-[10px] px-2 py-0.5 rounded-md uppercase">Max: 10 dhibcood</span>
-                      <span className="text-lg">‚≠ê</span>
-                    </div>
-                    <h5 className="font-black text-slate-900 text-xs mt-3">Akhlaaqda & Nadaafadda (Conduct)</h5>
-                    <p className="text-[11px] text-slate-500 leading-relaxed font-semibold mt-1.5">
-                      Akhlaaqda shakhsiga ah ee dugsiga dhexdiisa, ixtiraamka macallimiinta, la dhaqanka ardayda kale, iyo daryeelka nadaafadda jirka & dharka dugsiga.
-                    </p>
-                  </div>
-                  <div className="bg-white px-2.5 py-1.5 rounded-xl border border-rose-100/30 mt-4">
-                    <span className="text-[10px] text-rose-800 font-extrabold font-mono">Edaabta & Nadaafada (10%)</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Part 2: Monthly Assessment Calculations & Competition Groups */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Grading Scheme & Formulas */}
-              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-                <div>
-                  <h4 className="text-xs font-black text-slate-900 border-b border-slate-100 pb-3 uppercase tracking-widest flex items-center gap-2">
-                    <span className="text-indigo-650">üèÜ</span> 2. Qiimaynta bishii & buundooyinka / monthly evaluation & grade boundaries
-                  </h4>
-                  <p className="text-[11px] text-slate-400 mt-1 leading-relaxed font-semibold">
-                    Dhibcaha imtixaanka ee bishii waxaa lagu xisaabiyaa celceliska xisaabeed (Mathematical Average) ee dhammaan imtixaanadii toddobaad ee la galay bishaas gudaheeda.
-                  </p>
-                </div>
-
-                <div className="bg-indigo-50/20 p-4 rounded-2xl border border-indigo-100/60 font-mono text-[10px] text-indigo-900 space-y-1 my-3">
-                  <div className="font-extrabold underline">Qaab Heereedka Celceliska:</div>
-                  <div className="font-bold">Monthly Score % = [Œ£ (Weekly Totals) √∑ Count of Weeks]</div>
-                </div>
-
-                <div className="space-y-2 pt-2">
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs">
-                    <span className="font-bold text-slate-800">üéñÔ∏è Mumtaas / Grade A</span>
-                    <span className="px-2.5 py-0.5 rounded bg-emerald-50 text-emerald-800 font-black border border-emerald-100 text-[10px]">90% ‚Äì 100%</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs">
-                    <span className="font-bold text-slate-800">ü•à Jayid Jiddan / Grade B</span>
-                    <span className="px-2.5 py-0.5 rounded bg-teal-50 text-teal-850 font-black border border-teal-100 text-[10px]">80% ‚Äì 89.9%</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs">
-                    <span className="font-bold text-slate-800">ü•â Jayid / Grade C</span>
-                    <span className="px-2.5 py-0.5 rounded bg-indigo-50 text-indigo-850 font-black border border-indigo-100 text-[10px]">70% ‚Äì 79.9%</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs">
-                    <span className="font-bold text-slate-800">üéóÔ∏è Maqbuul / Grade D</span>
-                    <span className="px-2.5 py-0.5 rounded bg-amber-50 text-amber-800 font-black border border-amber-100 text-[10px]">60% ‚Äì 69.9%</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs">
-                    <span className="font-bold text-slate-800">‚ùå Daciif / Grade F</span>
-                    <span className="px-2.5 py-0.5 rounded bg-rose-50 text-rose-800 font-black border border-rose-100 text-[10px]">Hoos ka 60% (Failed)</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Competition levels & support structures */}
-              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-                <div>
-                  <h4 className="text-xs font-black text-slate-900 border-b border-slate-100 pb-3 uppercase tracking-widest flex items-center gap-2">
-                    <span className="text-indigo-650">üö©</span> 3. Kooxaha tartanka & daryeelka / competition groupings
-                  </h4>
-                  <p className="text-[11px] text-slate-400 mt-1 leading-relaxed font-semibold">
-                    Marka laga duulo dhibcaha iyo heerka ardayga, nidaamku wuxuu si dabiici ah ugu meeleeyaa kooxaha kala duwan ee guulaha si loo dhiirigeliyo ama loo taageero:
-                  </p>
-                </div>
-
-                <div className="space-y-3.5 pt-2">
-                  <div className="flex items-start gap-3">
-                    <span className="px-2 py-0.5 font-black rounded text-[9px] bg-emerald-50 text-emerald-800 border border-emerald-100 font-mono mt-0.5 w-[90px] text-center shrink-0">GROUP A</span>
-                    <div className="text-xs">
-                      <strong className="text-slate-900 block leading-tight">Elite Standing (Champions)</strong>
-                      <span className="text-slate-500 font-bold leading-relaxed">Ardayda ugu horreysa dhibcaha dhexdooda. Waxay xaq u leeyihiin maamuus sare iyo ka qeybgalka tartamada dowladdo ama gobol ka dhici doona oo Subuc matalaya.</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <span className="px-2 py-0.5 font-black rounded text-[9px] bg-teal-50 text-teal-800 border border-teal-100 font-mono mt-0.5 w-[90px] text-center shrink-0">GROUP B</span>
-                    <div className="text-xs">
-                      <strong className="text-slate-900 block leading-tight">Advanced Track (Great Growth)</strong>
-                      <span className="text-slate-500 font-bold leading-relaxed">Ardayda dhibcaha aadka u fiican leh, iyagana waxaa loo qaadaa daryeel u sii dhiirigeliya inay Group A gaaraan.</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <span className="px-2 py-0.5 font-black rounded text-[9px] bg-indigo-50 text-indigo-850 border border-indigo-100 font-mono mt-0.5 w-[90px] text-center shrink-0">GROUP C</span>
-                    <div className="text-xs">
-                      <strong className="text-slate-900 block leading-tight">Intermediate Range (Stable Progress)</strong>
-                      <span className="text-slate-500 font-bold leading-relaxed">Dhabaha guud ee barashada. Heer xasilon oo lagu kalsoonaan karo balse loo baahan yahay inay sameeyaan dhiirigelin.</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <span className="px-2 py-0.5 font-black rounded text-[9px] bg-amber-50 text-amber-800 border border-amber-100 font-mono mt-0.5 w-[90px] text-center shrink-0">GROUP D</span>
-                    <div className="text-xs">
-                      <strong className="text-slate-900 block leading-tight">Revision Needed (Occasional Support)</strong>
-                      <span className="text-slate-500 font-bold leading-relaxed">Waxay u baahan yahiin cashar eegid toddobaadle ah si ay kor ugu soo kacaan dhibcahooda guud soona gaaraan heerarka sare.</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <span className="px-2 py-0.5 font-black rounded text-[9px] bg-rose-50 text-rose-800 border border-rose-100 font-mono mt-0.5 w-[90px] text-center shrink-0">GROUP E</span>
-                    <div className="text-xs">
-                      <strong className="text-slate-900 block leading-tight">Intensive Care (Action Plan Required)</strong>
-                      <span className="text-slate-500 font-bold leading-relaxed">Ardayda daciifka ah ee loo qorsheynayo cashar hordhac ah oo gaar ah iyo kulan wada-tashi oo dhexmara Maamulaha, Macallinka iyo Waalidka ardayga.</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* --- RECEIPTS HISTORY TAB --- */}
-        {activeTab === 'receiptsHistory' && (() => {
-          const resolvedReceipts = (database.students || []).map(s => getBillingStatusForStudent(s, selectedReceiptsMonth));
-          const filteredReceipts = resolvedReceipts.filter(b => {
-            const matchesMonth = b.month === selectedReceiptsMonth;
-            const matchesStatus = b.status === 'Paid' || b.status === 'Partial';
-            if (!matchesMonth || !matchesStatus) return false;
-            
-            const searchLower = receiptsSearch.toLowerCase();
-            const studentName = (b.studentName || '').toLowerCase();
-            const className = (b.className || '').toLowerCase();
-            const receiptNo = (b.receiptNo || '').toLowerCase();
-            const studentId = (b.studentId || '').toLowerCase();
-            
-            return studentName.includes(searchLower) || 
-                   className.includes(searchLower) || 
-                   receiptNo.includes(searchLower) ||
-                   studentId.includes(searchLower);
-          });
-
-          // Compute stats
-          const totalReceiptsCount = filteredReceipts.length;
-          const totalFeesCollected = filteredReceipts.reduce((sum, b) => sum + Number(b.amountPaid || 0), 0);
-          const totalBusCollected = filteredReceipts.reduce((sum, b) => sum + Number(b.busFeePaid || 0), 0);
-          const grandTotalCollected = totalFeesCollected + totalBusCollected;
-
-          return (
-            <div className="space-y-8 animate-fade-in" id="portal-receipts-history">
-              {/* Heading */}
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pointer-print-none">
-                <div>
-                  <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
-                    <span className="p-2.5 bg-teal-500/15 text-teal-600 rounded-2xl inline-flex">
-                      <Printer className="w-6 h-6" />
-                    </span>
-                    Warbixinta & Daabacaadda Rasiidhada
-                  </h2>
-                  <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1.5 pl-0.5">
-                    Maamulka, eegista, iyo daabacaadda rasiidhada khidmadaha ee bisha {selectedReceiptsMonth}
-                  </p>
-                </div>
-                
-                {/* Print All Button */}
-                {filteredReceipts.length > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => handlePrintElement('printable-all-receipts-batch')}
-                    className="px-5 py-3 bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md shadow-teal-600/10 flex items-center gap-2"
-                  >
-                    <Printer className="w-4 h-4" />
-                    Daabac Dhammaan ({filteredReceipts.length} Rasiidhada)
-                  </button>
-                ) : (
-                  <div className="text-xs font-bold text-slate-400 bg-slate-100 px-4 py-2.5 rounded-xl border border-slate-200">
-                    Ma jiraan rasiidhad la daabaco bishaan
-                  </div>
-                )}
-              </div>
-
-              {/* Stats Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pointer-print-none">
-                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-3xs">
-                  <span className="block text-[10px] text-slate-400 font-black uppercase tracking-widest leading-none mb-2">Total Receipts / Rasiidhada</span>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-black text-slate-900 leading-none">{totalReceiptsCount}</span>
-                    <span className="text-xs text-slate-400 font-bold">Rasiid</span>
-                  </div>
-                  <div className="mt-2.5 text-[10px] text-slate-400 font-medium">Lagu sifeeyay bisha {selectedReceiptsMonth}</div>
-                </div>
-
-                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-3xs">
-                  <span className="block text-[10px] text-emerald-600 font-black uppercase tracking-widest leading-none mb-2">Tuition Collected / Khidmadda</span>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-black text-emerald-700 leading-none">${totalFeesCollected.toFixed(2)}</span>
-                    <span className="text-xs text-emerald-500 font-mono">USD</span>
-                  </div>
-                  <div className="mt-2.5 text-[10px] text-slate-400 font-medium">Guud ahaan lacagaha waxbarashada</div>
-                </div>
-
-                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-3xs">
-                  <span className="block text-[10px] text-indigo-600 font-black uppercase tracking-widest leading-none mb-2">Bus Collected / Baska</span>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-black text-indigo-700 leading-none">${totalBusCollected.toFixed(2)}</span>
-                    <span className="text-xs text-indigo-500 font-mono">USD</span>
-                  </div>
-                  <div className="mt-2.5 text-[10px] text-slate-400 font-medium">Guud ahaan lacagaha baska ardayda</div>
-                </div>
-
-                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-3xs bg-gradient-to-br from-teal-500/5 to-emerald-500/5 border-teal-100/50">
-                  <span className="block text-[10px] text-teal-700 font-black uppercase tracking-widest leading-none mb-2">Grand Total / Isku-geyn</span>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-black text-teal-900 leading-none">${grandTotalCollected.toFixed(2)}</span>
-                    <span className="text-xs text-teal-600 font-mono font-bold">USD</span>
-                  </div>
-                  <div className="mt-2.5 text-[10px] text-teal-600/70 font-semibold uppercase tracking-wider">Lacagaha la qabtay</div>
-                </div>
-              </div>
-
-              {/* Filters Block */}
-              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 pointer-print-none">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 pl-0.5">Accounting Year & Month</label>
-                    <div className="flex gap-2">
-                      <select
-                        value={selectedReceiptsMonth.split('-')[0] || '2026'}
-                        onChange={(e) => {
-                          const month = selectedReceiptsMonth.split('-')[1] || '06';
-                          setSelectedReceiptsMonth(`${e.target.value}-${month}`);
-                        }}
-                        className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 outline-none cursor-pointer focus:bg-white transition-colors"
-                      >
-                        {['2024', '2025', '2026', '2027', '2028', '2029', '2030', '2031', '2032'].map(yy => (
-                          <option key={yy} value={yy}>{yy}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={selectedReceiptsMonth.split('-')[1] || '06'}
-                        onChange={(e) => {
-                          const year = selectedReceiptsMonth.split('-')[0] || '2026';
-                          setSelectedReceiptsMonth(`${year}-${e.target.value}`);
-                        }}
-                        className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 outline-none cursor-pointer focus:bg-white transition-colors"
-                      >
-                        {[
-                          { val: '01', label: '01 - January' },
-                          { val: '02', label: '02 - February' },
-                          { val: '03', label: '03 - March' },
-                          { val: '04', label: '04 - April' },
-                          { val: '05', label: '05 - May' },
-                          { val: '06', label: '06 - June (Bishii hore)' },
-                          { val: '07', label: '07 - July' },
-                          { val: '08', label: '08 - August' },
-                          { val: '09', label: '09 - September' },
-                          { val: '10', label: '10 - October' },
-                          { val: '11', label: '11 - November' },
-                          { val: '12', label: '12 - December' },
-                        ].map(m => (
-                          <option key={m.val} value={m.val}>{m.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="flex-1 max-w-md">
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 pl-0.5">Quick Search / Raadi</label>
-                    <div className="relative">
-                      <Search className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 w-4 h-4 pointer-events-none" />
-                      <input
-                        type="text"
-                        placeholder="Raadi arday, fasal, rasiidh lambar..."
-                        value={receiptsSearch}
-                        onChange={(e) => setReceiptsSearch(e.target.value)}
-                        className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Table Ledger */}
-              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm pointer-print-none">
-                <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-50">
-                  <h3 className="font-extrabold text-slate-900 text-sm">Liiska Rasiidhada Khidmadda ee Bixiyay</h3>
-                  <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-lg">
-                    Laga helay: {filteredReceipts.length} Rasiidhada
-                  </span>
-                </div>
-
-                {filteredReceipts.length === 0 ? (
-                  <div className="p-12 text-center border border-dashed border-slate-150 rounded-2xl bg-slate-50/50">
-                    <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Ma jiraan rasiidhad u dhigma bisha ama baaristaada.</p>
-                    <p className="text-xs text-slate-400 mt-1">Fadlan iska hubi in lacag bixin la sameeyay bisha la doortay.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto rounded-2xl border border-slate-150">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase text-[10px]">
-                          <th className="py-3 px-4">Student / Ardayga</th>
-                          <th className="py-3 px-4">Receipt No / Lambarka</th>
-                          <th className="py-3 px-4">Date Paid / Taariikhda</th>
-                          <th className="py-3 px-4 text-right">Tuition Paid / Khidmadda</th>
-                          <th className="py-3 px-4 text-right">Bus Paid / Baska</th>
-                          <th className="py-3 px-4 text-right">Total / Isku-geyn</th>
-                          <th className="py-3 px-4 text-center">Status</th>
-                          <th className="py-3 px-4 text-center">Actions / Waxqabad</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-150">
-                        {filteredReceipts.map(rec => {
-                          const totalPaid = Number(rec.amountPaid || 0) + Number(rec.busFeePaid || 0);
-                          return (
-                            <tr key={rec.id} className="hover:bg-slate-50/50 font-semibold text-slate-700">
-                              <td className="py-3.5 px-4">
-                                <span className="block font-extrabold text-slate-900">{rec.studentName}</span>
-                                <span className="text-[10px] text-slate-400 font-medium">ID: {rec.studentId} ‚Ä¢ Fasal: {rec.className}</span>
-                              </td>
-                              <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500">
-                                {rec.receiptNo || 'Manual Direct'}
-                              </td>
-                              <td className="py-3.5 px-4 font-mono text-[11px]">
-                                {rec.paymentDate || 'No date'}
-                              </td>
-                              <td className="py-3.5 px-4 text-right font-black text-emerald-700">
-                                ${Number(rec.amountPaid || 0).toFixed(2)}
-                              </td>
-                              <td className="py-3.5 px-4 text-right font-black text-indigo-700">
-                                ${Number(rec.busFeePaid || 0).toFixed(2)}
-                              </td>
-                              <td className="py-3.5 px-4 text-right font-black text-teal-800">
-                                ${totalPaid.toFixed(2)}
-                              </td>
-                              <td className="py-3.5 px-4 text-center">
-                                <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
-                                  rec.status === 'Paid'
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                                    : 'bg-amber-50 text-amber-700 border border-amber-100'
-                                }`}>
-                                  {rec.status === 'Paid' ? 'Paid' : 'Partial'}
-                                </span>
-                              </td>
-                              <td className="py-3.5 px-4 text-center">
-                                <div className="flex items-center justify-center gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenReceiptForRecord(rec)}
-                                    className="p-1.5 bg-slate-50 hover:bg-teal-50 text-slate-500 hover:text-teal-600 rounded-lg border border-slate-200 transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-bold"
-                                    title="Eeg & Daabac rasiidka"
-                                  >
-                                    <Printer className="w-3.5 h-3.5" />
-                                    Muuq / Daabac
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-
-              {/* BATCH PRINT CARD (HIDDEN ON SCREEN, VISIBLE ON CLONED PRINT) */}
-              <div id="printable-all-receipts-batch" className="hidden">
-                {filteredReceipts.map((rec, idx) => {
-                  const tuitionPaid = Number(rec.amountPaid || 0);
-                  const tuitionDue = Number(rec.amountDue !== undefined ? rec.amountDue : rec.amountPaid);
-                  const busPaid = Number(rec.busFeePaid || 0);
-                  const busDue = Number(rec.busFeeDue || 0);
-                  const totalPaidSum = tuitionPaid + busPaid;
-                  const remainingDebtVal = Number(rec.debtAmount !== undefined ? rec.debtAmount : 0);
-
-                  return (
-                    <div 
-                      key={`batch-${rec.id}`} 
-                      className="print-receipt-item"
-                      style={{
-                        pageBreakAfter: idx === filteredReceipts.length - 1 ? 'avoid' : 'always',
-                        border: '2px dashed #475569',
-                        borderRadius: '12px',
-                        padding: '24px',
-                        maxWidth: '440px',
-                        margin: '15px auto',
-                        background: 'white',
-                        fontFamily: 'sans-serif'
-                      }}
-                    >
-                      <div className="text-center pb-4 border-b border-dashed border-slate-300" style={{ textAlign: 'center', borderBottom: '1px dashed #cbd5e1', paddingBottom: '12px' }}>
-                        <h2 className="text-xl font-black uppercase tracking-tight text-slate-950 font-lutfey" style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 'bold' }}>DUGSIGA SUBUC</h2>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1" style={{ margin: 0, fontSize: '9px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Rasiidka Lacag-bixinta Rasmiga ah ee Ardayga</p>
-                        <p className="text-[9px] text-slate-500 mt-0.5 font-bold" style={{ margin: '2px 0 0 0', fontSize: '8px', color: '#64748b' }}>Xafiiska Maamulka Garowe</p>
-                      </div>
-
-                      <div className="py-4 space-y-4 text-xs font-semibold" style={{ padding: '16px 0', fontSize: '11px', color: '#1e293b' }}>
-                        <div className="grid grid-cols-2 gap-y-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px', marginBottom: '16px' }}>
-                          <div>
-                            <span className="block text-[10px] text-slate-400 uppercase font-black" style={{ display: 'block', fontSize: '8px', color: '#94a3b8', textTransform: 'uppercase' }}>Tirada Rasiidka</span>
-                            <span className="text-slate-900 font-mono text-xs" style={{ fontWeight: 'bold' }}>{rec.receiptNo || 'may'}</span>
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <span className="block text-[10px] text-slate-400 uppercase font-black" style={{ display: 'block', fontSize: '8px', color: '#94a3b8', textTransform: 'uppercase' }}>Taariikhda Bixinta</span>
-                            <span className="text-slate-900" style={{ fontWeight: 'bold' }}>{rec.paymentDate || 'may'}</span>
-                          </div>
-
-                          <div>
-                            <span className="block text-[10px] text-slate-400 uppercase font-black" style={{ display: 'block', fontSize: '8px', color: '#94a3b8', textTransform: 'uppercase' }}>Magaca Ardayga</span>
-                            <span className="text-slate-900 font-extrabold" style={{ fontWeight: 'bold', fontSize: '12px' }}>{rec.studentName}</span>
-                            <span className="block text-[10px] text-slate-400 font-mono" style={{ display: 'block', fontSize: '8px', color: '#94a3b8' }}>ID: {rec.studentId}</span>
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <span className="block text-[10px] text-slate-400 uppercase font-black" style={{ display: 'block', fontSize: '8px', color: '#94a3b8', textTransform: 'uppercase' }}>Fasalka</span>
-                            <span className="text-slate-900 text-xs" style={{ fontWeight: 'bold' }}>{rec.className}</span>
-                          </div>
-                        </div>
-
-                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 mt-4" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', marginTop: '12px' }}>
-                          <div className="flex justify-between items-center pb-2 border-b border-slate-200/60" style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px', marginBottom: '6px' }}>
-                            <div>
-                              <span className="block text-[10px] text-slate-400 uppercase font-bold" style={{ display: 'block', fontSize: '8px', color: '#94a3b8', textTransform: 'uppercase' }}>Muddada Biilka</span>
-                              <span className="text-slate-900 font-bold" style={{ fontWeight: 'bold' }}>Khidmadda {rec.month}</span>
-                            </div>
-                            <div style={{ textAlign: 'right' }}>
-                              <span className="block text-[10px] text-slate-400 uppercase font-bold mb-0.5" style={{ display: 'block', fontSize: '8px', color: '#94a3b8', textTransform: 'uppercase' }}>Heerka Rasiidka</span>
-                              <span style={{
-                                fontWeight: 'bold',
-                                fontSize: '8px',
-                                textTransform: 'uppercase',
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                backgroundColor: rec.status === 'Paid' ? '#dcfce7' : '#fef3c7',
-                                color: rec.status === 'Paid' ? '#166534' : '#92400e',
-                                display: 'inline-block'
-                              }}>
-                                {rec.status === 'Paid' ? 'LA BIXIYAY' : 'QEYB BAA LA BIXIYAY'}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex justify-between text-xs font-semibold text-slate-600 pt-1" style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
-                            <span style={{ color: '#475569' }}>Lacagta bisha (Tuition Due):</span>
-                            <span style={{ color: '#0f172a', fontWeight: 'bold' }}>${tuitionDue.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between text-xs font-semibold text-slate-600" style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
-                            <span style={{ color: '#475569' }}>Lacagta bisha ee la bixiyay (Tuition Paid):</span>
-                            <span style={{ color: '#166534', fontWeight: 'bold' }}>${tuitionPaid.toFixed(2)}</span>
-                          </div>
-
-                          {(busDue > 0 || busPaid > 0) && (
-                            <>
-                              <div className="flex justify-between text-xs font-semibold text-slate-600 pt-1.5 border-t border-slate-200/40" style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #cbd5e1', paddingTop: '4px', margin: '4px 0' }}>
-                                <span style={{ color: '#475569' }}>Lacagta baska (Bus Due):</span>
-                                <span style={{ color: '#0f172a', fontWeight: 'bold' }}>${busDue.toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between text-xs font-semibold text-slate-600" style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
-                                <span style={{ color: '#475569' }}>Lacagta baska ee la bixiyay (Bus Paid):</span>
-                                <span style={{ color: '#166534', fontWeight: 'bold' }}>${busPaid.toFixed(2)}</span>
-                              </div>
-                            </>
-                          )}
-
-                          <div className="flex justify-between text-xs font-extrabold text-slate-900 pt-1.5 border-t border-slate-300 mt-1" style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #94a3b8', paddingTop: '6px', marginTop: '6px', fontWeight: 'bold' }}>
-                            <span>Total Paid (Guud ahaan La Bixiyay):</span>
-                            <span style={{ color: '#166534' }}>${totalPaidSum.toFixed(2)}</span>
-                          </div>
-
-                          <div className="flex justify-between text-xs font-semibold text-slate-600" style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
-                            <span style={{ color: '#475569' }}>Remaining Debt (Haraaga Deynta):</span>
-                            <span style={{ color: remainingDebtVal > 0 ? '#b45309' : '#0f172a', fontWeight: 'bold' }}>
-                              ${remainingDebtVal.toFixed(2)}
-                            </span>
-                          </div>
-                        </div>
-
-                        {rec.notes && (
-                          <div className="bg-amber-50/55 p-3 rounded-xl border border-amber-100/60 mt-4 text-xs" style={{ backgroundColor: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '8px', padding: '8px', marginTop: '12px' }}>
-                            <span className="block text-[9px] text-amber-800 uppercase font-black mb-1" style={{ display: 'block', fontSize: '8px', color: '#92400e', fontWeight: 'bold', textTransform: 'uppercase' }}>Faallooyinka Maamulka:</span>
-                            <p className="text-slate-800 italic font-medium leading-relaxed" style={{ margin: 0, fontSize: '10px', fontStyle: 'italic' }}>{rec.notes}</p>
-                          </div>
-                        )}
-
-                        <div className="border-t border-slate-200 pt-4 flex justify-between items-center" style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #cbd5e1', paddingTop: '12px', marginTop: '12px', alignItems: 'center' }}>
-                          <div>
-                            <span className="text-slate-500 font-semibold block text-xs" style={{ fontSize: '10px', color: '#64748b' }}>Saxiixa Khasajiga Rasmiga ah</span>
-                            <div className="w-24 h-px bg-slate-300 mt-8" style={{ width: '96px', height: '1px', backgroundColor: '#cbd5e1', marginTop: '24px' }} />
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <span className="block text-[10px] text-slate-400 uppercase font-black" style={{ display: 'block', fontSize: '8px', color: '#94a3b8', textTransform: 'uppercase' }}>Xaddiga la Qabtay (Total Collected)</span>
-                            <span className="text-xl font-extrabold text-slate-950" style={{ fontSize: '16px', fontWeight: 'bold', color: '#0f172a' }}>${totalPaidSum.toFixed(2)} USD</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="text-center pt-4 border-t border-dashed border-slate-300 text-[10px] text-slate-400 font-bold uppercase tracking-wider" style={{ textAlign: 'center', borderTop: '1px dashed #cbd5e1', paddingTop: '8px', fontSize: '8px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        Waad ku mahadsan tahay dadaalkaaga waxbarasho
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-            </div>
-          );
-        })()}
-
-        </div>
-      </main>
-
-      {/* -------------------------------------------------------------
-          MODAL: STUDENT FULL INFORMATION PROFILE
-          ------------------------------------------------------------- */}
-      {showStudentDetailModal && (
-        <div 
-          className="fixed inset-0 bg-slate-900/65 flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto" 
-          id="student-detail-modal-bg"
-          onClick={(e) => {
-            if ((e.target as HTMLElement).id === 'student-detail-modal-bg') {
-              setShowStudentDetailModal(null);
-            }
-          }}
-        >
-          <motion.div
-            initial={{ scale: 0.96, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]"
-            id="student-detail-modal-wrapper"
-          >
-            {/* Header */}
-            <div className="p-6 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
-              <div className="flex items-center gap-2.5">
-                <span className="p-2 bg-indigo-500/20 text-indigo-300 rounded-xl inline-flex">
-                  <Users className="w-5 h-5" />
-                </span>
-                <div>
-                  <h3 className="font-extrabold text-base tracking-tight text-white">Student Profile Information</h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Macluumaadka Guud ee Ardayga</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowStudentDetailModal(null)}
-                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center cursor-pointer transition-all"
-                title="Close modal"
-              >
-                ‚úï
-              </button>
-            </div>
-
-            {/* Scrollable Content */}
-            <div className="p-6 sm:p-8 overflow-y-auto space-y-6">
-              {/* Profile Top Row */}
-              <div className="flex flex-col sm:flex-row items-center gap-5 pb-5 border-b border-slate-100">
-                <div className="w-24 h-24 rounded-2xl overflow-hidden shrink-0 bg-slate-50 border-2 border-slate-200 flex items-center justify-center shadow-inner relative">
-                  {showStudentDetailModal.imageUrl ? (
-                    <img referrerPolicy="no-referrer" src={showStudentDetailModal.imageUrl} alt={showStudentDetailModal.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="text-xl text-indigo-600 font-black tracking-wider">
-                      {showStudentDetailModal.name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() || 'ST'}
-                    </div>
-                  )}
-                </div>
-
-                <div className="text-center sm:text-left space-y-1.5 flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
-                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-none truncate">
-                      {showStudentDetailModal.name}
-                    </h2>
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border uppercase tracking-wider ${
-                      showStudentDetailModal.active
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                        : 'bg-rose-50 text-rose-700 border-rose-100'
-                    }`}>
-                      {showStudentDetailModal.active ? 'Active / Firfircoon' : 'Suspended / Hakad'}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-500 font-bold flex items-center justify-center sm:justify-start gap-1">
-                    <span className="text-slate-400 font-semibold">Student Identifier:</span> 
-                    <span className="font-mono text-slate-700 font-extrabold bg-slate-100 px-1.5 py-0.5 rounded">{showStudentDetailModal.id}</span>
-                  </p>
-
-                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-xs text-slate-450 font-bold pt-1">
-                    <span className="bg-slate-50 border border-slate-150 px-2 py-1 rounded-lg">
-                      üóìÔ∏è Registered: <span className="text-slate-700 font-extrabold">{showStudentDetailModal.registrationDate || '2026-05-15'}</span>
-                    </span>
-                    <span className="bg-indigo-50 text-indigo-750 border border-indigo-100 px-2 py-1 rounded-lg">
-                      ‚è±Ô∏è Shift: <span className="font-extrabold uppercase">{showStudentDetailModal.session || 'Both'}</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Grid: Personal & Academic Metrics */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3.5">
-                  <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-200/50 pb-1.5">
-                    Academic & Standing Details
-                  </h4>
-                  <div className="space-y-2.5 text-xs">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500 font-semibold">Age / Da'da:</span>
-                      <span className="text-slate-800 font-extrabold bg-white px-2 py-0.5 rounded border border-slate-200 shadow-3xs">
-                        {showStudentDetailModal.age !== undefined ? `${showStudentDetailModal.age} Sannadood` : 'Unspecified'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500 font-semibold">Assigned Class / Fasalka:</span>
-                      <span className="text-slate-800 font-black truncate max-w-[150px]">{showStudentDetailModal.className}</span>
-                    </div>
-                    <div className="flex justify-between items-start">
-                      <span className="text-slate-500 font-semibold">Instructor / Macallinka:</span>
-                      <div className="text-right">
-                        {(() => {
-                          const teach1 = database.teachers.find(t => t.id === showStudentDetailModal.teacherId);
-                          const teach2 = showStudentDetailModal.secondTeacherId ? database.teachers.find(t => t.id === showStudentDetailModal.secondTeacherId) : null;
-                          return (
-                            <div className="space-y-0.5">
-                              <div>
-                                <span className="text-slate-800 font-extrabold">{teach1 ? teach1.name : 'Unassigned'}</span>
-                                <span className="text-[10px] text-slate-400 font-medium ml-1">(T1/Subax)</span>
-                              </div>
-                              {teach2 && (
-                                <div>
-                                  <span className="text-teal-700 font-extrabold">{teach2.name}</span>
-                                  <span className="text-[10px] text-teal-600 font-medium ml-1">(T2/Galab)</span>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3.5">
-                  <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-200/50 pb-1.5">
-                    Ranking & Outlook Trend
-                  </h4>
-                  <div className="space-y-2.5 text-xs">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500 font-semibold">Standing Group:</span>
-                      {(() => {
-                        const compGroup = getStudentCompetitionGroup(showStudentDetailModal.id);
-                        return (
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-black border uppercase tracking-wider ${
-                            compGroup.group.includes('Group A') ? 'bg-emerald-50 text-emerald-800 border-emerald-100' :
-                            compGroup.group.includes('Group B') ? 'bg-teal-50 text-teal-800 border-teal-100' :
-                            compGroup.group.includes('Group C') ? 'bg-indigo-50 text-indigo-850 border-indigo-100' :
-                            compGroup.group.includes('Group D') ? 'bg-amber-50 text-amber-800 border-amber-100' :
-                            compGroup.group.includes('Group E') ? 'bg-rose-50 text-rose-800 border-rose-100' :
-                            'bg-slate-100 text-slate-500 border-slate-200'
-                          }`}>
-                            {compGroup.group}
-                          </span>
-                        );
-                      })()}
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500 font-semibold">Progress Trend:</span>
-                      {(() => {
-                        const trend = getStudentProgressTrend(showStudentDetailModal.id);
-                        return (
-                          <span className="font-extrabold text-slate-700 flex items-center gap-1">
-                            {trend.icon} {trend.trend}
-                          </span>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Parental details */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
-                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-200/50 pb-1.5">
-                  Parent / Guardian Information (Waalidka)
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <span className="text-slate-400 block font-semibold">Magaca Waalidka / Name:</span>
-                    <span className="text-slate-800 font-extrabold text-sm">{showStudentDetailModal.parentName}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block font-semibold">Taleefanka Waalidka / Contact Phone:</span>
-                    <a 
-                      href={`tel:${showStudentDetailModal.parentPhone}`}
-                      className="text-indigo-600 hover:text-indigo-800 font-mono font-extrabold text-sm hover:underline flex items-center gap-1"
-                    >
-                      üìû {showStudentDetailModal.parentPhone}
-                    </a>
-                  </div>
-                </div>
-              </div>
-
-              {/* Financials */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
-                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-200/50 pb-1.5">
-                  Financial Terms (Lacagaha)
-                </h4>
-                <div className="grid grid-cols-2 gap-4 text-xs">
-                  <div className="p-3 bg-white border border-slate-200/60 rounded-xl">
-                    <span className="text-slate-450 block font-bold text-[10px] uppercase">Tuition Fee Due / Lacagta Bisha</span>
-                    <span className="text-teal-700 font-black text-lg block mt-0.5">${showStudentDetailModal.monthlyFee} USD</span>
-                  </div>
-                  <div className="p-3 bg-white border border-slate-200/60 rounded-xl">
-                    <span className="text-slate-450 block font-bold text-[10px] uppercase">Bus Fare Due / Lacagta Baska</span>
-                    <span className="text-indigo-700 font-black text-lg block mt-0.5">
-                      {showStudentDetailModal.busFee ? `$${showStudentDetailModal.busFee} USD` : '$0.00 (N/A)'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Media status summary */}
-              <div className="bg-indigo-50/40 p-4 rounded-2xl border border-indigo-100/50 space-y-3">
-                <h4 className="text-[11px] font-black text-indigo-700 uppercase tracking-wider border-b border-indigo-100/60 pb-1.5">
-                  MediaRecitations & Capture Highlights
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  <div className="flex items-center gap-2 bg-white/60 p-2.5 rounded-xl border border-indigo-100/30">
-                    <span className="text-base">üéôÔ∏è</span>
-                    <div>
-                      <span className="block text-[10px] text-slate-400 font-bold uppercase leading-none">Last Audio Recorded</span>
-                      <span className="text-slate-700 font-extrabold mt-0.5 block">
-                        {showStudentDetailModal.voiceUrl ? `Captured (${showStudentDetailModal.voiceDate || 'Recently'})` : 'No audio recitations on file'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 bg-white/60 p-2.5 rounded-xl border border-indigo-100/30">
-                    <span className="text-base">üìπ</span>
-                    <div>
-                      <span className="block text-[10px] text-slate-400 font-bold uppercase leading-none">Last Behavior Video</span>
-                      <span className="text-slate-700 font-extrabold mt-0.5 block">
-                        {showStudentDetailModal.videoUrl ? `Captured (${showStudentDetailModal.videoDate || 'Recently'})` : 'No videos on file'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
-            {/* Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowStudentDetailModal(null)}
-                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
-              >
-                Close Profile
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* -------------------------------------------------------------
-          MODAL: COLLECTED FEES DETAILED BREAKDOWN
-          ------------------------------------------------------------- */}
-      {showCollectedFeesBreakdownMonth && (() => {
-        const month = showCollectedFeesBreakdownMonth;
-        const monthName = getFriendlyMonthName(month);
-        
-        // Find all regular billing records for this month that are Paid or Partial
-        const monthBillingPayments = database.billing.filter(b => b.month === month && (b.status === 'Paid' || b.status === 'Partial'));
-        
-        // Find all registration and file fees from invoices for this month
-        const monthInvoices = (database.invoices || []).filter(inv => {
-          const invMonth = inv.date ? inv.date.slice(0, 7) : (inv.createdAt ? inv.createdAt.slice(0, 7) : '');
-          return invMonth === month;
-        });
-        
-        const invoicePayments: Array<{
-          invoiceId?: string;
-          invoiceNo: string;
-          recipientName: string;
-          recipientPhone?: string;
-          recipientType?: 'parent' | 'business';
-          recipientEmail?: string;
-          description: string;
-          quantity: number;
-          unitPrice: number;
-          total: number;
-          paidAmount: number;
-          date: string;
-          dueDate?: string;
-          status?: 'Paid' | 'Unpaid' | 'Partial';
-          studentId?: string;
-          studentName?: string;
-          className?: string;
-          teacherName?: string;
-          notes?: string;
-          invoiceTotalAmount?: number;
-          invoiceAmountPaid?: number;
-          createdBy?: string;
-          rawInvoice?: Invoice;
-          rawItem?: InvoiceItem;
-        }> = [];
-        
-        for (const inv of monthInvoices) {
-          if (inv.totalAmount <= 0 || inv.amountPaid <= 0) continue;
-          const paidFraction = inv.amountPaid / inv.totalAmount;
-          
-          for (const item of inv.items) {
-            const desc = item.description.toLowerCase();
-            const isTuition = desc.includes('bisha') || desc.includes('bish') || desc.includes('monthly') || desc.includes('tuition') || desc.includes('fee') || desc.includes('quraan') || desc.includes('school') || desc.includes('waxbarasho') || desc.includes('dugsi') || desc.includes('fasal');
-            const isBus = desc.includes('baska') || desc.includes('bus') || desc.includes('gaari') || desc.includes('transport');
-            
-            if (isTuition || isBus) {
-              continue;
-            }
-            
-            const itemTotal = item.quantity * item.unitPrice;
-            const itemPaid = itemTotal * paidFraction;
-
-            const matchingStudent = inv.studentId 
-              ? database.students.find(s => s.id === inv.studentId || (inv.studentId && inv.studentId.includes(s.id))) 
-              : (inv.studentName ? database.students.find(s => s.name.toLowerCase() === inv.studentName?.toLowerCase()) : null);
-            const matchingTeacher = matchingStudent?.teacherId 
-              ? database.teachers.find(t => t.id === matchingStudent.teacherId) 
-              : null;
-            
-            invoicePayments.push({
-              invoiceId: inv.id,
-              invoiceNo: inv.invoiceNo,
-              recipientName: inv.recipientName || inv.studentName || 'N/A',
-              recipientPhone: inv.recipientPhone,
-              recipientType: inv.recipientType,
-              recipientEmail: inv.recipientEmail,
-              description: item.description,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              total: itemTotal,
-              paidAmount: Number(itemPaid.toFixed(2)),
-              date: inv.date || (inv.createdAt ? inv.createdAt.slice(0, 10) : 'N/A'),
-              dueDate: inv.dueDate,
-              status: inv.status,
-              studentId: inv.studentId || matchingStudent?.id,
-              studentName: inv.studentName || matchingStudent?.name,
-              className: matchingStudent?.className,
-              teacherName: matchingTeacher?.name,
-              notes: inv.notes,
-              invoiceTotalAmount: inv.totalAmount,
-              invoiceAmountPaid: inv.amountPaid,
-              createdBy: inv.createdBy,
-              rawInvoice: inv,
-              rawItem: item
-            });
-          }
-        }
-        
-        const totalTuitionPaid = monthBillingPayments.reduce((sum, r) => sum + r.amountPaid, 0);
-        const totalRegFilesPaid = invoicePayments.reduce((sum, item) => sum + item.paidAmount, 0);
-        const grandTotal = totalTuitionPaid + totalRegFilesPaid;
-
-        const getStudentClassFromId = (studentId?: string) => {
-          if (!studentId) return 'other';
-          const ids = studentId.split(',').map(id => id.trim());
-          for (const id of ids) {
-            const student = database.students.find(s => s.id === id);
-            if (student && student.className) {
-              const cls = student.className.toLowerCase();
-              if (cls.includes('higg')) return 'higgaad';
-              if (cls.includes('qur')) return 'quraan';
-            }
-          }
-          return 'other';
-        };
-
-        const tuitionHiggaad = monthBillingPayments.filter(r => r.className?.toLowerCase().includes('higg')).reduce((sum, r) => sum + r.amountPaid, 0);
-        const tuitionQuraan = monthBillingPayments.filter(r => r.className?.toLowerCase().includes('qur')).reduce((sum, r) => sum + r.amountPaid, 0);
-        const tuitionOther = monthBillingPayments.filter(r => !r.className?.toLowerCase().includes('higg') && !r.className?.toLowerCase().includes('qur')).reduce((sum, r) => sum + r.amountPaid, 0);
-
-        const invoiceHiggaad = invoicePayments.filter(item => getStudentClassFromId(item.studentId) === 'higgaad').reduce((sum, item) => sum + item.paidAmount, 0);
-        const invoiceQuraan = invoicePayments.filter(item => getStudentClassFromId(item.studentId) === 'quraan').reduce((sum, item) => sum + item.paidAmount, 0);
-        const invoiceOther = invoicePayments.filter(item => getStudentClassFromId(item.studentId) === 'other').reduce((sum, item) => sum + item.paidAmount, 0);
-
-        const totalHiggaadCollected = tuitionHiggaad + invoiceHiggaad;
-        const totalQuraanCollected = tuitionQuraan + invoiceQuraan;
-        const totalOtherCollected = tuitionOther + invoiceOther;
-
-        return (
-          <div 
-            className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-55 animate-fade-in overflow-y-auto pointer-print-none" 
-            id="collected-fees-modal-bg"
-            onClick={(e) => {
-              if ((e.target as HTMLElement).id === 'collected-fees-modal-bg') {
-                setShowCollectedFeesBreakdownMonth(null);
-              }
-            }}
-          >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-3xl shadow-xl border border-slate-100 max-w-3xl w-full overflow-hidden flex flex-col max-h-[85vh]"
-            >
-              {/* Modal Header */}
-              <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                    <CircleDollarSign className="w-5 h-5 text-teal-600" />
-                    Lacagaha la Ururiyay (Collected Fees Breakdown)
-                  </h3>
-                  <p className="text-xs text-slate-500 font-semibold mt-1">Detailed list of payments received in {monthName}</p>
-                </div>
-                <button 
-                  type="button"
-                  onClick={() => setShowCollectedFeesBreakdownMonth(null)}
-                  className="p-1 px-2 text-xs font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
-                >
-                  Xir (Close)
-                </button>
-              </div>
-
-              {/* Scrollable Body */}
-              <div className="p-6 overflow-y-auto space-y-6 flex-1 scrollbar-thin">
-                
-                {/* Visual Summary Widget */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100/60">
-                    <span className="text-[10px] text-emerald-800 uppercase font-bold block mb-1">Tuition Fees Collected</span>
-                    <span className="block text-2xl font-extrabold text-emerald-900">${totalTuitionPaid.toFixed(2)}</span>
-                    <p className="text-[10px] text-emerald-600/80 mt-1 font-semibold">{monthBillingPayments.length} student payments</p>
-                  </div>
-                  
-                  <div className="bg-teal-50/50 p-4 rounded-2xl border border-teal-100/60">
-                    <span className="text-[10px] text-teal-800 uppercase font-bold block mb-1">Invoices Other Fees</span>
-                    <span className="block text-2xl font-extrabold text-teal-900">${totalRegFilesPaid.toFixed(2)}</span>
-                    <p className="text-[10px] text-teal-600/80 mt-1 font-semibold">{invoicePayments.length} other invoice entries</p>
-                  </div>
-
-                  <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/60">
-                    <span className="text-[10px] text-indigo-800 uppercase font-bold block mb-1">Total Month Revenue</span>
-                    <span className="block text-2xl font-black text-indigo-950">${grandTotal.toFixed(2)}</span>
-                    <p className="text-[10px] text-indigo-600 mt-1 font-semibold">Matched to active dashboard sum</p>
-                  </div>
-                </div>
-
-                {/* Class-wise Revenue Breakdown */}
-                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
-                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-emerald-600" />
-                    Lacagaha Fasalka Laga Soo Ururiyay (Revenue Breakdown by Class)
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Higgaad Class Card */}
-                    <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-xs flex flex-col justify-between">
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-bold text-slate-700">Fasalka Higgaad / Higgaadda</span>
-                          <span className="text-sm font-black text-emerald-600">${totalHiggaadCollected.toFixed(2)}</span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-2 mb-2">
-                          <div 
-                            className="bg-emerald-500 h-2 rounded-full transition-all duration-500" 
-                            style={{ width: `${grandTotal > 0 ? (totalHiggaadCollected / grandTotal) * 100 : 0}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold pt-1 border-t border-slate-50 mt-1">
-                        <span>Tuition: ${tuitionHiggaad.toFixed(2)}</span>
-                        <span>Other Fees: ${invoiceHiggaad.toFixed(2)}</span>
-                      </div>
-                    </div>
-
-                    {/* Quraan Class Card */}
-                    <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-xs flex flex-col justify-between">
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-bold text-slate-700">Fasalka Quraan</span>
-                          <span className="text-sm font-black text-indigo-600">${totalQuraanCollected.toFixed(2)}</span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-2 mb-2">
-                          <div 
-                            className="bg-indigo-500 h-2 rounded-full transition-all duration-500" 
-                            style={{ width: `${grandTotal > 0 ? (totalQuraanCollected / grandTotal) * 100 : 0}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold pt-1 border-t border-slate-50 mt-1">
-                        <span>Tuition: ${tuitionQuraan.toFixed(2)}</span>
-                        <span>Other Fees: ${invoiceQuraan.toFixed(2)}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {totalOtherCollected > 0 && (
-                    <div className="text-[10px] bg-amber-50 text-amber-800 p-2 rounded-lg border border-amber-100 flex items-center justify-between font-semibold">
-                      <span>Invoices with unassigned classes (Kale / Other):</span>
-                      <span className="font-bold">${totalOtherCollected.toFixed(2)}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Section 1: Monthly Tuition Fees */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                      1. Khidmadaha Bisha ee Ardayda (Monthly Tuition & Class Fees)
-                    </h4>
-                    <span className="text-xs font-extrabold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg">
-                      ${totalTuitionPaid.toFixed(2)}
-                    </span>
-                  </div>
-
-                  {monthBillingPayments.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 rounded-2xl border border-dashed border-slate-150">
-                      No tuition payments logged for this month.
-                    </p>
-                  ) : (
-                    <div className="overflow-x-auto rounded-2xl border border-slate-100">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider">
-                            <th className="py-2.5 px-3">Student Name (Ardayga)</th>
-                            <th className="py-2.5 px-3">Class (Fasalka)</th>
-                            <th className="py-2.5 px-3">Date (Taariikh)</th>
-                            <th className="py-2.5 px-3">Receipt / Ref</th>
-                            <th className="py-2.5 px-3 text-right">Amount (Lacagta)</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {monthBillingPayments.map((p, idx) => (
-                            <tr key={p.id || idx} className="hover:bg-slate-50/40">
-                              <td className="py-2 px-3 font-bold text-slate-800">
-                                {p.studentName}
-                                <span className="block text-[10px] text-slate-400 font-medium">ID: {p.studentId}</span>
-                              </td>
-                              <td className="py-2 px-3 font-semibold text-slate-600">{p.className}</td>
-                              <td className="py-2 px-3 text-slate-500">{p.paymentDate || 'N/A'}</td>
-                              <td className="py-2 px-3 font-mono text-[10px] text-slate-500">
-                                {p.receiptNo || (p.notes && p.notes.includes('Synced from') ? p.notes.split('Synced from')[1].trim() : 'Manual Direct')}
-                              </td>
-                              <td className="py-2 px-3 text-right font-black text-teal-700">${p.amountPaid.toFixed(2)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-                {/* Section 2: Other Custom Invoice Items */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <div>
-                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-teal-500 inline-block" />
-                        2. Lacagaha kale ee Invoices-ka (Other Custom Invoice Fees)
-                      </h4>
-                      <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                        Guji mid kasta si aad u aragto faahfaahinta lacagta la qabtay (Click any fee to view details)
-                      </p>
-                    </div>
-                    <span className="text-xs font-extrabold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg">
-                      ${totalRegFilesPaid.toFixed(2)}
-                    </span>
-                  </div>
-
-                  {invoicePayments.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 rounded-2xl border border-dashed border-slate-150">
-                      No other invoice payments logged for this month.
-                    </p>
-                  ) : (
-                    <div className="overflow-x-auto rounded-2xl border border-slate-100 shadow-3xs">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-slate-50 text-slate-500 font-bold border-b border-slate-150 uppercase tracking-wider text-[10px]">
-                            <th className="py-2.5 px-3">Parent Name (Waalidka)</th>
-                            <th className="py-2.5 px-3">Description (Faahfaahin)</th>
-                            <th className="py-2.5 px-3">Date (Taariikh)</th>
-                            <th className="py-2.5 px-3">Invoice No</th>
-                            <th className="py-2.5 px-3 text-right">Amount (Lacagta)</th>
-                            <th className="py-2.5 px-3 text-center">Faahfaahin</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {invoicePayments.map((item, idx) => (
-                            <tr 
-                              key={idx} 
-                              onClick={() => setSelectedInvoiceFeeDetail(item)}
-                              className="hover:bg-teal-50/50 cursor-pointer transition-colors group"
-                              title="Guji si aad u aragto faahfaahinta buuxda ee lacagtan"
-                            >
-                              <td className="py-2.5 px-3 font-bold text-slate-800 group-hover:text-teal-950">
-                                {item.recipientName}
-                                {item.studentName && (
-                                  <span className="block text-[10px] text-slate-400 font-medium">
-                                    Ardayga: {item.studentName}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-2.5 px-3 font-semibold text-slate-700 max-w-[220px]">
-                                <span className="line-clamp-1 group-hover:text-teal-950">{item.description}</span>
-                              </td>
-                              <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap">{item.date || 'N/A'}</td>
-                              <td className="py-2.5 px-3 font-mono text-[10px] text-slate-500">
-                                <span className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-semibold">{item.invoiceNo}</span>
-                              </td>
-                              <td className="py-2.5 px-3 text-right font-black text-teal-700 whitespace-nowrap">${item.paidAmount.toFixed(2)}</td>
-                              <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedInvoiceFeeDetail(item);
-                                  }}
-                                  className="px-2 py-1 bg-teal-50 hover:bg-teal-100 text-teal-700 text-[10px] font-bold rounded-lg transition-colors border border-teal-200/60 inline-flex items-center gap-1 cursor-pointer"
-                                >
-                                  <Eye className="w-3 h-3" />
-                                  <span>Arag</span>
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-                <p className="text-[10px] text-slate-450 text-center italic mt-4">
-                  * Note: School bus transportation fares (Totaling ${Number(currentMonthBusCollected).toFixed(2)} in {monthName}) are tracked separately in the Bus Fare Statistics deck.
-                </p>
-
-              </div>
-
-              {/* Modal Footer */}
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 pointer-print-none">
-                <button
-                  type="button"
-                  onClick={() => setShowCollectedFeesBreakdownMonth(null)}
-                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
-                >
-                  Xir (Close)
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        );
-      })()}
-
-      {/* -------------------------------------------------------------
-          MODAL: COLLECTED INVOICE FEE DETAIL (FAAHFAAHINTA LACAGTA LA QABTAY)
-          ------------------------------------------------------------- */}
-      {selectedInvoiceFeeDetail && (
-        <div 
-          className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-60 animate-fade-in overflow-y-auto pointer-print-none" 
-          id="invoice-fee-detail-modal-bg"
-          onClick={(e) => {
-            if ((e.target as HTMLElement).id === 'invoice-fee-detail-modal-bg') {
-              setSelectedInvoiceFeeDetail(null);
-            }
-          }}
-        >
-          <motion.div 
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
-            className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh] my-auto"
-          >
-            {/* Modal Header */}
-            <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-teal-500/20 border border-teal-400/30 rounded-2xl text-teal-300">
-                  <Receipt className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-black tracking-tight text-white flex items-center gap-2">
-                    Faahfaahinta Lacagta Invoices-ka
-                  </h3>
-                  <p className="text-xs text-slate-300 font-medium mt-0.5">
-                    Biil No: <span className="font-mono font-bold text-teal-300">{selectedInvoiceFeeDetail.invoiceNo}</span> ‚Ä¢ Taariikhda: <span className="font-bold text-white">{selectedInvoiceFeeDetail.date}</span>
-                  </p>
-                </div>
-              </div>
-              <button 
-                type="button"
-                onClick={() => setSelectedInvoiceFeeDetail(null)}
-                className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-all cursor-pointer"
-                title="Xir (Close)"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Modal Scrollable Body */}
-            <div className="p-6 overflow-y-auto space-y-5 flex-1 scrollbar-thin text-slate-800 text-xs">
-              
-              {/* Primary Highlight Card: Collected Amount & Item Description */}
-              <div className="bg-gradient-to-br from-teal-50 via-emerald-50/40 to-slate-50 p-5 rounded-2xl border border-teal-100 shadow-xs space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-teal-800 flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-teal-500 inline-block animate-pulse" />
-                    Lacagta La Qabtay (Amount Collected)
-                  </span>
-                  <span className="text-2xl font-black text-teal-900 font-mono">
-                    ${selectedInvoiceFeeDetail.paidAmount.toFixed(2)}
-                  </span>
-                </div>
-
-                <div className="pt-3 border-t border-teal-100">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
-                    Faahfaahinta Adeegga (Service / Fee Description):
-                  </span>
-                  <p className="text-sm font-black text-slate-900 bg-white p-3.5 rounded-xl border border-teal-100/80 leading-relaxed shadow-3xs">
-                    {selectedInvoiceFeeDetail.description}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 pt-1 text-[11px]">
-                  <div className="bg-white/80 p-2.5 rounded-xl border border-slate-100">
-                    <span className="text-[9px] text-slate-400 font-bold block">Tirada (Quantity)</span>
-                    <span className="font-extrabold text-slate-800">{selectedInvoiceFeeDetail.quantity}</span>
-                  </div>
-                  <div className="bg-white/80 p-2.5 rounded-xl border border-slate-100">
-                    <span className="text-[9px] text-slate-400 font-bold block">Qiimaha Xabbadii (Unit)</span>
-                    <span className="font-extrabold text-slate-800">${selectedInvoiceFeeDetail.unitPrice.toFixed(2)}</span>
-                  </div>
-                  <div className="bg-white/80 p-2.5 rounded-xl border border-slate-100">
-                    <span className="text-[9px] text-slate-400 font-bold block">Wadarta Adeegga (Total)</span>
-                    <span className="font-extrabold text-slate-900">${selectedInvoiceFeeDetail.total.toFixed(2)}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Information Cards Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                
-                {/* Payer Information */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2.5">
-                  <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200/60 pb-1.5">
-                    <Users className="w-3.5 h-3.5 text-teal-600" />
-                    Waalidka / Qofka Bixiyay (Payer)
-                  </h4>
-                  <div className="space-y-1.5 text-xs">
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-medium block">Magaca:</span>
-                      <span className="font-extrabold text-slate-900">{selectedInvoiceFeeDetail.recipientName}</span>
-                    </div>
-                    {selectedInvoiceFeeDetail.recipientPhone && (
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-medium block">Telefoonka:</span>
-                        <a 
-                          href={`tel:${selectedInvoiceFeeDetail.recipientPhone}`} 
-                          className="font-mono font-bold text-teal-700 hover:underline inline-flex items-center gap-1"
-                        >
-                          <Phone className="w-3 h-3" />
-                          {selectedInvoiceFeeDetail.recipientPhone}
-                        </a>
-                      </div>
-                    )}
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-medium block">Nooca Macmiilka:</span>
-                      <span className="font-bold text-slate-700">
-                        {selectedInvoiceFeeDetail.recipientType === 'business' ? 'Ganacsi (Business)' : 'Waalid (Parent)'}
-                      </span>
-                    </div>
-                    {selectedInvoiceFeeDetail.recipientEmail && (
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-medium block">Email:</span>
-                        <span className="font-mono text-slate-600">{selectedInvoiceFeeDetail.recipientEmail}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Linked Student / Class Information */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2.5">
-                  <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200/60 pb-1.5">
-                    <GraduationCap className="w-3.5 h-3.5 text-indigo-600" />
-                    Xiriirka Ardayga (Student & Class)
-                  </h4>
-                  <div className="space-y-1.5 text-xs">
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-medium block">Magaca Ardayga:</span>
-                      <span className="font-extrabold text-slate-900">
-                        {selectedInvoiceFeeDetail.studentName || 'Guud / General (Aan arday gooni ah ku xirneyn)'}
-                      </span>
-                    </div>
-                    {selectedInvoiceFeeDetail.studentId && (
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-medium block">ID-ga Ardayga:</span>
-                        <span className="font-mono font-bold text-indigo-700">{selectedInvoiceFeeDetail.studentId}</span>
-                      </div>
-                    )}
-                    {selectedInvoiceFeeDetail.className && (
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-medium block">Fasalka:</span>
-                        <span className="font-bold text-slate-800">{selectedInvoiceFeeDetail.className}</span>
-                      </div>
-                    )}
-                    {selectedInvoiceFeeDetail.teacherName && (
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-medium block">Macallinka:</span>
-                        <span className="font-bold text-slate-800">{selectedInvoiceFeeDetail.teacherName}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Full Invoice Context & Status Card */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2.5">
-                <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-wider flex items-center justify-between border-b border-slate-200/60 pb-1.5">
-                  <span className="flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-slate-600" />
-                    Biilka Guud (Invoice Summary)
-                  </span>
-                  <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${
-                    selectedInvoiceFeeDetail.status === 'Paid'
-                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                      : selectedInvoiceFeeDetail.status === 'Partial'
-                      ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                      : 'bg-rose-100 text-rose-800 border border-rose-200'
-                  }`}>
-                    {selectedInvoiceFeeDetail.status === 'Paid' ? 'Waa la bixiyey (Paid)' : selectedInvoiceFeeDetail.status === 'Partial' ? 'Qeyb baa la bixiyey (Partial)' : 'Lama bixin (Unpaid)'}
-                  </span>
-                </h4>
-                
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
-                  <div className="bg-white p-2.5 rounded-xl border border-slate-150">
-                    <span className="text-[9px] text-slate-400 font-bold block">Lacagta Biilka Guud</span>
-                    <span className="font-black text-slate-900 font-mono">
-                      ${(selectedInvoiceFeeDetail.invoiceTotalAmount || selectedInvoiceFeeDetail.total).toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="bg-white p-2.5 rounded-xl border border-slate-150">
-                    <span className="text-[9px] text-slate-400 font-bold block">Wadarta La Bixiyay</span>
-                    <span className="font-black text-emerald-700 font-mono">
-                      ${(selectedInvoiceFeeDetail.invoiceAmountPaid || selectedInvoiceFeeDetail.paidAmount).toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="bg-white p-2.5 rounded-xl border border-slate-150">
-                    <span className="text-[9px] text-slate-400 font-bold block">Deynta Hartay</span>
-                    <span className={`font-black font-mono ${
-                      Math.max(0, (selectedInvoiceFeeDetail.invoiceTotalAmount || selectedInvoiceFeeDetail.total) - (selectedInvoiceFeeDetail.invoiceAmountPaid || selectedInvoiceFeeDetail.paidAmount)) > 0
-                        ? 'text-rose-600'
-                        : 'text-slate-400'
-                    }`}>
-                      ${Math.max(0, (selectedInvoiceFeeDetail.invoiceTotalAmount || selectedInvoiceFeeDetail.total) - (selectedInvoiceFeeDetail.invoiceAmountPaid || selectedInvoiceFeeDetail.paidAmount)).toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="bg-white p-2.5 rounded-xl border border-slate-150">
-                    <span className="text-[9px] text-slate-400 font-bold block">Xilliga U Danbeeya (Due)</span>
-                    <span className="font-semibold text-slate-700 font-mono text-[11px]">
-                      {selectedInvoiceFeeDetail.dueDate || 'N/A'}
-                    </span>
-                  </div>
-                </div>
-
-                {selectedInvoiceFeeDetail.notes && (
-                  <div className="bg-amber-50/60 p-3 rounded-xl border border-amber-100 text-amber-900 mt-2">
-                    <span className="text-[9px] font-black uppercase text-amber-700 block mb-0.5">Faallo / Notes:</span>
-                    <p className="text-xs font-semibold leading-relaxed whitespace-pre-line italic">
-                      "{selectedInvoiceFeeDetail.notes}"
-                    </p>
-                  </div>
-                )}
-              </div>
-
-            </div>
-
-            {/* Modal Actions Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap pointer-print-none">
-              {selectedInvoiceFeeDetail.rawInvoice ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (selectedInvoiceFeeDetail.rawInvoice) {
-                      setShowInvoiceReceipt(selectedInvoiceFeeDetail.rawInvoice);
-                    }
-                  }}
-                  className="px-4 py-2.5 bg-teal-700 hover:bg-teal-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-sm inline-flex items-center gap-1.5"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Arag / Daabac Biilka Rasmiga ah</span>
-                </button>
-              ) : (
-                <div />
-              )}
-              
-              <button
-                type="button"
-                onClick={() => setSelectedInvoiceFeeDetail(null)}
-                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md ml-auto"
-              >
-                Xir (Close)
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* -------------------------------------------------------------
-          MODAL: ACTIVE STUDENTS DETAILED BREAKDOWN BY CLASS
-          ------------------------------------------------------------- */}
-      {showActiveStudentsModal && (() => {
-        // Group students strictly by distinct class to prevent double-counting
-        const classGroups: { name: string; students: Student[]; color: string }[] = [];
-        
-        // Collect unique classes in order
-        const knownClasses = Array.from(new Set(activeStudents.map(s => s.className || 'Fasal La\'aan (Unassigned)'))).sort();
-        
-        const palette = [
-          { bg: 'bg-emerald-50/50', border: 'border-emerald-100/60', text: 'text-emerald-800', countText: 'text-emerald-900', badge: 'bg-emerald-100/60 text-emerald-700', dot: 'bg-emerald-500' },
-          { bg: 'bg-indigo-50/50', border: 'border-indigo-100/60', text: 'text-indigo-800', countText: 'text-indigo-900', badge: 'bg-indigo-100/60 text-indigo-700', dot: 'bg-indigo-500' },
-          { bg: 'bg-purple-50/50', border: 'border-purple-100/60', text: 'text-purple-800', countText: 'text-purple-900', badge: 'bg-purple-100/60 text-purple-700', dot: 'bg-purple-500' },
-          { bg: 'bg-sky-50/50', border: 'border-sky-100/60', text: 'text-sky-800', countText: 'text-sky-900', badge: 'bg-sky-100/60 text-sky-700', dot: 'bg-sky-500' },
-        ];
-
-        knownClasses.forEach((cName, idx) => {
-          const studs = activeStudents.filter(s => (s.className || 'Fasal La\'aan (Unassigned)') === cName);
-          const styling = palette[idx % palette.length];
-          classGroups.push({
-            name: cName,
-            students: studs,
-            color: styling.dot
-          });
-        });
-
-        return (
-          <div 
-            className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-55 animate-fade-in overflow-y-auto pointer-print-none" 
-            id="active-students-modal-bg"
-            onClick={(e) => {
-              if ((e.target as HTMLElement).id === 'active-students-modal-bg') {
-                setShowActiveStudentsModal(false);
-              }
-            }}
-          >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-3xl shadow-xl border border-slate-100 max-w-3xl w-full overflow-hidden flex flex-col max-h-[85vh]"
-            >
-              {/* Modal Header */}
-              <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                    <Users className="w-5 h-5 text-emerald-600" />
-                    Ardayda Firfircoon ee Dugsiga (Active Students Breakdown)
-                  </h3>
-                  <p className="text-xs text-slate-500 font-semibold mt-1">Total active students currently registered: {activeStudents.length}</p>
-                </div>
-                <button 
-                  type="button"
-                  onClick={() => setShowActiveStudentsModal(false)}
-                  className="p-1 px-2.5 text-xs font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
-                >
-                  Xir (Close)
-                </button>
-              </div>
-
-              {/* Scrollable Body */}
-              <div className="p-6 overflow-y-auto space-y-6 flex-1 scrollbar-thin">
-                {/* Class Distribution Visual Summary */}
-                <div className={`grid grid-cols-1 sm:grid-cols-${Math.min(classGroups.length, 3)} gap-4`}>
-                  {classGroups.map((group, idx) => {
-                    const styling = palette[idx % palette.length];
-                    const percent = activeStudents.length > 0 ? Math.round((group.students.length / activeStudents.length) * 100) : 0;
-                    return (
-                      <div key={group.name} className={`${styling.bg} p-4 rounded-2xl border ${styling.border} flex items-center justify-between`}>
-                        <div>
-                          <span className={`text-[10px] ${styling.text} uppercase font-bold block mb-1`}>Fasalka {group.name}</span>
-                          <span className={`block text-2xl font-extrabold ${styling.countText}`}>{group.students.length} <span className="text-xs font-semibold">Arday</span></span>
-                          <p className="text-[10px] text-slate-500 mt-1 font-semibold">{percent}% of active students</p>
-                        </div>
-                        <div className={`p-3 ${styling.badge} rounded-xl`}>
-                          <BookOpen className="w-5 h-5" />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Class Student Lists */}
-                {classGroups.map((group, idx) => {
-                  const styling = palette[idx % palette.length];
-                  return (
-                    <div key={group.name} className="space-y-3">
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                        <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                          <span className={`w-2 h-2 rounded-full ${styling.dot} inline-block`} />
-                          {idx + 1}. Liiska Fasalka {group.name} ({group.students.length} Students)
-                        </h4>
-                      </div>
-
-                      {group.students.length === 0 ? (
-                        <p className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 rounded-2xl border border-dashed border-slate-150">
-                          No active students in {group.name} class.
-                        </p>
-                      ) : (
-                        <div className="overflow-x-auto rounded-2xl border border-slate-100 max-h-[250px] overflow-y-auto scrollbar-thin">
-                          <table className="w-full text-left border-collapse text-xs">
-                            <thead>
-                              <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider sticky top-0 z-10">
-                                <th className="py-2 px-3">Student Name (Ardayga)</th>
-                                <th className="py-2 px-3">Student ID</th>
-                                <th className="py-2 px-3">Class (Fasalka)</th>
-                                <th className="py-2 px-3 text-right">Monthly Fee (Lacagta)</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {group.students.map((s, sIdx) => (
-                                <tr key={s.id || sIdx} className="hover:bg-slate-50/40">
-                                  <td className="py-2 px-3 font-bold text-slate-800">{s.name}</td>
-                                  <td className="py-2 px-3 font-mono text-[10px] text-slate-500">{s.id}</td>
-                                  <td className="py-2 px-3 text-slate-600 font-semibold">{s.className}</td>
-                                  <td className="py-2 px-3 text-right font-black text-slate-700">${Number(s.monthlyFee || 0).toFixed(2)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Modal Footer */}
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 pointer-print-none">
-                <button
-                  type="button"
-                  onClick={() => setShowActiveStudentsModal(false)}
-                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
-                >
-                  Xir (Close)
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        );
-      })()}
-
-      {/* -------------------------------------------------------------
-          MODAL: ALL PARENTS & GUARDIANS BREAKDOWN (ACTIVE / SUSPENDED & SHIFTS)
-          ------------------------------------------------------------- */}
-      {showParentsModal && (() => {
-        // Filter logic:
-        // Status filter:
-        // 'all' -> all parents
-        // 'active' -> parent has at least one active student (includes partially suspended)
-        // 'suspended' -> ALL students are suspended (activeCount === 0)
-        // 'partial' -> has both active and suspended students
-        // Session filter:
-        // 'all' -> any shift
-        // 'morning' -> parent's students are Morning (or student has Morning)
-        // 'afternoon' -> parent's students are Afternoon (or student has Afternoon)
-        // 'both' -> parent has students in Both shifts (or dual-session student)
-        const filteredParents = allParentsWithStatus.filter(parent => {
-          // Status filter
-          if (parentsModalStatusFilter === 'active' && parent.status !== 'Active') return false;
-          if (parentsModalStatusFilter === 'suspended' && parent.status !== 'Suspended') return false;
-          if (parentsModalStatusFilter === 'partial' && !parent.isPartiallySuspended) return false;
-
-          // Session/Shift filter
-          if (parentsModalSessionFilter === 'morning') {
-            if (parent.parentSessionCategory !== 'Morning') return false;
-          } else if (parentsModalSessionFilter === 'afternoon') {
-            if (parent.parentSessionCategory !== 'Afternoon') return false;
-          } else if (parentsModalSessionFilter === 'both') {
-            if (parent.parentSessionCategory !== 'Both') return false;
-          }
-
-          // Search query filter
-          if (parentsModalSearchQuery.trim()) {
-            const query = parentsModalSearchQuery.toLowerCase();
-            const matchName = parent.name.toLowerCase().includes(query);
-            const matchPhone = parent.phone.toLowerCase().includes(query);
-            const matchStudent = parent.students.some(st => 
-              st.name.toLowerCase().includes(query) || 
-              (st.className && st.className.toLowerCase().includes(query)) ||
-              (st.id && st.id.toLowerCase().includes(query)) ||
-              (st.session && st.session.toLowerCase().includes(query))
-            );
-            return matchName || matchPhone || matchStudent;
-          }
-
-          return true;
-        });
-
-        const totalParentsCount = allParentsWithStatus.length;
-        const activeParentsCount = allParentsWithStatus.filter(p => p.status === 'Active').length;
-        const suspendedParentsCount = allParentsWithStatus.filter(p => p.status === 'Suspended').length;
-        const partialParentsCount = allParentsWithStatus.filter(p => p.isPartiallySuspended).length;
-        const totalChildrenCount = allParentsWithStatus.reduce((acc, p) => acc + p.students.length, 0);
-
-        // Shift distribution statistics
-        const morningParentsCount = allParentsWithStatus.filter(p => p.parentSessionCategory === 'Morning').length;
-        const afternoonParentsCount = allParentsWithStatus.filter(p => p.parentSessionCategory === 'Afternoon').length;
-        const bothShiftParentsCount = allParentsWithStatus.filter(p => p.parentSessionCategory === 'Both').length;
-
-        return (
-          <div 
-            className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 md:p-6 z-55 animate-fade-in pointer-print-none" 
-            id="parents-modal-bg"
-            onClick={(e) => {
-              if ((e.target as HTMLElement).id === 'parents-modal-bg') {
-                setShowParentsModal(false);
-              }
-            }}
-          >
-            <motion.div 
-              initial={{ scale: 0.96, opacity: 0, y: 8 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              transition={{ duration: 0.15 }}
-              className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200/80 w-full max-w-5xl h-[92vh] max-h-[900px] flex flex-col overflow-hidden"
-            >
-              {/* Modal Header */}
-              <div className="px-5 py-4 sm:px-6 sm:py-5 bg-slate-900 text-white border-b border-slate-800 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-indigo-600/30 border border-indigo-400/30 text-indigo-300 rounded-xl shrink-0">
-                    <Users className="w-5 h-5 sm:w-6 sm:h-6" />
-                  </div>
-                  <div>
-                    <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                      Liiska Waalidiinta (Parents & Guardians Registry)
-                    </h3>
-                    <p className="text-[11px] sm:text-xs text-slate-300 font-medium">
-                      Guud ahaan: <strong className="text-white">{totalParentsCount} Waalid</strong> ({totalChildrenCount} Arday) ‚Ä¢ Subax: <strong className="text-amber-300">{morningParentsCount}</strong> ‚Ä¢ Galab: <strong className="text-sky-300">{afternoonParentsCount}</strong> ‚Ä¢ Labadaba: <strong className="text-purple-300">{bothShiftParentsCount}</strong>
-                    </p>
-                  </div>
-                </div>
-                <button 
-                  type="button"
-                  onClick={() => setShowParentsModal(false)}
-                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
-                  title="Xir (Close)"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Quick Summary KPI Counters Bar */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 px-4 py-3 sm:px-6 sm:py-3.5 bg-slate-50 border-b border-slate-200 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setParentsModalStatusFilter('all')}
-                  className={`p-2.5 sm:p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                    parentsModalStatusFilter === 'all'
-                      ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
-                      : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className={`text-[10px] uppercase font-black ${parentsModalStatusFilter === 'all' ? 'text-slate-300' : 'text-slate-400'}`}>Dhammaan (Total)</span>
-                    <Users className="w-3.5 h-3.5 opacity-60" />
-                  </div>
-                  <div className="text-lg sm:text-xl font-black mt-0.5">{totalParentsCount}</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setParentsModalStatusFilter('active')}
-                  className={`p-2.5 sm:p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                    parentsModalStatusFilter === 'active'
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm ring-2 ring-emerald-600/20'
-                      : 'bg-white text-emerald-800 border-emerald-200 hover:bg-emerald-50/50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className={`text-[10px] uppercase font-black ${parentsModalStatusFilter === 'active' ? 'text-emerald-100' : 'text-emerald-600'}`}>Active (Firfircoon)</span>
-                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                  </div>
-                  <div className="text-lg sm:text-xl font-black mt-0.5">{activeParentsCount}</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setParentsModalStatusFilter('suspended')}
-                  className={`p-2.5 sm:p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                    parentsModalStatusFilter === 'suspended'
-                      ? 'bg-rose-600 text-white border-rose-600 shadow-sm ring-2 ring-rose-600/20'
-                      : 'bg-white text-rose-800 border-rose-200 hover:bg-rose-50/50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className={`text-[10px] uppercase font-black ${parentsModalStatusFilter === 'suspended' ? 'text-rose-100' : 'text-rose-600'}`}>All Suspended</span>
-                    <span className="w-2 h-2 rounded-full bg-rose-400" />
-                  </div>
-                  <div className="text-lg sm:text-xl font-black mt-0.5">{suspendedParentsCount}</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setParentsModalStatusFilter('partial')}
-                  className={`p-2.5 sm:p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                    parentsModalStatusFilter === 'partial'
-                      ? 'bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-600/20'
-                      : 'bg-white text-amber-800 border-amber-200 hover:bg-amber-50/50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className={`text-[10px] uppercase font-black ${parentsModalStatusFilter === 'partial' ? 'text-amber-100' : 'text-amber-600'}`}>Partially Suspended</span>
-                    <span className="w-2 h-2 rounded-full bg-amber-400" />
-                  </div>
-                  <div className="text-lg sm:text-xl font-black mt-0.5">{partialParentsCount}</div>
-                </button>
-              </div>
-
-              {/* Shift Filter Tabs & Search Bar */}
-              <div className="px-4 py-3 sm:px-6 sm:py-3 bg-white border-b border-slate-200 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 shrink-0">
-                {/* Session Shift Filter Pills */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider mr-1 shrink-0">
-                    Wakhtiga (Shift):
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() => setParentsModalSessionFilter('all')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      parentsModalSessionFilter === 'all'
-                        ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    Dhammaan Shiftyada
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-extrabold ${parentsModalSessionFilter === 'all' ? 'bg-indigo-700 text-white' : 'bg-white text-slate-700'}`}>
-                      {totalParentsCount}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setParentsModalSessionFilter('morning')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      parentsModalSessionFilter === 'morning'
-                        ? 'bg-amber-500 text-white shadow-xs'
-                        : 'bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100'
-                    }`}
-                  >
-                    <Sunrise className="w-3.5 h-3.5" />
-                    Subax Kaliya (Morning)
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-extrabold ${parentsModalSessionFilter === 'morning' ? 'bg-amber-600 text-white' : 'bg-amber-200 text-amber-900'}`}>
-                      {morningParentsCount}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setParentsModalSessionFilter('afternoon')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      parentsModalSessionFilter === 'afternoon'
-                        ? 'bg-sky-600 text-white shadow-xs'
-                        : 'bg-sky-50 text-sky-900 border border-sky-200 hover:bg-sky-100'
-                    }`}
-                  >
-                    <Sun className="w-3.5 h-3.5" />
-                    Galab Kaliya (Afternoon)
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-extrabold ${parentsModalSessionFilter === 'afternoon' ? 'bg-sky-700 text-white' : 'bg-sky-200 text-sky-900'}`}>
-                      {afternoonParentsCount}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setParentsModalSessionFilter('both')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      parentsModalSessionFilter === 'both'
-                        ? 'bg-purple-600 text-white shadow-xs'
-                        : 'bg-purple-50 text-purple-900 border border-purple-200 hover:bg-purple-100'
-                    }`}
-                  >
-                    <ArrowLeftRight className="w-3.5 h-3.5" />
-                    Labada Shift (Both Shifts)
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-extrabold ${parentsModalSessionFilter === 'both' ? 'bg-purple-700 text-white' : 'bg-purple-200 text-purple-900'}`}>
-                      {bothShiftParentsCount}
-                    </span>
-                  </button>
-                </div>
-
-                {/* Search Bar */}
-                <div className="relative min-w-[240px] max-w-sm">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={parentsModalSearchQuery}
-                    onChange={(e) => setParentsModalSearchQuery(e.target.value)}
-                    placeholder="Raadi magaca, taleefanka, shift-ka..."
-                    className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all"
-                  />
-                  {parentsModalSearchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setParentsModalSearchQuery('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs font-bold cursor-pointer"
-                    >
-                      ‚úï
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Active Filter Reminder & Count Bar */}
-              <div className="px-4 sm:px-6 py-2 bg-indigo-50/70 border-b border-indigo-100 text-[11px] text-indigo-900 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-2 truncate">
-                  <span>
-                    üìå <strong>Xulashada Firfircoon:</strong> Xaalad: <strong className="capitalize">{parentsModalStatusFilter}</strong> ‚Ä¢ Shift: <strong className="capitalize">{parentsModalSessionFilter === 'all' ? 'Dhammaan' : parentsModalSessionFilter}</strong>
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="font-semibold text-slate-600">
-                    Waxaa la muujinayaa: <strong className="text-slate-900">{filteredParents.length}</strong> / {totalParentsCount}
-                  </span>
-                  {(parentsModalStatusFilter !== 'all' || parentsModalSessionFilter !== 'all' || parentsModalSearchQuery) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setParentsModalStatusFilter('all');
-                        setParentsModalSessionFilter('all');
-                        setParentsModalSearchQuery('');
-                      }}
-                      className="text-indigo-700 hover:text-indigo-900 font-black underline cursor-pointer ml-1"
-                    >
-                      Dib u celi (Reset All)
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Scrollable Parent Cards / Table */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/60 divide-y divide-slate-100 scrollbar-thin">
-                {filteredParents.length === 0 ? (
-                  <div className="py-16 text-center bg-white rounded-2xl border border-dashed border-slate-200">
-                    <Users className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                    <p className="text-sm font-bold text-slate-700">Waalid laguma helin shuruudahan</p>
-                    <p className="text-xs text-slate-400 mt-1">Isku day inaad beddesho shaandhada shift-ka (Morning, Afternoon, Both) ama nadiifiso raadinta.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-3.5">
-                    {filteredParents.map((parent, idx) => {
-                      const isActive = parent.status === 'Active';
-                      const isPartial = parent.isPartiallySuspended;
-                      const sessionCat = parent.parentSessionCategory;
-
-                      return (
-                        <div 
-                          key={parent.id || idx}
-                          className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
-                            isActive 
-                              ? isPartial
-                                ? 'bg-white border-amber-200 hover:border-amber-300 shadow-xs ring-1 ring-amber-100'
-                                : 'bg-white border-slate-200 hover:border-indigo-300 shadow-xs'
-                              : 'bg-rose-50/40 border-rose-200/80 hover:border-rose-300'
-                          }`}
-                        >
-                          <div>
-                            {/* Parent Top Row */}
-                            <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
-                              <div className="flex items-start gap-2.5 min-w-0">
-                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
-                                  isActive 
-                                    ? isPartial 
-                                      ? 'bg-amber-100 text-amber-800' 
-                                      : 'bg-emerald-100 text-emerald-800' 
-                                    : 'bg-rose-100 text-rose-800'
-                                }`}>
-                                  {parent.name ? parent.name.charAt(0).toUpperCase() : 'W'}
-                                </div>
-                                <div className="min-w-0">
-                                  <h4 className="font-extrabold text-slate-900 text-sm capitalize truncate">
-                                    {parent.name}
-                                  </h4>
-                                  <a 
-                                    href={`tel:${parent.phone}`}
-                                    className="text-xs text-slate-500 hover:text-indigo-600 font-mono font-medium inline-flex items-center gap-1 mt-0.5 transition-colors"
-                                  >
-                                    <Phone className="w-3 h-3 text-slate-400" />
-                                    {parent.phone}
-                                  </a>
-                                </div>
-                              </div>
-
-                              {/* Status & Shift Badges */}
-                              <div className="flex flex-col items-end gap-1.5 shrink-0">
-                                <div className="flex items-center gap-1.5">
-                                  {/* Shift Badge */}
-                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${
-                                    sessionCat === 'Both'
-                                      ? 'bg-purple-100 text-purple-900 border border-purple-200'
-                                      : sessionCat === 'Afternoon'
-                                        ? 'bg-sky-100 text-sky-900 border border-sky-200'
-                                        : 'bg-amber-100 text-amber-900 border border-amber-200'
-                                  }`}>
-                                    {sessionCat === 'Both' ? (
-                                      <>
-                                        <ArrowLeftRight className="w-3 h-3 text-purple-700" />
-                                        Both Shifts
-                                      </>
-                                    ) : sessionCat === 'Afternoon' ? (
-                                      <>
-                                        <Sun className="w-3 h-3 text-sky-700" />
-                                        Galab (PM)
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Sunrise className="w-3 h-3 text-amber-700" />
-                                        Subax (AM)
-                                      </>
-                                    )}
-                                  </span>
-
-                                  {/* Status Tag */}
-                                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wide ${
-                                    isActive 
-                                      ? isPartial
-                                        ? 'bg-amber-100 text-amber-900 border border-amber-200'
-                                        : 'bg-emerald-100 text-emerald-900 border border-emerald-200' 
-                                      : 'bg-rose-100 text-rose-900 border border-rose-200'
-                                  }`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full ${
-                                      isActive 
-                                        ? isPartial ? 'bg-amber-500' : 'bg-emerald-600' 
-                                        : 'bg-rose-600'
-                                    }`} />
-                                    {isActive ? (isPartial ? 'Active (Partial)' : 'Active') : 'Suspended'}
-                                  </span>
-                                </div>
-                                
-                                {isPartial && (
-                                  <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                                    1+ Child Suspended
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Children Summary Mini Deck */}
-                            <div className="mt-3 space-y-2">
-                              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
-                                <span className="flex items-center gap-1 text-slate-600">
-                                  <GraduationCap className="w-3.5 h-3.5 text-slate-400" />
-                                  Ardayda ({parent.students.length}):
-                                </span>
-                                <span className="text-[10px] font-mono">
-                                  <strong className="text-emerald-700">{parent.activeCount} Firfircoon</strong>
-                                  {parent.suspendedCount > 0 && (
-                                    <> ‚Ä¢ <strong className="text-rose-600">{parent.suspendedCount} Xayiran</strong></>
-                                  )}
-                                </span>
-                              </div>
-
-                              <div className="space-y-1.5 max-h-36 overflow-y-auto pr-0.5">
-                                {parent.students.map(st => {
-                                  const stShift = st.session || 'Morning';
-                                  return (
-                                    <div 
-                                      key={st.id} 
-                                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl border text-xs ${
-                                        st.active 
-                                          ? 'bg-slate-50/80 border-slate-100 text-slate-800' 
-                                          : 'bg-rose-50/70 border-rose-100 text-rose-800'
-                                      }`}
-                                    >
-                                      <div className="flex items-center gap-2 min-w-0">
-                                        <span className={`w-2 h-2 rounded-full shrink-0 ${st.active ? 'bg-emerald-500' : 'bg-rose-400'}`} />
-                                        <span className="font-bold truncate capitalize">{st.name}</span>
-                                        <span className="text-[10px] text-slate-400 font-medium shrink-0">
-                                          ({st.className || 'Fasal La\'aan'})
-                                        </span>
-                                      </div>
-
-                                      <div className="flex items-center gap-1.5 shrink-0">
-                                        {/* Shift Badge on each student */}
-                                        <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded flex items-center gap-0.5 ${
-                                          stShift === 'Both'
-                                            ? 'bg-purple-100 text-purple-800'
-                                            : stShift === 'Afternoon'
-                                              ? 'bg-sky-100 text-sky-800'
-                                              : 'bg-amber-100 text-amber-800'
-                                        }`}>
-                                          {stShift === 'Both' ? 'Both' : stShift === 'Afternoon' ? 'Galab' : 'Subax'}
-                                        </span>
-
-                                        <span className="font-mono font-bold text-[11px] text-slate-700">
-                                          ${st.monthlyFee || 0}
-                                        </span>
-                                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
-                                          st.active 
-                                            ? 'bg-emerald-100 text-emerald-800' 
-                                            : 'bg-rose-100 text-rose-800'
-                                        }`}>
-                                          {st.active ? 'Active' : 'Suspended'}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Card Footer Info */}
-                          <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                            <span className="font-medium">Total Monthly:</span>
-                            <span className="font-mono font-bold text-slate-900">${parent.totalMonthlyFee}/bilo</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Modal Footer */}
-              <div className="px-4 py-3 sm:px-6 sm:py-4 bg-white border-t border-slate-200 flex items-center justify-between gap-3 shrink-0 pointer-print-none">
-                <div className="text-xs text-slate-600 font-medium">
-                  Isku gayn: <strong>{filteredParents.length}</strong> waalid (Subax: <strong className="text-amber-600">{morningParentsCount}</strong>, Galab: <strong className="text-sky-600">{afternoonParentsCount}</strong>, Labadaba: <strong className="text-purple-600">{bothShiftParentsCount}</strong>)
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowParentsModal(false)}
-                  className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md active:scale-98"
-                >
-                  Xir (Close)
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        );
-      })()}
-
-      {/* -------------------------------------------------------------
-          MODAL: PENDING TUITION & SCHOOL FEES DETAILED BREAKDOWN
-          ------------------------------------------------------------- */}
-      {showPendingFeesBreakdownMonth && (() => {
-        const month = showPendingFeesBreakdownMonth;
-        const monthName = getFriendlyMonthName(month);
-        
-        // Calculate all active students with pending tuition balances
-        const allUnpaidTuitionList = (database.students || [])
-          .filter(s => s.active)
-          .map(student => {
-            const record = getBillingStatusForStudent(student, month);
-            const amountDue = Number(record.amountDue ?? student.monthlyFee ?? 0);
-            const amountPaid = Number(record.amountPaid || 0);
-            const balanceDue = Math.max(0, amountDue - amountPaid);
-            const isUnpaid = amountPaid === 0;
-            const isPartial = amountPaid > 0 && amountPaid < amountDue;
-            return {
-              student,
-              record,
-              amountDue,
-              amountPaid,
-              balanceDue,
-              status: (isUnpaid ? 'Unpaid' : (isPartial ? 'Partial' : 'Paid')) as 'Unpaid' | 'Partial' | 'Paid'
-            };
-          })
-          .filter(item => item.balanceDue > 0);
-
-        // Class list for filtering
-        const classOptions = Array.from(new Set(allUnpaidTuitionList.map(item => item.student.className).filter(Boolean))) as string[];
-
-        // Filtered list by search and class
-        const filteredUnpaidTuition = allUnpaidTuitionList.filter(item => {
-          const q = pendingFeesSearchQuery.toLowerCase();
-          const matchesSearch = !q || (
-            (item.student.name || '').toLowerCase().includes(q) ||
-            (item.student.id || '').toLowerCase().includes(q) ||
-            (item.student.className || '').toLowerCase().includes(q) ||
-            (item.student.parentName || '').toLowerCase().includes(q) ||
-            (item.student.parentPhone || '').toLowerCase().includes(q)
-          );
-          const matchesClass = pendingFeesClassFilter === 'all' || item.student.className === pendingFeesClassFilter;
-          return matchesSearch && matchesClass;
-        });
-
-        // Totals
-        const totalExpectedTuition = (database.students || []).filter(s => s.active).reduce((sum, s) => sum + Number(s.monthlyFee || 0), 0);
-        const totalTuitionPaid = (database.students || []).filter(s => s.active).map(s => getBillingStatusForStudent(s, month)).reduce((sum, r) => sum + Number(r.amountPaid || 0), 0);
-        const totalPendingDebt = allUnpaidTuitionList.reduce((sum, item) => sum + item.balanceDue, 0);
-
-        // Download CSV
-        const handleDownloadUnpaidFeesCSV = () => {
-          if (allUnpaidTuitionList.length === 0) return;
-          const headers = '\uFEFFStudent ID,Ardayga (Student Name),Fasalka (Class),Waalidka (Parent Name),Telka Waalidka (Parent Phone),Monthly Fee Due ($),Paid So Far ($),Pending Balance ($),Status\n';
-          const rows = filteredUnpaidTuition.map(item => {
-            return `"${item.student.id}","${item.student.name.replace(/"/g, '""')}","${(item.student.className || 'None').replace(/"/g, '""')}","${(item.student.parentName || 'N/A').replace(/"/g, '""')}","${(item.student.parentPhone || 'N/A').replace(/"/g, '""')}","${item.amountDue.toFixed(2)}","${item.amountPaid.toFixed(2)}","${item.balanceDue.toFixed(2)}","${item.status}"`;
-          }).join('\n');
-
-          const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.setAttribute("href", url);
-          link.setAttribute("download", `Dugsiga_Subuc_Unpaid_Fees_${month}_${new Date().toISOString().split('T')[0]}.csv`);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-
-          setFeedbackMsg("Liiska ardayda aan bixin lacagta waa la soo dejiyay (CSV Downloaded)!");
-          setTimeout(() => setFeedbackMsg(''), 4000);
-        };
-
-        // Download TXT
-        const handleDownloadUnpaidFeesTXT = () => {
-          let report = `====================================================\n`;
-          report += `DUGSIGA SUBUC - UNPAID & PENDING FEES REPORT\n`;
-          report += `Muddada (Month): ${monthName} (${month})\n`;
-          report += `Generated: ${new Date().toLocaleString()}\n`;
-          report += `Total Unpaid Students: ${allUnpaidTuitionList.length} | Total Pending Balance: $${totalPendingDebt.toFixed(2)}\n`;
-          report += `====================================================\n\n`;
-
-          filteredUnpaidTuition.forEach((item, i) => {
-            report += `${i + 1}. [${item.student.id}] ${item.student.name}\n`;
-            report += `   Fasalka: ${item.student.className || 'None'}\n`;
-            report += `   Waalidka: ${item.student.parentName || 'N/A'} (Tel: ${item.student.parentPhone || 'N/A'})\n`;
-            report += `   Fee Due: $${item.amountDue.toFixed(2)} | Paid: $${item.amountPaid.toFixed(2)} | Pending Debt: $${item.balanceDue.toFixed(2)}\n`;
-            report += `   Status: ${item.status.toUpperCase()}\n`;
-            report += `----------------------------------------------------\n`;
-          });
-
-          triggerFileDownload(`Dugsiga_Subuc_Unpaid_Fees_${month}_${new Date().toISOString().split('T')[0]}.txt`, report);
-          setFeedbackMsg("Warbixinta qoraalka ah ee ardayda dhiman waa la soo dejiyay!");
-          setTimeout(() => setFeedbackMsg(''), 4000);
-        };
-
-        return (
-          <div 
-            className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-55 animate-fade-in overflow-y-auto pointer-print-none" 
-            id="pending-fees-modal-bg"
-            onClick={(e) => {
-              if ((e.target as HTMLElement).id === 'pending-fees-modal-bg') {
-                setShowPendingFeesBreakdownMonth(null);
-              }
-            }}
-          >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-5xl w-full overflow-hidden flex flex-col max-h-[90vh]"
-            >
-              {/* Modal Header */}
-              <div className="p-6 bg-slate-900 text-white flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="p-3 bg-rose-500/20 border border-rose-400/30 rounded-2xl text-rose-300">
-                    <AlertCircle className="w-6 h-6" />
-                  </span>
-                  <div>
-                    <h3 className="text-lg font-black text-white flex items-center gap-2">
-                      Ardayda Aan Bixin Lacagta (Pending Fees Breakdown)
-                    </h3>
-                    <p className="text-xs text-slate-300 font-medium mt-0.5">
-                      Liiska faahfaahsan ee ardayda ay ku dhimantahay lacagta waxbarashada ee <span className="font-bold text-rose-300">{monthName}</span>
-                    </p>
-                  </div>
-                </div>
-                <button 
-                  type="button"
-                  onClick={() => setShowPendingFeesBreakdownMonth(null)}
-                  className="p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl transition-all cursor-pointer"
-                  title="Xir (Close)"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Summary Metric Cards */}
-              <div className="bg-slate-50 p-4 border-b border-slate-200/80 grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-rose-50/60 p-3.5 rounded-2xl border border-rose-200/60 shadow-xs flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] font-black text-rose-800 uppercase tracking-wider block">Pending Debt</span>
-                    <span className="text-xl font-black text-rose-600">${totalPendingDebt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  </div>
-                  <AlertCircle className="w-5 h-5 text-rose-500" />
-                </div>
-
-                <div className="bg-white p-3.5 rounded-2xl border border-slate-200/60 shadow-xs flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Unpaid Students</span>
-                    <span className="text-xl font-black text-slate-800">{allUnpaidTuitionList.length} Students</span>
-                  </div>
-                  <Users className="w-5 h-5 text-slate-400" />
-                </div>
-
-                <div className="bg-sky-50/60 p-3.5 rounded-2xl border border-sky-200/60 shadow-xs flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] font-black text-sky-800 uppercase tracking-wider block">Total Invoiced</span>
-                    <span className="text-xl font-black text-sky-900">${totalExpectedTuition.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  </div>
-                  <Calculator className="w-5 h-5 text-sky-600" />
-                </div>
-
-                <div className="bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-200/60 shadow-xs flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider block">Collected So Far</span>
-                    <span className="text-xl font-black text-emerald-700">${totalTuitionPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  </div>
-                  <Check className="w-5 h-5 text-emerald-600" />
-                </div>
-              </div>
-
-              {/* Controls Bar: Search, Class Filter, and Export */}
-              <div className="p-4 bg-white border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div className="flex flex-col sm:flex-row gap-2.5 flex-1">
-                  {/* Search */}
-                  <div className="relative flex-1">
-                    <Search className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 w-4 h-4 pointer-events-none mt-2.5" />
-                    <input
-                      type="text"
-                      placeholder="Raadi magaca ardayga, telka waalidka ama ID-ga..."
-                      value={pendingFeesSearchQuery}
-                      onChange={(e) => setPendingFeesSearchQuery(e.target.value)}
-                      className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-rose-500 focus:bg-white transition-all"
-                    />
-                    {pendingFeesSearchQuery && (
-                      <button 
-                        type="button" 
-                        onClick={() => setPendingFeesSearchQuery('')} 
-                        className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Class Filter */}
-                  <select
-                    value={pendingFeesClassFilter}
-                    onChange={(e) => setPendingFeesClassFilter(e.target.value)}
-                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:bg-white shrink-0"
-                  >
-                    <option value="all">Dhamaan Fasallada (All Classes)</option>
-                    {classOptions.map(cls => (
-                      <option key={cls} value={cls}>Fasalka: {cls}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Export Actions */}
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={handleDownloadUnpaidFeesTXT}
-                    disabled={allUnpaidTuitionList.length === 0}
-                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                    title="Soo deji warbixin qoraal ah (TXT Report)"
-                  >
-                    <FileText className="w-3.5 h-3.5 text-slate-600" />
-                    TXT
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDownloadUnpaidFeesCSV}
-                    disabled={allUnpaidTuitionList.length === 0}
-                    className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-50 active:scale-95"
-                    title="Soo deji liiska Excel (CSV)"
-                  >
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-white" />
-                    Excel (CSV)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handlePrintElement('printable-unpaid-fees-container')}
-                    disabled={allUnpaidTuitionList.length === 0}
-                    className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-50 active:scale-95"
-                    title="Daabac liiska ardayda aan bixin lacagta"
-                  >
-                    <Printer className="w-3.5 h-3.5 text-white" />
-                    Daabac (Print)
-                  </button>
-                </div>
-              </div>
-
-              {/* Scrollable Table Area */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                <div id="printable-unpaid-fees-container" className="space-y-4">
-                  {/* Print Only Header */}
-                  <div className="hidden print-only-block border-b-2 border-slate-900 pb-4 mb-4">
-                    <h2 className="text-xl font-black text-slate-900 text-center">Dugsiga Subuc - Banuu Jalaal</h2>
-                    <h3 className="text-base font-bold text-slate-700 text-center mt-1">Warbixinta Ardayda Aan Bixin Lacagta Waxbarashada ({monthName})</h3>
-                    <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono mt-4">
-                      <span>Taariikhda: {new Date().toLocaleDateString('so-SO', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                      <span>Ardayda Dhiman: {allUnpaidTuitionList.length} | Wadarta Deynta: ${totalPendingDebt.toFixed(2)}</span>
-                    </div>
-                  </div>
-
-                  {filteredUnpaidTuition.length === 0 ? (
-                    <div className="text-center py-16 text-slate-400 font-semibold bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                      <Check className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-                      <p className="text-sm font-bold text-slate-700">Dhamaan ardaydu waa bixiyeen lacagta waxbarashada!</p>
-                      <p className="text-xs text-slate-400 mt-1">No pending unpaid tuition fees found for this selection.</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky top-0 z-10">
-                            <th className="py-3 px-4">#</th>
-                            <th className="py-3 px-4">Ardayga (Student Name)</th>
-                            <th className="py-3 px-4">Fasalka & Macallinka</th>
-                            <th className="py-3 px-4">Waalidka & Xiriirka</th>
-                            <th className="py-3 px-4 text-right">Fee Due ($)</th>
-                            <th className="py-3 px-4 text-right">Paid ($)</th>
-                            <th className="py-3 px-4 text-right">Deynta (Debt $)</th>
-                            <th className="py-3 px-4 text-center">Status</th>
-                            <th className="py-3 px-4 text-right pointer-print-none">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 font-semibold">
-                          {filteredUnpaidTuition.map((item, idx) => {
-                            const waCleanPhone = (item.student.parentPhone || '').replace(/[^0-9]/g, '');
-                            const waMessage = encodeURIComponent(`Asc Walaal, waxaan ku xusuusinaynaa lacagta waxbarashada ardayga ${item.student.name} ee bisha ${monthName} oo dhan $${item.balanceDue.toFixed(2)} USD oo weli dhiman. Fadlan nala soo xiriir ama shub lacagta. Mahadsanid!`);
-
-                            return (
-                              <tr key={item.student.id || idx} className="hover:bg-rose-50/30 transition-colors">
-                                <td className="py-3 px-4 text-slate-400 font-mono text-[10px]">{idx + 1}</td>
-                                <td className="py-3 px-4 font-bold text-slate-800">
-                                  {item.student.name}
-                                  <span className="block text-[10px] font-mono text-slate-400 font-normal">{item.student.id}</span>
-                                </td>
-                                <td className="py-3 px-4 text-slate-600">
-                                  <span className="font-bold text-slate-800 block">{item.student.className || 'None'}</span>
-                                  {item.student.teacherId && (
-                                    <span className="text-[10px] text-slate-400 font-normal">
-                                      Macallin: {database.teachers.find(t => t.id === item.student.teacherId)?.name || item.student.teacherId}
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="py-3 px-4">
-                                  <span className="text-slate-800 block font-medium">{item.student.parentName || 'N/A'}</span>
-                                  <div className="flex items-center gap-2 mt-0.5 pointer-print-none">
-                                    {item.student.parentPhone ? (
-                                      <>
-                                        <a 
-                                          href={`tel:${item.student.parentPhone}`}
-                                          className="text-[10px] font-mono text-indigo-600 hover:text-indigo-800 font-bold inline-flex items-center gap-1 hover:underline"
-                                          title="Wac waalidka"
-                                        >
-                                          <Phone className="w-2.5 h-2.5" />
-                                          {item.student.parentPhone}
-                                        </a>
-                                        {waCleanPhone && (
-                                          <a
-                                            href={`https://wa.me/${waCleanPhone}?text=${waMessage}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="px-1.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[9px] font-extrabold rounded-md transition-all inline-flex items-center gap-0.5"
-                                            title="U dir fariin WhatsApp ah oo xusuusin lacag ah"
-                                          >
-                                            WhatsApp üí¨
-                                          </a>
-                                        )}
-                                      </>
-                                    ) : (
-                                      <span className="text-[10px] text-slate-400 font-normal italic">No Phone</span>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="py-3 px-4 text-right font-mono text-slate-600">${item.amountDue.toFixed(2)}</td>
-                                <td className="py-3 px-4 text-right font-mono text-teal-700 font-bold">${item.amountPaid.toFixed(2)}</td>
-                                <td className="py-3 px-4 text-right font-mono font-black text-rose-600 text-sm">
-                                  ${item.balanceDue.toFixed(2)}
-                                </td>
-                                <td className="py-3 px-4 text-center">
-                                  {item.status === 'Partial' ? (
-                                    <span className="px-2 py-0.5 text-[10px] font-black bg-amber-50 text-amber-700 rounded-full border border-amber-200">
-                                      Qayb (Partial)
-                                    </span>
-                                  ) : (
-                                    <span className="px-2 py-0.5 text-[10px] font-black bg-rose-50 text-rose-700 rounded-full border border-rose-200">
-                                      Lama bixin (Unpaid)
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="py-3 px-4 text-right pointer-print-none">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setSelectedBillingMonth(month);
-                                      setShowPendingFeesBreakdownMonth(null);
-                                      handleOpenPayModal(item.student);
-                                    }}
-                                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer inline-flex items-center gap-1 active:scale-95"
-                                    title="Qabo lacag-bixinta ardaygan (Log Payment)"
-                                  >
-                                    <CircleDollarSign className="w-3.5 h-3.5" />
-                                    Bixi (Pay)
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Modal Footer */}
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 pointer-print-none">
-                <button
-                  type="button"
-                  onClick={() => setShowPendingFeesBreakdownMonth(null)}
-                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
-                >
-                  Xir (Close)
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        );
-      })()}
-
-      {/* -------------------------------------------------------------
-          MODAL: PENDING BUS FARE DETAILED BREAKDOWN
-          ------------------------------------------------------------- */}
-      {showPendingBusBreakdownMonth && (() => {
-        const month = showPendingBusBreakdownMonth;
-        const monthName = getFriendlyMonthName(month);
-        
-        // Find all active bus riders who have pending bus balances for this month
-        const allUnpaidBusList = (database.students || [])
-          .filter(s => s.active && s.busFee && Number(s.busFee) > 0)
-          .map(student => {
-            const record = getBillingStatusForStudent(student, month);
-            const busFeeDue = Number(record.busFeeDue ?? student.busFee ?? 0);
-            const busFeePaid = Number(record.busFeePaid || 0);
-            const balanceDue = Math.max(0, busFeeDue - busFeePaid);
-            const isUnpaid = busFeePaid === 0;
-            const isPartial = busFeePaid > 0 && busFeePaid < busFeeDue;
-            return {
-              student,
-              record,
-              busFeeDue,
-              busFeePaid,
-              balanceDue,
-              status: (isUnpaid ? 'Unpaid' : (isPartial ? 'Partial' : 'Paid')) as 'Unpaid' | 'Partial' | 'Paid'
-            };
-          })
-          .filter(item => item.balanceDue > 0);
-
-        // Class list for filtering
-        const classOptions = Array.from(new Set(allUnpaidBusList.map(item => item.student.className).filter(Boolean))) as string[];
-
-        // Filter by search query and class
-        const filteredUnpaidBus = allUnpaidBusList.filter(item => {
-          const q = pendingBusSearchQuery.toLowerCase();
-          const matchesSearch = !q || (
-            (item.student.name || '').toLowerCase().includes(q) ||
-            (item.student.id || '').toLowerCase().includes(q) ||
-            (item.student.className || '').toLowerCase().includes(q) ||
-            (item.student.parentName || '').toLowerCase().includes(q) ||
-            (item.student.parentPhone || '').toLowerCase().includes(q)
-          );
-          const matchesClass = pendingBusClassFilter === 'all' || item.student.className === pendingBusClassFilter;
-          return matchesSearch && matchesClass;
-        });
-
-        // Totals
-        const totalExpectedBus = busRiders.reduce((sum, s) => sum + Number(s.busFee || 0), 0);
-        const totalBusPaid = currentMonthResolvedRecords.reduce((sum, r) => sum + Number(r.busFeePaid || 0), 0);
-        const totalPendingBusDebt = allUnpaidBusList.reduce((sum, item) => sum + item.balanceDue, 0);
-
-        // Download CSV
-        const handleDownloadUnpaidBusCSV = () => {
-          if (allUnpaidBusList.length === 0) return;
-          const headers = '\uFEFFStudent ID,Ardayga (Student Name),Fasalka (Class),Waalidka (Parent Name),Telka Waalidka (Parent Phone),Monthly Bus Fee Due ($),Bus Paid So Far ($),Pending Bus Balance ($),Status\n';
-          const rows = filteredUnpaidBus.map(item => {
-            return `"${item.student.id}","${item.student.name.replace(/"/g, '""')}","${(item.student.className || 'None').replace(/"/g, '""')}","${(item.student.parentName || 'N/A').replace(/"/g, '""')}","${(item.student.parentPhone || 'N/A').replace(/"/g, '""')}","${item.busFeeDue.toFixed(2)}","${item.busFeePaid.toFixed(2)}","${item.balanceDue.toFixed(2)}","${item.status}"`;
-          }).join('\n');
-
-          const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.setAttribute("href", url);
-          link.setAttribute("download", `Dugsiga_Subuc_Unpaid_Bus_${month}_${new Date().toISOString().split('T')[0]}.csv`);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-
-          setFeedbackMsg("Liiska lacagta baska dhiman waa la soo dejiyay (CSV Downloaded)!");
-          setTimeout(() => setFeedbackMsg(''), 4000);
-        };
-
-        // Download TXT
-        const handleDownloadUnpaidBusTXT = () => {
-          let report = `====================================================\n`;
-          report += `DUGSIGA SUBUC - UNPAID BUS FARE REPORT\n`;
-          report += `Muddada (Month): ${monthName} (${month})\n`;
-          report += `Generated: ${new Date().toLocaleString()}\n`;
-          report += `Total Unpaid Bus Riders: ${allUnpaidBusList.length} | Total Pending Bus Balance: $${totalPendingBusDebt.toFixed(2)}\n`;
-          report += `====================================================\n\n`;
-
-          filteredUnpaidBus.forEach((item, i) => {
-            report += `${i + 1}. [${item.student.id}] ${item.student.name}\n`;
-            report += `   Fasalka: ${item.student.className || 'None'}\n`;
-            report += `   Waalidka: ${item.student.parentName || 'N/A'} (Tel: ${item.student.parentPhone || 'N/A'})\n`;
-            report += `   Bus Due: $${item.busFeeDue.toFixed(2)} | Paid: $${item.busFeePaid.toFixed(2)} | Pending Debt: $${item.balanceDue.toFixed(2)}\n`;
-            report += `   Status: ${item.status.toUpperCase()}\n`;
-            report += `----------------------------------------------------\n`;
-          });
-
-          triggerFileDownload(`Dugsiga_Subuc_Unpaid_Bus_${month}_${new Date().toISOString().split('T')[0]}.txt`, report);
-          setFeedbackMsg("Warbixinta qoraalka ah ee baska dhiman waa la soo dejiyay!");
-          setTimeout(() => setFeedbackMsg(''), 4000);
-        };
-
-        return (
-          <div 
-            className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-55 animate-fade-in overflow-y-auto pointer-print-none" 
-            id="pending-bus-modal-bg"
-            onClick={(e) => {
-              if ((e.target as HTMLElement).id === 'pending-bus-modal-bg') {
-                setShowPendingBusBreakdownMonth(null);
-              }
-            }}
-          >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-5xl w-full overflow-hidden flex flex-col max-h-[90vh]"
-            >
-              {/* Modal Header */}
-              <div className="p-6 bg-slate-900 text-white flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="p-3 bg-amber-500/20 border border-amber-400/30 rounded-2xl text-amber-300">
-                    <Bus className="w-6 h-6" />
-                  </span>
-                  <div>
-                    <h3 className="text-lg font-black text-white flex items-center gap-2">
-                      Lacagta Baska Ee Dhiman (Pending Bus Fare Breakdown)
-                    </h3>
-                    <p className="text-xs text-slate-300 font-medium mt-0.5">
-                      Liiska ardayda baska raacda ee ay ku dhimantahay lacagta gaadiidka ee <span className="font-bold text-amber-300">{monthName}</span>
-                    </p>
-                  </div>
-                </div>
-                <button 
-                  type="button"
-                  onClick={() => setShowPendingBusBreakdownMonth(null)}
-                  className="p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl transition-all cursor-pointer"
-                  title="Xir (Close)"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Summary Metric Cards */}
-              <div className="bg-slate-50 p-4 border-b border-slate-200/80 grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-rose-50/60 p-3.5 rounded-2xl border border-rose-200/60 shadow-xs flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] font-black text-rose-800 uppercase tracking-wider block">Pending Bus Debt</span>
-                    <span className="text-xl font-black text-rose-600">${totalPendingBusDebt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  </div>
-                  <AlertCircle className="w-5 h-5 text-rose-500" />
-                </div>
-
-                <div className="bg-white p-3.5 rounded-2xl border border-slate-200/60 shadow-xs flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Unpaid Bus Riders</span>
-                    <span className="text-xl font-black text-slate-800">{allUnpaidBusList.length} Riders</span>
-                  </div>
-                  <Users className="w-5 h-5 text-slate-400" />
-                </div>
-
-                <div className="bg-sky-50/60 p-3.5 rounded-2xl border border-sky-200/60 shadow-xs flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] font-black text-sky-800 uppercase tracking-wider block">Total Bus Invoiced</span>
-                    <span className="text-xl font-black text-sky-900">${totalExpectedBus.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  </div>
-                  <Calculator className="w-5 h-5 text-sky-600" />
-                </div>
-
-                <div className="bg-teal-50/60 p-3.5 rounded-2xl border border-teal-200/60 shadow-xs flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] font-black text-teal-800 uppercase tracking-wider block">Bus Collected</span>
-                    <span className="text-xl font-black text-teal-700">${totalBusPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  </div>
-                  <Check className="w-5 h-5 text-emerald-600" />
-                </div>
-              </div>
-
-              {/* Controls Bar: Search, Class Filter, and Export */}
-              <div className="p-4 bg-white border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div className="flex flex-col sm:flex-row gap-2.5 flex-1">
-                  {/* Search */}
-                  <div className="relative flex-1">
-                    <Search className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 w-4 h-4 pointer-events-none mt-2.5" />
-                    <input
-                      type="text"
-                      placeholder="Raadi ardayga baska, telka waalidka ama ID-ga..."
-                      value={pendingBusSearchQuery}
-                      onChange={(e) => setPendingBusSearchQuery(e.target.value)}
-                      className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-amber-500 focus:bg-white transition-all"
-                    />
-                    {pendingBusSearchQuery && (
-                      <button 
-                        type="button" 
-                        onClick={() => setPendingBusSearchQuery('')} 
-                        className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Class Filter */}
-                  <select
-                    value={pendingBusClassFilter}
-                    onChange={(e) => setPendingBusClassFilter(e.target.value)}
-                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:bg-white shrink-0"
-                  >
-                    <option value="all">Dhamaan Fasallada (All Classes)</option>
-                    {classOptions.map(cls => (
-                      <option key={cls} value={cls}>Fasalka: {cls}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Export Actions */}
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={handleDownloadUnpaidBusTXT}
-                    disabled={allUnpaidBusList.length === 0}
-                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                    title="Soo deji warbixin qoraal ah (TXT Report)"
-                  >
-                    <FileText className="w-3.5 h-3.5 text-slate-600" />
-                    TXT
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDownloadUnpaidBusCSV}
-                    disabled={allUnpaidBusList.length === 0}
-                    className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-50 active:scale-95"
-                    title="Soo deji liiska Excel (CSV)"
-                  >
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-white" />
-                    Excel (CSV)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handlePrintElement('printable-unpaid-bus-container')}
-                    disabled={allUnpaidBusList.length === 0}
-                    className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-50 active:scale-95"
-                    title="Daabac liiska baska dhiman"
-                  >
-                    <Printer className="w-3.5 h-3.5 text-white" />
-                    Daabac (Print)
-                  </button>
-                </div>
-              </div>
-
-              {/* Scrollable Table Area */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                <div id="printable-unpaid-bus-container" className="space-y-4">
-                  {/* Print Only Header */}
-                  <div className="hidden print-only-block border-b-2 border-slate-900 pb-4 mb-4">
-                    <h2 className="text-xl font-black text-slate-900 text-center">Dugsiga Subuc - Banuu Jalaal</h2>
-                    <h3 className="text-base font-bold text-slate-700 text-center mt-1">Warbixinta Lacagta Baska Ee Dhiman ({monthName})</h3>
-                    <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono mt-4">
-                      <span>Taariikhda: {new Date().toLocaleDateString('so-SO', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                      <span>Rakaabka Dhiman: {allUnpaidBusList.length} | Wadarta Deynta Baska: ${totalPendingBusDebt.toFixed(2)}</span>
-                    </div>
-                  </div>
-
-                  {filteredUnpaidBus.length === 0 ? (
-                    <div className="text-center py-16 text-slate-400 font-semibold bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                      <Check className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-                      <p className="text-sm font-bold text-slate-700">Dhamaan rakaabka baska waa bixiyeen lacagta gaadiidka!</p>
-                      <p className="text-xs text-slate-400 mt-1">No pending unpaid bus fees found for this selection.</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky top-0 z-10">
-                            <th className="py-3 px-4">#</th>
-                            <th className="py-3 px-4">Ardayga (Student Name)</th>
-                            <th className="py-3 px-4">Fasalka</th>
-                            <th className="py-3 px-4">Waalidka & Xiriirka</th>
-                            <th className="py-3 px-4 text-right">Bus Due ($)</th>
-                            <th className="py-3 px-4 text-right">Bus Paid ($)</th>
-                            <th className="py-3 px-4 text-right">Deynta Baska ($)</th>
-                            <th className="py-3 px-4 text-center">Status</th>
-                            <th className="py-3 px-4 text-right pointer-print-none">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 font-semibold">
-                          {filteredUnpaidBus.map((item, idx) => {
-                            const waCleanPhone = (item.student.parentPhone || '').replace(/[^0-9]/g, '');
-                            const waMessage = encodeURIComponent(`Asc Walaal, waxaan ku xusuusinaynaa lacagta baska (gaadiidka) ee ardayga ${item.student.name} ee bisha ${monthName} oo dhan $${item.balanceDue.toFixed(2)} USD oo weli dhiman. Fadlan nala soo xiriir ama shub lacagta baska. Mahadsanid!`);
-
-                            return (
-                              <tr key={item.student.id || idx} className="hover:bg-amber-50/30 transition-colors">
-                                <td className="py-3 px-4 text-slate-400 font-mono text-[10px]">{idx + 1}</td>
-                                <td className="py-3 px-4 font-bold text-slate-800">
-                                  {item.student.name}
-                                  <span className="block text-[10px] font-mono text-slate-400 font-normal">{item.student.id}</span>
-                                </td>
-                                <td className="py-3 px-4 text-slate-600 font-bold">{item.student.className || 'None'}</td>
-                                <td className="py-3 px-4">
-                                  <span className="text-slate-800 block font-medium">{item.student.parentName || 'N/A'}</span>
-                                  <div className="flex items-center gap-2 mt-0.5 pointer-print-none">
-                                    {item.student.parentPhone ? (
-                                      <>
-                                        <a 
-                                          href={`tel:${item.student.parentPhone}`}
-                                          className="text-[10px] font-mono text-indigo-600 hover:text-indigo-800 font-bold inline-flex items-center gap-1 hover:underline"
-                                          title="Wac waalidka"
-                                        >
-                                          <Phone className="w-2.5 h-2.5" />
-                                          {item.student.parentPhone}
-                                        </a>
-                                        {waCleanPhone && (
-                                          <a
-                                            href={`https://wa.me/${waCleanPhone}?text=${waMessage}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="px-1.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[9px] font-extrabold rounded-md transition-all inline-flex items-center gap-0.5"
-                                            title="U dir fariin WhatsApp ah oo xusuusin lacagta baska ah"
-                                          >
-                                            WhatsApp üí¨
-                                          </a>
-                                        )}
-                                      </>
-                                    ) : (
-                                      <span className="text-[10px] text-slate-400 font-normal italic">No Phone</span>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="py-3 px-4 text-right font-mono text-slate-600">${item.busFeeDue.toFixed(2)}</td>
-                                <td className="py-3 px-4 text-right font-mono text-teal-700 font-bold">${item.busFeePaid.toFixed(2)}</td>
-                                <td className="py-3 px-4 text-right font-mono font-black text-rose-600 text-sm">
-                                  ${item.balanceDue.toFixed(2)}
-                                </td>
-                                <td className="py-3 px-4 text-center">
-                                  {item.status === 'Partial' ? (
-                                    <span className="px-2 py-0.5 text-[10px] font-black bg-amber-50 text-amber-700 rounded-full border border-amber-200">
-                                      Qayb (Partial)
-                                    </span>
-                                  ) : (
-                                    <span className="px-2 py-0.5 text-[10px] font-black bg-rose-50 text-rose-700 rounded-full border border-rose-200">
-                                      Lama bixin (Unpaid)
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="py-3 px-4 text-right pointer-print-none">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setSelectedBillingMonth(month);
-                                      setShowPendingBusBreakdownMonth(null);
-                                      handleOpenPayModal(item.student);
-                                    }}
-                                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer inline-flex items-center gap-1 active:scale-95"
-                                    title="Qabo lacagta baska ee ardaygan (Log Bus Payment)"
-                                  >
-                                    <Bus className="w-3.5 h-3.5" />
-                                    Bixi Baska (Pay Bus)
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Modal Footer */}
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 pointer-print-none">
-                <button
-                  type="button"
-                  onClick={() => setShowPendingBusBreakdownMonth(null)}
-                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
-                >
-                  Xir (Close)
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        );
-      })()}
-
-      {/* -------------------------------------------------------------
-          MODAL: ACTIVE BUS RIDERS DETAIL BREAKDOWN
-          ------------------------------------------------------------- */}
-      {showActiveRidersModal && (() => {
-        // Filter active riders by search query
-        const filteredRiders = busRiders.filter(s => {
-          const q = activeRidersSearchQuery.toLowerCase();
-          return (
-            (s.name || '').toLowerCase().includes(q) ||
-            (s.id || '').toLowerCase().includes(q) ||
-            (s.className || '').toLowerCase().includes(q) ||
-            (s.parentName || '').toLowerCase().includes(q) ||
-            (s.parentPhone || '').toLowerCase().includes(q)
-          );
-        });
-
-        const handleDownloadActiveRidersCSV = () => {
-          if (busRiders.length === 0) return;
-          
-          const headers = '\uFEFFArdayga (Student Name),Student ID,Fasalka (Class),Waalidka (Parent Name),Telka Waalidka (Parent Phone),Monthly Bus Fee (Lacagta)\n';
-          const rows = busRiders.map(s => {
-            const escapedName = (s.name || '').replace(/"/g, '""');
-            const escapedParentName = (s.parentName || '').replace(/"/g, '""');
-            const escapedClassName = (s.className || '').replace(/"/g, '""');
-            const escapedPhone = (s.parentPhone || '').replace(/"/g, '""');
-            return `"${escapedName}","${s.id || ''}","${escapedClassName}","${escapedParentName}","${escapedPhone}","${s.busFee || 0}"`;
-          }).join('\n');
-          
-          const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(headers + rows);
-          const link = document.createElement("a");
-          link.setAttribute("href", csvContent);
-          link.setAttribute("download", `dugsiga_subuc_active_bus_riders_${new Date().toISOString().slice(0, 10)}.csv`);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          
-          setFeedbackMsg("Liiska rakaabka baska waa la soo dejiyay (Active riders CSV downloaded)!");
-          setTimeout(() => setFeedbackMsg(''), 4050);
-        };
-
-        const handleDownloadActiveRidersPDF = () => {
-          if (busRiders.length === 0) return;
-
-          const doc = new jsPDF({
-            orientation: 'portrait',
-            unit: 'mm',
-            format: 'a4'
-          });
-
-          doc.setProperties({
-            title: `Dugsiga Subuc - Active Bus Riders List`,
-            subject: 'Active Bus Riders',
-            author: 'Dugsiga Subuc',
-          });
-
-          // Helper to draw Header on a new page
-          const drawHeader = (pageNumber: number) => {
-            // Header Title
-            doc.setTextColor(33, 84, 61); // deep green (#21543d)
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(20);
-            doc.text("DUGSIGA SUBUC", 20, 20);
-
-            // Subtitle
-            doc.setFontSize(9);
-            doc.setTextColor(43, 92, 67); // Green motto
-            doc.text("Xafiiska Maamulka Garowe", 20, 25);
-
-            doc.setFont("Helvetica", "normal");
-            doc.setFontSize(9);
-            doc.setTextColor(100, 116, 139); // slate-500
-            doc.text("LIISKA RAKAABKA BASKA EE FIRFIRCOON (ACTIVE BUS RIDERS LIST)", 20, 30);
-            
-            // Meta right-aligned
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(8);
-            doc.setTextColor(100, 116, 139);
-            doc.text(`TAARIIKHDA: ${new Date().toLocaleDateString('so-SO', { year: 'numeric', month: 'numeric', day: 'numeric' })}`, 190, 20, { align: "right" });
-            doc.text(`WADAR RAKAABKA: ${busRiders.length}`, 190, 25, { align: "right" });
-            doc.text(`PAGE: ${pageNumber}`, 190, 30, { align: "right" });
-
-            // Divider line
-            doc.setDrawColor(203, 213, 225); // slate-300
-            doc.setLineWidth(0.4);
-            doc.line(15, 35, 195, 35);
-
-            // Table headers
-            doc.setFillColor(241, 245, 249); // slate-100 bg
-            doc.rect(15, 40, 180, 8, 'F');
-
-            doc.setTextColor(71, 85, 105); // slate-600
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(8.5);
-            doc.text("Ardayga (Student Name)", 18, 45);
-            doc.text("Student ID", 70, 45);
-            doc.text("Fasalka (Class)", 92, 45);
-            doc.text("Waalidka (Parent)", 122, 45);
-            doc.text("Telka (Parent Phone)", 162, 45);
-
-            // Header underline
-            doc.setDrawColor(148, 163, 184); // slate-400
-            doc.setLineWidth(0.3);
-            doc.line(15, 48, 195, 48);
-          };
-
-          let pageNum = 1;
-          drawHeader(pageNum);
-
-          let y = 54;
-          const rowHeight = 8;
-          const maxPageY = 270;
-
-          // Draw active riders rows (excluding the money column)
-          doc.setFont("Helvetica", "normal");
-          doc.setFontSize(8);
-          doc.setTextColor(30, 41, 59); // slate-800
-
-          busRiders.forEach((rider, index) => {
-            if (y > maxPageY) {
-              doc.addPage();
-              pageNum++;
-              drawHeader(pageNum);
-              y = 54;
-              doc.setFont("Helvetica", "normal");
-              doc.setFontSize(8);
-              doc.setTextColor(30, 41, 59);
-            }
-
-            // Alternating row background for elegance
-            if (index % 2 === 1) {
-              doc.setFillColor(248, 250, 252); // slate-50/50 bg
-              doc.rect(15, y - 5, 180, rowHeight, 'F');
-            }
-
-            // Text truncation or rendering
-            const cleanText = (txt: string, maxLen: number) => {
-              const str = txt || '';
-              return str.length > maxLen ? str.slice(0, maxLen) + '..' : str;
-            };
-
-            const nameStr = cleanText(rider.name, 28);
-            const idStr = rider.id || '';
-            const classStr = cleanText(rider.className, 16);
-            const parentStr = cleanText(rider.parentName, 22);
-            const phoneStr = cleanText(rider.parentPhone, 18);
-
-            doc.setFont("Helvetica", "bold");
-            doc.setTextColor(15, 23, 42); // slate-900
-            doc.text(nameStr, 18, y);
-            
-            doc.setFont("Helvetica", "normal");
-            doc.setTextColor(71, 85, 105); // slate-600
-            doc.text(idStr, 70, y);
-            doc.text(classStr, 92, y);
-            doc.text(parentStr, 122, y);
-            doc.text(phoneStr, 162, y);
-
-            // Thin line between rows
-            doc.setDrawColor(241, 245, 249); // slate-100
-            doc.setLineWidth(0.1);
-            doc.line(15, y + 3, 195, y + 3);
-
-            y += rowHeight;
-          });
-
-          doc.save(`dugsiga_subuc_active_bus_riders_${new Date().toISOString().slice(0, 10)}.pdf`);
-          
-          setFeedbackMsg("Liiska rakaabka baska (PDF) waa la soo dejiyay (Active riders PDF downloaded)!");
-          setTimeout(() => setFeedbackMsg(''), 4050);
-        };
-
-        return (
-          <div 
-            className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-55 animate-fade-in overflow-y-auto pointer-print-none" 
-            id="active-riders-modal-bg"
-            onClick={(e) => {
-              if ((e.target as HTMLElement).id === 'active-riders-modal-bg') {
-                setShowActiveRidersModal(false);
-              }
-            }}
-          >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-3xl shadow-xl border border-slate-100 max-w-4xl w-full overflow-hidden flex flex-col max-h-[85vh]"
-            >
-              {/* Modal Header */}
-              <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                    <Bus className="w-5 h-5 text-indigo-600" />
-                    Rakaabka Baska ee Firfircoon (Active Bus Riders)
-                  </h3>
-                  <p className="text-xs text-slate-500 font-semibold mt-1">Total active students registered for school transit: {busRiders.length}</p>
-                </div>
-                <button 
-                  type="button"
-                  onClick={() => setShowActiveRidersModal(false)}
-                  className="p-1 px-2 text-xs font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
-                >
-                  Xir (Close)
-                </button>
-              </div>
-
-              {/* Scrollable Body */}
-              <div className="p-6 overflow-y-auto space-y-6 flex-1 scrollbar-thin">
-                
-                {/* Search & Action Bar */}
-                <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-150">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-                    <input 
-                      type="text"
-                      placeholder="Raadi arday, fashal ama telka waalidka..."
-                      value={activeRidersSearchQuery}
-                      onChange={(e) => setActiveRidersSearchQuery(e.target.value)}
-                      className="pl-9 pr-4 py-2 w-full bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                    {activeRidersSearchQuery && (
-                      <button 
-                        onClick={() => setActiveRidersSearchQuery('')}
-                        className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 text-xs font-bold"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleDownloadActiveRidersCSV}
-                      disabled={busRiders.length === 0}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold text-xs uppercase rounded-xl transition-all disabled:opacity-50"
-                      title="Download full list in CSV format"
-                    >
-                      <FileSpreadsheet className="w-4 h-4" />
-                      Deji CSV
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleDownloadActiveRidersPDF}
-                      disabled={busRiders.length === 0}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs uppercase rounded-xl transition-all disabled:opacity-50"
-                      title="Download riders list in PDF format (excludes money column)"
-                    >
-                      <FileText className="w-4 h-4" />
-                      Deji PDF
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handlePrintElement('printable-riders-table-container')}
-                      disabled={busRiders.length === 0}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase rounded-xl transition-all shadow-sm disabled:opacity-50"
-                      title="Print the riders list"
-                    >
-                      <Printer className="w-4 h-4" />
-                      Daabac (Print)
-                    </button>
-                  </div>
-                </div>
-
-                {/* Table Container */}
-                <div id="printable-riders-table-container" className="space-y-4">
-                  {/* Print Only Header (hidden in screen, visible when printing) */}
-                  <div className="hidden print-only-block border-b-2 border-slate-900 pb-4 mb-4">
-                    <h2 className="text-xl font-black text-slate-900 text-center">Dugsiga Subuc - Banuu Jalaal</h2>
-                    <h3 className="text-base font-bold text-slate-700 text-center mt-1">Liiska Rakaabka Baska ee Firfircoon (Active Bus Riders List)</h3>
-                    <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono mt-4">
-                      <span>Taariikhda Daabacaadda: {new Date().toLocaleDateString('so-SO', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                      <span>Wadar Rakaabka: {busRiders.length} arday</span>
-                    </div>
-                  </div>
-
-                  {filteredRiders.length === 0 ? (
-                    <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-150">
-                      <Bus className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                      <p className="text-xs text-slate-500 font-bold">Lama helin wax rakaab ah oo buuxiya shuruudaha.</p>
-                      <p className="text-[10px] text-slate-400 mt-1">Haddii aysan jirin wax natiijo ah, fadlan iska hubi hifdintaada raadinta.</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto rounded-2xl border border-slate-100 max-h-[50vh] overflow-y-auto scrollbar-thin">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider sticky top-0 z-10">
-                            <th className="py-3 px-4">Ardayga (Student Name)</th>
-                            <th className="py-3 px-4">Student ID</th>
-                            <th className="py-3 px-4">Fasalka (Class)</th>
-                            <th className="py-3 px-4">Waalidka (Parent Name)</th>
-                            <th className="py-3 px-4">Telka Waalidka (Parent Phone)</th>
-                            <th className="py-3 px-4 text-right pointer-print-none no-print">Monthly Bus Fee (Lacagta)</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {filteredRiders.map((s, idx) => (
-                            <tr key={s.id || idx} className="hover:bg-slate-50/40">
-                              <td className="py-3 px-4 font-bold text-slate-800">{s.name}</td>
-                              <td className="py-3 px-4 font-mono text-[10px] text-slate-500">{s.id}</td>
-                              <td className="py-3 px-4 text-slate-600 font-semibold">{s.className || 'None'}</td>
-                              <td className="py-3 px-4 text-slate-700 font-medium">{s.parentName || 'N/A'}</td>
-                              <td className="py-3 px-4 text-slate-600 font-semibold">{s.parentPhone || 'N/A'}</td>
-                              <td className="py-3 px-4 text-right font-black text-indigo-700 pointer-print-none no-print">${Number(s.busFee || 0).toFixed(2)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-              </div>
-
-              {/* Modal Footer */}
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 pointer-print-none">
-                <button
-                  type="button"
-                  onClick={() => setShowActiveRidersModal(false)}
-                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
-                >
-                  Xir (Close)
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        );
-      })()}
-
-      {/* -------------------------------------------------------------
-          MODAL: STUDENT TUITION INVOICED EXPECTED DUES BREAKDOWN
-          ------------------------------------------------------------- */}
-      {showTuitionInvoicedModal && (() => {
-        // Unique classes for filtering
-        const uniqueTuitionClasses = Array.from(new Set(activeStudents.map(s => s.className).filter(Boolean))).sort();
-
-        // Filter active students by search query, class, and payment status
-        const filteredTuitionStudents = activeStudents.filter(s => {
-          const q = tuitionInvoicedSearchQuery.toLowerCase();
-          const matchesSearch = (
-            (s.name || '').toLowerCase().includes(q) ||
-            (s.id || '').toLowerCase().includes(q) ||
-            (s.className || '').toLowerCase().includes(q) ||
-            (s.parentName || '').toLowerCase().includes(q) ||
-            (s.parentPhone || '').toLowerCase().includes(q)
-          );
-          const matchesClass = tuitionInvoicedClassFilter === 'all' || s.className === tuitionInvoicedClassFilter;
-
-          if (!matchesSearch || !matchesClass) return false;
-
-          if (tuitionInvoicedStatusFilter === 'all') return true;
-          const billingStatus = getBillingStatusForStudent(s, currentMonthFilter);
-          const tuitionPaid = Number(billingStatus?.amountPaid || 0);
-          const tuitionFee = Number(s.monthlyFee || 0);
-          if (tuitionInvoicedStatusFilter === 'paid') return tuitionPaid >= tuitionFee && tuitionFee > 0;
-          if (tuitionInvoicedStatusFilter === 'partial') return tuitionPaid > 0 && tuitionPaid < tuitionFee;
-          if (tuitionInvoicedStatusFilter === 'pending') return tuitionPaid === 0 && tuitionFee > 0;
-          return true;
-        });
-
-        const handleDownloadTuitionInvoicedCSV = () => {
-          if (activeStudents.length === 0) return;
-          const headers = '\uFEFFStudent ID,Ardayga (Student Name),Fasalka (Class),Waalidka (Parent Name),Telka Waalidka (Parent Phone),Monthly Tuition Fee ($),Paid So Far ($),Pending Balance ($),Status\n';
-          const rows = activeStudents.map(s => {
-            const billingStatus = getBillingStatusForStudent(s, currentMonthFilter);
-            const tuitionPaid = Number(billingStatus?.amountPaid || 0);
-            const tuitionFee = Number(s.monthlyFee || 0);
-            const tuitionPending = Math.max(0, tuitionFee - tuitionPaid);
-            const status = tuitionPaid >= tuitionFee ? 'Paid' : (tuitionPaid > 0 ? 'Partial' : 'Pending');
-            
-            return `"${s.id || ''}","${(s.name || '').replace(/"/g, '""')}","${(s.className || '').replace(/"/g, '""')}","${(s.parentName || '').replace(/"/g, '""')}","${(s.parentPhone || '').replace(/"/g, '""')}","${tuitionFee}","${tuitionPaid}","${tuitionPending}","${status}"`;
-          }).join('\n');
-          
-          const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.setAttribute("href", url);
-          link.setAttribute("download", `dugsiga_subuc_tuition_invoiced_${currentMonthFilter}_${new Date().toISOString().slice(0, 10)}.csv`);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          
-          setFeedbackMsg("Faahfaahinta lacagta waxbarashada ee la kashifay waa la soo dejiyay (Tuition Invoiced CSV downloaded)!");
-          setTimeout(() => setFeedbackMsg(''), 4000);
-        };
-
-        const handleDownloadTuitionInvoicedWord = () => {
-          if (activeStudents.length === 0) return;
-          let html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-<head>
-  <meta charset="utf-8">
-  <title>Dugsiga Subuc - Tuition Invoiced Breakdown (${currentMonthName})</title>
-  <style>
-    body { font-family: 'Segoe UI', Arial, sans-serif; color: #334155; }
-    h2 { color: #047857; font-size: 18pt; margin-bottom: 2px; }
-    p { font-size: 10pt; color: #64748b; margin-top: 0; }
-    table { border-collapse: collapse; width: 100%; margin-top: 15px; }
-    th { background-color: #059669; color: #ffffff; text-align: left; font-weight: bold; font-size: 10pt; padding: 8px; border: 1px solid #cbd5e1; }
-    td { padding: 8px; border: 1px solid #cbd5e1; font-size: 9.5pt; }
-    .text-right { text-align: right; }
-  </style>
-</head>
-<body>
-  <h2>DUGSIGA SUBUC</h2>
-  <p><b>WARBIXINTA KASHIFIDA LACAGTA WAXBARASHADA / TUITION INVOICED BREAKDOWN (${currentMonthName})</b><br/>
-  Total Tuition Invoiced: $${Number(currentMonthTuitionInvoiced).toFixed(2)} | Total Active Students: ${activeStudents.length}<br/>
-  Total Collected So Far: $${Number(currentMonthTuitionCollected).toFixed(2)} | Total Pending Dues: $${Number(currentMonthTuitionPending).toFixed(2)}<br/>
-  Taariikhda: ${new Date().toLocaleDateString()}</p>
-  <table>
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Ardayga (Student)</th>
-        <th>Class</th>
-        <th>Waalidka (Parent)</th>
-        <th>Telka</th>
-        <th class="text-right">Tuition Fee ($)</th>
-        <th class="text-right">Paid ($)</th>
-        <th class="text-right">Pending ($)</th>
-        <th>Status</th>
-      </tr>
-    </thead>
-    <tbody>`;
-
-          activeStudents.forEach(s => {
-            const billingStatus = getBillingStatusForStudent(s, currentMonthFilter);
-            const tuitionPaid = Number(billingStatus?.amountPaid || 0);
-            const tuitionFee = Number(s.monthlyFee || 0);
-            const tuitionPending = Math.max(0, tuitionFee - tuitionPaid);
-            const statusText = tuitionPaid >= tuitionFee ? 'Paid' : (tuitionPaid > 0 ? 'Partial' : 'Pending');
-
-            html += `
-              <tr>
-                <td><b>${s.id || ''}</b></td>
-                <td>${s.name || ''}</td>
-                <td>${s.className || 'None'}</td>
-                <td>${s.parentName || 'N/A'}</td>
-                <td>${s.parentPhone || 'N/A'}</td>
-                <td class="text-right">$${tuitionFee.toFixed(2)}</td>
-                <td class="text-right">$${tuitionPaid.toFixed(2)}</td>
-                <td class="text-right">$${tuitionPending.toFixed(2)}</td>
-                <td>${statusText}</td>
-              </tr>`;
-          });
-
-          html += `
-            </tbody>
-          </table>
-        </body>
-        </html>`;
-
-          const blob = new Blob(['\ufeff' + html], { type: 'application/msword;charset=utf-8;' });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.setAttribute("href", url);
-          link.setAttribute("download", `dugsiga_subuc_tuition_invoiced_${currentMonthFilter}_${new Date().toISOString().slice(0, 10)}.doc`);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-
-          setFeedbackMsg("Faahfaahinta lacagta waxbarashada waa la soo dejiyay Word (.doc) ahaan!");
-          setTimeout(() => setFeedbackMsg(''), 4000);
-        };
-
-        const handleDownloadTuitionInvoicedPDF = () => {
-          if (activeStudents.length === 0) return;
-
-          const doc = new jsPDF({
-            orientation: 'portrait',
-            unit: 'mm',
-            format: 'a4'
-          });
-
-          doc.setProperties({
-            title: `Dugsiga Subuc - Tuition Invoiced Breakdown ${currentMonthName}`,
-            subject: 'Student Tuition Invoiced Dues Breakdown',
-            author: 'Dugsiga Subuc'
-          });
-
-          let pageNum = 1;
-
-          const drawHeader = (pageNumber: number) => {
-            doc.setTextColor(5, 150, 105); // emerald green
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(20);
-            doc.text("DUGSIGA SUBUC", 15, 20);
-
-            doc.setFontSize(9);
-            doc.setTextColor(16, 185, 129); // emerald-500
-            doc.text(`STUDENT TUITION INVOICED DUES BREAKDOWN (${currentMonthName.toUpperCase()})`, 15, 26);
-
-            doc.setDrawColor(203, 213, 225);
-            doc.setLineWidth(0.5);
-            doc.line(15, 30, 195, 30);
-
-            doc.setFont("Helvetica", "normal");
-            doc.setFontSize(8);
-            doc.setTextColor(100, 116, 139);
-            doc.text(`Total Expected Tuition Dues: $${Number(currentMonthTuitionInvoiced).toFixed(2)}  |  Students: ${activeStudents.length}  |  Collected: $${Number(currentMonthTuitionCollected).toFixed(2)}`, 15, 35);
-            doc.text(`Page ${pageNumber}`, 195, 35, { align: 'right' });
-          };
-
-          drawHeader(pageNum);
-
-          let y = 42;
-
-          const drawTableHeaders = (startY: number) => {
-            doc.setFillColor(236, 253, 245); // emerald-50
-            doc.rect(15, startY, 180, 8, "F");
-            doc.setDrawColor(167, 243, 208);
-            doc.rect(15, startY, 180, 8, "S");
-
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(8);
-            doc.setTextColor(4, 120, 87);
-
-            doc.text("ID", 17, startY + 5.5);
-            doc.text("Student Name (Ardayga)", 32, startY + 5.5);
-            doc.text("Class", 85, startY + 5.5);
-            doc.text("Parent Name", 110, startY + 5.5);
-            doc.text("Phone", 145, startY + 5.5);
-            doc.text("Tuition Fee", 182, startY + 5.5, { align: 'right' });
-          };
-
-          drawTableHeaders(y);
-          y += 8;
-
-          doc.setFont("Helvetica", "normal");
-          doc.setFontSize(8);
-          doc.setTextColor(30, 41, 59);
-
-          activeStudents.forEach((s, idx) => {
-            if (y > 275) {
-              doc.addPage();
-              pageNum++;
-              drawHeader(pageNum);
-              y = 42;
-              drawTableHeaders(y);
-              y += 8;
-            }
-
-            if (idx % 2 === 1) {
-              doc.setFillColor(248, 250, 252);
-              doc.rect(15, y, 180, 8, "F");
-            }
-
-            doc.setDrawColor(241, 245, 249);
-            doc.setLineWidth(0.3);
-            doc.line(15, y + 8, 195, y + 8);
-
-            doc.setFont("Helvetica", "bold");
-            doc.text(s.id || '', 17, y + 5.5);
-
-            doc.setFont("Helvetica", "normal");
-            let displayName = s.name || '';
-            if (displayName.length > 28) displayName = displayName.substring(0, 26) + '..';
-            doc.text(displayName, 32, y + 5.5);
-
-            doc.text(s.className || 'None', 85, y + 5.5);
-
-            let displayParent = s.parentName || 'N/A';
-            if (displayParent.length > 18) displayParent = displayParent.substring(0, 16) + '..';
-            doc.text(displayParent, 110, y + 5.5);
-
-            doc.text(s.parentPhone || 'N/A', 145, y + 5.5);
-
-            doc.setFont("Helvetica", "bold");
-            doc.text(`$${Number(s.monthlyFee || 0).toFixed(2)}`, 182, y + 5.5, { align: 'right' });
-
-            y += 8;
-          });
-
-          doc.save(`dugsiga_subuc_tuition_invoiced_${currentMonthFilter}_${new Date().toISOString().slice(0, 10)}.pdf`);
-          
-          setFeedbackMsg("Faahfaahinta lacagta waxbarashada waa la soo dejiyay PDF ahaan!");
-          setTimeout(() => setFeedbackMsg(''), 4000);
-        };
-
-        return (
-          <div 
-            className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-55 animate-fade-in overflow-y-auto pointer-print-none" 
-            id="tuition-invoiced-modal-bg"
-            onClick={(e) => {
-              if ((e.target as HTMLElement).id === 'tuition-invoiced-modal-bg') {
-                setShowTuitionInvoicedModal(false);
-              }
-            }}
-          >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-3xl shadow-xl border border-slate-100 max-w-5xl w-full overflow-hidden flex flex-col max-h-[88vh]"
-            >
-              {/* Modal Header */}
-              <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                    <BookOpen className="w-5 h-5 text-emerald-600" />
-                    Student Tuition Invoiced Breakdown ({currentMonthName})
-                  </h3>
-                  <p className="text-xs text-slate-500 font-semibold mt-1">Faahfaahinta oo dhan oo ku saabsan lacagta waxbarashada ee la kashifay / Expected student tuition dues breakdown</p>
-                </div>
-                <button 
-                  type="button"
-                  onClick={() => setShowTuitionInvoicedModal(false)}
-                  className="p-1 px-2.5 text-xs font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
-                >
-                  Xir (Close)
-                </button>
-              </div>
-
-              {/* Scrollable Body */}
-              <div className="p-6 overflow-y-auto space-y-6 flex-1 scrollbar-thin">
-                
-                {/* Summary Stat Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100">
-                    <p className="text-[10px] font-black text-emerald-700 uppercase tracking-wider">Total Tuition Invoiced</p>
-                    <p className="text-xl font-black text-emerald-900 mt-1">${Number(currentMonthTuitionInvoiced).toFixed(2)}</p>
-                    <p className="text-[10px] text-emerald-600/80 mt-0.5">Expected dues ({currentMonthName})</p>
-                  </div>
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Enrolled Students</p>
-                    <p className="text-xl font-black text-slate-800 mt-1">{activeStudents.length}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Active students</p>
-                  </div>
-                  <div className="bg-teal-50/60 p-4 rounded-2xl border border-teal-100">
-                    <p className="text-[10px] font-black text-teal-700 uppercase tracking-wider">Collected So Far</p>
-                    <p className="text-xl font-black text-teal-900 mt-1">${Number(currentMonthTuitionCollected).toFixed(2)}</p>
-                    <p className="text-[10px] text-teal-600/80 mt-0.5">Received tuition</p>
-                  </div>
-                  <div 
-                    onClick={() => {
-                      setShowTuitionInvoicedModal(false);
-                      setShowPendingFeesBreakdownMonth(currentMonthFilter);
-                    }}
-                    className="bg-rose-50/60 p-4 rounded-2xl border border-rose-100 cursor-pointer hover:bg-rose-100/80 hover:border-rose-300 transition-all group shadow-xs hover:shadow-sm"
-                    title="Guji si aad u aragto ardayda aan bixin lacagta (Click to view unpaid students)"
-                  >
-                    <p className="text-[10px] font-black text-rose-700 uppercase tracking-wider flex items-center justify-between">
-                      <span>Pending Dues</span>
-                      <span className="text-[9px] bg-rose-200/80 px-1.5 py-0.5 rounded text-rose-900 font-bold opacity-0 group-hover:opacity-100 transition-opacity">View Unpaid ‚Üí</span>
-                    </p>
-                    <p className="text-xl font-black text-rose-900 mt-1">${Number(currentMonthTuitionPending).toFixed(2)}</p>
-                    <p className="text-[10px] text-rose-600/80 mt-0.5">Click to see who still didn't pay</p>
-                  </div>
-                </div>
-
-                {/* Search, Filter & Export Actions */}
-                <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-150">
-                  <div className="flex flex-col sm:flex-row gap-3 flex-1">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-                      <input 
-                        type="text"
-                        placeholder="Raadi arday, ID, fasal ama telka waalidka..."
-                        value={tuitionInvoicedSearchQuery}
-                        onChange={(e) => setTuitionInvoicedSearchQuery(e.target.value)}
-                        className="pl-9 pr-4 py-2 w-full bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-                      />
-                      {tuitionInvoicedSearchQuery && (
-                        <button 
-                          onClick={() => setTuitionInvoicedSearchQuery('')}
-                          className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 text-xs font-bold"
-                        >
-                          Clear
-                        </button>
-                      )}
-                    </div>
-                    
-                    {/* Class Filter */}
-                    <select
-                      value={tuitionInvoicedClassFilter}
-                      onChange={(e) => setTuitionInvoicedClassFilter(e.target.value)}
-                      className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
-                    >
-                      <option value="all">Dhammaan Fasallada (All Classes)</option>
-                      {uniqueTuitionClasses.map(c => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-
-                    {/* Status Filter */}
-                    <select
-                      value={tuitionInvoicedStatusFilter}
-                      onChange={(e) => setTuitionInvoicedStatusFilter(e.target.value as any)}
-                      className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer"
-                    >
-                      <option value="all">Dhammaan Xaaladaha (All Statuses)</option>
-                      <option value="paid">Shubay (Paid)</option>
-                      <option value="partial">Qayb Bixiyay (Partial)</option>
-                      <option value="pending">Deyn / Aan Bixin (Pending)</option>
-                    </select>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-wrap shrink-0">
-                    <button
-                      type="button"
-                      onClick={handleDownloadTuitionInvoicedCSV}
-                      disabled={activeStudents.length === 0}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-extrabold text-xs uppercase rounded-xl transition-all cursor-pointer disabled:opacity-50 active:scale-95"
-                      title="Download full invoiced tuition dues in Excel CSV format"
-                    >
-                      <FileSpreadsheet className="w-4 h-4" />
-                      Excel (CSV)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleDownloadTuitionInvoicedPDF}
-                      disabled={activeStudents.length === 0}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs uppercase rounded-xl transition-all cursor-pointer disabled:opacity-50 active:scale-95"
-                      title="Download in PDF format"
-                    >
-                      <FileText className="w-4 h-4" />
-                      PDF
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleDownloadTuitionInvoicedWord}
-                      disabled={activeStudents.length === 0}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-extrabold text-xs uppercase rounded-xl transition-all cursor-pointer disabled:opacity-50 active:scale-95"
-                      title="Download in Word (.doc) format"
-                    >
-                      <FileText className="w-4 h-4" />
-                      Word
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handlePrintElement('printable-tuition-invoiced-container')}
-                      disabled={activeStudents.length === 0}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase rounded-xl transition-all shadow-sm cursor-pointer disabled:opacity-50 active:scale-95"
-                      title="Print the tuition invoiced list"
-                    >
-                      <Printer className="w-4 h-4" />
-                      Daabac (Print)
-                    </button>
-                  </div>
-                </div>
-
-                {/* Printable Table Container */}
-                <div id="printable-tuition-invoiced-container" className="space-y-4">
-                  {/* Print Only Header */}
-                  <div className="hidden print-only-block border-b-2 border-slate-900 pb-4 mb-4">
-                    <h2 className="text-xl font-black text-slate-900 text-center">Dugsiga Subuc - Banuu Jalaal</h2>
-                    <h3 className="text-base font-bold text-slate-700 text-center mt-1">Student Tuition Invoiced Breakdown ({currentMonthName})</h3>
-                    <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono mt-4">
-                      <span>Taariikhda Daabacaadda: {new Date().toLocaleDateString('so-SO', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                      <span>Total Tuition Invoiced: ${Number(currentMonthTuitionInvoiced).toFixed(2)} | Students: {activeStudents.length}</span>
-                    </div>
-                  </div>
-
-                  {filteredTuitionStudents.length === 0 ? (
-                    <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-150">
-                      <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                      <p className="text-xs text-slate-500 font-bold">Lama helin wax arday ah oo buuxiya shuruudaha raadinta.</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto rounded-2xl border border-slate-100 max-h-[50vh] overflow-y-auto scrollbar-thin">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider sticky top-0 z-10">
-                            <th className="py-3 px-4">#</th>
-                            <th className="py-3 px-4">Ardayga (Student Name)</th>
-                            <th className="py-3 px-4">Fasalka (Class)</th>
-                            <th className="py-3 px-4">Waalidka (Parent Name)</th>
-                            <th className="py-3 px-4">Telka Waalidka</th>
-                            <th className="py-3 px-4 text-right">Tuition Fee Due ($)</th>
-                            <th className="py-3 px-4 text-right">Paid So Far ($)</th>
-                            <th className="py-3 px-4 text-right">Pending ($)</th>
-                            <th className="py-3 px-4 text-center">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {filteredTuitionStudents.map((s, idx) => {
-                            const billingStatus = getBillingStatusForStudent(s, currentMonthFilter);
-                            const tuitionPaid = Number(billingStatus?.amountPaid || 0);
-                            const tuitionFee = Number(s.monthlyFee || 0);
-                            const tuitionPending = Math.max(0, tuitionFee - tuitionPaid);
-                            const isPaid = tuitionPaid >= tuitionFee && tuitionFee > 0;
-                            const isPartial = tuitionPaid > 0 && tuitionPaid < tuitionFee;
-
-                            return (
-                              <tr key={s.id || idx} className="hover:bg-slate-50/40">
-                                <td className="py-3 px-4 text-slate-400 font-mono text-[10px]">{idx + 1}</td>
-                                <td className="py-3 px-4 font-bold text-slate-800">
-                                  {s.name}
-                                  <span className="block text-[10px] text-slate-400 font-mono font-normal">{s.id}</span>
-                                </td>
-                                <td className="py-3 px-4 text-slate-600 font-semibold">{s.className || 'None'}</td>
-                                <td className="py-3 px-4 text-slate-700 font-medium">{s.parentName || 'N/A'}</td>
-                                <td className="py-3 px-4 text-slate-600 font-semibold">{s.parentPhone || 'N/A'}</td>
-                                <td className="py-3 px-4 text-right font-black text-emerald-700">${tuitionFee.toFixed(2)}</td>
-                                <td className="py-3 px-4 text-right font-black text-teal-700">${tuitionPaid.toFixed(2)}</td>
-                                <td className="py-3 px-4 text-right font-black text-rose-600">${tuitionPending.toFixed(2)}</td>
-                                <td className="py-3 px-4 text-center">
-                                  {isPaid ? (
-                                    <span className="px-2 py-0.5 text-[10px] font-extrabold bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100">
-                                      Shubay (Paid)
-                                    </span>
-                                  ) : isPartial ? (
-                                    <span className="px-2 py-0.5 text-[10px] font-extrabold bg-amber-50 text-amber-700 rounded-full border border-amber-100">
-                                      Qayb (Partial)
-                                    </span>
-                                  ) : (
-                                    <span className="px-2 py-0.5 text-[10px] font-extrabold bg-rose-50 text-rose-700 rounded-full border border-rose-100">
-                                      Deyn (Pending)
-                                    </span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-              </div>
-
-              {/* Modal Footer */}
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 pointer-print-none">
-                <button
-                  type="button"
-                  onClick={() => setShowTuitionInvoicedModal(false)}
-                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
-                >
-                  Xir (Close)
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        );
-      })()}
-
-      {/* -------------------------------------------------------------
-          MODAL: BUS INVOICED EXPECTED DUES BREAKDOWN
-          ------------------------------------------------------------- */}
-      {showBusInvoicedModal && (() => {
-        // Filter bus riders by search query
-        const filteredInvoicedRiders = busRiders.filter(s => {
-          const q = busInvoicedSearchQuery.toLowerCase();
-          return (
-            (s.name || '').toLowerCase().includes(q) ||
-            (s.id || '').toLowerCase().includes(q) ||
-            (s.className || '').toLowerCase().includes(q) ||
-            (s.parentName || '').toLowerCase().includes(q) ||
-            (s.parentPhone || '').toLowerCase().includes(q)
-          );
-        });
-
-        const handleDownloadBusInvoicedCSV = () => {
-          if (busRiders.length === 0) return;
-          const headers = '\uFEFFStudent ID,Ardayga (Student Name),Fasalka (Class),Waalidka (Parent Name),Telka Waalidka (Parent Phone),Monthly Bus Fee ($),Paid So Far ($),Pending Balance ($),Status\n';
-          const rows = busRiders.map(s => {
-            const billingStatus = getBillingStatusForStudent(s, currentMonthFilter);
-            const busPaid = Number(billingStatus?.busFeePaid || 0);
-            const busFee = Number(s.busFee || 0);
-            const busPending = Math.max(0, busFee - busPaid);
-            const status = busPaid >= busFee ? 'Paid' : (busPaid > 0 ? 'Partial' : 'Pending');
-            
-            return `"${s.id || ''}","${(s.name || '').replace(/"/g, '""')}","${(s.className || '').replace(/"/g, '""')}","${(s.parentName || '').replace(/"/g, '""')}","${(s.parentPhone || '').replace(/"/g, '""')}","${busFee}","${busPaid}","${busPending}","${status}"`;
-          }).join('\n');
-          
-          const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.setAttribute("href", url);
-          link.setAttribute("download", `dugsiga_subuc_bus_invoiced_${currentMonthFilter}_${new Date().toISOString().slice(0, 10)}.csv`);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          
-          setFeedbackMsg("Faahfaahinta lacagta baska ee la kashifay waa la soo dejiyay (Bus Invoiced CSV downloaded)!");
-          setTimeout(() => setFeedbackMsg(''), 4000);
-        };
-
-        const handleDownloadBusInvoicedWord = () => {
-          if (busRiders.length === 0) return;
-          let html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-<head>
-  <meta charset="utf-8">
-  <title>Dugsiga Subuc - Bus Invoiced Breakdown (${currentMonthName})</title>
-  <style>
-    body { font-family: 'Segoe UI', Arial, sans-serif; color: #334155; }
-    h2 { color: #21543d; font-size: 18pt; margin-bottom: 2px; }
-    p { font-size: 10pt; color: #64748b; margin-top: 0; }
-    table { border-collapse: collapse; width: 100%; margin-top: 15px; }
-    th { background-color: #0284c7; color: #ffffff; text-align: left; font-weight: bold; font-size: 10pt; padding: 8px; border: 1px solid #cbd5e1; }
-    td { padding: 8px; border: 1px solid #cbd5e1; font-size: 9.5pt; }
-    .text-right { text-align: right; }
-  </style>
-</head>
-<body>
-  <h2>DUGSIGA SUBUC</h2>
-  <p><b>WARBIXINTA KASHIFIDA BASKA / BUS INVOICED BREAKDOWN (${currentMonthName})</b><br/>
-  Total Bus Invoiced: $${Number(currentMonthBusInvoiced).toFixed(2)} | Total Bus Riders: ${busRiders.length}<br/>
-  Taariikhda: ${new Date().toLocaleDateString()}</p>
-  <table>
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Ardayga (Student)</th>
-        <th>Class</th>
-        <th>Waalidka (Parent)</th>
-        <th>Telka</th>
-        <th class="text-right">Bus Fee ($)</th>
-        <th class="text-right">Paid ($)</th>
-        <th class="text-right">Pending ($)</th>
-      </tr>
-    </thead>
-    <tbody>`;
-
-          busRiders.forEach(s => {
-            const billingStatus = getBillingStatusForStudent(s, currentMonthFilter);
-            const busPaid = Number(billingStatus?.busFeePaid || 0);
-            const busFee = Number(s.busFee || 0);
-            const busPending = Math.max(0, busFee - busPaid);
-
-            html += `
-              <tr>
-                <td><b>${s.id || ''}</b></td>
-                <td>${s.name || ''}</td>
-                <td>${s.className || 'None'}</td>
-                <td>${s.parentName || 'N/A'}</td>
-                <td>${s.parentPhone || 'N/A'}</td>
-                <td class="text-right">$${busFee.toFixed(2)}</td>
-                <td class="text-right">$${busPaid.toFixed(2)}</td>
-                <td class="text-right">$${busPending.toFixed(2)}</td>
-              </tr>`;
-          });
-
-          html += `
-            </tbody>
-          </table>
-        </body>
-        </html>`;
-
-          const blob = new Blob(['\ufeff' + html], { type: 'application/msword;charset=utf-8;' });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.setAttribute("href", url);
-          link.setAttribute("download", `dugsiga_subuc_bus_invoiced_${currentMonthFilter}_${new Date().toISOString().slice(0, 10)}.doc`);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-
-          setFeedbackMsg("Faahfaahinta lacagta baska waa la soo dejiyay Word (.doc) ahaan!");
-          setTimeout(() => setFeedbackMsg(''), 4000);
-        };
-
-        const handleDownloadBusInvoicedPDF = () => {
-          if (busRiders.length === 0) return;
-
-          const doc = new jsPDF({
-            orientation: 'portrait',
-            unit: 'mm',
-            format: 'a4'
-          });
-
-          doc.setProperties({
-            title: `Dugsiga Subuc - Bus Invoiced Breakdown ${currentMonthName}`,
-            subject: 'Bus Invoiced Dues Breakdown',
-            author: 'Dugsiga Subuc'
-          });
-
-          let pageNum = 1;
-
-          const drawHeader = (pageNumber: number) => {
-            doc.setTextColor(33, 84, 61); // deep green
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(20);
-            doc.text("DUGSIGA SUBUC", 15, 20);
-
-            doc.setFontSize(9);
-            doc.setTextColor(2, 132, 199); // sky blue
-            doc.text(`BUS INVOICED DUES BREAKDOWN (${currentMonthName.toUpperCase()})`, 15, 26);
-
-            doc.setDrawColor(203, 213, 225);
-            doc.setLineWidth(0.5);
-            doc.line(15, 30, 195, 30);
-
-            doc.setFont("Helvetica", "normal");
-            doc.setFontSize(8);
-            doc.setTextColor(100, 116, 139);
-            doc.text(`Total Expected Bus Dues: $${Number(currentMonthBusInvoiced).toFixed(2)}  |  Riders: ${busRiders.length}`, 15, 35);
-            doc.text(`Page ${pageNumber}`, 195, 35, { align: 'right' });
-          };
-
-          drawHeader(pageNum);
-
-          let y = 42;
-
-          const drawTableHeaders = (startY: number) => {
-            doc.setFillColor(240, 249, 255); // sky-50
-            doc.rect(15, startY, 180, 8, "F");
-            doc.setDrawColor(186, 230, 253);
-            doc.rect(15, startY, 180, 8, "S");
-
-            doc.setFont("Helvetica", "bold");
-            doc.setFontSize(8);
-            doc.setTextColor(3, 105, 161);
-
-            doc.text("ID", 17, startY + 5.5);
-            doc.text("Student Name (Ardayga)", 32, startY + 5.5);
-            doc.text("Class", 85, startY + 5.5);
-            doc.text("Parent Name", 110, startY + 5.5);
-            doc.text("Phone", 145, startY + 5.5);
-            doc.text("Bus Fee", 182, startY + 5.5, { align: 'right' });
-          };
-
-          drawTableHeaders(y);
-          y += 8;
-
-          doc.setFont("Helvetica", "normal");
-          doc.setFontSize(8);
-          doc.setTextColor(30, 41, 59);
-
-          busRiders.forEach((s, idx) => {
-            if (y > 275) {
-              doc.addPage();
-              pageNum++;
-              drawHeader(pageNum);
-              y = 42;
-              drawTableHeaders(y);
-              y += 8;
-            }
-
-            if (idx % 2 === 1) {
-              doc.setFillColor(248, 250, 252);
-              doc.rect(15, y, 180, 8, "F");
-            }
-
-            doc.setDrawColor(241, 245, 249);
-            doc.setLineWidth(0.3);
-            doc.line(15, y + 8, 195, y + 8);
-
-            doc.setFont("Helvetica", "bold");
-            doc.text(s.id || '', 17, y + 5.5);
-
-            doc.setFont("Helvetica", "normal");
-            let displayName = s.name || '';
-            if (displayName.length > 28) displayName = displayName.substring(0, 26) + '..';
-            doc.text(displayName, 32, y + 5.5);
-
-            doc.text(s.className || 'None', 85, y + 5.5);
-
-            let displayParent = s.parentName || 'N/A';
-            if (displayParent.length > 18) displayParent = displayParent.substring(0, 16) + '..';
-            doc.text(displayParent, 110, y + 5.5);
-
-            doc.text(s.parentPhone || 'N/A', 145, y + 5.5);
-
-            doc.setFont("Helvetica", "bold");
-            doc.text(`$${Number(s.busFee || 0).toFixed(2)}`, 182, y + 5.5, { align: 'right' });
-
-            y += 8;
-          });
-
-          doc.save(`dugsiga_subuc_bus_invoiced_${currentMonthFilter}_${new Date().toISOString().slice(0, 10)}.pdf`);
-          
-          setFeedbackMsg("Faahfaahinta lacagta baska waa la soo dejiyay PDF ahaan!");
-          setTimeout(() => setFeedbackMsg(''), 4000);
-        };
-
-        return (
-          <div 
-            className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-55 animate-fade-in overflow-y-auto pointer-print-none" 
-            id="bus-invoiced-modal-bg"
-            onClick={(e) => {
-              if ((e.target as HTMLElement).id === 'bus-invoiced-modal-bg') {
-                setShowBusInvoicedModal(false);
-              }
-            }}
-          >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-3xl shadow-xl border border-slate-100 max-w-5xl w-full overflow-hidden flex flex-col max-h-[88vh]"
-            >
-              {/* Modal Header */}
-              <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                    <Calculator className="w-5 h-5 text-sky-600" />
-                    Bus Invoiced Breakdown ({currentMonthName})
-                  </h3>
-                  <p className="text-xs text-slate-500 font-semibold mt-1">Faahfaahinta oo dhan oo ku saabsan lacagta baska ee la kashifay / Expected bus fee dues breakdown</p>
-                </div>
-                <button 
-                  type="button"
-                  onClick={() => setShowBusInvoicedModal(false)}
-                  className="p-1 px-2.5 text-xs font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
-                >
-                  Xir (Close)
-                </button>
-              </div>
-
-              {/* Scrollable Body */}
-              <div className="p-6 overflow-y-auto space-y-6 flex-1 scrollbar-thin">
-                
-                {/* Summary Stat Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-sky-50/60 p-4 rounded-2xl border border-sky-100">
-                    <p className="text-[10px] font-black text-sky-700 uppercase tracking-wider">Total Bus Invoiced</p>
-                    <p className="text-xl font-black text-sky-900 mt-1">${Number(currentMonthBusInvoiced).toFixed(2)}</p>
-                    <p className="text-[10px] text-sky-600/80 mt-0.5">Expected dues ({currentMonthName})</p>
-                  </div>
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Total Bus Riders</p>
-                    <p className="text-xl font-black text-slate-800 mt-1">{busRiders.length}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Registered bus students</p>
-                  </div>
-                  <div className="bg-teal-50/60 p-4 rounded-2xl border border-teal-100">
-                    <p className="text-[10px] font-black text-teal-700 uppercase tracking-wider">Collected So Far</p>
-                    <p className="text-xl font-black text-teal-900 mt-1">${Number(currentMonthBusCollected).toFixed(2)}</p>
-                    <p className="text-[10px] text-teal-600/80 mt-0.5">Received payments</p>
-                  </div>
-                  <div 
-                    onClick={() => {
-                      setShowBusInvoicedModal(false);
-                      setShowPendingBusBreakdownMonth(currentMonthFilter);
-                    }}
-                    className="bg-rose-50/60 p-4 rounded-2xl border border-rose-100 cursor-pointer hover:bg-rose-100/80 hover:border-rose-300 transition-all group shadow-xs hover:shadow-sm"
-                    title="Guji si aad u aragto ardayda aan bixin baska (Click to view unpaid bus riders)"
-                  >
-                    <p className="text-[10px] font-black text-rose-700 uppercase tracking-wider flex items-center justify-between">
-                      <span>Pending Dues</span>
-                      <span className="text-[9px] bg-rose-200/80 px-1.5 py-0.5 rounded text-rose-900 font-bold opacity-0 group-hover:opacity-100 transition-opacity">View Unpaid ‚Üí</span>
-                    </p>
-                    <p className="text-xl font-black text-rose-900 mt-1">${Number(currentMonthBusPending).toFixed(2)}</p>
-                    <p className="text-[10px] text-rose-600/80 mt-0.5">Click to see who still didn't pay</p>
-                  </div>
-                </div>
-
-                {/* Search & Export Actions */}
-                <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-150">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-                    <input 
-                      type="text"
-                      placeholder="Raadi arday, fashal ama telka waalidka..."
-                      value={busInvoicedSearchQuery}
-                      onChange={(e) => setBusInvoicedSearchQuery(e.target.value)}
-                      className="pl-9 pr-4 py-2 w-full bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-                    />
-                    {busInvoicedSearchQuery && (
-                      <button 
-                        onClick={() => setBusInvoicedSearchQuery('')}
-                        className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 text-xs font-bold"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={handleDownloadBusInvoicedCSV}
-                      disabled={busRiders.length === 0}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-extrabold text-xs uppercase rounded-xl transition-all cursor-pointer disabled:opacity-50 active:scale-95"
-                      title="Download full invoiced bus dues in Excel CSV format"
-                    >
-                      <FileSpreadsheet className="w-4 h-4" />
-                      Excel (CSV)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleDownloadBusInvoicedPDF}
-                      disabled={busRiders.length === 0}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs uppercase rounded-xl transition-all cursor-pointer disabled:opacity-50 active:scale-95"
-                      title="Download in PDF format"
-                    >
-                      <FileText className="w-4 h-4" />
-                      PDF
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleDownloadBusInvoicedWord}
-                      disabled={busRiders.length === 0}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-extrabold text-xs uppercase rounded-xl transition-all cursor-pointer disabled:opacity-50 active:scale-95"
-                      title="Download in Word (.doc) format"
-                    >
-                      <FileText className="w-4 h-4" />
-                      Word
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handlePrintElement('printable-bus-invoiced-container')}
-                      disabled={busRiders.length === 0}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase rounded-xl transition-all shadow-sm cursor-pointer disabled:opacity-50 active:scale-95"
-                      title="Print the bus invoiced list"
-                    >
-                      <Printer className="w-4 h-4" />
-                      Daabac (Print)
-                    </button>
-                  </div>
-                </div>
-
-                {/* Printable Table Container */}
-                <div id="printable-bus-invoiced-container" className="space-y-4">
-                  {/* Print Only Header */}
-                  <div className="hidden print-only-block border-b-2 border-slate-900 pb-4 mb-4">
-                    <h2 className="text-xl font-black text-slate-900 text-center">Dugsiga Subuc - Banuu Jalaal</h2>
-                    <h3 className="text-base font-bold text-slate-700 text-center mt-1">Bus Invoiced Breakdown ({currentMonthName})</h3>
-                    <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono mt-4">
-                      <span>Taariikhda Daabacaadda: {new Date().toLocaleDateString('so-SO', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                      <span>Total Bus Invoiced: ${Number(currentMonthBusInvoiced).toFixed(2)} | Riders: {busRiders.length}</span>
-                    </div>
-                  </div>
-
-                  {filteredInvoicedRiders.length === 0 ? (
-                    <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-150">
-                      <Bus className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                      <p className="text-xs text-slate-500 font-bold">Lama helin wax arday ah oo buuxiya shuruudaha raadinta.</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto rounded-2xl border border-slate-100 max-h-[50vh] overflow-y-auto scrollbar-thin">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider sticky top-0 z-10">
-                            <th className="py-3 px-4">#</th>
-                            <th className="py-3 px-4">Ardayga (Student Name)</th>
-                            <th className="py-3 px-4">Fasalka (Class)</th>
-                            <th className="py-3 px-4">Waalidka (Parent Name)</th>
-                            <th className="py-3 px-4">Telka Waalidka</th>
-                            <th className="py-3 px-4 text-right">Bus Fee Due ($)</th>
-                            <th className="py-3 px-4 text-right">Paid So Far ($)</th>
-                            <th className="py-3 px-4 text-center">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {filteredInvoicedRiders.map((s, idx) => {
-                            const billingStatus = getBillingStatusForStudent(s, currentMonthFilter);
-                            const busPaid = Number(billingStatus?.busFeePaid || 0);
-                            const busFee = Number(s.busFee || 0);
-                            const isPaid = busPaid >= busFee;
-                            const isPartial = busPaid > 0 && busPaid < busFee;
-
-                            return (
-                              <tr key={s.id || idx} className="hover:bg-slate-50/40">
-                                <td className="py-3 px-4 text-slate-400 font-mono text-[10px]">{idx + 1}</td>
-                                <td className="py-3 px-4 font-bold text-slate-800">
-                                  {s.name}
-                                  <span className="block text-[10px] text-slate-400 font-mono font-normal">{s.id}</span>
-                                </td>
-                                <td className="py-3 px-4 text-slate-600 font-semibold">{s.className || 'None'}</td>
-                                <td className="py-3 px-4 text-slate-700 font-medium">{s.parentName || 'N/A'}</td>
-                                <td className="py-3 px-4 text-slate-600 font-semibold">{s.parentPhone || 'N/A'}</td>
-                                <td className="py-3 px-4 text-right font-black text-sky-700">${busFee.toFixed(2)}</td>
-                                <td className="py-3 px-4 text-right font-black text-teal-700">${busPaid.toFixed(2)}</td>
-                                <td className="py-3 px-4 text-center">
-                                  {isPaid ? (
-                                    <span className="px-2 py-0.5 text-[10px] font-extrabold bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100">
-                                      Shubay (Paid)
-                                    </span>
-                                  ) : isPartial ? (
-                                    <span className="px-2 py-0.5 text-[10px] font-extrabold bg-amber-50 text-amber-700 rounded-full border border-amber-100">
-                                      Qayb (Partial)
-                                    </span>
-                                  ) : (
-                                    <span className="px-2 py-0.5 text-[10px] font-extrabold bg-rose-50 text-rose-700 rounded-full border border-rose-100">
-                                      Deyn (Pending)
-                                    </span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-              </div>
-
-              {/* Modal Footer */}
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 pointer-print-none">
-                <button
-                  type="button"
-                  onClick={() => setShowBusInvoicedModal(false)}
-                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
-                >
-                  Xir (Close)
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        );
-      })()}
-
-      {/* -------------------------------------------------------------
-          MODAL: BUS COLLECTED FEES DETAILED BREAKDOWN
-          ------------------------------------------------------------- */}
-      {showBusCollectedBreakdownMonth && (() => {
-        const month = showBusCollectedBreakdownMonth;
-        const monthName = getFriendlyMonthName(month);
-        
-        // Find all billing records for this month with bus fee paid > 0
-        const monthBusPayments = database.billing.filter(b => b.month === month && Number(b.busFeePaid || 0) > 0);
-        
-        const totalBusCollected = monthBusPayments.reduce((sum, r) => sum + Number(r.busFeePaid || 0), 0);
-        const totalBusInvoiced = database.students.filter(s => s.active && s.busFee && Number(s.busFee) > 0).reduce((sum, s) => sum + Number(s.busFee || 0), 0);
-        const totalBusPending = Math.max(0, totalBusInvoiced - totalBusCollected);
-
-        return (
-          <div 
-            className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-55 animate-fade-in overflow-y-auto pointer-print-none" 
-            id="bus-collected-fees-modal-bg"
-            onClick={(e) => {
-              if ((e.target as HTMLElement).id === 'bus-collected-fees-modal-bg') {
-                setShowBusCollectedBreakdownMonth(null);
-              }
-            }}
-          >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-3xl shadow-xl border border-slate-100 max-w-3xl w-full overflow-hidden flex flex-col max-h-[85vh]"
-            >
-              {/* Modal Header */}
-              <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                    <CircleDollarSign className="w-5 h-5 text-teal-600" />
-                    Faahfaahinta Lacagta Baska (Bus Fare Collected Breakdown)
-                  </h3>
-                  <p className="text-xs text-slate-500 font-semibold mt-1">Detailed list of bus transit payments received in {monthName}</p>
-                </div>
-                <button 
-                  type="button"
-                  onClick={() => setShowBusCollectedBreakdownMonth(null)}
-                  className="p-1 px-2 text-xs font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
-                >
-                  Xir (Close)
-                </button>
-              </div>
-
-              {/* Scrollable Body */}
-              <div className="p-6 overflow-y-auto space-y-6 flex-1 scrollbar-thin">
-                
-                {/* Visual Summary Widget */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/60">
-                    <span className="text-[10px] text-indigo-800 uppercase font-bold block mb-1">Expected Bus Fare</span>
-                    <span className="block text-2xl font-extrabold text-indigo-900">${totalBusInvoiced.toFixed(2)}</span>
-                    <p className="text-[10px] text-indigo-600/80 mt-1 font-semibold">Active registered riders dues</p>
-                  </div>
-                  
-                  <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100/60">
-                    <span className="text-[10px] text-emerald-800 uppercase font-bold block mb-1">Bus Collected</span>
-                    <span className="block text-2xl font-extrabold text-emerald-900">${totalBusCollected.toFixed(2)}</span>
-                    <p className="text-[10px] text-emerald-600/80 mt-1 font-semibold">{monthBusPayments.length} riders paid</p>
-                  </div>
-
-                  <div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-100/60">
-                    <span className="text-[10px] text-amber-800 uppercase font-bold block mb-1">Pending Bus Fare</span>
-                    <span className="block text-2xl font-black text-amber-950">${totalBusPending.toFixed(2)}</span>
-                    <p className="text-[10px] text-amber-600 mt-1 font-semibold">Outstanding transit dues</p>
-                  </div>
-                </div>
-
-                {/* Section: Bus Transit Payments */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-indigo-500 inline-block" />
-                      Liiska Bixiyayaasha (Transit Rider Payments Ledger)
-                    </h4>
-                    <span className="text-xs font-extrabold text-indigo-900 bg-indigo-50 px-2.5 py-1 rounded-lg">
-                      ${totalBusCollected.toFixed(2)} USD
-                    </span>
-                  </div>
-
-                  {monthBusPayments.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic text-center py-6 bg-slate-50 rounded-2xl border border-dashed border-slate-150">
-                      No school bus transit payments logged for this month yet.
-                    </p>
-                  ) : (
-                    <div className="overflow-x-auto rounded-2xl border border-slate-100">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase tracking-wider">
-                            <th className="py-2.5 px-3">Student Name (Ardayga)</th>
-                            <th className="py-2.5 px-3">Class (Fasalka)</th>
-                            <th className="py-2.5 px-3">Date (Taariikh)</th>
-                            <th className="py-2.5 px-3">Receipt / Ref</th>
-                            <th className="py-2.5 px-3 text-right">Bus Fee Due</th>
-                            <th className="py-2.5 px-3 text-right">Bus Fee Paid</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {monthBusPayments.map((p, idx) => (
-                            <tr key={p.id || idx} className="hover:bg-slate-50/40">
-                              <td className="py-2 px-3 font-bold text-slate-800">
-                                {p.studentName}
-                                <span className="block text-[10px] text-slate-400 font-medium">ID: {p.studentId}</span>
-                              </td>
-                              <td className="py-2 px-3 font-semibold text-slate-600">{p.className}</td>
-                              <td className="py-2 px-3 text-slate-500">{p.paymentDate || 'N/A'}</td>
-                              <td className="py-2 px-3 font-mono text-[10px] text-slate-500">
-                                {p.receiptNo || (p.notes && p.notes.includes('Synced from') ? p.notes.split('Synced from')[1].trim() : 'Manual Direct')}
-                              </td>
-                              <td className="py-2 px-3 text-right text-slate-600 font-medium">${Number(p.busFeeDue || 0).toFixed(2)}</td>
-                              <td className="py-2 px-3 text-right font-black text-indigo-700">${Number(p.busFeePaid || 0).toFixed(2)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-              </div>
-
-              {/* Modal Footer */}
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 pointer-print-none">
-                <button
-                  type="button"
-                  onClick={() => setShowBusCollectedBreakdownMonth(null)}
-                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
-                >
-                  Xir (Close)
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        );
-      })()}
-
-      {/* -------------------------------------------------------------
-          MODAL: INVOICE CATEGORY (FEE vs BUS) BREAKDOWN & RECIPIENTS
-          ------------------------------------------------------------- */}
-      {invoiceCategoryModal && (() => {
-        const isBusCategory = invoiceCategoryModal === 'bus';
-        const categoryName = isBusCategory ? "Bus Fare (Baska)" : "School Fee (Waxbarashada)";
-        
-        // Helper to check if item belongs to category
-        const isMatchingItem = (itemTitle: string) => {
-          const lower = itemTitle.toLowerCase();
-          if (isBusCategory) {
-            return lower.includes('bus') || lower.includes('baska') || lower.includes('geedi') || lower.includes('gaadhi') || lower.includes('transport');
-          } else {
-            return lower.includes('fee') || lower.includes('adaad') || lower.includes('dugsi') || lower.includes('school') || lower.includes('tuition') || lower.includes('waxbarasho') || (!lower.includes('bus') && !lower.includes('baska'));
-          }
-        };
-
-        // Gather matching invoice records from database.invoices
-        const invoiceCategoryRecords = (database.invoices || []).map(inv => {
-          const matchingItems = (inv.items || []).filter(item => isMatchingItem(item.description || ''));
-          const categoryTotal = matchingItems.reduce((sum, item) => sum + Number(item.total || (item.unitPrice * item.quantity) || 0), 0);
-          
-          if (categoryTotal <= 0) return null;
-
-          const invTotal = Number(inv.totalAmount || 0);
-          const invPaid = Number(inv.amountPaid || 0);
-          
-          // Proportional allocation of paid amount to this category or full allocation if single item
-          const categoryPaid = invTotal > 0 ? Math.min(categoryTotal, (invPaid / invTotal) * categoryTotal) : (inv.status === 'Paid' ? categoryTotal : 0);
-          const categoryOutstanding = Math.max(0, categoryTotal - categoryPaid);
-          const categoryStatus = categoryPaid >= categoryTotal || inv.status === 'Paid' ? 'Paid' : (categoryPaid > 0 ? 'Partial' : 'Unpaid');
-
-          return {
-            invoice: inv,
-            matchingItems,
-            categoryTotal,
-            categoryPaid,
-            categoryOutstanding,
-            categoryStatus
-          };
-        }).filter(Boolean) as Array<{
-          invoice: any;
-          matchingItems: any[];
-          categoryTotal: number;
-          categoryPaid: number;
-          categoryOutstanding: number;
-          categoryStatus: string;
-        }>;
-
-        // Apply Search and Tab Filters
-        const filteredCategoryRecords = invoiceCategoryRecords.filter(rec => {
-          const q = categoryModalSearch.toLowerCase();
-          const matchesSearch = !q || (
-            (rec.invoice.recipientName || '').toLowerCase().includes(q) ||
-            (rec.invoice.recipientPhone || '').toLowerCase().includes(q) ||
-            (rec.invoice.invoiceNumber || '').toLowerCase().includes(q) ||
-            (rec.invoice.id || '').toLowerCase().includes(q)
-          );
-
-          if (!matchesSearch) return false;
-
-          if (categoryModalFilter === 'collected') {
-            return rec.categoryStatus === 'Paid' || rec.categoryPaid > 0;
-          }
-          if (categoryModalFilter === 'outstanding') {
-            return rec.categoryOutstanding > 0 && rec.categoryStatus !== 'Paid';
-          }
-          return true;
-        });
-
-        // Category metrics totals
-        const totalCategoryIssuedSum = invoiceCategoryRecords.reduce((sum, r) => sum + r.categoryTotal, 0);
-        const totalCategoryCollectedSum = invoiceCategoryRecords.reduce((sum, r) => sum + r.categoryPaid, 0);
-        const totalCategoryOutstandingSum = invoiceCategoryRecords.reduce((sum, r) => sum + r.categoryOutstanding, 0);
-
-        // Download TXT report
-        const handleDownloadTxt = () => {
-          let report = `====================================================\n`;
-          report += `DUGSIGA SUBUC - ${categoryName.toUpperCase()} RECIPIENTS REPORT\n`;
-          report += `Generated: ${new Date().toLocaleString()}\n`;
-          report += `Filter Mode: ${categoryModalFilter.toUpperCase()}\n`;
-          report += `Total Issued: $${totalCategoryIssuedSum.toFixed(2)} | Collected: $${totalCategoryCollectedSum.toFixed(2)} | Outstanding: $${totalCategoryOutstandingSum.toFixed(2)}\n`;
-          report += `====================================================\n\n`;
-
-          filteredCategoryRecords.forEach((rec, i) => {
-            report += `${i + 1}. Invoice #${rec.invoice.invoiceNumber || rec.invoice.id}\n`;
-            report += `   Recipient/Student: ${rec.invoice.recipientName || 'N/A'}\n`;
-            report += `   Phone: ${rec.invoice.recipientPhone || 'N/A'}\n`;
-            report += `   Date: ${rec.invoice.issueDate || 'N/A'}\n`;
-            report += `   Category Items: ${rec.matchingItems.map(m => `${m.description} ($${m.amount})`).join(', ')}\n`;
-            report += `   Category Total: $${rec.categoryTotal.toFixed(2)} | Paid: $${rec.categoryPaid.toFixed(2)} | Balance Due: $${rec.categoryOutstanding.toFixed(2)}\n`;
-            report += `   Status: ${rec.categoryStatus.toUpperCase()}\n`;
-            report += `----------------------------------------------------\n`;
-          });
-
-          triggerFileDownload(`invoices_${isBusCategory ? 'bus' : 'school_fee'}_${categoryModalFilter}_${new Date().toISOString().split('T')[0]}.txt`, report);
-          setFeedbackMsg("Warbixinta Invoysada waa la soo dejiyay (TXT Report downloaded)!");
-          setTimeout(() => setFeedbackMsg(''), 4000);
-        };
-
-        // Download CSV report
-        const handleDownloadCsv = () => {
-          const headers = '\uFEFFInvoice #,Date,Recipient Name,Phone,Category Items,Category Total ($),Paid So Far ($),Balance Due ($),Status\n';
-          const rows = filteredCategoryRecords.map(rec => {
-            const itemsStr = rec.matchingItems.map(m => `${m.description} ($${m.amount})`).join('; ');
-            return `"${rec.invoice.invoiceNumber || rec.invoice.id}","${rec.invoice.issueDate || ''}","${(rec.invoice.recipientName || '').replace(/"/g, '""')}","${(rec.invoice.recipientPhone || '').replace(/"/g, '""')}","${itemsStr.replace(/"/g, '""')}","${rec.categoryTotal.toFixed(2)}","${rec.categoryPaid.toFixed(2)}","${rec.categoryOutstanding.toFixed(2)}","${rec.categoryStatus}"`;
-          }).join('\n');
-
-          const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.setAttribute("href", url);
-          link.setAttribute("download", `invoices_${isBusCategory ? 'bus' : 'school_fee'}_${categoryModalFilter}_${new Date().toISOString().split('T')[0]}.csv`);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-
-          setFeedbackMsg("Warbixinta Invoysada CSV waa la soo dejiyay (CSV Report downloaded)!");
-          setTimeout(() => setFeedbackMsg(''), 4000);
-        };
-
-        return (
-          <div 
-            className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-55 animate-fade-in overflow-y-auto pointer-print-none" 
-            id="invoice-category-modal-bg"
-            onClick={(e) => {
-              if ((e.target as HTMLElement).id === 'invoice-category-modal-bg') {
-                setInvoiceCategoryModal(null);
-              }
-            }}
-          >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-5xl w-full overflow-hidden flex flex-col max-h-[90vh]"
-            >
-              {/* Modal Header */}
-              <div className="p-6 bg-slate-900 text-white flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="p-3 bg-white/10 rounded-2xl text-2xl">
-                    {isBusCategory ? 'üöå' : 'üìö'}
-                  </span>
-                  <div>
-                    <h3 className="text-lg font-black text-white flex items-center gap-2">
-                      {isBusCategory ? 'Bus Fare (Baska) Invoices Breakdown' : 'School Fee Invoices Breakdown'}
-                    </h3>
-                    <p className="text-xs text-slate-300 font-semibold mt-0.5">
-                      Daawo ardayda bixiya ama lagu leeyahay {categoryName}
-                    </p>
-                  </div>
-                </div>
-                <button 
-                  type="button"
-                  onClick={() => setInvoiceCategoryModal(null)}
-                  className="p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl transition-all cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Summary Metric Pills */}
-              <div className="bg-slate-50 p-4 border-b border-slate-200/80 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="bg-white p-3.5 rounded-2xl border border-slate-200/60 shadow-xs flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Total Issued</span>
-                    <span className="text-base font-black text-slate-800">${totalCategoryIssuedSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  </div>
-                  <span className="text-xs font-extrabold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700">{invoiceCategoryRecords.length} Invoices</span>
-                </div>
-                <div className="bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-200/60 shadow-xs flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider block">Total Collected</span>
-                    <span className="text-base font-black text-emerald-700">${totalCategoryCollectedSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  </div>
-                  <Check className="w-5 h-5 text-emerald-600" />
-                </div>
-                <div className="bg-rose-50/60 p-3.5 rounded-2xl border border-rose-200/60 shadow-xs flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] font-black text-rose-800 uppercase tracking-wider block">Total Outstanding</span>
-                    <span className="text-base font-black text-rose-600">${totalCategoryOutstandingSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  </div>
-                  <AlertCircle className="w-5 h-5 text-rose-500" />
-                </div>
-              </div>
-
-              {/* Controls Bar: Search, Filters, and Downloads */}
-              <div className="p-4 bg-white border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                {/* Search */}
-                <div className="relative flex-1">
-                  <Search className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 w-4 h-4 mt-2.5 pointer-events-none" />
-                  <input
-                    type="text"
-                    placeholder="Magaca, Telka ama Invoyska..."
-                    value={categoryModalSearch}
-                    onChange={(e) => setCategoryModalSearch(e.target.value)}
-                    className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
-                  />
-                  {categoryModalSearch && (
-                    <button type="button" onClick={() => setCategoryModalSearch('')} className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Filter Tabs */}
-                <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200/60 text-xs font-extrabold shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setCategoryModalFilter('all')}
-                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${categoryModalFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
-                  >
-                    Dhamaan ({invoiceCategoryRecords.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCategoryModalFilter('collected')}
-                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${categoryModalFilter === 'collected' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-500 hover:text-emerald-700'}`}
-                  >
-                    Paid ({invoiceCategoryRecords.filter(r => r.categoryStatus === 'Paid' || r.categoryPaid > 0).length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCategoryModalFilter('outstanding')}
-                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${categoryModalFilter === 'outstanding' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-500 hover:text-rose-700'}`}
-                  >
-                    Outstanding ({invoiceCategoryRecords.filter(r => r.categoryOutstanding > 0 && r.categoryStatus !== 'Paid').length})
-                  </button>
-                </div>
-
-                {/* Export Report Action */}
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={handleDownloadTxt}
-                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
-                    title="Soo deji warbixinta text ah"
-                  >
-                    <Download className="w-3.5 h-3.5 text-slate-600" />
-                    TXT
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDownloadCsv}
-                    className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
-                    title="Soo deji Excel / CSV"
-                  >
-                    <Download className="w-3.5 h-3.5 text-white" />
-                    CSV (Excel)
-                  </button>
-                </div>
-              </div>
-
-              {/* Recipients Table */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                {filteredCategoryRecords.length === 0 ? (
-                  <div className="text-center py-16 text-slate-400 font-semibold bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                    <p className="text-sm">Wax invoic ah oo laga helay ma jiraan.</p>
-                    <p className="text-xs text-slate-400 mt-1">No matching invoices found for this filter selection.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                          <th className="py-3 px-4">Invoice # & Date</th>
-                          <th className="py-3 px-4">Recipient / Student</th>
-                          <th className="py-3 px-4">Category Line Items</th>
-                          <th className="py-3 px-4 text-right">Category Total</th>
-                          <th className="py-3 px-4 text-right">Paid</th>
-                          <th className="py-3 px-4 text-right">Balance Due</th>
-                          <th className="py-3 px-4 text-center">Status</th>
-                          <th className="py-3 px-4 text-right">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-xs font-semibold">
-                        {filteredCategoryRecords.map((rec) => (
-                          <tr key={rec.invoice.id} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="py-3 px-4">
-                              <span className="font-mono font-black text-indigo-900 block">#{rec.invoice.invoiceNumber || rec.invoice.id}</span>
-                              <span className="text-[10px] font-mono text-slate-400">{rec.invoice.issueDate}</span>
-                            </td>
-                            <td className="py-3 px-4">
-                              <span className="font-extrabold text-slate-900 block">{rec.invoice.recipientName || 'N/A'}</span>
-                              <span className="text-[10px] font-mono text-slate-500">{rec.invoice.recipientPhone || 'No Phone'}</span>
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="space-y-0.5">
-                                {rec.matchingItems.map((item, idx) => (
-                                  <div key={idx} className="text-[11px] text-slate-700 font-medium flex items-center justify-between gap-2">
-                                    <span>‚Ä¢ {item.description}</span>
-                                    <span className="font-mono text-slate-500">${Number(item.total || (item.unitPrice * item.quantity) || 0).toFixed(2)}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </td>
-                            <td className="py-3 px-4 text-right font-black text-slate-800">
-                              ${rec.categoryTotal.toFixed(2)}
-                            </td>
-                            <td className="py-3 px-4 text-right font-black text-emerald-700">
-                              ${rec.categoryPaid.toFixed(2)}
-                            </td>
-                            <td className="py-3 px-4 text-right font-black text-rose-600">
-                              ${rec.categoryOutstanding.toFixed(2)}
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider inline-block ${
-                                rec.categoryStatus === 'Paid'
-                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                  : rec.categoryStatus === 'Partial'
-                                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                                  : 'bg-rose-100 text-rose-800 border border-rose-200'
-                              }`}>
-                                {rec.categoryStatus}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setInvoiceCategoryModal(null);
-                                  setShowInvoiceReceipt(rec.invoice);
-                                }}
-                                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer inline-flex items-center gap-1 shadow-xs"
-                              >
-                                üìÑ Receipt
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-
-              {/* Modal Footer */}
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setInvoiceCategoryModal(null)}
-                  className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md"
-                >
-                  Xir (Close)
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        );
-      })()}
-
-      {/* -------------------------------------------------------------
-          MODAL 1: PRINT STUDENT PAYMENT RECEIPT VOUCHER
-          ------------------------------------------------------------- */}
-      {showReceiptModal && (
-        <div 
-          className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto pointer-print-none" 
-          id="receipt-modal-bg"
-          onClick={(e) => {
-            if ((e.target as HTMLElement).id === 'receipt-modal-bg') {
-              setShowReceiptModal(null);
-            }
-          }}
-        >
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="w-full max-w-md bg-white rounded-3xl shadow-2xl relative overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh] my-auto"
-            id="receipt-print-wrapper"
-          >
-            {/* Action Header bar inside modal */}
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between pointer-print-none flex-wrap gap-2">
-              <span className="font-bold text-xs uppercase tracking-widest text-slate-400 font-bold">Xarunta Daabacaada Rasiidka</span>
-              <div className="flex gap-1.5 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setShowReceiptModal(null)}
-                  className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg cursor-pointer inline-flex items-center gap-1 transition-colors border border-slate-700 font-bold"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  Gadaal
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDownloadReceiptPDF(showReceiptModal)}
-                  className="py-1.5 px-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg inline-flex items-center gap-1 transition-all cursor-pointer font-bold"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  La soo deg PDF
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDownloadReceiptText(showReceiptModal)}
-                  className="py-1.5 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg inline-flex items-center gap-1 transition-all cursor-pointer font-bold"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  La soo deg TXT
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handlePrintElement('printable-receipt-card')}
-                  className="py-1.5 px-2.5 bg-teal-500 hover:bg-teal-600 text-slate-900 font-bold text-xs rounded-lg inline-flex items-center gap-1 transition-all cursor-pointer font-bold"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  Daabac Rasiidka
-                </button>
-              </div>
-            </div>
-
-            {/* printable receipt frame */}
-            <div className="p-6 md:p-8 text-slate-900 bg-white overflow-y-auto flex-1 scrollbar-thin" id="printable-receipt-card">
-              <div className="text-center pb-5 border-b border-dashed border-slate-300">
-                <h2 className="text-xl font-black uppercase tracking-tight text-slate-950 font-lutfey">DUGSIGA SUBUC</h2>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Rasiidka Lacag-bixinta Rasmiga ah ee Ardayga</p>
-                <p className="text-[9px] text-slate-500 mt-0.5 font-bold">Xafiiska Maamulka Garowe</p>
-              </div>
-
-              {/* Details table */}
-              <div className="py-5 space-y-4 text-xs font-semibold">
-                <div className="grid grid-cols-2 gap-y-3">
-                  <div>
-                    <span className="block text-[10px] text-slate-400 uppercase font-black">Tirada Rasiidka</span>
-                    <span className="text-slate-900 font-mono text-xs">{showReceiptModal.receiptNo || 'may'}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="block text-[10px] text-slate-400 uppercase font-black">Taariikhda Bixinta</span>
-                    <span className="text-slate-900">{showReceiptModal.paymentDate || 'may'}</span>
-                  </div>
-
-                  <div>
-                    <span className="block text-[10px] text-slate-400 uppercase font-black">Magaca Ardayga</span>
-                    <span className="text-slate-900 font-extrabold">{showReceiptModal.studentName}</span>
-                    <span className="block text-[10px] text-slate-400 font-mono">ID: {showReceiptModal.studentId}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="block text-[10px] text-slate-400 uppercase font-black font-medium">Fasalka</span>
-                    <span className="text-slate-900 text-xs font-bold">{showReceiptModal.className}</span>
-                  </div>
-                </div>
-
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 mt-4">
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-200/60">
-                    <div>
-                      <span className="block text-[10px] text-slate-400 uppercase font-bold">Muddada Biilka</span>
-                      <span className="text-slate-900 font-bold">Khidmadda {showReceiptModal.month}</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="block text-[10px] text-slate-400 uppercase font-bold mb-0.5">Heerka Rasiidka</span>
-                      <span className={`font-black text-[10px] uppercase border px-2 py-0.5 rounded-md ${
-                        showReceiptModal.status === 'Paid'
-                           ? 'text-emerald-700 bg-emerald-50 border-emerald-100'
-                           : showReceiptModal.status === 'Partial'
-                           ? 'text-amber-700 bg-amber-50 border-amber-100'
-                           : 'text-rose-700 bg-rose-50 border-rose-100'
-                      }`}>
-                        {showReceiptModal.status === 'Paid' ? 'LA BIXIYAY' : showReceiptModal.status === 'Partial' ? 'QEYB BAA LA BIXIYAY' : 'LAMA BIXIN'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between text-xs font-semibold text-slate-600 pt-1">
-                    <span>Lacagta bisha ee laga rabo (Tuition Due):</span>
-                    <span className="text-slate-900">${Number(showReceiptModal.amountDue !== undefined ? showReceiptModal.amountDue : showReceiptModal.amountPaid).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs font-semibold text-slate-600">
-                    <span>Lacagta bisha ee la bixiyay (Tuition Paid):</span>
-                    <span className="text-emerald-700 font-semibold">${Number(showReceiptModal.amountPaid).toFixed(2)}</span>
-                  </div>
-
-                  {(Number(showReceiptModal.busFeeDue || 0) > 0 || Number(showReceiptModal.busFeePaid || 0) > 0) && (
-                    <>
-                      <div className="flex justify-between text-xs font-semibold text-slate-600 pt-1.5 border-t border-slate-200/40">
-                        <span>Lacagta baska ee laga rabo (Bus Due):</span>
-                        <span className="text-slate-900">${Number(showReceiptModal.busFeeDue || 0).toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-xs font-semibold text-slate-600">
-                        <span>Lacagta baska ee la bixiyay (Bus Paid):</span>
-                        <span className="text-emerald-750 font-semibold">${Number(showReceiptModal.busFeePaid || 0).toFixed(2)}</span>
-                      </div>
-                    </>
-                  )}
-
-                  <div className="flex justify-between text-xs font-extrabold text-slate-900 pt-1.5 border-t border-slate-300 mt-1">
-                    <span>Total Paid (Guud ahaan La Bixiyay):</span>
-                    <span className="text-emerald-800">${Number(Number(showReceiptModal.amountPaid) + Number(showReceiptModal.busFeePaid || 0)).toFixed(2)}</span>
-                  </div>
-
-                  <div className="flex justify-between text-xs font-semibold text-slate-600">
-                    <span>Remaining Debt (Haraaga Deynta):</span>
-                    <span className={`${(showReceiptModal.debtAmount || 0) > 0 ? 'text-amber-600 font-extrabold' : 'text-slate-900'}`}>
-                      ${Number(showReceiptModal.debtAmount !== undefined ? showReceiptModal.debtAmount : 0).toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-
-                {showReceiptModal.notes && (
-                  <div className="bg-amber-50/55 p-3 rounded-xl border border-amber-100/60 mt-4 text-xs">
-                    <span className="block text-[9px] text-amber-800 uppercase font-black mb-1">Faallooyinka Maamulka & Qoraalada Deynta:</span>
-                    <p className="text-slate-800 italic font-medium leading-relaxed">{showReceiptModal.notes}</p>
-                  </div>
-                )}
-
-                <div className="border-t border-slate-200 pt-4 flex justify-between items-center">
-                  <div>
-                    <span className="text-slate-500 font-semibold block text-xs">Saxiixa Khasajiga Rasmiga ah</span>
-                    <div className="w-24 h-px bg-slate-300 mt-8" />
-                  </div>
-                  <div className="text-right">
-                    <span className="block text-[10px] text-slate-400 uppercase font-black">Xaddiga la Qabtay (Total Collected)</span>
-                    <span className="text-xl font-extrabold text-slate-950">${Number(Number(showReceiptModal.amountPaid) + Number(showReceiptModal.busFeePaid || 0)).toFixed(2)} USD</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* print layout footer citation */}
-              <div className="text-center pt-4 border-t border-dashed border-slate-300 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                Waad ku mahadsan tahay dadaalkaaga waxbarasho
-              </div>
-            </div>
-
-          </motion.div>
-        </div>
-      )}
-
-      {/* -------------------------------------------------------------
-          MODAL 1C: CREATE OR EDIT CUSTOM INVOICE (PARENTS & OTHER BUSINESSES)
-          ------------------------------------------------------------- */}
-      {showInvoiceModal && (
-        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 animate-fade-in pointer-print-none overflow-y-auto" id="invoice-modal-bg">
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="w-full max-w-3xl bg-white rounded-3xl shadow-2xl relative overflow-hidden flex flex-col max-h-[92vh] my-auto"
-          >
-            {/* Header */}
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
-              <span className="font-extrabold text-xs uppercase tracking-widest text-emerald-400 flex items-center gap-2">
-                <CircleDollarSign className="w-4 h-4 text-emerald-500" />
-                {editingInvoice ? `Wax ka bedel Biilka: ${editingInvoice.invoiceNo}` : 'Soo saar Biil / Invoice Cusub'}
-              </span>
-              <button
-                type="button"
-                onClick={() => { setShowInvoiceModal(false); setEditingInvoice(null); }}
-                className="py-1 px-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg cursor-pointer transition-colors"
-              >
-                Gadaal (Cancel)
-              </button>
-            </div>
-
-            {/* Scrollable form */}
-            <form onSubmit={handleSaveInvoice} className="flex flex-col overflow-hidden max-h-full">
-              <div className="p-6 overflow-y-auto space-y-6 scrollbar-thin flex-1 max-h-[75vh]">
-                
-                {/* Recipient Type Switcher */}
-                <div className="grid grid-cols-2 gap-4 bg-slate-50 p-2.5 rounded-2xl border border-slate-150">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInvFormRecipientType('parent');
-                      setInvFormRecipientName('');
-                      setInvFormRecipientPhone('');
-                      setInvFormStudentId('');
-                    }}
-                    className={`py-2 px-3 text-xs font-black uppercase rounded-xl transition-all cursor-pointer ${
-                      invFormRecipientType === 'parent'
-                        ? 'bg-emerald-600 text-white'
-                        : 'text-slate-500 hover:bg-slate-100'
-                    }`}
-                  >
-                    Waalid Arday (Parent of Student)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInvFormRecipientType('business');
-                      setInvFormRecipientName('');
-                      setInvFormRecipientPhone('');
-                      setInvFormStudentId('');
-                    }}
-                    className={`py-2 px-3 text-xs font-black uppercase rounded-xl transition-all cursor-pointer ${
-                      invFormRecipientType === 'business'
-                        ? 'bg-emerald-600 text-white'
-                        : 'text-slate-500 hover:bg-slate-100'
-                    }`}
-                  >
-                    Ganacsi / Shirkad (Other Business)
-                  </button>
-                </div>
-
-                {/* Parent and Child Selection */}
-                {invFormRecipientType === 'parent' && (
-                  <div className="bg-slate-50/70 p-5 rounded-2xl border border-dashed border-emerald-250 space-y-4">
-                    {!selectedParent ? (
-                      /* Step 1: Select Parent */
-                      <div className="space-y-3">
-                        <div className="flex flex-col">
-                          <label className="block text-[11px] font-black text-emerald-800 uppercase tracking-widest pl-0.5">
-                            Dooro Waalidka (Select Parent) *
-                          </label>
-                          <p className="text-[10px] text-slate-500 mt-0.5">
-                            Ugu horeyn, raadi oo dooro waalidka aad u qorayso biilka si aad u aragto ardayda hoos timaada.
-                          </p>
-                        </div>
-
-                        {/* Parent Search Input */}
-                        <div className="relative">
-                          <input
-                            type="text"
-                            placeholder="Ku baar magaca waalidka ama telefoonkiisa..."
-                            value={parentSearchTerm}
-                            onChange={(e) => setParentSearchTerm(e.target.value)}
-                            className="w-full pl-9 pr-3.5 py-2 bg-white border border-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-xl text-xs font-semibold text-slate-800 outline-none transition-all"
-                          />
-                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
-                          {parentSearchTerm && (
-                            <button
-                              type="button"
-                              onClick={() => setParentSearchTerm('')}
-                              className="absolute right-3 top-2 text-[11px] font-bold text-slate-400 hover:text-slate-600"
-                            >
-                              Clear
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Parents List */}
-                        <div className="max-h-52 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-white scrollbar-thin">
-                          {(() => {
-                            const filteredParents = uniqueParents.filter(p => {
-                              const term = parentSearchTerm.toLowerCase().trim();
-                              if (!term) return true;
-                              return (p.name || '').toLowerCase().includes(term) ||
-                                     (p.phone || '').toLowerCase().includes(term);
-                            });
-
-                            if (filteredParents.length === 0) {
-                              return (
-                                <div className="p-4 text-center text-xs text-slate-400 font-semibold italic">
-                                  Waalid waafaqsan baadigoobkaaga lama helin. (No matching parents found)
-                                </div>
-                              );
-                            }
-
-                            return filteredParents.map(parent => (
-                              <button
-                                type="button"
-                                key={`${parent.name}-${parent.phone}`}
-                                onClick={() => {
-                                  setSelectedParent({ name: parent.name, phone: parent.phone });
-                                  setInvFormRecipientName(parent.name);
-                                  setInvFormRecipientPhone(parent.phone);
-                                  // Auto-select all active students of this parent
-                                  const childIds = parent.students.map(s => s.id);
-                                  setInvFormStudentIds(childIds);
-                                }}
-                                className="w-full p-3 flex items-center justify-between gap-3 text-left hover:bg-emerald-50/20 transition-colors text-xs cursor-pointer"
-                              >
-                                <div>
-                                  <span className="font-extrabold text-slate-900 block">{parent.name}</span>
-                                  <span className="text-[10px] text-slate-500 font-bold">
-                                    Telefoon: {parent.phone || 'ma jiro'}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-1 rounded-lg">
-                                    {parent.students.length} Arday
-                                  </span>
-                                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                                </div>
-                              </button>
-                            ));
-                          })()}
-                        </div>
-                      </div>
-                    ) : (
-                      /* Step 2: Show Selected Parent and their Children */
-                      <div className="space-y-4">
-                        {/* Selected Parent Card */}
-                        <div className="p-3.5 bg-emerald-600/10 border border-emerald-500/20 rounded-2xl flex items-center justify-between gap-4">
-                          <div>
-                            <span className="text-[10px] font-black text-emerald-800 uppercase tracking-widest block leading-none mb-1">Waalidka la doortay (Selected Parent)</span>
-                            <span className="font-extrabold text-slate-900 text-sm block">{selectedParent.name}</span>
-                            <span className="text-xs text-slate-600 font-semibold">Telefoonka: {selectedParent.phone}</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedParent(null);
-                              setInvFormRecipientName('');
-                              setInvFormRecipientPhone('');
-                              setInvFormStudentIds([]);
-                              setParentSearchTerm('');
-                            }}
-                            className="px-3 py-1.5 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-200 text-[10px] font-black uppercase rounded-lg text-rose-600 transition-colors cursor-pointer"
-                          >
-                            Bedel Waalidka (Change Parent)
-                          </button>
-                        </div>
-
-                        {/* Children list of selected parent */}
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <label className="block text-[11px] font-black text-emerald-800 uppercase tracking-widest pl-0.5">
-                              Dooro Ardayda ku jirta Biilkan (Select Students for Invoice) *
-                            </label>
-                            <span className="text-[10px] bg-emerald-100 text-emerald-700 font-extrabold px-2 py-0.5 rounded-lg">
-                              {invFormStudentIds.length} la doortay
-                            </span>
-                          </div>
-
-                          <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 bg-white overflow-hidden">
-                            {(() => {
-                              // Find all active students of selected parent (by name and phone)
-                              const parentStudents = activeStudents.filter(s => 
-                                (s.parentName || '').trim().toLowerCase() === selectedParent.name.trim().toLowerCase()
-                              );
-
-                              if (parentStudents.length === 0) {
-                                return (
-                                  <div className="p-4 text-center text-xs text-slate-400 font-semibold italic">
-                                    Ma jiraan arday firfircoon oo waalidkan u diwaan-gashan.
-                                  </div>
-                                );
-                              }
-
-                              return parentStudents.map(student => {
-                                const isSelected = invFormStudentIds.includes(student.id);
-                                return (
-                                  <div 
-                                    key={student.id} 
-                                    className={`p-3 flex items-center justify-between gap-3 text-xs transition-colors hover:bg-slate-50 ${
-                                      isSelected ? 'bg-emerald-50/20' : ''
-                                    }`}
-                                  >
-                                    <label className="flex items-center gap-3 cursor-pointer flex-1 select-none">
-                                      <input
-                                        type="checkbox"
-                                        checked={isSelected}
-                                        onChange={() => {
-                                          if (isSelected) {
-                                            setInvFormStudentIds(prev => prev.filter(id => id !== student.id));
-                                          } else {
-                                            setInvFormStudentIds(prev => [...prev, student.id]);
-                                          }
-                                        }}
-                                        className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer"
-                                      />
-                                      <div>
-                                        <span className="font-extrabold text-slate-900 block">{student.name}</span>
-                                        <span className="text-[10px] text-slate-500 font-bold">
-                                          Fasalka: {student.className} | Lacagta bishii: ${student.monthlyFee}
-                                        </span>
-                                      </div>
-                                    </label>
-                                  </div>
-                                );
-                              });
-                            })()}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Basic Details Fields */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Recipient Name */}
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">
-                      Magaca Macmiilka (Recipient Name) *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Geli magaca..."
-                      value={invFormRecipientName}
-                      onChange={(e) => setInvFormRecipientName(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
-                    />
-                  </div>
-
-                  {/* Recipient Phone */}
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">
-                      Telefoonka (Phone) *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Geli taleefoonka..."
-                      value={invFormRecipientPhone}
-                      onChange={(e) => setInvFormRecipientPhone(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
-                    />
-                  </div>
-
-                  {/* Recipient Email */}
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">
-                      Email-ka (Email - Optional)
-                    </label>
-                    <input
-                      type="email"
-                      placeholder="customer@example.com"
-                      value={invFormRecipientEmail}
-                      onChange={(e) => setInvFormRecipientEmail(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
-                    />
-                  </div>
-                </div>
-
-                {/* Dates Configuration */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">
-                      Taariikhda la soo saaray (Invoice Date) *
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={invFormDate}
-                      onChange={(e) => setInvFormDate(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">
-                      Taariikhda ugu dambaysa ee bixinta (Due Date) *
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={invFormDueDate}
-                      onChange={(e) => setInvFormDueDate(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
-                    />
-                  </div>
-                </div>
-
-                {/* Line Items Box */}
-                <div className="p-5 border border-slate-150 rounded-2xl space-y-4 bg-slate-50/20">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Adeegyada & Baayacmushtarka (Invoice Line Items)</h4>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase">Ku dar shey ku jiri doona biilka</span>
-                  </div>
-
-                  <div className="space-y-3">
-                    {invFormItems.map((item, index) => (
-                      <div key={item.id} className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
-                        {/* Description */}
-                        <div className="flex-1 w-full">
-                          {index === 0 && (
-                            <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Faahfaahinta Adeega (Description) *</label>
-                          )}
-                          <input
-                            type="text"
-                            required
-                            placeholder="t.g. Buugaagta fasalka, Adeeg dheeraad ah..."
-                            value={item.description}
-                            onChange={(e) => {
-                              const updated = [...invFormItems];
-                              updated[index].description = e.target.value;
-                              setInvFormItems(updated);
-                            }}
-                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
-                          />
-                        </div>
-
-                        {/* Quantity */}
-                        <div className="w-24 shrink-0">
-                          {index === 0 && (
-                            <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Qty *</label>
-                          )}
-                          <input
-                            type="number"
-                            required
-                            min="1"
-                            step="any"
-                            value={item.quantity}
-                            onChange={(e) => {
-                              const updated = [...invFormItems];
-                              updated[index].quantity = Math.max(1, Number(e.target.value));
-                              setInvFormItems(updated);
-                            }}
-                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none transition-all text-center"
-                          />
-                        </div>
-
-                        {/* Unit Price */}
-                        <div className="w-28 shrink-0">
-                          {index === 0 && (
-                            <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Qiimaha ($) *</label>
-                          )}
-                          <input
-                            type="number"
-                            required
-                            min="0"
-                            step="0.01"
-                            placeholder="Price ($)"
-                            value={item.unitPrice}
-                            onChange={(e) => {
-                              const updated = [...invFormItems];
-                              updated[index].unitPrice = Math.max(0, Number(e.target.value));
-                              setInvFormItems(updated);
-                            }}
-                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none transition-all text-right"
-                          />
-                        </div>
-
-                        {/* Row Total display */}
-                        <div className="w-20 text-right pr-2">
-                          {index === 0 && (
-                            <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Guud</label>
-                          )}
-                          <span className="text-xs font-black text-slate-600 block py-2">${(item.quantity * item.unitPrice).toFixed(2)}</span>
-                        </div>
-
-                        {/* Trash Button for extra items */}
-                        {invFormItems.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const updated = invFormItems.filter((_, idx) => idx !== index);
-                              setInvFormItems(updated);
-                            }}
-                            className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-all cursor-pointer self-center"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Add Row Button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInvFormItems([
-                        ...invFormItems,
-                        { id: String(Date.now()), description: '', quantity: 1, unitPrice: 0 }
-                      ]);
-                    }}
-                    className="py-1.5 px-3 border border-dashed border-emerald-500 hover:bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-wider rounded-xl inline-flex items-center gap-1.5 cursor-pointer transition-all mt-2"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Shey Dheeraad ah (Add service row)
-                  </button>
-                </div>
-
-                {/* Live math summary and Payment Collector */}
-                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-150 grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Notes / Instructions */}
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">
-                      Faallo iyo Farriimo (Invoice Notes)
-                    </label>
-                    <textarea
-                      rows={4}
-                      placeholder="Qiimo dhimis, ama dardaaran kale..."
-                      value={invFormNotes}
-                      onChange={(e) => setInvFormNotes(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-xs font-semibold text-slate-700 outline-none transition-all resize-none"
-                    />
-                  </div>
-
-                  {/* Payment registration & Summary Maths */}
-                  <div className="space-y-4">
-                    {(() => {
-                      let modalBus = 0;
-                      let modalFee = 0;
-                      invFormItems.forEach(item => {
-                        const desc = (item.description || '').toLowerCase();
-                        const isBus = desc.includes('baska') || desc.includes('bus');
-                        const tot = (item.quantity || 0) * (item.unitPrice || 0);
-                        if (isBus) modalBus += tot;
-                        else modalFee += tot;
-                      });
-
-                      return (
-                        <div className="space-y-2 pb-2.5 border-b border-slate-200">
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="font-bold text-slate-500 uppercase tracking-wider">Lacagta guud ee biilka (Total Invoiced):</span>
-                            <span className="text-sm font-black text-slate-900">${(modalBus + modalFee).toFixed(2)} USD</span>
-                          </div>
-                          <div className="flex items-center justify-between text-[11px] font-bold bg-white p-2 rounded-xl border border-slate-200">
-                            <span className="text-slate-600">üìö School Fee: <strong className="text-slate-900">${modalFee.toFixed(2)}</strong></span>
-                            <span className="text-amber-800">üöå Bus Fare (Baska): <strong className="text-amber-950">${modalBus.toFixed(2)}</strong></span>
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Registrate quick collected payment */}
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 pl-0.5">
-                        Lacagta Hadda la qabtay / la bixiyay (Amount Paid so far) *
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        max={invFormItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0)}
-                        required
-                        value={invFormAmountPaid}
-                        onChange={(e) => setInvFormAmountPaid(Math.max(0, Number(e.target.value)))}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 focus:border-emerald-500 focus:bg-white rounded-xl text-sm font-black text-slate-900 outline-none transition-all text-right"
-                      />
-                    </div>
-
-                    <div className="flex justify-between items-center text-xs pt-1">
-                      <span className="font-bold text-slate-500 uppercase">Deynta Hartay (Remaining Due Balance):</span>
-                      <span className="text-sm font-black text-rose-600">
-                        ${Math.max(0, invFormItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0) - invFormAmountPaid).toFixed(2)} USD
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between items-center text-xs pt-1">
-                      <span className="font-bold text-slate-500 uppercase">Heerka Biilka (Automated Status):</span>
-                      {(() => {
-                        const total = invFormItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
-                        const paid = invFormAmountPaid;
-                        let labelStr = 'LAMA BIXIN (UNPAID)';
-                        let colorStr = 'bg-rose-50 text-rose-700 border border-rose-100';
-                        if (paid >= total && total > 0) {
-                          labelStr = 'WAA LA BIXIYAY (PAID)';
-                          colorStr = 'bg-emerald-50 text-emerald-700 border border-emerald-100';
-                        } else if (paid > 0) {
-                          labelStr = 'QEYB BAA LA BIXIYAY (PARTIAL)';
-                          colorStr = 'bg-amber-50 text-amber-700 border border-amber-100';
-                        }
-                        return (
-                          <span className={`px-3 py-1 font-black text-[9px] uppercase tracking-wider rounded-xl ${colorStr}`}>{labelStr}</span>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Footer */}
-              <div className="p-4 bg-slate-50 border-t border-slate-150 flex items-center justify-end gap-3 shrink-0 pointer-print-none">
-                <button
-                  type="button"
-                  onClick={() => { setShowInvoiceModal(false); setEditingInvoice(null); }}
-                  className="py-2.5 px-5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-extrabold text-xs rounded-xl cursor-pointer transition-colors"
-                >
-                  Gadaal (Cancel)
-                </button>
-                <button
-                  type="submit"
-                  className="py-2.5 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl inline-flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-600/10 transition-colors"
-                >
-                  <Save className="w-4 h-4" />
-                  {editingInvoice ? 'Cusboonaysii (Update)' : 'Kaydi & Soo Saar (Issue Invoice)'}
-                </button>
-              </div>
-            </form>
-          </motion.div>
-        </div>
-      )}
-
-      {/* -------------------------------------------------------------
-          MODAL 1D: PRINT OR PREVIEW CUSTOM CUSTOM INVOICE
-          ------------------------------------------------------------- */}
-      {showInvoiceReceipt && (
-        <div 
-          className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto pointer-print-none" 
-          id="invoice-receipt-bg"
-          onClick={(e) => {
-            if ((e.target as HTMLElement).id === 'invoice-receipt-bg') {
-              setShowInvoiceReceipt(null);
-            }
-          }}
-        >
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="w-full max-w-lg bg-white rounded-3xl shadow-2xl relative overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh] my-auto"
-            id="invoice-print-wrapper"
-          >
-            {/* Header / Actions toolbar inside overlay */}
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between pointer-print-none flex-wrap gap-2">
-              <span className="font-bold text-xs uppercase tracking-widest text-slate-400 font-bold">Xafiiska Daabacaada</span>
-              <div className="flex gap-1.5 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setShowInvoiceReceipt(null)}
-                  className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg cursor-pointer inline-flex items-center gap-1 transition-colors border border-slate-700 font-bold"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  Gadaal
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDownloadInvoicePDF(showInvoiceReceipt)}
-                  className="py-1.5 px-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg inline-flex items-center gap-1 transition-all cursor-pointer font-bold"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  La soo deg PDF
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDownloadInvoiceText(showInvoiceReceipt)}
-                  className="py-1.5 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg inline-flex items-center gap-1 transition-all cursor-pointer font-bold"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  La soo deg TXT
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handlePrintElement('printable-invoice-receipt')}
-                  className="py-1.5 px-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg inline-flex items-center gap-1 transition-all cursor-pointer font-bold"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  Daabac Biilka
-                </button>
-              </div>
-            </div>
-
-            {/* Print paper layout preview */}
-            <div id="printable-invoice-receipt" className="p-8 overflow-y-auto space-y-6 scrollbar-thin bg-white flex-1 text-slate-800 printable-canvas font-sans select-text">
-              
-              {/* Crest logo & Title head */}
-              <div className="flex items-center gap-4 border-b border-slate-100 pb-5">
-                <div>
-                  <h3 className="text-xl font-black text-[#21543d] font-lutfey uppercase tracking-wider">Dugsiga Subuc</h3>
-                  <p className="text-[9px] font-black text-[#21543d] uppercase tracking-wider mt-1">Xafiiska Garowe & Akadeemiyada Tajwiidka</p>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Invoice / Biil Rasmi Ah oo Gaar ah</p>
-                </div>
-              </div>
-
-              {/* Metadata block */}
-              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-150 text-[11px] leading-relaxed">
-                <div>
-                  <span className="block text-[8px] text-slate-400 uppercase font-black">Loo soo saaray:</span>
-                  <span className="text-xs font-black text-slate-950">{showInvoiceReceipt.recipientName}</span>
-                  <span className="block font-mono text-[10px] text-slate-500 mt-0.5">{showInvoiceReceipt.recipientPhone}</span>
-                  {showInvoiceReceipt.studentName && (
-                    <span className="block text-[9px] text-indigo-700 font-bold mt-1">
-                      Ardayga: {getFirstNamesOnly(showInvoiceReceipt.studentName)}
-                    </span>
-                  )}
-                </div>
-                <div className="text-right">
-                  <span className="block text-[8px] text-slate-400 uppercase font-black">Invoice No:</span>
-                  <span className="text-xs font-mono font-black text-slate-950">{showInvoiceReceipt.invoiceNo}</span>
-                  <span className="block text-[10px] text-slate-500 font-mono mt-1">
-                    Taariikhda: <span className="font-bold">{showInvoiceReceipt.date}</span>
-                  </span>
-                </div>
-              </div>
-
-              {/* Items tabular grid */}
-              <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-150 text-[9px] font-black text-slate-500 uppercase">
-                      <th className="py-2 pl-3">Tr</th>
-                      <th className="py-2">Faahfaahinta Adeega</th>
-                      <th className="py-2 text-center">Tiro</th>
-                      <th className="py-2 text-right">Qiimaha</th>
-                      <th className="py-2 text-right pr-3">Isu-geyn</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {showInvoiceReceipt.items.map((item, idx) => (
-                      <tr key={item.id || idx} className="text-slate-800 font-medium">
-                        <td className="py-2.5 pl-3 font-mono font-bold text-slate-400">{idx + 1}</td>
-                        <td className="py-2.5 font-semibold text-slate-900">{item.description}</td>
-                        <td className="py-2.5 text-center font-bold text-slate-600">{item.quantity}</td>
-                        <td className="py-2.5 text-right font-semibold text-slate-600">${item.unitPrice.toFixed(2)}</td>
-                        <td className="py-2.5 text-right font-extrabold text-slate-950 pr-3">${(item.quantity * item.unitPrice).toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Math summaries list */}
-              <div className="border-t border-dashed border-slate-250 pt-4 space-y-2 text-xs">
-                <div className="flex justify-between items-center text-slate-500 font-semibold">
-                  <span>LACAGTA GUUD:</span>
-                  <span className="font-black text-slate-950">${showInvoiceReceipt.totalAmount.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between items-center text-emerald-600 font-bold">
-                  <span>LA BIXIYAY:</span>
-                  <span className="font-black text-emerald-700">${showInvoiceReceipt.amountPaid.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between items-center border-t border-slate-100 pt-2 text-slate-800 font-black">
-                  <span>DEYNTA HARTAY:</span>
-                  <span className={`text-sm font-extrabold ${showInvoiceReceipt.totalAmount - showInvoiceReceipt.amountPaid > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
-                    ${(showInvoiceReceipt.totalAmount - showInvoiceReceipt.amountPaid).toFixed(2)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Status stamp badge */}
-              <div className="flex items-center justify-between gap-4 pt-2">
-                <div className="px-3.5 py-1.5 rounded-xl border border-dashed border-slate-350 text-center inline-block">
-                  <span className="block text-[8px] text-slate-400 font-black uppercase mb-0.5">HEERKA BIILKA</span>
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${
-                    showInvoiceReceipt.status === 'Paid'
-                      ? 'text-emerald-700'
-                      : showInvoiceReceipt.status === 'Partial'
-                      ? 'text-amber-700'
-                      : 'text-rose-700'
-                  }`}>
-                    {showInvoiceReceipt.status === 'Paid' ? 'Waa la bixiyey' : showInvoiceReceipt.status === 'Partial' ? 'Qeyb baa la bixiyey' : 'Lama bixin'}
-                  </span>
-                </div>
-
-                {showInvoiceReceipt.notes && (
-                  <div className="text-right max-w-[60%]">
-                    <span className="block text-[8px] text-slate-400 font-black uppercase mb-0.5">Faallo:</span>
-                    <p className="text-[10px] text-slate-500 font-semibold leading-relaxed italic whitespace-pre-line">{showInvoiceReceipt.notes}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* print layout footer citation */}
-              <div className="text-center pt-4 border-t border-dashed border-slate-300 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                Waad ku mahadsan tahay wada-shaqeynta rasmiga ah
-              </div>
-            </div>
-
-          </motion.div>
-        </div>
-      )}
-
-      {/* -------------------------------------------------------------
-          MODAL 1B: SECURE BILLING & DEBT MANAGEMENT COLLECTOR
-          ------------------------------------------------------------- */}
-      {showPayModal && (
-        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 animate-fade-in pointer-print-none" id="pay-modal-bg">
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]"
-          >
-            {/* Header */}
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
-              <span className="font-bold text-xs uppercase tracking-widest text-teal-400 flex items-center gap-1.5 font-bold">
-                <CircleDollarSign className="w-4 h-4 text-teal-500" />
-                Secure Billing Collector
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowPayModal(null)}
-                className="py-1 px-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg cursor-pointer transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-
-            {/* Scrollable content */}
-            <div className="p-6 overflow-y-auto space-y-6 scrollbar-thin">
-              {/* Student info header bar */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-150 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                <div>
-                  <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Target Student</h4>
-                  <p className="text-slate-900 font-extrabold text-sm">{showPayModal.name}</p>
-                  <p className="text-slate-400 font-mono mt-0.5">ID: {showPayModal.id}</p>
-                </div>
-                <div>
-                  <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Class / Space</h4>
-                  <p className="text-slate-800 font-bold mt-0.5">{showPayModal.className}</p>
-                </div>
-                <div>
-                  <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Monthly Tuition</h4>
-                  <p className="text-slate-900 font-extrabold mt-0.5">${showPayModal.monthlyFee}</p>
-                </div>
-                {showPayModal.busFee ? (
-                  <div>
-                    <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Monthly Bus Fare</h4>
-                    <p className="text-indigo-850 font-extrabold mt-0.5">${showPayModal.busFee}</p>
-                  </div>
-                ) : null}
-              </div>
-
-              {/* Collector Form and Live Math */}
-              <form onSubmit={handleSavePaymentDetails} className="space-y-4">
-                {/* Tuition Section */}
-                <div className="bg-slate-50/55 p-4 rounded-2xl border border-slate-150 space-y-3">
-                  <div className="text-xs font-black text-teal-800 uppercase tracking-wider flex items-center gap-1.5">
-                    <BookOpen className="w-3.5 h-3.5" />
-                    1. Lacagta Waxbarashada (Tuition Fee)
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5 pl-0.5">Fees Expected / Due ($) *</label>
-                      <input
-                        type="number"
-                        step="any"
-                        required
-                        min="0"
-                        value={payAmountDue}
-                        onChange={(e) => setPayAmountDue(Number(e.target.value))}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5 pl-0.5">Amount Deposited ($) *</label>
-                      <input
-                        type="number"
-                        step="any"
-                        required
-                        min="0"
-                        value={payAmountPaid}
-                        onChange={(e) => setPayAmountPaid(Number(e.target.value))}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Bus Section */}
-                <div className="bg-indigo-50/30 p-4 rounded-2xl border border-indigo-150/40 space-y-3">
-                  <div className="text-xs font-black text-indigo-800 uppercase tracking-wider flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">
-                      <Bus className="w-3.5 h-3.5 text-indigo-600" />
-                      2. Lacagta Gaadiidka / Baska (Bus Fare)
-                    </span>
-                    {showPayModal.busFee ? (
-                      <span className="text-[9px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-black uppercase tracking-wider">Ardayga Baskuu Raacaa</span>
-                    ) : (
-                      <span className="text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-black uppercase tracking-wider">Ardaygu Baska kuma qorna</span>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5 pl-0.5">Bus Fare Due ($) *</label>
-                      <input
-                        type="number"
-                        step="any"
-                        required
-                        min="0"
-                        value={payBusFeeDue}
-                        onChange={(e) => setPayBusFeeDue(Number(e.target.value))}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5 pl-0.5">Bus Fare Paid ($) *</label>
-                      <input
-                        type="number"
-                        step="any"
-                        required
-                        min="0"
-                        value={payBusFeePaid}
-                        onChange={(e) => setPayBusFeePaid(Number(e.target.value))}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl text-xs font-bold text-slate-800 outline-none transition-all"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Live Debt Feedback Panel */}
-                {(() => {
-                  const tuitionDebt = Math.max(0, payAmountDue - payAmountPaid);
-                  const busDebt = Math.max(0, payBusFeeDue - payBusFeePaid);
-                  const calculatedDebt = tuitionDebt + busDebt;
-                  return (
-                    <div className={`p-4 rounded-xl border flex items-start gap-3 text-xs relative overflow-hidden ${
-                      calculatedDebt > 0 
-                        ? 'bg-amber-50 text-amber-800 border-amber-100/80' 
-                        : 'bg-emerald-50 text-emerald-800 border-emerald-100/80'
-                    }`}>
-                      <AlertCircle className={`w-4 h-4 mt-0.5 shrink-0 ${calculatedDebt > 0 ? 'text-amber-500' : 'text-emerald-500'}`} />
-                      <div>
-                        <span className="font-extrabold block">
-                          {calculatedDebt > 0 ? `Deyn hadhay oo dhiman oo lagu leeyahay ($${calculatedDebt} remaining)` : 'Dhamaan Lacagtii waa la bixiyay (Fully Paid Settlement)'}
-                        </span>
-                        <p className="text-[11px] text-slate-550 leading-relaxed mt-0.5 font-semibold text-slate-600">
-                          {calculatedDebt > 0 
-                            ? `Tuition Debt: $${tuitionDebt} | Bus Fare Debt: $${busDebt}. The database is actively managing these balances.`
-                            : 'Perfect matching! Standard tuition and transportation subscription are fully paid for the current month.'}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Staff Comments / Debt Remarks */}
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 pl-0.5">Debts Remarks & Staff Comments</label>
-                  <textarea
-                    rows={2}
-                    value={payNotes}
-                    onChange={(e) => setPayNotes(e.target.value)}
-                    placeholder="e.g. Paid 10 today. Owed 20 to be resolved next Friday."
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-semibold text-slate-800 outline-none transition-all resize-none"
-                  />
-                </div>
-
-                {/* Submit actions */}
-                <div className="flex justify-end gap-2.5 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowPayModal(null)}
-                    className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-colors"
-                  >
-                    Discard Changes
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all shadow-md shadow-teal-600/10 flex items-center gap-1.5"
-                  >
-                    <Check className="w-4 h-4" />
-                    Confirm & Store Transaction
-                  </button>
-                </div>
-              </form>
-
-              {/* HISTORICAL LEDGER FOR THE PERSON */}
-              <div className="pt-4 border-t border-slate-100">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-black text-slate-800 text-xs uppercase tracking-widest flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-indigo-500" />
-                    Historic Payment Ledgers & Remarks
-                  </h4>
-                  <span className="text-[10px] text-slate-400 font-semibold uppercase">Carry-over details log</span>
-                </div>
-
-                {(() => {
-                  const allMonths = Array.from(new Set([
-                    ...database.billing.map(b => b.month),
-                    ...(database.invoices || [])
-                      .filter(inv => {
-                        if (inv.recipientType !== 'parent' || !inv.studentId) return false;
-                        const ids = inv.studentId.split(',').map(id => id.trim()).filter(Boolean);
-                        return ids.includes(showPayModal.id);
-                      })
-                      .map(inv => inv.date ? inv.date.slice(0, 7) : (inv.createdAt ? inv.createdAt.slice(0, 7) : ''))
-                      .filter(Boolean)
-                  ])).sort((a, b) => b.localeCompare(a));
-
-                  const history = allMonths
-                    .map(m => getBillingStatusForStudent(showPayModal, m))
-                    .filter(b => b.status === 'Paid' || b.status === 'Partial');
-
-                  if (history.length === 0) {
-                    return (
-                      <div className="p-4 bg-slate-50 rounded-xl text-center border border-dashed border-slate-200">
-                        <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">No historic invoices or remarks logged yet</p>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div className="overflow-x-auto rounded-xl border border-slate-150 text-left max-h-[180px] scrollbar-thin">
-                      <table className="w-full text-[11px] border-collapse">
-                        <thead>
-                          <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-150 uppercase text-[10px]">
-                            <th className="py-2 px-3">Billing Month</th>
-                            <th className="py-2 px-3">Due</th>
-                            <th className="py-2 px-3">Deposited</th>
-                            <th className="py-2 px-3">Remaining Debt</th>
-                            <th className="py-2 px-3">Status</th>
-                            <th className="py-2 px-3">Collector Remarks & Notes</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {history.map(record => (
-                            <tr key={record.id} className="hover:bg-slate-50/50">
-                              <td className="py-2 px-3 font-bold text-slate-800">{record.month}</td>
-                              <td className="py-2 px-3 font-semibold text-slate-600">
-                                ${record.amountDue !== undefined ? record.amountDue : (record.amountPaid + (record.debtAmount ?? 0))}
-                              </td>
-                              <td className="py-2 px-3 font-bold text-emerald-700">${record.amountPaid}</td>
-                              <td className="py-2 px-3 font-bold text-amber-600">
-                                ${record.debtAmount !== undefined ? record.debtAmount : 0}
-                              </td>
-                              <td className="py-2 px-3">
-                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                  record.status === 'Paid'
-                                    ? 'bg-emerald-50 text-emerald-700'
-                                    : record.status === 'Partial'
-                                    ? 'bg-amber-50 text-amber-700'
-                                    : 'bg-rose-50 text-rose-700'
-                                }`}>
-                                  {record.status}
-                                </span>
-                              </td>
-                              <td className="py-2 px-3 text-slate-500 italic max-w-xs break-words font-semibold">
-                                {record.notes || <span className="text-slate-300 font-light">None recorded</span>}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  );
-                })()}
-              </div>
-
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* -------------------------------------------------------------
-          MODAL 2: PRINT COMPREHENSIVE ATTENDANCE & PERFORMANCE JOURNALS
-          ------------------------------------------------------------- */}
-       {showPrintReportModal && (
-        <div 
-          className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto pointer-print-none" 
-          id="report-modal-bg"
-          onClick={(e) => {
-            if ((e.target as HTMLElement).id === 'report-modal-bg') {
-              setShowPrintReportModal(null);
-            }
-          }}
-        >
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] my-auto"
-            id="report-print-wrapper"
-          >
-            {/* Modal actions */}
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between shrink-0 pointer-print-none">
-              <span className="font-bold text-xs uppercase tracking-widest text-slate-400 font-bold">
-                {showPrintReportModal.mode === 'whole'
-                  ? 'Diiwaanka Guud ee Joogitaanka'
-                  : showPrintReportModal.mode === 'payments_range'
-                  ? 'Koobidda Dhaqdhaqaaqa Maaliyadeed ee Ardayga'
-                  : 'Diiwaanka Casharada & Horumarka'}
-              </span>
-              <div className="flex gap-1.5 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setShowPrintReportModal(null)}
-                  className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg cursor-pointer inline-flex items-center gap-1 transition-colors border border-slate-700 font-bold"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  Gadaal
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDownloadReportPDF}
-                  className="py-1.5 px-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg inline-flex items-center gap-1 transition-all cursor-pointer font-bold"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  La soo deg PDF
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handlePrintElement('printable-report-canvas')}
-                  className="py-1.5 px-3 bg-teal-500 hover:bg-teal-600 text-slate-900 font-bold text-xs rounded-lg inline-flex items-center gap-1 transition-all cursor-pointer font-bold"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  Daabac Warbixinta
-                </button>
-              </div>
-            </div>
-
-            {/* printable canvas */}
-            <div className="flex-1 p-8 md:p-12 text-slate-900 bg-white overflow-y-auto" id="printable-report-canvas">
-              <div className="text-center pb-6 border-b border-slate-300 mb-6 font-semibold">
-                <h2 className="text-2xl font-black uppercase tracking-tight text-slate-950 font-lutfey">DUGSIGA SUBUC</h2>
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">
-                  {showPrintReportModal.mode === 'payments_range' 
-                    ? 'WARBIXINTA GUUD EE LACAGO-BIXINTA ARDAYGA' 
-                    : 'DIIWAANKA RASMIGA AH EE JOOGITAANKA IYO HORUMARKA WAXBARASHO'}
-                </h3>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Muddada: <span className="font-bold text-slate-800">{showPrintReportModal.startDate}</span> ilaa <span className="font-bold text-slate-800">{showPrintReportModal.endDate}</span>
-                  {showPrintReportModal.mode === 'whole' ? (
-                    <span> ‚Ä¢ Fasalka: <span className="font-bold text-slate-800">{showPrintReportModal.className}</span></span>
-                  ) : (
-                    <span> ‚Ä¢ Macluumaadka Ardayga: <span className="font-bold text-slate-800">
-                      {database.students.find(stu => stu.id === showPrintReportModal.studentId)?.name || showPrintReportModal.studentId}
-                    </span></span>
-                  )}
-                </p>
-              </div>
-
-              {/* Conditionally render printable views based on mode */}
-              {showPrintReportModal.mode === 'whole' ? (
-                <div className="space-y-6 text-xs font-semibold">
-                  <table className="w-full text-left border-collapse text-xs border border-slate-300">
-                    <thead>
-                      <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300 uppercase tracking-wider text-[10px]">
-                        <th className="p-2 border border-slate-350">ID-ga Ardayga</th>
-                        <th className="p-2 border border-slate-350">Magaca Ardayga</th>
-                        <th className="p-2 border border-slate-350 font-bold">Fasalka</th>
-                        <th className="p-2 text-center border border-slate-350">Maalmaha Guud</th>
-                        <th className="p-2 text-center border border-slate-350 text-emerald-850">Joogid</th>
-                        <th className="p-2 text-center border border-slate-350 text-amber-850">Daahid</th>
-                        <th className="p-2 text-center border border-slate-350 text-rose-850">Maqnansho</th>
-                        <th className="p-2 text-right border border-slate-350">Heerka Imaanshaha %</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {database.students
-                        .filter(s => s.active && (showPrintReportModal.className === 'All' ? true : s.className === showPrintReportModal.className))
-                        .map(stu => {
-                          const progressList = database.progress.filter(p => p.studentId === stu.id && p.date >= showPrintReportModal.startDate && p.date <= showPrintReportModal.endDate);
-                          const total = progressList.length;
-                          const present = progressList.filter(p => p.attendance === 'Present').length;
-                          const late = progressList.filter(p => p.attendance === 'Late').length;
-                          const absent = progressList.filter(p => p.attendance === 'Absent').length;
-                          const compliance = total > 0 ? Math.round(((present + late) / total) * 100) : 0;
-
-                          return (
-                            <tr key={stu.id} className="border-b border-slate-200 text-[11px] font-medium text-slate-800">
-                              <td className="p-2 border border-slate-200 font-bold">{stu.id}</td>
-                              <td className="p-2 border border-slate-200 font-extrabold">{stu.name}</td>
-                              <td className="p-2 border border-slate-200">{stu.className}</td>
-                              <td className="p-2 text-center border border-slate-200">{total}</td>
-                              <td className="p-2 text-center border border-slate-200 text-emerald-700 font-bold">{present}</td>
-                              <td className="p-2 text-center border border-slate-200 text-amber-700 font-bold">{late}</td>
-                              <td className="p-2 text-center border border-slate-200 text-rose-700 font-bold">{absent}</td>
-                              <td className="p-2 text-right border border-slate-200 font-bold">{total > 0 ? `${compliance}%` : 'M/J'}</td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-
-                  {/* Director authentications */}
-                  <div className="pt-16 grid grid-cols-2 gap-16">
-                    <div>
-                      <span className="text-slate-500 font-semibold block text-xs">Saxiixa Hubinta Maamulaha</span>
-                      <div className="w-full h-px bg-slate-300 mt-10" />
-                    </div>
-                    <div className="text-right">
-                      <span className="text-slate-500 font-semibold block text-xs font-bold text-slate-705">Ogolaanshaha & Shaabadda Maamulka</span>
-                      <div className="w-full h-px bg-slate-300 mt-10" />
-                    </div>
-                  </div>
-                </div>
-              ) : showPrintReportModal.mode === 'payments_range' ? (
-                <div className="space-y-6 text-xs font-semibold">
-                  {(() => {
-                    const student = database.students.find(s => s.id === showPrintReportModal.studentId);
-                    if (!student) return <p className="text-rose-600">Student not found.</p>;
-
-                    const stats = getStudentPaymentRangeReport(student.id, showPrintReportModal.startDate, showPrintReportModal.endDate);
-                    if (!stats) return <p className="text-rose-600">Error rendering ledger report.</p>;
-
-                    const { records, totalDue, totalPaid, totalDebt } = stats;
-
-                    return (
-                      <div className="space-y-6">
-                        {/* Profile Summary Grid */}
-                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-semibold">
-                          <div>
-                            <span className="text-[10px] text-slate-400 block font-black uppercase">Warbixinta Ardayga</span>
-                            <span className="text-slate-900 font-extrabold text-[13px]">{student.name}</span>
-                          </div>
-                          <div>
-                            <span className="text-[10px] text-slate-400 block font-black uppercase">ID-ga Ardayga / Fasalka</span>
-                            <span className="text-slate-900 font-bold">{student.id} / {student.className}</span>
-                          </div>
-                          <div>
-                            <span className="text-[10px] text-slate-400 block font-black uppercase">Magaca & Tel-ka Waalidka</span>
-                            <span className="text-slate-800 font-bold">{student.parentName} ({student.parentPhone})</span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-[10px] text-slate-400 block font-black uppercase">Khidmadda Bisha ee Diiwaangashan</span>
-                            <span className="text-xs font-black text-slate-900 bg-slate-200/50 border border-slate-300 px-2 py-0.5 rounded">
-                              ${Number(student.monthlyFee).toFixed(2)}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Top Summaries Block */}
-                        <div className="grid grid-cols-3 gap-4">
-                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-left">
-                            <span className="text-[9px] text-slate-500 uppercase font-bold block mb-0.5">Biilka Guud</span>
-                            <span className="text-lg font-black text-slate-800">${Number(totalDue).toFixed(2)}</span>
-                          </div>
-                          <div className="bg-emerald-50/70 p-3 rounded-xl border border-emerald-100/70 text-left">
-                            <span className="text-[9px] text-emerald-600 uppercase font-bold block mb-0.5">Wixii La Bixiyay</span>
-                            <span className="text-lg font-black text-emerald-800">${Number(totalPaid).toFixed(2)}</span>
-                          </div>
-                          <div className="bg-rose-50/70 p-3 rounded-xl border border-rose-100/70 text-left">
-                            <span className="text-[9px] text-rose-600 uppercase font-bold block mb-0.5 font-bold font-semibold text-rose-800">Deynta Lagu Leeyahay</span>
-                            <span className="text-lg font-black text-rose-800">${Number(totalDebt).toFixed(2)}</span>
-                          </div>
-                        </div>
-
-                        {/* Statements list table */}
-                        <table className="w-full text-left border-collapse text-xs border border-slate-300">
-                          <thead>
-                            <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300 uppercase tracking-wider text-[9px]">
-                              <th className="p-2 border border-slate-350">Bisha Biilka</th>
-                              <th className="p-2 border border-slate-350">Xaddiga Biilka</th>
-                              <th className="p-2 border border-slate-350 text-emerald-800">Xaddiga La Bixiyay</th>
-                              <th className="p-2 border border-slate-350 text-rose-800">Deynta Kugu Hartay</th>
-                              <th className="p-2 border border-slate-350 text-center">Xaaladda</th>
-                              <th className="p-2 border border-slate-350">Tirada Rasiidka</th>
-                              <th className="p-2 border border-slate-350 font-bold">Qoraal Xogeed</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {records.map(r => {
-                                const feeAmt = r.amountDue ?? student.monthlyFee;
-                                const curDebt = r.debtAmount ?? Math.max(0, feeAmt - r.amountPaid);
-                                return (
-                                  <tr key={r.month} className="border-b border-slate-200 text-[10.5px] font-medium text-slate-700">
-                                    <td className="p-2 border border-slate-200 font-bold text-slate-900">{r.month}</td>
-                                    <td className="p-2 border border-slate-200">${Number(feeAmt).toFixed(2)}</td>
-                                    <td className="p-2 border border-slate-200 text-emerald-700 font-bold">${Number(r.amountPaid).toFixed(2)}</td>
-                                    <td className="p-2 border border-slate-200 text-rose-700 font-bold">${Number(curDebt).toFixed(2)}</td>
-                                  <td className="p-2 border border-slate-200 text-center text-xs font-black">
-                                    <span className="text-[10px] font-black uppercase">
-                                      {r.status === 'Paid' ? 'LA BIXIYAY' : r.status === 'Partial' ? 'DAHOOD' : 'LAMA BIXIN'}
-                                    </span>
-                                  </td>
-                                  <td className="p-2 border border-slate-200 text-slate-500">{r.receiptNo || '-'}</td>
-                                  <td className="p-2 border border-slate-200 font-normal italic text-slate-500 max-w-xs truncate" title={r.notes}>{r.notes || '-'}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-
-                        {/* Signatures */}
-                        <div className="pt-12 grid grid-cols-2 gap-16">
-                          <div>
-                            <span className="text-slate-500 font-semibold block text-xs">Saxiixa Maamulaha / Xisaabiyaha</span>
-                            <div className="w-full h-px bg-slate-300 mt-10" />
-                          </div>
-                          <div className="text-right">
-                            <span className="text-slate-500 font-semibold block text-xs font-bold text-slate-700">Shaabadda Rasmiga ah ee Khasajiga</span>
-                            <div className="w-full h-px bg-slate-300 mt-10" />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              ) : (
-                <div className="space-y-6 text-xs font-semibold">
-                  {/* Student bio info card */}
-                  {(() => {
-                    const student = database.students.find(s => s.id === showPrintReportModal.studentId);
-                    if (!student) return <p className="text-rose-600">Student not found.</p>;
-
-                    const logs = database.progress
-                      .filter(p => p.studentId === student.id && p.date >= showPrintReportModal.startDate && p.date <= showPrintReportModal.endDate)
-                      .sort((a,b) => a.date.localeCompare(b.date));
-
-                    const total = logs.length;
-                    const present = logs.filter(p => p.attendance === 'Present').length;
-                    const late = logs.filter(p => p.attendance === 'Late').length;
-                    const absent = logs.filter(p => p.attendance === 'Absent').length;
-                    const compliance = total > 0 ? Math.round(((present + late) / total) * 100) : 0;
-
-                    return (
-                      <div className="space-y-6">
-                        {/* Student Details Header Card */}
-                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-250 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-semibold">
-                          <div>
-                            <span className="text-[10px] text-slate-400 uppercase font-black block">Warbixinta Ardayga</span>
-                            <span className="text-slate-900 font-extrabold text-[13px]">{student.name}</span>
-                          </div>
-                          <div>
-                            <span className="text-[10px] text-slate-400 uppercase font-black block">ID-ga Ardayga / Fasalka</span>
-                            <span className="text-slate-900 font-bold">{student.id} / {student.className}</span>
-                          </div>
-                          <div>
-                            <span className="text-[10px] text-slate-400 uppercase font-black block">Magaca / Tel-ka Waalidka</span>
-                            <span className="text-slate-800">{student.parentName} ({student.parentPhone})</span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-[10px] text-slate-400 uppercase font-black block">Celceliska Joogitaanka</span>
-                            <span className="text-xs font-black text-slate-900 uppercase bg-slate-200/50 border border-slate-300 px-2 py-0.5 rounded">
-                              {total > 0 ? `${compliance}% Joogitaan` : 'Diiwaan Ma Jiro'}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Beautifully separated day cards instead of a squeezed 8-column table */}
-                        <div className="space-y-4 print:space-y-5">
-                          {logs.map((lg, idx) => (
-                            <div 
-                              key={lg.id} 
-                              className="bg-slate-50 border border-slate-200 rounded-2xl p-4.5 shadow-3xs transition-all duration-300 hover:border-indigo-200/80 hover:bg-slate-50/80 break-inside-avoid"
-                            >
-                              {/* Card Header showing Date & Attendance status badge */}
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-3 mb-3.5">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[14px]">üìÖ</span>
-                                  <span className="font-extrabold text-slate-900 text-[13px] tracking-tight">{lg.date}</span>
-                                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider pl-1 font-mono">Maalinta {idx + 1}</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest font-mono">Joogitaanka:</span>
-                                  <span className={`px-3 py-1 rounded-xl text-[10.5px] font-black uppercase border tracking-wide shadow-3xs ${
-                                    lg.attendance === 'Present' 
-                                      ? 'bg-emerald-50 text-emerald-850 border-emerald-250' 
-                                      : lg.attendance === 'Late' 
-                                      ? 'bg-amber-50 text-amber-850 border-amber-250' 
-                                      : 'bg-rose-50 text-rose-850 border-rose-250'
-                                  }`}>
-                                    {lg.attendance === 'Present' ? 'Joogid' : lg.attendance === 'Late' ? 'Daahid' : lg.attendance === 'Absent' ? 'Maqnansho' : lg.attendance}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Suuraduu marayo Badge if present */}
-                              {(lg.suuradeeMaraya || lg.boggee || (lg.inteeBog && lg.inteeBog !== 'N/A' && lg.inteeBog !== '')) && (
-                                <div className="mb-3.5 bg-indigo-50/50 border border-indigo-105 rounded-xl p-2.5 px-3.5 text-xs flex items-center justify-between shadow-3xs">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm">üìñ</span>
-                                    <span className="font-extrabold text-slate-800 font-sans">Casharka:</span>
-                                  </div>
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    {lg.suuradeeMaraya && (
-                                      <span className="font-black text-indigo-700 bg-white px-3 py-1 rounded-lg border border-indigo-100 shadow-3xs">Surada: {lg.suuradeeMaraya}</span>
-                                    )}
-                                    {lg.boggee && (
-                                      <span className="font-black text-purple-700 bg-purple-50 px-3 py-1 rounded-lg border border-purple-100 shadow-3xs">Boggee: {lg.boggee}</span>
-                                    )}
-                                    {lg.inteeBog && lg.inteeBog !== 'N/A' && lg.inteeBog !== '' && (
-                                      <span className="font-black text-violet-700 bg-violet-50/50 px-3 py-1 rounded-lg border border-violet-100 shadow-3xs">Intee Bog: {lg.inteeBog}</span>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Progress metrics grid layout */}
-                              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-slate-700">
-                                <div className="bg-white p-3 rounded-xl border border-slate-150 flex flex-col justify-center shadow-3xs">
-                                  <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest font-mono">1. Casharka</span>
-                                  <span className="text-xs font-black text-slate-800 mt-1 flex items-center gap-1">
-                                    {lg.lessonCompleted === 'Completed' ? '‚úÖ Kabaxay' : '‚ùå Kama Bixin'}
-                                  </span>
-                                </div>
-                                <div className="bg-white p-3 rounded-xl border border-slate-150 flex flex-col justify-center shadow-3xs">
-                                  <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest font-mono">2. Suuradda</span>
-                                  <span className="text-xs font-black text-slate-800 mt-1 flex items-center gap-1">
-                                    {lg.surad === 'Completed' ? '‚úÖ Kabaxay' : lg.surad === 'N/A' ? 'may' : '‚ùå Kama Bixin'}
-                                  </span>
-                                </div>
-                                <div className="bg-white p-3 rounded-xl border border-slate-150 flex flex-col justify-center shadow-3xs">
-                                  <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest font-mono">3. Kooxda Subac</span>
-                                  <span className="text-xs font-black text-slate-800 mt-1 flex items-center gap-1">
-                                    {lg.subac === 'Completed' ? '‚úÖ Galay' : '‚ùå Ma Galin'}
-                                  </span>
-                                </div>
-                                <div className="bg-white p-3 rounded-xl border border-slate-150 flex flex-col justify-center shadow-3xs">
-                                  <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest font-mono">4. Dhaqanka</span>
-                                  <span className="text-xs font-black text-slate-800 mt-1">
-                                    {lg.dhaqan === 'Excellent' ? '‚ú® Aad u Fiican' : lg.dhaqan === 'Good' ? 'üëç Fiican' : lg.dhaqan === 'Average' ? 'Dhexdhexaad' : lg.dhaqan === 'Needs Improvement' ? '‚ö†Ô∏è Baahan Horumar' : lg.dhaqan}
-                                  </span>
-                                </div>
-                                <div className="bg-white p-3 rounded-xl border border-slate-150 flex flex-col justify-center shadow-3xs">
-                                  <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest font-mono">5. Nadaafadda</span>
-                                  <span className="text-xs font-black text-slate-800 mt-1">
-                                    {lg.nadaafad === 'Excellent' ? '‚ú® Aad u Fiican' : lg.nadaafad === 'Good' ? 'üëç Fiican' : lg.nadaafad === 'Average' ? 'Dhexdhexaad' : lg.nadaafad === 'Needs Improvement' ? '‚ö†Ô∏è Baahan Horumar' : lg.nadaafad}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Beautifully separated full-width comment section below the grid */}
-                              {lg.faahfaahin ? (
-                                <div 
-                                  onClick={() => setExpandedComments(prev => ({ ...prev, [lg.id]: !prev[lg.id] }))}
-                                  className="mt-3.5 bg-amber-50 hover:bg-amber-100/60 text-slate-900 border border-amber-200/70 rounded-xl p-3.5 text-[11px] leading-relaxed flex flex-col cursor-pointer select-none transition-all duration-300 shadow-3xs"
-                                  title="Guji si aad u ballaariso ama u yarayso / Click to expand or collapse"
-                                >
-                                  <div className="flex items-center gap-1.5 mb-1.5 border-b border-amber-200 pb-1.5">
-                                    <span className="text-xs select-none">üìù</span>
-                                    <span className="text-[10px] text-amber-800 font-black uppercase tracking-widest pl-0.5 font-mono">Xogta Macallinka (Instructor Notes):</span>
-                                  </div>
-                                  <p className={`font-extrabold tracking-wide text-slate-800 pointer-print-none ${expandedComments[lg.id] ? '' : 'line-clamp-2'}`}>
-                                    {lg.faahfaahin}
-                                  </p>
-                                  {/* Always fully visible when printing */}
-                                  <p className="hidden print-only-block font-extrabold tracking-wide text-slate-800">
-                                    {lg.faahfaahin}
-                                  </p>
-                                </div>
-                              ) : (
-                                <div className="mt-3 text-[10px] text-slate-400 italic bg-slate-100/50 rounded-xl p-2.5 border border-slate-200/50">
-                                  Lama qorin wax faallo ah maanta (No comments logged for this day).
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Summary metric numbers block */}
-                        <div className="bg-slate-50 p-4 rounded-xl border border-dashed border-slate-350 flex justify-between text-xs font-bold font-mono">
-                          <div>FAALLOOYIN GUUD: {total}</div>
-                          <div>WAA JOOGAY: {present}</div>
-                          <div>WAA DAHOODAY: {late}</div>
-                          <div>MA JOOGIN: {absent}</div>
-                        </div>
-
-                        {/* Sign-offs */}
-                        <div className="pt-16 grid grid-cols-2 gap-16">
-                          <div>
-                            <span className="text-slate-500 font-semibold block text-xs">Saxiixa Macallinka mas'uulka ah</span>
-                            <div className="w-full h-px bg-slate-300 mt-10" />
-                          </div>
-                          <div className="text-right">
-                            <span className="text-slate-500 font-semibold block text-xs font-bold text-slate-700">Ansixinta Maamulaha</span>
-                            <div className="w-full h-px bg-slate-300 mt-10" />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {mediaStudentTarget && (
-        <StudentMediaModal
-          student={mediaStudentTarget}
-          onClose={() => setMediaStudentTarget(null)}
-          onSave={(updatedStudent) => {
-            const updatedStudents = database.students.map(s => 
-              s.id === updatedStudent.id ? updatedStudent : s
-            );
-            const updatedDb = { ...database, students: updatedStudents };
-            onSaveDatabase(updatedDb);
-            setMediaStudentTarget(updatedStudent);
-          }}
-        />
-      )}
-
-      {showPrintIDBadge && (
-        <div 
-          className="fixed inset-0 bg-slate-900/70 flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto pointer-print-none" 
-          id="id-badge-modal-bg"
-          onClick={(e) => {
-            if ((e.target as HTMLElement).id === 'id-badge-modal-bg') {
-              setShowPrintIDBadge(null);
-            }
-          }}
-        >
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="w-full max-w-sm bg-white rounded-3xl shadow-2xl relative overflow-hidden flex flex-col my-auto"
-          >
-            {/* Modal actions bar */}
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
-              <span className="font-extrabold text-[10px] uppercase tracking-wider text-slate-400">
-                School ID Card Creator
-              </span>
-              <div className="flex gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setShowPrintIDBadge(null)}
-                  className="py-1 px-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-[10px] rounded-lg cursor-pointer transition-colors"
-                >
-                  Close
-                </button>
-                {showPrintIDBadge.imageUrl && (
-                  <button
-                    type="button"
-                    onClick={() => handleDownloadProfilePhoto(showPrintIDBadge.imageUrl, `${showPrintIDBadge.id}_photo`)}
-                    className="py-1 px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] rounded-lg cursor-pointer transition-colors"
-                  >
-                    Download Photo
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => handlePrintElement('printable-id-badge-canvas')}
-                  className="py-1 px-2.5 bg-teal-505 hover:bg-teal-600 text-slate-950 font-bold text-[10px] rounded-lg cursor-pointer transition-colors animate-pulse"
-                >
-                  Print Badge
-                </button>
-              </div>
-            </div>
-
-            {/* Printable ID card structure */}
-            <div className="p-6 bg-slate-50 flex items-center justify-center">
-              <div 
-                id="printable-id-badge-canvas" 
-                className="w-72 h-[410px] bg-white rounded-2xl border-2 border-slate-300 shadow-lg overflow-hidden flex flex-col justify-between relative text-slate-800 font-sans"
-              >
-                {/* Header background decoration */}
-                <div className="bg-emerald-800 text-white p-3 text-center border-b-[3px] border-amber-500 relative">
-                  <div className="flex items-center justify-center gap-1.5">
-                    <div className="text-left">
-                      <h2 className="text-xs font-black tracking-widest leading-none font-lutfey">DUGSIGA SUBUC</h2>
-                      <p className="text-[7.5px] uppercase font-bold tracking-wider text-amber-300 mt-0.5">Quran memorization academy</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Card Main Body */}
-                <div className="p-4 flex-1 flex flex-col justify-between items-center text-center">
-                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none">
-                    Official {showPrintIDBadge.role} ID Card
-                  </span>
-                  
-                  {/* Photo Frame */}
-                  <div className="my-2.5">
-                    {showPrintIDBadge.imageUrl ? (
-                      <div className="w-24 h-24 rounded-2xl border-2 border-amber-500 overflow-hidden shadow-md mx-auto bg-slate-100">
-                        <img referrerPolicy="no-referrer" src={showPrintIDBadge.imageUrl} alt={showPrintIDBadge.name} className="w-full h-full object-cover" />
-                      </div>
-                    ) : (
-                      <div className="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-300 overflow-hidden flex items-center justify-center mx-auto bg-slate-150 text-slate-400 font-extrabold text-xl">
-                        No Image
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Profile Name & ID */}
-                  <div>
-                    <h3 className="text-sm font-black text-slate-800 leading-tight tracking-tight px-1 truncate max-w-[240px]">
-                      {showPrintIDBadge.name}
-                    </h3>
-                    <div className="font-mono text-[11px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-150 rounded-md px-2 py-0.5 mt-1 inline-block">
-                      ID NO: {showPrintIDBadge.id}
-                    </div>
-                  </div>
-
-                  {/* Class Info & Session / Check-In Time */}
-                  <div className="w-full bg-slate-50/80 p-2 rounded-xl border border-slate-150 text-left text-[10px] font-semibold space-y-1 mt-1 text-slate-650">
-                    <div className="truncate">
-                      <span className="text-slate-400 uppercase text-[8px] font-bold block leading-none mb-0.5">Assigned Program / Division</span>
-                      <span className="font-extrabold text-slate-800 leading-tight block truncate">{showPrintIDBadge.classNameSelected}</span>
-                    </div>
-                    <div className="flex justify-between items-center pt-1 border-t border-slate-150">
-                      <div>
-                        {showPrintIDBadge.role === 'Student' ? (
-                          <>
-                            <span className="text-slate-400 uppercase text-[7.5px] font-bold block leading-none">Parent Contact</span>
-                            <span className="font-mono font-bold text-slate-800 text-[9px]">{showPrintIDBadge.parentOrCheckInTime}</span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="text-slate-400 uppercase text-[7.5px] font-bold block leading-none">Expected Check-In</span>
-                            <span className="font-mono font-bold text-teal-600 text-[9px]">{showPrintIDBadge.parentOrCheckInTime}</span>
-                          </>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <span className="text-slate-400 uppercase text-[7.5px] font-bold block leading-none">Status</span>
-                        <span className="font-black text-emerald-600 text-[9px]">Active ‚úÖ</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Card Footer Bar */}
-                <div className="bg-slate-900 text-white px-4 py-2 flex items-center justify-between border-t border-slate-200">
-                  <div className="flex flex-col items-start leading-none text-left">
-                    <span className="text-[6.5px] text-slate-400 uppercase font-bold">Academic Year</span>
-                    <span className="text-[8px] font-bold text-white mt-0.5">2026 / 2027</span>
-                  </div>
-                  {/* Mock Barcode */}
-                  <div className="h-6 flex flex-col justify-end items-center opacity-85">
-                    <div className="flex gap-px items-stretch h-3">
-                      <div className="w-[3px] bg-white h-full" />
-                      <div className="w-[1px] bg-white h-full" />
-                      <div className="w-[1px] bg-white h-full" />
-                      <div className="w-[2px] bg-white h-full" />
-                      <div className="w-[1px] bg-white h-full" />
-                      <div className="w-[3px] bg-white h-full" />
-                      <div className="w-[1px] bg-white h-full" />
-                      <div className="w-[2px] bg-white h-full" />
-                      <div className="w-[1px] bg-white h-full" />
-                    </div>
-                    <span className="text-[6px] font-mono tracking-widest text-slate-400 leading-none mt-0.5">{showPrintIDBadge.id}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Print Help Text Area */}
-            <div className="p-4 bg-slate-105 border-t border-slate-100 text-center text-[10px] font-semibold text-slate-500">
-              üí° Printing Tip: Set scaling to "100%" and layout to "Portrait" in your browser print settings for standard wallet badge size (3.3" x 2.1").
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Reusable Custom Confirmation Modal to bypass iframe window.confirm block */}
-      {confirmModal && confirmModal.isOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in" id="portal-custom-confirm-modal">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 15 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 15 }}
-            className="w-full max-w-sm bg-white rounded-3xl border border-slate-150 shadow-2xl overflow-hidden"
-          >
-            {/* Modal colored header bar */}
-            <div className={`h-1.5 w-full ${
-              confirmModal.accentColor === 'rose' ? 'bg-rose-500' :
-              confirmModal.accentColor === 'amber' ? 'bg-amber-500' :
-              confirmModal.accentColor === 'teal' ? 'bg-teal-500' :
-              'bg-indigo-600'
-            }`} />
-
-            <div className="p-5">
-              <div className="flex items-start gap-4">
-                <div className={`p-2.5 rounded-xl shrink-0 ${
-                  confirmModal.accentColor === 'rose' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
-                  confirmModal.accentColor === 'amber' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                  confirmModal.accentColor === 'teal' ? 'bg-teal-50 text-teal-600 border border-teal-100' :
-                  'bg-indigo-50 text-indigo-600 border border-indigo-100'
-                }`}>
-                  <span className="text-sm font-black leading-none flex items-center justify-center w-5 h-5">
-                    {confirmModal.accentColor === 'rose' ? 'üóëÔ∏è' : confirmModal.accentColor === 'amber' ? '‚ö†Ô∏è' : '‚ùì'}
-                  </span>
-                </div>
-                
-                <div className="space-y-1 flex-1">
-                  <h4 className="text-slate-900 font-extrabold text-xs sm:text-sm leading-snug">
-                    {confirmModal.title}
-                  </h4>
-                  <p className="text-slate-500 text-[11px] leading-relaxed font-semibold">
-                    {confirmModal.message}
-                  </p>
-                </div>
-              </div>
-
-              {/* Actions Area */}
-              <div className="flex items-center justify-end gap-2 mt-5 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setConfirmModal(null)}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-150 text-slate-700 font-bold text-[10px] tracking-wider uppercase rounded-xl cursor-pointer transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={confirmModal.onConfirm}
-                  className={`px-3.5 py-1.5 text-white font-extrabold text-[10px] tracking-wider uppercase rounded-xl cursor-pointer transition-all shadow-md ${
-                    confirmModal.accentColor === 'rose' ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/10' :
-                    confirmModal.accentColor === 'amber' ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/10' :
-                    confirmModal.accentColor === 'teal' ? 'bg-teal-600 hover:bg-teal-700 shadow-teal-600/10' :
-                    'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/15'
-                  }`}
-                >
-                  {confirmModal.confirmText || 'Verify & Action'}
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Student Attendance Record Inline Editing Modal */}
-      {editingStudentDetail && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in" id="portal-student-edit-modal">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="w-full max-w-md bg-white rounded-3xl border border-slate-100 shadow-2xl overflow-hidden text-left"
-          >
-            {/* Header branding */}
-            <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-5 text-white flex items-center justify-between">
-              <div>
-                <span className="text-[9px] uppercase font-bold tracking-widest text-emerald-100 block">Classroom Student Audit</span>
-                <h3 className="text-sm sm:text-base font-extrabold tracking-tight mt-0.5">Edit Student Attendance</h3>
-              </div>
-              <button 
-                type="button"
-                onClick={() => setEditingStudentDetail(null)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              {/* Student Metadata Card */}
-              <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-teal-500/10 text-teal-700 flex items-center justify-center font-black text-sm">
-                  üéì
-                </div>
-                <div>
-                  <h4 className="text-slate-900 font-extrabold text-xs sm:text-sm">{editingStudentDetail.studentName}</h4>
-                  <p className="text-[10px] text-slate-400 font-mono font-bold mt-0.5">ID: {editingStudentDetail.studentId}</p>
-                </div>
-              </div>
-
-              {/* Form elements with state */}
-              <div className="space-y-4">
-                {/* 1. Attendance Type */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Attendance Status</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['Present', 'Late', 'Absent'] as const).map(status => {
-                      const isActive = editingStudentDetail.attendanceSent === status;
-                      return (
-                        <button
-                          key={status}
-                          type="button"
-                          onClick={() => setEditingStudentDetail({
-                            ...editingStudentDetail,
-                            attendanceSent: status
-                          })}
-                          className={`py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                            isActive 
-                              ? status === 'Present' ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm shadow-emerald-500/10'
-                                : status === 'Late' ? 'bg-amber-50 border-amber-500 text-amber-700 shadow-sm shadow-amber-500/10'
-                                : 'bg-rose-50 border-rose-500 text-rose-700 shadow-sm shadow-rose-500/10'
-                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                          }`}
-                        >
-                          <span className="text-xs">
-                            {status === 'Present' ? 'üü¢' : status === 'Late' ? 'üü°' : 'üî¥'}
-                          </span>
-                          <span>{status}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 2. Lesson status type */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Daily Lesson Progress</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(['Completed', 'Pending'] as const).map(progress => {
-                      const isActive = editingStudentDetail.lessonSent === progress;
-                      return (
-                        <button
-                          key={progress}
-                          type="button"
-                          onClick={() => setEditingStudentDetail({
-                            ...editingStudentDetail,
-                            lessonSent: progress
-                          })}
-                          className={`py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                            isActive
-                              ? 'bg-teal-50 border-teal-500 text-teal-700 shadow-sm shadow-teal-500/5'
-                              : 'bg-white border-slate-200 text-slate-505 hover:bg-slate-50'
-                          }`}
-                        >
-                          <span>{progress === 'Completed' ? '‚úÖ' : '‚è≥'}</span>
-                          <span>{progress}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 3. Behavior Remark field */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase font-extrabold text-rose-500 tracking-wider">‚ö†Ô∏è Behavior & Conduct Remark</label>
-                  <input
-                    type="text"
-                    placeholder="E.g. Rude, Missed class without permission, Distracting..."
-                    value={editingStudentDetail.behaviorSent || ''}
-                    onChange={(e) => setEditingStudentDetail({
-                      ...editingStudentDetail,
-                      behaviorSent: e.target.value
-                    })}
-                    className="w-full text-xs font-semibold text-rose-950 bg-rose-50/40 border border-rose-200 focus:border-rose-500 focus:bg-white rounded-xl p-2.5 outline-none transition-all placeholder:text-slate-400"
-                  />
-                </div>
-
-                {/* 4. Remarks textarea */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider">Specific Remarks & Comments</label>
-                  <textarea
-                    rows={3}
-                    placeholder="E.g. Memorized 5 verses of Surah Yusuf, came late due to rain."
-                    value={editingStudentDetail.notesSent}
-                    onChange={(e) => setEditingStudentDetail({
-                      ...editingStudentDetail,
-                      notesSent: e.target.value
-                    })}
-                    className="w-full text-xs font-medium text-slate-700 bg-white border border-slate-200 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 rounded-xl p-3 outline-none resize-none placeholder-slate-350 transition-all font-sans"
-                  />
-                </div>
-              </div>
-
-              {/* Action buttons */}
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setEditingStudentDetail(null)}
-                  className="px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-500 font-bold text-[10px] tracking-wider uppercase rounded-xl cursor-pointer transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSaveSubmissionStudent(
-                    editingStudentDetail.submissionId,
-                    editingStudentDetail.studentId,
-                    {
-                      attendanceSent: editingStudentDetail.attendanceSent,
-                      lessonSent: editingStudentDetail.lessonSent,
-                      notesSent: editingStudentDetail.notesSent,
-                      behaviorSent: editingStudentDetail.behaviorSent
-                    }
-                  )}
-                  className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-[10px] tracking-wider uppercase rounded-xl cursor-pointer transition-all shadow-md shadow-emerald-500/10 flex items-center gap-1.5"
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  Save Changes
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Backup Safe Inspection & Preview Modal */}
-      {previewBackupData && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-md animate-fade-in overflow-y-auto" id="portal-backup-preview-modal">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 20 }}
-            className="w-full max-w-5xl my-auto bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden text-left flex flex-col max-h-[90vh]"
-          >
-            {/* Header Banner */}
-            <div className="bg-slate-900 text-white px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 shrink-0">
-              <div className="flex items-center gap-3">
-                <span className="p-3 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-2xl shrink-0">
-                  <Eye className="w-6 h-6 animate-pulse" />
-                </span>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="bg-amber-500/20 text-amber-300 font-mono font-black text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-amber-500/30">
-                      Preview Mode ‚Äî Safe Inspection
-                    </span>
-                    <span className="bg-emerald-500/20 text-emerald-300 font-mono font-bold text-[10px] px-2.5 py-0.5 rounded-full uppercase">
-                      Live Data Untouched
-                    </span>
-                  </div>
-                  <h3 className="text-base sm:text-lg font-extrabold tracking-tight mt-1 text-white flex items-center gap-2">
-                    <span>{previewBackupData.sourceName}</span>
-                  </h3>
-                  {previewBackupData.timestamp && (
-                    <p className="text-xs text-slate-400 font-mono mt-0.5">
-                      Snapshot Timestamp: <span className="text-slate-200">{previewBackupData.timestamp}</span>
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleRestoreFromPreview}
-                  className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-emerald-600/20 cursor-pointer flex items-center gap-2"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  Restore This Backup Now
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPreviewBackupData(null)}
-                  className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition-colors cursor-pointer"
-                  title="Close Preview Window"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* KPI Summary Banner */}
-            <div className="bg-slate-50 border-b border-slate-200/80 p-4 sm:p-5 grid grid-cols-2 sm:grid-cols-5 gap-3 shrink-0">
-              <div className="bg-white p-3.5 rounded-2xl border border-slate-200/60 shadow-xs">
-                <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Students</span>
-                <span className="text-lg font-black text-slate-900 mt-0.5 block">
-                  {previewBackupData.state.students?.length || 0}
-                </span>
-                <span className="text-[10px] font-semibold text-emerald-600 block">
-                  {previewBackupData.state.students?.filter(s => s.active).length || 0} Active
-                </span>
-              </div>
-
-              <div className="bg-white p-3.5 rounded-2xl border border-slate-200/60 shadow-xs">
-                <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Teachers & Classes</span>
-                <span className="text-lg font-black text-slate-900 mt-0.5 block">
-                  {previewBackupData.state.teachers?.length || 0} Teachers
-                </span>
-                <span className="text-[10px] font-semibold text-indigo-600 block">
-                  {previewBackupData.state.classes?.length || 0} Classes
-                </span>
-              </div>
-
-              <div className="bg-white p-3.5 rounded-2xl border border-slate-200/60 shadow-xs">
-                <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Tuition Receipts</span>
-                <span className="text-lg font-black text-slate-900 mt-0.5 block">
-                  {previewBackupData.state.billing?.length || 0} Records
-                </span>
-                <span className="text-[10px] font-bold text-emerald-700 block">
-                  ${(previewBackupData.state.billing || []).reduce((sum, b) => sum + Number(b.amountPaid || 0), 0).toFixed(0)} Paid
-                </span>
-              </div>
-
-              <div className="bg-white p-3.5 rounded-2xl border border-slate-200/60 shadow-xs">
-                <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Xawaalada Txns</span>
-                <span className="text-lg font-black text-slate-900 mt-0.5 block">
-                  {previewBackupData.state.xawaaladaTransactions?.length || 0} Txns
-                </span>
-                <span className="text-[10px] font-semibold text-purple-600 block">
-                  {previewBackupData.state.xawaaladaAccounts?.length || 0} Accounts
-                </span>
-              </div>
-
-              <div className="bg-white p-3.5 rounded-2xl border border-slate-200/60 shadow-xs col-span-2 sm:col-span-1">
-                <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Money Transfers</span>
-                <span className="text-lg font-black text-slate-900 mt-0.5 block">
-                  {previewBackupData.state.moneyTransfers?.length || 0} Transfers
-                </span>
-                <span className="text-[10px] font-semibold text-teal-600 block">
-                  {previewBackupData.state.invoices?.length || 0} Invoices
-                </span>
-              </div>
-            </div>
-
-            {/* Modal Sub-Navigation & Search */}
-            <div className="bg-white border-b border-slate-200 px-6 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-                {[
-                  { id: 'changes', label: 'üìù What Changed (Isbeddellada)', count: (previewBackupData.changes?.newStudents?.length || 0) + (previewBackupData.changes?.updatedStudents?.length || 0) + (previewBackupData.changes?.newBilling?.length || 0) + (previewBackupData.changes?.newInvoices?.length || 0) },
-                  { id: 'overview', label: 'üìä Summary Comparison', count: null },
-                  { id: 'students', label: 'üéì Students', count: previewBackupData.state.students?.length || 0 },
-                  { id: 'teachers', label: 'üë®‚Äçüè´ Teachers', count: previewBackupData.state.teachers?.length || 0 },
-                  { id: 'billing', label: 'üíµ Tuition Receipts', count: previewBackupData.state.billing?.length || 0 },
-                  { id: 'xawaalada', label: 'üí≥ Xawaalada & Transfers', count: (previewBackupData.state.xawaaladaTransactions?.length || 0) + (previewBackupData.state.moneyTransfers?.length || 0) }
-                ].map(tab => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setPreviewActiveTab(tab.id as any)}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                      previewActiveTab === tab.id
-                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/15'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    <span>{tab.label}</span>
-                    {tab.count !== null && (
-                      <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-black ${
-                        previewActiveTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-                      }`}>
-                        {tab.count}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              {previewActiveTab !== 'overview' && previewActiveTab !== 'changes' && (
-                <div className="relative min-w-[220px]">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Search inside this backup..."
-                    value={previewSearchTerm}
-                    onChange={(e) => setPreviewSearchTerm(e.target.value)}
-                    className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl pl-9 pr-3 py-2 outline-none transition-all"
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Modal Scrollable Body */}
-            <div className="p-6 overflow-y-auto flex-1 space-y-6">
-
-              {/* TAB 0: WHAT CHANGED (DIFF LOG) */}
-              {previewActiveTab === 'changes' && (
-                <div className="space-y-6">
-                  {/* Banner */}
-                  <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-200/80 rounded-2xl p-5 flex items-start gap-4 shadow-xs">
-                    <span className="p-3 bg-emerald-600 text-white rounded-xl shrink-0"><CheckCircle2 className="w-5 h-5" /></span>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="bg-emerald-600 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full">Snapshot Changelog</span>
-                        <span className="text-xs text-slate-500 font-mono">{previewBackupData.sourceName}</span>
-                      </div>
-                      <h4 className="font-extrabold text-slate-900 text-base">
-                        {previewBackupData.changes?.summary || "Routine snapshot with no new records"}
-                      </h4>
-                      <p className="text-xs text-slate-600">
-                        This view shows all specific records added, registered, or updated in this exact cloud backup snapshot.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* 1. New Students Added */}
-                  {previewBackupData.changes?.newStudents && previewBackupData.changes.newStudents.length > 0 && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                          New Students Registered in this Backup ({previewBackupData.changes.newStudents.length})
-                        </h4>
-                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full uppercase">
-                          + Added Records
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {previewBackupData.changes.newStudents.map((st: any, idx: number) => (
-                          <div key={st.id || idx} className="bg-emerald-50/40 border border-emerald-200/70 p-4 rounded-2xl space-y-2 relative overflow-hidden">
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <span className="font-black text-slate-900 text-sm block">{st.name}</span>
-                                <span className="font-mono text-[11px] text-emerald-700 font-bold">ID: {st.id} ‚Ä¢ Class: {st.className || 'N/A'}</span>
-                              </div>
-                              <span className="px-2 py-0.5 bg-emerald-600 text-white font-mono font-bold text-[10px] rounded-lg uppercase">
-                                ${st.monthlyFee}/mo
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 pt-1 border-t border-emerald-100 font-medium">
-                              <div>Parent: <span className="font-bold text-slate-800">{st.parentName || 'N/A'}</span></div>
-                              <div>Phone: <span className="font-mono font-bold text-slate-800">{st.parentPhone || 'N/A'}</span></div>
-                              <div>Session: <span className="font-bold text-slate-800">{st.session || 'Morning'}</span></div>
-                              <div>Reg Date: <span className="font-mono font-bold text-slate-800">{st.registrationDate || 'N/A'}</span></div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 2. Updated Students */}
-                  {previewBackupData.changes?.updatedStudents && previewBackupData.changes.updatedStudents.length > 0 && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                          Students with Modified Details ({previewBackupData.changes.updatedStudents.length})
-                        </h4>
-                        <span className="text-[10px] font-bold text-blue-800 bg-blue-100 px-2.5 py-0.5 rounded-full uppercase">
-                          ‚úèÔ∏è Modified Records
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {previewBackupData.changes.updatedStudents.map((st: any, idx: number) => (
-                          <div key={st.id || idx} className="bg-blue-50/40 border border-blue-200/70 p-4 rounded-2xl space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <span className="font-black text-slate-900 text-sm">{st.name}</span>
-                              <span className="font-mono text-[10px] text-blue-700 font-bold">ID: {st.id}</span>
-                            </div>
-                            <p className="text-xs text-slate-600">Class: <strong>{st.className}</strong> ‚Ä¢ Shift: <strong>{st.session}</strong> ‚Ä¢ Status: <strong>{st.active ? 'Active' : 'Suspended'}</strong></p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 3. New Payments Logged */}
-                  {previewBackupData.changes?.newBilling && previewBackupData.changes.newBilling.length > 0 && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                          New Tuition Payments Recorded ({previewBackupData.changes.newBilling.length})
-                        </h4>
-                        <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full uppercase">
-                          üíµ Tuition Receipts
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {previewBackupData.changes.newBilling.slice(0, 9).map((b: any, idx: number) => (
-                          <div key={b.id || idx} className="bg-amber-50/40 border border-amber-200/70 p-3 rounded-xl space-y-1 text-xs">
-                            <div className="flex justify-between font-bold text-slate-900">
-                              <span>Student: {b.studentId}</span>
-                              <span className="text-emerald-700 font-black">${b.amountPaid}</span>
-                            </div>
-                            <div className="text-[10px] text-slate-500 font-mono">Month: {b.month} ‚Ä¢ Status: {b.status}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 4. New Transfers or Invoices */}
-                  {((previewBackupData.changes?.newInvoices && previewBackupData.changes.newInvoices.length > 0) || (previewBackupData.changes?.newTransfers && previewBackupData.changes.newTransfers.length > 0)) && (
-                    <div className="space-y-3">
-                      <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
-                        Financial Invoices & Transfers
-                      </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {previewBackupData.changes.newInvoices?.map((inv: any, idx: number) => (
-                          <div key={inv.id || idx} className="bg-purple-50/40 border border-purple-200/70 p-3 rounded-xl space-y-1 text-xs">
-                            <div className="flex justify-between font-bold text-slate-900">
-                              <span>{inv.title || 'Invoice'}</span>
-                              <span className="text-rose-700 font-black">${inv.amount}</span>
-                            </div>
-                            <div className="text-[10px] text-slate-500 font-mono">Category: {inv.category} ‚Ä¢ Date: {inv.date}</div>
-                          </div>
-                        ))}
-                        {previewBackupData.changes.newTransfers?.map((tr: any, idx: number) => (
-                          <div key={tr.id || idx} className="bg-teal-50/40 border border-teal-200/70 p-3 rounded-xl space-y-1 text-xs">
-                            <div className="flex justify-between font-bold text-slate-900">
-                              <span>{tr.description || 'Transfer'}</span>
-                              <span className="text-teal-700 font-black">${tr.amount}</span>
-                            </div>
-                            <div className="text-[10px] text-slate-500 font-mono">Account: {tr.accountName || tr.accountId} ‚Ä¢ Date: {tr.date}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 5. Fallback if no specific additions */}
-                  {(!previewBackupData.changes?.newStudents?.length && !previewBackupData.changes?.updatedStudents?.length && !previewBackupData.changes?.newBilling?.length && !previewBackupData.changes?.newInvoices?.length && !previewBackupData.changes?.newTransfers?.length) && (
-                    <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                      <span className="p-3 bg-emerald-100 text-emerald-800 rounded-2xl inline-flex"><CheckCircle2 className="w-6 h-6" /></span>
-                      <h4 className="font-extrabold text-slate-900 text-sm">Automated Routine Snapshot</h4>
-                      <p className="text-xs text-slate-500 max-w-md mx-auto">
-                        All {previewBackupData.state.students?.length || 0} students and school records are completely intact and match the previous backup snapshot.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              {/* TAB 1: OVERVIEW & COMPARISON */}
-              {previewActiveTab === 'overview' && (
-                <div className="space-y-6">
-                  <div className="bg-indigo-50/60 border border-indigo-100 rounded-2xl p-5 flex items-start gap-4">
-                    <span className="p-3 bg-indigo-600 text-white rounded-xl shrink-0"><Info className="w-5 h-5" /></span>
-                    <div>
-                      <h4 className="font-extrabold text-indigo-950 text-sm">Previewing Backup vs Live Database</h4>
-                      <p className="text-xs text-indigo-800/80 mt-1 leading-relaxed">
-                        Below is a direct comparison between your current live database and the selected backup snapshot. Reviewing this ensures you do not lose any newer records accidentally before restoring.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Live State Column */}
-                    <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 space-y-4">
-                      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                        <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping" />
-                          Current Live System Data
-                        </h4>
-                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-md uppercase">Active</span>
-                      </div>
-                      <div className="space-y-2 text-xs font-semibold text-slate-600">
-                        <div className="flex justify-between py-1 border-b border-slate-200/60">
-                          <span>Total Registered Students:</span>
-                          <span className="font-black text-slate-900">{database.students?.length || 0}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-slate-200/60">
-                          <span>Active Students:</span>
-                          <span className="font-black text-emerald-700">{database.students?.filter(s => s.active).length || 0}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-slate-200/60">
-                          <span>Teachers Count:</span>
-                          <span className="font-black text-slate-900">{database.teachers?.length || 0}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-slate-200/60">
-                          <span>Tuition Billing Records:</span>
-                          <span className="font-black text-slate-900">{database.billing?.length || 0}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-slate-200/60">
-                          <span>Xawaalada Transactions:</span>
-                          <span className="font-black text-slate-900">{database.xawaaladaTransactions?.length || 0}</span>
-                        </div>
-                        <div className="flex justify-between py-1">
-                          <span>Money Transfers:</span>
-                          <span className="font-black text-slate-900">{database.moneyTransfers?.length || 0}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Backup File State Column */}
-                    <div className="bg-amber-50/50 rounded-2xl p-5 border border-amber-200 space-y-4">
-                      <div className="flex items-center justify-between border-b border-amber-200 pb-3">
-                        <h4 className="font-extrabold text-amber-950 text-sm flex items-center gap-2">
-                          <Eye className="w-4 h-4 text-amber-600" />
-                          Backup File Content
-                        </h4>
-                        <span className="text-[10px] bg-amber-200 text-amber-900 font-bold px-2 py-0.5 rounded-md uppercase">Inspection Target</span>
-                      </div>
-                      <div className="space-y-2 text-xs font-semibold text-slate-700">
-                        <div className="flex justify-between py-1 border-b border-amber-200/60">
-                          <span>Total Registered Students:</span>
-                          <span className="font-black text-slate-900">{previewBackupData.state.students?.length || 0}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-amber-200/60">
-                          <span>Active Students:</span>
-                          <span className="font-black text-emerald-700">{previewBackupData.state.students?.filter(s => s.active).length || 0}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-amber-200/60">
-                          <span>Teachers Count:</span>
-                          <span className="font-black text-slate-900">{previewBackupData.state.teachers?.length || 0}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-amber-200/60">
-                          <span>Tuition Billing Records:</span>
-                          <span className="font-black text-slate-900">{previewBackupData.state.billing?.length || 0}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-amber-200/60">
-                          <span>Xawaalada Transactions:</span>
-                          <span className="font-black text-slate-900">{previewBackupData.state.xawaaladaTransactions?.length || 0}</span>
-                        </div>
-                        <div className="flex justify-between py-1">
-                          <span>Money Transfers:</span>
-                          <span className="font-black text-slate-900">{previewBackupData.state.moneyTransfers?.length || 0}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 2: STUDENTS LIST */}
-              {previewActiveTab === 'students' && (
-                <div className="space-y-4">
-                  <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                          <th className="py-3 px-4">Student Name</th>
-                          <th className="py-3 px-4">Class</th>
-                          <th className="py-3 px-4">Parent Phone</th>
-                          <th className="py-3 px-4">Monthly Fee</th>
-                          <th className="py-3 px-4">Bus Fee</th>
-                          <th className="py-3 px-4">Shift</th>
-                          <th className="py-3 px-4">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                        {(previewBackupData.state.students || [])
-                          .filter(s => !previewSearchTerm || s.name.toLowerCase().includes(previewSearchTerm.toLowerCase()) || (s.className && s.className.toLowerCase().includes(previewSearchTerm.toLowerCase())))
-                          .slice(0, 100)
-                          .map((student, i) => (
-                            <tr key={student.id || i} className="hover:bg-slate-50/80">
-                              <td className="py-3 px-4 font-bold text-slate-900">{student.name}</td>
-                              <td className="py-3 px-4 font-semibold text-slate-600">{student.className || 'N/A'}</td>
-                              <td className="py-3 px-4 font-mono">{student.parentPhone || 'N/A'}</td>
-                              <td className="py-3 px-4 font-bold text-slate-800">${student.monthlyFee}</td>
-                              <td className="py-3 px-4 font-bold text-indigo-600">${student.busFee || 0}</td>
-                              <td className="py-3 px-4 uppercase text-[10px] font-bold text-slate-500">{student.session || 'Both'}</td>
-                              <td className="py-3 px-4">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                                  student.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                                }`}>
-                                  {student.active ? 'Active' : 'Suspended'}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 3: TEACHERS LIST */}
-              {previewActiveTab === 'teachers' && (
-                <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                        <th className="py-3 px-4">Teacher Name</th>
-                        <th className="py-3 px-4">Phone</th>
-                        <th className="py-3 px-4">Monthly Salary</th>
-                        <th className="py-3 px-4">Subject</th>
-                        <th className="py-3 px-4">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                      {(previewBackupData.state.teachers || [])
-                        .filter(t => !previewSearchTerm || t.name.toLowerCase().includes(previewSearchTerm.toLowerCase()))
-                        .map((teacher, i) => (
-                          <tr key={teacher.id || i} className="hover:bg-slate-50/80">
-                            <td className="py-3 px-4 font-bold text-slate-900">{teacher.name}</td>
-                            <td className="py-3 px-4 font-mono">{teacher.phone || 'N/A'}</td>
-                            <td className="py-3 px-4 font-bold text-emerald-700">${teacher.monthlySalary}</td>
-                            <td className="py-3 px-4">{teacher.subject || 'Quran & Islamic Studies'}</td>
-                            <td className="py-3 px-4">
-                              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full uppercase">Active</span>
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* TAB 4: BILLING & RECEIPT RECORDS */}
-              {previewActiveTab === 'billing' && (
-                <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                        <th className="py-3 px-4">Month</th>
-                        <th className="py-3 px-4">Student ID</th>
-                        <th className="py-3 px-4">Amount Due</th>
-                        <th className="py-3 px-4">Amount Paid</th>
-                        <th className="py-3 px-4">Status</th>
-                        <th className="py-3 px-4">Paid Date</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                      {(previewBackupData.state.billing || [])
-                        .filter(b => !previewSearchTerm || b.month.includes(previewSearchTerm) || b.studentId.includes(previewSearchTerm))
-                        .slice(0, 150)
-                        .map((bill, i) => {
-                          const student = (previewBackupData.state.students || []).find(s => s.id === bill.studentId);
-                          return (
-                            <tr key={bill.id || i} className="hover:bg-slate-50/80">
-                              <td className="py-3 px-4 font-mono font-bold text-slate-800">{bill.month}</td>
-                              <td className="py-3 px-4">
-                                <span className="font-bold text-slate-900 block">{student ? student.name : bill.studentId}</span>
-                                <span className="text-[10px] text-slate-400 font-mono">ID: {bill.studentId}</span>
-                              </td>
-                              <td className="py-3 px-4 font-bold text-slate-700">${bill.amountDue ?? 35}</td>
-                              <td className="py-3 px-4 font-bold text-emerald-700">${bill.amountPaid}</td>
-                              <td className="py-3 px-4">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                                  bill.status === 'Paid' ? 'bg-emerald-100 text-emerald-800' :
-                                  bill.status === 'Partial' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
-                                }`}>
-                                  {bill.status}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 text-slate-400 font-mono text-[10px]">{bill.paidDate || 'N/A'}</td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* TAB 5: XAWAALADA & MONEY TRANSFERS */}
-              {previewActiveTab === 'xawaalada' && (
-                <div className="space-y-4">
-                  <div className="bg-purple-50/80 border border-purple-200/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <span className="p-2.5 bg-purple-600 text-white rounded-xl shrink-0">
-                        <Building2 className="w-5 h-5" />
-                      </span>
-                      <div>
-                        <h4 className="font-extrabold text-purple-950 text-xs sm:text-sm">
-                          Xawaaladda & Merchant Accounts Ledger (Backup Inspection)
-                        </h4>
-                        <p className="text-[11px] text-purple-800/80 mt-0.5">
-                          Full interactive history and 3 merchant accounts (Salaam, EVC Plus, Dahabshiil) loaded from this backup snapshot.
-                        </p>
-                      </div>
-                    </div>
-                    <span className="bg-purple-200/80 text-purple-900 text-[10px] font-black uppercase px-2.5 py-1 rounded-lg shrink-0">
-                      {previewBackupData.state.xawaaladaAccounts?.length || 3} Accounts Loaded
-                    </span>
-                  </div>
-
-                  <MoneyTransferTab
-                    database={previewBackupData.state}
-                    onSaveDatabase={(updatedDb) => {
-                      setPreviewBackupData(prev => prev ? { ...prev, state: updatedDb } : null);
-                      setFeedbackMsg("Preview data updated locally in memory. To apply changes to the live system, click 'Restore This Backup Now'.");
-                    }}
-                  />
-                </div>
-              )}
-
-            </div>
-
-            {/* Footer Control Buttons */}
-            <div className="bg-slate-100 px-6 py-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
-              <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Closing this preview discards the preview window safely with zero impact on live data.</span>
-              </div>
-              <div className="flex items-center gap-3 w-full sm:w-auto">
-                <button
-                  type="button"
-                  onClick={() => setPreviewBackupData(null)}
-                  className="flex-1 sm:flex-initial px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold text-xs uppercase rounded-xl transition-colors cursor-pointer"
-                >
-                  Close Preview Safe ‚ùå
-                </button>
-                <button
-                  type="button"
-                  onClick={handleRestoreFromPreview}
-                  className="flex-1 sm:flex-initial px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-emerald-600/20 cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  Restore This Backup Now üîÑ
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Website Logo Change Modal */}
-      <ChangeWebsiteLogoModal 
-        isOpen={showLogoModal}
-        onClose={() => setShowLogoModal(false)}
-        currentLogoUrl={database.landingPageSettings?.logoUrl}
-        onSaveLogo={handleSaveLogo}
-      />
-    </div>
-  );
-}
+                          className="py-2.5 px-5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold disabled:opacity-40 shadow-md inline-flex items-center justify-center gap-1.5 transition-all xúÏ}›n#IvÊΩü"F7…ië˙ØVÀUj®$Uµf§™öíz⁄ÉB√d¶»l%ôÏ¸)â´‡÷∆^x=kœ¬ÄcÃ¬W∆{±w~û~œ#Ï9ëôëôëë$•™ön¶ãJfFDFú8q~ø3H¬(ª”¿õƒnHÆªóâÔìhºw›•IêQ÷˜¢ı›Óõçﬁ˙∆WÑbÔ≠õ^[Ô}˙ÈW+F4ü}Ì/Ñ<~Ú^>ç¢tÏ>YπÓnìQw{Ö¨ôûdí(¶±;v'±ˆŒ«k˝$éÉâÆ≠«ö^:wäÀè◊Ômı~Âe≈Eq©pÌvÌg‰ é›âC'óL®?ãΩAD>"ß¡0"g4¬˘9ı¢ò¸l≠8®€–ùa¸+œΩ>ó<yÚÑ¥ÆGÅÔ∂»g§]t.œsÿΩy±K¶›G$íâ„:›≠üÙÉ–Å.˘?›»á)Ón¨ØìhDù‡∫çI4•∑;Î>ZQLF©õKﬂΩ!–Õ8Í\∂÷ﬂ$QÏ]Œ∫}7æv›I⁄Qø⁄„¥t†Zü« u`øå∂
+Ωì∏Îﬁƒ!ÌæCb¯*⁄ˇ⁄g˙√ï˝√`<ı|◊),≈p∫C∏5zº6⁄“Ù6ï;ìZﬂN[øâ»8ÓÆ˜vVˆœG¡µ7í©^·òu2Äé}è}ΩÉq∫§Á1„#hËé¿è'ªÙxm™ú5qVW$ójnbó˙›G0x†ˆ}V·¶ªE¶≥ÓFo'£ì
+ô∞õqÕí)ºﬂÄFÆr·yM'CwœÍEÔ¿ u‹]¥Ôª‰i‡Ã*H5;»Ì.}†ÛŒ˛“7ﬁ4ÌåA¯~ü¬4åºâöbc6åücåñ”†{ßÕ†):ç‹î~4Û¯8π‘—≤µ8,Ìu>⁄ùuR¢RFå 4˚pGZSƒ2∏"Ó^{pãfhbxÚ Ä|∂êê`;üuáîÑùÈ„µx4O#gtH∑ÚåF‘øöÛq>ëúß≠Ïˇ"ÒÈò:î<OgÒ˘w8⁄BÍ;›O÷◊WˆCoiM”qñò5|DÈhyáA‰ÚvœË∑:âF¡"MáﬁpD¢‹Ï‡s◊Ø(aS:1Ø$¸j∂“öa/=é˚»:§√ ‚ÔŒà¯íÒÌv∏u(lÿ?Ω(Nò¨H;ΩKœáπlG‰…>âz\“"}D⁄ú7‚8Œ]ﬂÖÇ	?Ú|¸8L\≤ece?´ûÎtÙ”iÜâ˝ﬂ∞A0âP cÔ√DË
+y˚´0ÄÉ3ä“7ôbK”ÙÕO6(¯´Á9ùø¨Ì bÍ—6/u÷Û›…0’??Ö°¿3á¿≈„R≈Ò—¸‰gì˙ä?ÿÍXwÖd–ºüSx™A'¥?ﬂÎÙKoS€ì$ö<ëñaü¨≠ù—x‘cGcª›.ÃÒ«˘<t»Z˛`á¸å¿È ÖÆ{›8	'Òµ¯¡ÛÌ ù=πÂÑt'ÔOŒ,§#oO=†Õ»C⁄«6u«™‹ÖSÊK  1ŒîüôK⁄EêéXäˆl∂Ì@'∂ä^&‘¢˝®dÅ±Îx…Xtí=∑îûƒ9°úæGÏ≈2rYz•ŸLèVﬁ≠L¡˜›3?yyøŸVπÔNŸ©Ã˚î8»Rze'tÌnÇv@kúH-›~mlbS†Zdb∂?$˝§ÔÉ¿ô
+ﬁ?5HÈG‚[˚O»Óp´0Ét¡wvà¸◊zE“J≈ﬂÙ0≠Ÿk‹ÒŒ∫ËòØ7ÔV|_/…`ió¸Çuáÿ:[Xﬁ8ˇ∫^√“¶Ÿﬂÿrmªw_ﬂ’/&»4Â#·ÎüﬁÊ3p˜_£oçÈ¨•R„äü«kHµtXK´z	è‚∆ù“ﬁ√öDÒO≠o3ïn~sÖ*é8‘ﬂ°’Ês–Ú@a=ÁÉë#ù;nL=?R*÷∑ÌvG'D
+·ãädr+ ø1ú•íÀÂW◊9OeIÂäzó§˝ê7‘Ã¢FºPKcEFU÷üåÔïÔ¢ ±A‡}Bòo⁄”Í)Z„ñÚuÔT¬‘Ç“9 ÊΩfº›¶´}∂å¥KÂˆ¸ çæh/£°€Ó≥ãÂ∏Êïﬂ@nøWy˝˛ÂÙw#ü7Ny€ò∏ˇ è9s„–êkœ∫qD˙@\WJ^¢Ódw¿ˇ†HÅç˜Ú?∑…êN5ˆcu{≤ïû¥1˝Âû≤ƒ√ô…õçıÈÕWe—;7±e“Ò ˛.9áÌ
+zKTLV:‰3 ∫¬óê$™¢‚Ç6Íçí¯mÓÃ¿•4SkπÃ≥-IbÛœ∑rÇ≥ ¯ Kù^úœ‚kÓ™çeœ±Næ4œo&v.yvëUﬁÁ‘ÚqÔV4©eœ™Z∞6œi*o/uJÀ∫‹a~ºÜ˜øßif˝Ì’Û:ô°E–ys¯é/]‚M"7˘bî	T≠à®„é·Hy%˘ÿ>"Q<˝ƒd‰EqŒ»»]√Qc^˘ß a}È∫W˛Ï¯ÜéQŒigB≠ÀÆ|˜yÛU'=¯›lÿ∞HÓMèfæòMS«.Î£E>˙»¸l4Ä…ÄÙ6v€—Äâ—ï|ßm•,˘ıUíÕ$?m;kk‰πìd‚}õ∏d§5ä∏óìø
+·≥LîIbq¸@ﬂœ∫qf
+ÀI}V≥ºó3ﬁ…rÜt÷√Œ⁄˜é–∏]]*fÍÊÀÛ∆:œVÈiÄ¯>Èt:ÑF∞Ã!®Coæ“+êrˇŸ¸ëtKsgú∂aùÒI)´–é~lg¶ÇÄßaÉÂy°Òs$ò6“ƒ*Ø ˛£}^»ÉfìåÁÏëØ≈Ú:]±æ›üﬁéÔæ^5>»n›ÉÒÔB∑,ÙqË˙◊˜¢+Jûz†Âí6v“©ÈEõT∆£û∏b~lõ·˜≥ØÊªát·˝ëÙ"˛XÒö·Ò;ìÕ"%VÆ#)o•ÊëY◊S‹ 	C&öåA5! ê*¡nÃLÁœ·ºõ2J1PF°µ¯èSh.U@Ÿ/i[⁄∆,úZõH3{HÊ˜yåsH˜…
+u∆ﬁ§õs„®{c ≥â.∫A7®iw«Á"˚*6wt]#±}Ó¢Î—v]ÃM$ªÙsM ≈ö¢áüT√wP´⁄¥µ˜ÓˇÒˇ[!êø
+Ü1%_“õ>)Œ<Ö≥˘óû√~∏'ËSÍ¯˜ovñŒÔœ˘˘≠?ΩDÁk£Ì:c°Qd∑(±^±M?Ãà”	2®hïú∫o]ï0≤_%pôHã∞ùE`o¿év…!µQÕ<@≥BºU´Î⁄ÕÉÅ÷jU„,Hl≠-¥‰#·p Â¯/ãÒòæ*w™eÍO3ùõpW°rsΩX&‡c‹%LÇ Âﬂ¸]a—“’µ≥_kÜ'I‡˛∞¢°≥¡~ö)ËV] ÈIºN( ≠z#<úıãXÏq£I≈ao¡&/†Ì∞ﬁ°î≤ $∆à1∆∏4ÀôAÖ÷T»=D˚è˚ïÒ•”*è<ïL¥Ó≈¡3Ô∆u⁄ùªøxº÷∑õ.ªâµúV≈˛Ï˚âkµ?ŸçÎ;ÔÌ˛|ÛÁõ;è∂‹~UÆﬂ†ø˝Ô$ï/»À$ˆÉ‡Í7'õ tsjNJ{‚Ã∑-;#zRw•k1˛˜ÉŸÀÇ&ç{YêcÛΩ\ú«ªº$?’v]·53æœ>W…`ÑÓ\™ZÊ÷é÷«-4p¥Ó™w»LÅåØ,,^˘MÓÕÜ|ŒÉI◊»ã $d§6‚√fù⁄P—˝≥≠iÇ¢b≈∏ƒ≠Ô≥h!Ü∏‹µ9Ô˙ßˇ√yìÛôÔ”~“hAMºkÏTxój∆Ω|ÆIÉ~ÉÒñqòLpX⁄≥.…j¡'1èÃ*ßª∆<Íê≥	¬Ç/√ s-‡°wûŸûö~P_ŸË¡Öû≈TÚ¥∆1óuTﬁ‡*≠&Qﬁ‰∏È˙ØŸd.:ÌÿeyÏ¶yo66äFıíû;Ów∑òÒ∑È»&‰◊.H~éH%hﬂ*Lâ‹]{«¯p¥œù˙ó–7√å¥∂'ôUäSTi)^d[üÀë&
+!Ópÿ§Ü€∑‘O(Í@æ–u»ÃEvíx‰EYÑÉ&S•¯±=˛l5tØ≥≥ûø~~ÄXÓds˙L∞6ç√öÖö:T˜kS<ÙôjN˚	gQqgôá÷Âˆh_Lìqú—ë9E¿∫ÕMt:ﬁLº∫îê&ûå)f1–—€¸+Ô“YÍ /Ë7◊^]GìÆF>•ﬂ.©¡Ì,ñ5Ëe5ZdOœ—ﬂ¨È∫Ä¡“ΩMˆgÉ¥ïhíŸcÏ4’yí{∏lBg”èpA»…°»„Ú˚π*≤Ø*◊¢…mT˛hΩA'5ıOÄ´6yﬁ*]†¸…“‡ı,≤±;ﬁ~%f∫.s†a≤ˆJ5h~ë`DD≠Û›ÿ¢BøÈÌ(ñÚ7…O.@ß˘Æ8*á'¨Œ3õÿÙ 3Íyﬂ,vò‹0t˝¶%Nå÷WÃÄÄBê:à4üÂM ≠TØwa"‡∑Ôæ#Îùªµ≠ı˚º<Ä¸x2ø@·>xπçœΩ·êR«°È+êè/˘åÜ›_&·ç7â≥[:ˆÔ˝ø¨4qlö_4øiá∑˘p√áUÕ Â€ÿ7nà‚Xw(ÒfyAJ/©S3`˝CÀ˛∂$¢ŒÀÌ‚å@„¿ë‰úˆ¢'H„¡Ö¨@Œ1$<ò=9“‡é¨a®mÛó{◊|¥$q-º:r
+–zé.P—RÑ˙aï˛S˛¿‹≥^›*ßU£QÌíoÃ˝<M˚©‹íz8L{Vv…‰>w≠LÏ…îˇL≠O*,â &«≥=√ﬁ÷Œö(jõ4—”@,÷•#)°KPRﬁ¨NYR›jet≠ßΩÌq≥ó9fò∆«Ô˜/ˇ˘ø…&·X2≤µœgQÏé…A›√4åœÈ‰∂H9P03FÚòÀÜÊHEKÔ©=“Ad|ïêÎ‰&I»çQ⁄˜&ƒ	Ç	•ƒy˝FıY<‡ò"VHπ$N„å‡Ô«†ê{◊Ωæ˜k¥4GËl2óÒñ≠Tµ`Õ˛∆
+4{'çˆú-h›Ócõo´‚…3E53:Z{ı≤'j≥uº	(ãí+m˙\Œ˜8SÜπÃˆ·\j∞zP≈‰hE*è‹πàë]b˜,‹êá%hÏ1sE1Bı.ÕçD+F#∑ßß≠ã0{@ïÊ…±fäeNêƒ*¢9ÄdCor’mj≤±^I!$Óî ∏6ÀB≤Fië| % \ñÇöÚ≈°≈Èã+•7ï-‹◊>'0Ä¸ÅWm¢‰Jb6—Õ%Ïbüa)Ωµ˙jÃ/FY2Wﬁl*€œ!◊ô>ùÅf2˝Ω≥ÉF∑[JÒv¸í•ÏÖn©πA˚ﬁwùvGôÉéÏèH ˘& 1É˙ƒWAYJ√0gÁ-‹æSˆyÇ‹Ω]Å¥;‚“ á¶õ¿â#ÆKŒ(Æ°NGÊ(Û€jæªï ]A∞)´,')C†P`z»†ã>Óçu2*Ål·ƒ	ü;S\Ã@≠JÖ uòó‹œ<mT, aSÔå‹«u·õOá ØcÚ'é?NjEuE◊Bìeóù^˝y“˜∂O1ÂÃ{ﬁ$N‡‡˜Ωïﬁ∞¸4ÇìFo‹YDHñh%-AY÷iuõØF›–•ﬂ◊˚HUá∂WâÁ‹∞ƒµ:ù ◊‡1Ö*P
+H®ú;kªUu\“Ñ+é?$ÑÔÕıñ,qíê©…HôB≤§g(„¡≤',©$»¨Ë≠"1T·$"}ÍM9¢˙È/äê†‚±ÔapçﬂçX∏,πFø!&l⁄g&Sn3òCù?£áµ¶c˚,&£ß
+YT±Û7æ±±±ª˘…Wwá9‰ªA ê;õ 3‰Zç÷|#â‹˘·qõà|L6Ã>–—jIÌ„œGæFöI)∑Jù{ã¨ì∆_ +R∞g>»¶ZïW¶ﬁ†GØ∞ó‚U#–0b &¥Ø
+Ëóuø-àÑ4¬Nyh†4‹÷M?G¬≈X¸öi hY‹>«πµ¿#√œ“w≠ù!\§&p§9IÇFK
+¬ƒSvyó)*í’°tãgy/bMπÓ∂D—eèW˚¥È‚_Ï&ƒ‡wüCƒô-¸çN·÷ãµÉñ˙óVß√†iÁ`Yx|°+éuû P§0ÒÊ*¨Üõ~Q3J-»|Ûàœ•õ:ãgõˇ‹L«µ:8•ÿ¢CÃ∂õ2_{≠ÿrÆ∏Ht“©}^ÅÇÜ-)NM9UíπM2ÍÊﬁàÒ^Ü•‘ÁzÅ¥Œq§tO5ÓÜXk‡≠¥°ó;5"ÛALMñ™c3= dùï˝ßlò{ÚòÔuZÊflKû…∑^‡ªq:ì‚/ëÙT?ô‚˛Údû‡ê	åyØ¯≤˜3£ˆ¬©µMÀÍ,<£qË›0üŸ\∫X…„∂I∆é‰q€i‡q3ÄonöJcHÅæ d5¡"õüPuÈhã	ÌÈ°±∏bUÎÆjv¯nì√‘Å$¬a“?ô‡˜˝Ôˇñ¸ÇˆÈù1—Ô˚˝{¯{åÿ07ﬁ‰]âÄ?8‚rÏ{G@é ÇlJ˜≤„‚3pˆ#Q∆sﬂD’ßÉ˜ê¶`T:özN}âfŒ(^¯ëb§Ò‹/≈çË∑º:Ã=ç§?4ßáçåìÕÒÕ¿ı˝‘tÒ˝Ôˇù ÁI»3œ–I è‰'ûß±?˛·ˇá·æÓ‘g∑°?˛O©£∫ıÖÎ:9O√‡-+¨«ÛªˇçëiO)ï{¯ëÜ”Ò‹/ßQ˜Œ˝P±lælN∆1∏&Ñ\|∆D ≈;kàπxsrN¸ ÃÉœ–‹$Çië¡ò{∞D=®æÎ◊vÊA|ÈKò¸ø7±Óƒ]g5C °˚ﬁ‡Í…-Rç‹¯¯¶ˆ‰!sÑ∏‰oôõÒñÙz=¸kïº·ûƒØˆ»OB˙'πÎXÍ©≤ç1Ê6∆Ã†ùÂˆe∆ÎµG3˜ßYpL—ÃΩ…Ô,/ ˛‰‹Mî"iÑÆOo0ô°¿f≈j´º8@wL\ì[SfGV≥{±3<˘∆#ë«¬^“áf)Ω( (∂&dÜÜ)¯kç∞µB(Vó-	Bí%∞[t∏L3·wnnê¬:Ì0«gf$A≥	ﬁx›ΩÙläœàËÿ°¥Ã˚Ø⁄c´aíVµÃz≠8?GM<„!	ç=hå∏”ÇßMõîºª≥.ÅC√‰·Rêüﬁ∫•Ìùm›œ–û≤/¬fv°ã1ú–≠¶˛†úSŸ2hã(n{c’ú·ﬁ+ì∫)‘Ó‘r |≈”°	§^€∂@=≈Ω˛mèø¶¿â(–0Äiø“Û#ÖÒËËäíÃ3gKZ33˝∫†màô˛9ÌOä7¯V˚ºÆÃœîŒÿ‘ˇ5´ÀÚP’~ùxc¸D∑´,V´®˛sëpƒK6‘C=´æ˝ Ä`∂^ã8´wV˚g≥¥yÁØ˝É'≠7â¶¯#º.ù<ÍÁÛ…PÑ§>ç£":3'J	»Á[ ÉKÛOCûr"]<û8ÏíaM∞´‰Aó'‚
+ëÄ«a»,ŒÕ*gÛ—q2åÚ˘b—uÜR9∑àíõ#ZınW|{EÒÂ¯E∑ì;V¨Ü˙P%pûÜ(nùR‹|¬µár}àR êA–†é>Ï¨6Ê¨êGËx±∏R;QœÏw©O·±à.{g1cØùâ…s¥ÿ± ãÆaÕ‘˙LbJQ0R÷yÍ:Cxmc{ûÌÙˆ≠bgÒbËï›Ö#]$ä¥N«T.Z}îÉ.z¨g[ÿ‹r¢‘0pTí*@Í"Ù5"–+ä{{àN8e__dÎŒˇ~5âˇŒ&~œÖL∂à®Å5`êﬂà†ˆ,;^\\ZI¨zEKbmﬁoI¨a¶è*é(ïÓØì…€¿∏ﬁ¶π´d≠ÏˇÙñCÏ¥”c§ìønv~5≥+pÃ
+ˆ>ñ†PD´∏xÇﬂÛ*º?ıü‰…ôƒë †'O©œ QÜY˛ÏÁ†JÙΩ-oÍç?X®H/b÷3:†îÔ(«HõTîÓëüã$(¡≠∞hTìH$§◊˜;â»æ{ÑF√‹ËÎ°Úàv
+⁄√ã ù^ÚﬂO‡ìÇÙ% »r®.í=l~éª‘0ˇ$Ñ0π}v„ëRo/thƒ+U·î¶Ñ]__∆—ÄO™M±–óöì/≤Ìi»•©|Í˘L—<ú-sÚ∞Eî‘7öJ&‰`å˘Ôã6XëVˆ≥ìw©]§'› ˛¡`&–:?^ñ—vä·!ÏL!BºÛEÁ6ºÎM°=7	zyÌΩb◊rx6∞@ñ`¢"öù1ò⁄‚ápÛ •Îå±Ãqÿ£å˛@0&ü}F¢û(¯ˆÃum≤¶≥ aÃÉÕ9Öì4∂«äèÈM{}5Ì≥õı…‰@õ^·ùd@°° Ò®É
+ïΩx¿ZÉ–6~Ä®@◊x¶É6î◊ß	3t{¸*}Oíà«g∏$ﬂ-£À:-¨Ê}uù3∂¨_At˜÷ec»º∆» ƒ∑F∏aO$æÚÑ+Í9ˆ∞%ª©:c‡ﬂiˇ™å¥›JæPûë÷®gu2]ı’≤d:Î∂e‹¶s`è—–MΩDÇñÒE√^»èIê∏ø˚é¥∫≠•Ó9¬bÏ:^2ñáÄµ¬∏uED=¿x&x\ﬂÌßﬂöè €œ‚ƒ©G±¬≥¿Ó˚p¸°Ôâßsπy˚€Ü
+ü”~Wùå≠7E<m5tn¯CXá^Û»!räôO‰po¿
+FÂ˘ÈÏ√ºõƒÙÒ⁄hK3
+4ø‘◊¡z°gà%õ	M/Ê¶ò‡í`HS»ÁÜSóFn≠¢4ìA‡ËK¡àƒÅÍ:eÖ@g:âÍlÔ^È„ó\È£F)9‚±k i√∫«Ãq™¸›O¯;˛´æT}∏£%º≤-ıM≥|E{XÜ]ÆøÑµè£ñLE"@ﬁ˜4àG≠;–äÿ%]U‰P¢D-¡!ñØ±Ê6◊7u◊w@1◊åå{ªÒy˛MÂñ÷¡Êk »Cµ)Â∞5àk÷ ÆYÉ∏~.xk†¢^^÷ÆƒÃ¥è@A√…ﬁ!,Êãì˝sÁÎ≈¶Ùπ;A…©•´ã]]õx¡µÅM◊|]¡∏è ·9OyBﬁÙzΩ“ûY≈ÄŒ“~U-ã^~ÅJç˘Úö±ÕÂó◊ª¡~t™ùß,¯u∆±óÔV»3'–'_$†¬v˘Œú˜~ÊÅÀêCÙüKÔ>f=≈ á9/m–‡ú
+vFd±…tÚmÖÖ.eﬁÕ°˚OªßÇi6Œá˜∫0ö¬‘úôﬁ
+≤;w6gSÉ'Gã∂¿‰ì5rÊ¢me±∆äÜ∞◊ \-:∏CºN∏T≈ºk¬le©∑©≠k¢Œd`aÛ {øÇ1Ï?‘pQs\K¯ø‘8˙>ã¡t]¯ä‹}}?¶Ú™±h[2ë≥mZ2ñ1„≥§–Õ|ºeÒ““@dCy=∏ç,ùüeÙ‡jÚ“nXt„Ç5µZ?0í3_æ¿±Ù©ûlóöFLïS Ö…≠€‹”◊{©†9[4im<æÕÊbπ%Ω'ü
+˝5˘Ω§MY6°G„ﬂàçuàQû2∫bÁ>hMº'º¿˚∆≤ªN&¸≤™¡2©∞ﬁT_óETc}Ø±º?∞ı\æßÙª©Ñëq›nóˇ’¡Ÿ99<~qq¸öùùº89øx}pqÚ´cÚ˙¯’À◊ÁÏ>9XÓñØ‰ÌsÓÍbeë
+$÷c^gƒ/7äP¸¬˚S+›ì€Ù€	&ÁÙ≠{î˝R¸˚N˚RΩ¡”ì””ìœ…≈¡”⁄ëˆy¸Nu¨–n≈I@<XMÇ.ﬁ≠ïxL·‰±Ô)∆∞$˝.ºô–∑ﬁêÒ»7†*§aE8ŒrT¢“° ŒDòBÊpYùÀC≈ÿœ"Ÿ∏;ÖGEí+{MÒ~›àºØ”«˝$éÉIÖ\„Ÿu+ˆc5C∏ö¸-¶ Ê&°›∫t›®•ÿñ&ùI‰èîr*ë≈X0)ß@L ñC,¶Uó∞ôJÀ…a 4°ö„˜Â·sZcØ†‹ˆ»ŸãÓGÎ
+ˆÆ|v/{ñçõß)îÕ\ö.Z™ÕW/]´≤¢_åhHÅ¶j˝ tË˛mó≥˛û¡õñs$ØÒµ z$Qåˇ⁄„°t:ÈîﬂÊCß"·uØ⁄à⁄ë6Oø!ëßIÍ&ËÍÈçv‘§≤i›Ív¢
+±±÷êÔ%C˛63‰W”ıJ2œG
+&”$é™ıW5ﬁº‹?t=uQˆ·wÛ:πãéÍ±”$”o©~pÓ˜¶=«5;ÄîRy3Á∑œ2"’V9÷I°m`Æƒ‘ÁﬁÍÉ¡ CÕ`˛µKC†SÀ˙÷å´yä‹c~Rk≈K,Û<+AÈÇÒ±°Ù¢©Ô≈ÌV∑’y≥˛UÊﬁ3àÿ¿HGË’NÍj›‹ÈáªÙX¯ ¶Ω÷`É`}ßeäy÷}Æh®˝ıOo›^L√°˜ÿ£•àG.~m¢π”ø™¨ä‰¿bRÉ∆π C,îH®òNÄ!`A3ÿ
+&Gï¯ˇe ||/€≈UkñfËÜDè7∏æ€≠U∂Œ;‚ﬂG‚ﬂOƒøª‚ﬂO˘ø[Î‚ﬂÒÔfÎ+fœõÕÍåxèÉ);‡ôo6ªKiæÓ„ØÒ1EÜ†"NP˜º-r™\Í¶ò!C®ﬂÚ¶úsW`O∏Jª„«Më~nﬂ&ˆÈ§ùu$~∆∑Ÿ§K~N'	g-rßÉ(=ø)?ø	œ?s˚aì∂‰∂†Å3F∂OoÀOo√”†¨˘∂OÔ»OÔ∞æ≠«˝H~ˆN\2qm˛D~¯ˆ∞o›ÛÆ¸.æs2Å≈ˆÒOÂ«?Ö«œ›iÃ¸Tñ-l¨K-l¨C/q–‡yôÊ6êÊ^  \Éd¢€@¢;rıpÓ>nƒ‹«»V2˛Œˇ⁄áYÔ˜»Áµ0ΩøZ%bÒòõÎÓ#]òÕC»ãøL#Ì‹≈}›HHD$84SÈEDﬁ®¸ÌGÅü ı&pxtg›uÇŒr¯Ü≥•(xQRÓÆA,°¡\ÿ~‹∑œ#å?⁄DÀ«L£—RW‚±'=(‹‘Öx≥ÏÜOVƒ{•®7BwãzΩûæA£©û«Zhp∂K∂ˆhªx∞L¡’XòÍO…4úÛ-`m*ë‘ò∑p^ G´nä4´◊x´iØ[a∑<*€«c8-ª¢“Ø≈æÊπXrW∑ßU≈˚l£| 	ÿ<’ó«X	˙à¥9ø™†Á±“ê$ebiVÎß∑mn§NcÍz°Î$∑›Ü)[%'⁄dL>.‰À≠íı\∫6ì4ãÙYrŸQ%õb˛ºa!çIC,Mb©´ãw›ùﬁånΩE√YñΩÚ≤=ÃfÌÛÙX¥d.a’πk÷Îû≈ås≈bK`I≈MÌhU©st:E™ÈKT#2ÿ˙RÊ*%Îù
+	âd€Ë]êêÚ≤ö1X,·1Ò9j&‡ügbkd%c∆_£ÂâçWá#õÚ(‚Mê3[ÂÔ›EÀ"ûVµ∆÷|È%È∫‰ V◊Jü@í9{‚®HQ,ˆ…∫© éŒëê~ÃÖÙì9@Hp|˜»E`˛ﬂÔaßHs‘)¶OKπÇYHSöX¬áQÜÍî°]J^©ê7aÇÄ#∑§xó|ä‹≈M£õì∏ˆÂŸ¡O∫õ.l/ÛÖ6Vﬂ_†Éi≥xx†sfîWpc√{§=?¯ÁYSr4¢ g–	iÛ•$∞ñ:¯.ùãäî\M˛ÈêÉµP∫5∆Xw€Ω#¬ƒpóö˜ a(t±∂‚€=aç,aƒ⁄˚0h"∆ÄfFDÍ.≠ã∂’∑¿ ›”f◊y‚±ÁËìú∑âô»Iƒ4'ıA≥˙ßY2
+2Û6–ƒ®‰ÄÔHLî05ßF2Üˇ6¸’£â≈MÌ˚ˆ.ôÛíã¢<dΩ”‡⁄aG¥;=o2°ë®]–¡ã7uP∆ƒ«yû’.r!YÏ+K=«-· ∂Z©öˇ´ë≠MÜ{√OV8"Yà¥BπH˙í‚¢ÁÉë∆dhßÔDé¢:©√¶bm’Hw˘«NŒÀ?•PªÕ»E‰„¿t;ü+`e3ú˛ô∏·,k∑ú}ãØÿ·Ì2n∏}Ci¨\ª≈Ò»#ªáÓ¶¸Sçò 0Yc™ˆ|H¯ò…6k,™[dE+ﬁ¬‰¨ﬁ∂ä•+@æù¯ÕR…[·!7Ei°]÷˜hd\÷∆‚øîä ﬂà´ªŸUîœBúÖô7ï˛õñ“elæÂEä¿ïÑ2ºÌ“lïª|ËÈU¶ÂlL\Nc¨y]π˙se~r∂%*}î¢µµ’x≠∫‚˜Wú˘˚¯ª…Y~5 ìÍ"nó¿9ô≥w≈¬ñ≠Kö˛∆aWD±
+˜@∆(∞˚‘Jˆ\òL0q9
+ã40ÀrDY€+æí]4˘≤
+R,t™Ù>q“Yõ£4,÷õÕk¡ë
+ÿ∆Ès+ÙùÂ‘¶K¶ƒpZQñÑéÙÙà◊*CR¨ÑbZÓ{‘1†A?∑†ﬁëÔˇÊﬂﬁ°ÙséF˜·P•ù, 5&ÈŸv©2JBÒ;P≠⁄îôUÀ{ÍÅq
+n06Rô4Æ¢ÃrTjp2©E{T2À$ü‚V∂®∑muˆ-èµfgRÍQE 2>d!‹eP(ñà_u œ˝.0˜ºœπêœÏ–- ¨ 5Ê@~Û‡™¸Y*ìôä£∂‡¡¢kÌ?M5@¸î¥@n˝9u'¬2Ù,96tõœòeq¡rÄ›fZíB∂Gñt˙C¥Äú∂Ωct±r˚•o`ˆ¸‹»êgG[MÖ≠`˝8µ≈© µ®ﬂ˘G4d)ë€
+–ÏÓwGèØË‘zÍß∆ÅÖ±î˙©P2ôS5TV¶°≤∫z?t‡ ”˘”YvÓπ&»bï∂
+V¢y®°T#GÔ≥bX€X/∫‡4†ß5ﬁ∆füpÑ/yQnôÏ´–ä$ì)`KÊIFü§5KjBm
+Möt©èÒ˜˛ﬂ˘Ò7~~<∆ÂOâπ°Sêb™LV
+Wgâ†<∏È]”[ΩÀøe√^€ÿπ/j4Wõôá,yÿ≈üY˛(fîƒå)?DeIzˇ!IV≤CjmN´Àf†ä|7¡<÷“#ôwfhLe÷iÊö·<l≥ü'ò„ÿIø•d{√6MN˛XíR´D ¥¶K{&iO¡K0Ä◊A ôr)µ—ÕZT -êuåsÂ∆N°H3@ru
+ò¿˝ì≈gBYÇ9_Të<xÜÅ≥Kÿ⁄ÈshÃ|Û’_*û‡¡CÆìÏ	k$*ÇTQ)®w8Ü˚E'™»†Ú:âuF"ïËI5$⁄K˛"–Ö#aﬂ≥§|NoÍâ˙∞ãµ¿* 6n¢]h„xåaÂ™Wç-ÎõLï°yäv•KÊFÀk¢_¢8Úı≈øN#M8¿[HWÖó‚è<Q<d"°gîƒ„Ω4}Iz¥‚~C7gA<≈˛Tu¬fÿAßÉòZ¸é›ÜqÙ•è⁄’8Ê"úL¶uh.ü◊ÙÒÚÈü¨—‚K‹ïÁÔ$Ω<Œ]y#g	&t0@–∑ )§H?âDMÆ'dΩ<x´ïﬂP∫ÉM;19óÈÙ.ÉòFT≥≈ﬂ hr M∂ñ`4=û‚äÆóV«ÃJ≤iàû2⁄¡ÁsRo˚ª¢-’X˛%Q∆Iâ÷`(<©ÏIöà√F«rh8q‡üﬂ&tc Ãœ8R`2Ò‚W!L{áßÍTõ˜.·QjG¬ñØ¡«OÚA(PÂàÎÉ‹¢j"_•ö&JW*‰%œEtû ãóÜó˜SnöΩbˆ´i*6õ=—¿>f1U«/”XÈër?wÍ·∆•e+ı´\˛$$ãñSØ‘œ1†Yxê˜ºœj∏Úövﬁ§Ω±Z®o«˙X„∑vPvØn$ﬁ(Lı+>û|“∆ªRèfN<êœaˆÄÆ¨Ë˜§0¿º∑n:ÕkC7’«ÛæªÈà™t¨®müDVü¸Xz≈rOx'4ìﬂ)Qù∫Q! fÌ‚4≠nÉ’5+WeÊ√ªk⁄-›ÀÁIŸ0#É¸Âb’NÕÓ+w™y-vgi Ú˙pÌ≤Áµá4T:zV+[5[? ·2¶A∂bäﬂ‰%R?j˙π∏ÍÁÕ7HSÆ˚’4ÄÚ¸¬-ÊCZNÆCÆ¨ñ∑bY[\˛Ô¶r|wJï…É®aúπ1ú@yé†h™ZŸµËicßR•äûñv«O…¨Æ∫8∑°ÿŒBiÂ|Ãt—(” È´ä}fÄ˝*ÃNô»øÙhΩXà;G+Ø—·Åˇuxs,N˘ç‡‘È^wM`Ò÷¯%¥P#ã›û$°#ÃÂì·€ÇNÿ∆Î´r+FßØΩÅY¨æKq+vcCÍ9ˇ à}.-ÀÏó	ôX§Ëvœdÿ∆Â∫D,}‡|f‘'„g!ØC‰Ω8⁄#õ´+´¸≈X∞È€W””¬l|RÀ6˛FÜ^ÊÅ6Êª˝‹ùR)`£„bˆ6pıûØÊ4∆L[Å_Y›„%>¥…3ßÂZë˙Mπ‹§baX¡‰
+1©á0»a
+[&"SÇÓÄø~‡J`õiê≥ûó“7ôjØ}Ç’u6yM!Òp!r~7qÅcÊYfTû„!¯.P o›"…85ŒSz*∞g˚ﬁçQB«î¯tò¿ñug¿$f‰|0
+`Tœ\-,äa´®+ï°ﬁKAÜrZC©^ï°Ω÷”.Nû˙“F˚¸√o'ΩÔ’à¯˚Ì‚˚Õì¶Å	ò∏(ﬂˇ›?’◊$™˘Ω<4c∫vŒ?›©õ¥gﬂôò˘∞Ã€x◊ò«öQq#«“UÍFÆTÚ]…≠Ì÷*~'‚<*±+˛À{œ≠–ƒÙåÜ˜Ã´D!Ï˚ÁGø˚˚ÏçH˚)Z :˙\âœnÜ~2Á…îﬂÖÛÃÅ◊ó+w¬†ì€~¿J^µêIΩπ∞ß´:]¶„O?r?4ÔîË0F÷H~I˚1∞E°‹e≤˝NNˇYL√À∆ı!+y)»W>À?*x˘ÁÅºA∫ç§'¡;$·gòï´ïù¯çe5è]}øƒ¶á”ÈÿÀ?ÄòÙS€ÿ¥.&…V¸EDzÔî≥˘òLnÖ.(iRÊl-´IÔU)jÈoÔœyÕ,}˚u≥j◊À`=È¸.¨ù}p‹gNMˆÙ>•>ù\ÇN˘∞ÜVM´7hhæ∆‹˜'‡{;rgPÃÆ(–Ô∑¶…UâHñ¢ôeì∫òZ&ÎCVÃ4[GÌ,ˇ<∞v‰+“Htú£ 7•,µBS≈[ñòÿÔã∏Ùnúol
+~T‘‰Æó!-±i]XQ{gl¯OHUõó„¸@¸i?:—,ﬂ‰Éa=Kr¢}ÄºßNQ”\Æ\ó Õ¬^Ñä£QG‰s^y∂OU’gçz‹bgo¸º$,|ü´Ël” ”Ìb±YËñõÂ£⁄–ûädögûÎ€z$k
+vΩ'Â∫å≈∫ÍKu
+uΩ¶†°¡&“¡*å∆Cô.Q§´ê ß€G™]'ÚÉ∂%∫ﬁIÅÆP±æ∫%’!´+"ç5bª≥¥/¡äßó&O®Sœ™aqÚGKDhºh¶Yß{/A˙I£§™U—Ï'Q0ëO‡
+ÆË˛ã ŒöΩºÏ»å=ÿ"i ˝ΩNÛ£éπÜb©m^ê=k˛KJ}œÒ<4 à™È¨å?k÷j_îYœ⁄=y·u(7≠¡ÓZ¥ú◊t4S®»E\îFÂ|Ã∆T*?¸æ—ÈŒÉ—ÈÁÆ+-*#O>7nC‚ƒÙ¶ºE†Må‡@ˇ…C8X¶V√ˆÓFﬁ‰/›YdñrªÏÆfM¡¡¡≤ñO1õÑ	‡ø-ÖŒy&¢d.Âˇ6¶rÈYª”ÚOäü%él¨LﬁlRÍàª0˚ºü®xØ/ü[,ùÀÀ3••sŸ_zÌ%Í-¨–≥Œ«ü±æq1x◊ÜZ∫¶7Q◊‡’◊ﬂmTﬂSS«N•À\!XAÂ≤Àr€Qg°Æñæ€`âéU8≥Ì∆∆r£´˛ñf¿Xö∏oRlﬁãø¡˛©-¸V,≥y_eﬂ¥JÆ
+–àÎ*∂•€n3©’Í`†ìz*)—bÜ.p8A$ıÏ5£êBv_zHéQ¨†Â∂®á†ê
+ë4‡µ%¥ñÜQøÚAˆ´“ÖñûzÀAK˙§Õß8≠ "∏ÉäÙ‘–∞¢(ØSô'øŸó]¿jíHVÑo‰9é“`XW∂Ô^JÚ-•ü∫ ^JÈrµ â!ñ}”EsH∂‰Î£˘$Êı⁄•:v/ÇfÂﬂ“f@Í`∫ûèI©ôû«™ÛuÊmë©eÛ>|‰y◊¿@a8‹\>˜{qeæ«◊Áé¸4¬õ«Ã9-•+ö∆¬mähá∂p∫/‘dZpû˙Ü9ÅÜÂÍÇ¿ô)Ïå`Üöã∞ÓzœÖwuïxbÚÅ]*BB‚c8/jLõÙc[Xœ‰B‡∑8XLı|J'On7÷ÔJáˆ∆f°ÿÇ©†kf‰ê,‡ëœ(˘∆QﬁÈÒ»µ;r} k8í0I–$3aÍ/•!ùıÍﬁ‰^T /ˇàï®¨%*QiπZ´"ç}æı8åx≤Ä∂”ÕÆÊP:¶⁄tÕä/¶mœU|QEªÜ:úyÔÂ"€ÏhíääËìa±#Ÿ∏Stª9´ã,∑Z‘ßÖ±∞ÛlÎE);ÀÎ¨®›Rœaµk∫g◊˜=N†±åí⁄]≠∞`UD©2å^ã[ñ[¶¬•˘á◊,R·U≈≤^•(∫öÂ≈ò·˚';K¨IdÒ¬.‹åﬁ¬•÷Ó÷ª-`¥≠Ú-Ò π‹ÄMqütd4GÀÇ ˆÖhøÔÆ}ÃÇ=çãøÃ>)ipÕ
+Lˆ√µ˝⁄¿‰ €ÌUf„ƒi–ùÌù÷†…ÂqãJâ“,m·,u≠;æü™pÛzéÅ…Õ::…è8ÛÈÜpôÈ⁄Õy~XúGKh‚5Îº|#W`ÙÄFX≥Q!L¡˜gﬁçÎ¥7;Û ¶Ó%[ñ<Ä\nªÁ˛3ã#tûÀïKÎ4U…Ê<ÔEÕyﬂ Xú◊Dn$‹SQE€ZÖÍa,´Ñ‚¬ó/ç®™Ïâ/ÊŸ‡˜âÔ0dÓ™|Á≤ä¨£çb≠¡≤“êUÖ!4€;^Lû2∞6Å°4§wS¿ *‰T7û£ÜÅ¢®Ü∂ Q±Pµ®FÓ”≠´·b˜Í"dó≠à„∆‘ÛóY¶ õ]∞nFÓ+∞$ÆWX1~çAÎˇ*H#òõ¥Ã—˚KrëüèÇkAkbºÀ%πº§Ç> %~R°∑y`©‰∆Vgç/UÍΩY"Ÿ-•¨Uc¬;
+Æ'~@ÚÍËY!§˜}$8·<CK _.Õi=Îò›PtÆ´j-õÏ‰Z"πeÕ>0Ωqü˚˚À‘‰ ç“) ™UU,°˜ItÀ)X5—Òe*z≈óH}À(Ne_ÿgI˙ÒB≈}tø›u⁄Ô¢èÚ÷¬ ˘¿˛L˚Ä¸„-Ê≤ºu≥‚?„`‚Œ.ê/›P‘˛ë[:ì«ß
+√Hcµû‹¶ﬂÓä7ìs˙- ‚∂‚ﬂÖõ◊4V‘Ìv…·ÈÀ/é»”É√_|Òä\<%ÌÁ/_>?=?ú_º|}¸ò|Dûùº>∆øé;Ï9ôqï_æöu2≠æ¥?}Wçü>¬§ﬁXII©MWÒá{ÂºË›ä¢S˙ìá¶\∆ƒΩô˙tBô0& ^O\UVè!:e˜·¢S≤|ó8òv◊E÷À|•ı◊Ü!u–RﬂçÉnH.√`,ŸÄπ©î©´é@‰`BSˇ§Ê Mç˚›Ñ›ÛÉ§t7Ñ›{<⁄≤Ùôm•p~npœÉ`ËªÑèÊ<B:Ñ£öQ 9üE†L?^mŸLQî á3Êé—∫ï2 ‹∏éRJù>faÏƒM0å·;%◊îí1ê}‰ë~í‹¿ïñ2àëˆ≥ƒ˜g‰ Å√ãa7‚ouz‰åÜ‰äF–^&°ΩÃ˙§§ÔÂ˘√R›‹Ó^yâ(Ù¢"\%œ°t|ïêÎ‰&I∞˚¥◊dò@£3«õ¡–ÆÇ†Ôi?*ß∂üÆ‹∏ÍsgH˜<©@ZlG¥E… 'ﬁÜÍ∫8›^ã“~É#60‹„”±G⁄ÁòICI√¿I∏∫p0ùÜå:{∂Ø£·á,4ÂgÇQåÿ√Y∑Í∆Ír–JÀ≤º-]PYyßª-ã-.EOJÅíÈFf—l’∞Ù:´” ˛˜øˇ≠…vVÁÒ®
+b≥⁄¸µ„0ò5Dƒ	.êîr>¢ﬂbÓÛåî=≥O~ÅÑ=·˚ÑŒà3¢ÿ‰Œ\$!«Åm‚”)2·+ä…”∞7n<8·	O°∆›ó:‘1&Ù}ÚÍè´æ¨U?(J‰sÍìÁ…7¿∏F“⁄	Kä¢„ıÅ6Ä-~ÛcF¿úúùéÇ–ÕŸÍÁ“¿Vêø¿e3∆gftÑÑÅÑ+Ø]–4B8‚êŸ ∫?R…{F%°7ÖÏµÎ¿[“I,3vÿe¿eV\sdL!;üy!_k~ÆìËI‰Ü ˚ëEW†dœ˛Î•è Ø7I;„1¿{ÇÎêŒ:À†€Ã8ívKôÁ—8œ<◊S‘RS`	ÜC7d3√ÖµÊìàÍ°Û‰÷ãƒ3@¶'J[CCŸI|îoìJêˆ(_ﬂZ<≈ÄayŸ8r6k–AÑ™·’πÑ´p{¬9t?›QØJ$1üŒÓ ◊@hg›~¨\?Õ.V˚<ç%ˆ˚ˆ}∂ΩbQ…gdÖ%2`Å,Ïb‚<Ÿ#+‚|'	‚^K∑ê@¿ﬂˇﬂˇπ¢ŒÈZR“√kÊA\ûúÅÿË´R @ß4rπSp(Ó˙æ/%4ãvc:Ë4	ÅΩjµ–«∫Nã*®¶ìë∑™ Ë6(£_L—.¨†“]xù]3¬‡„—∂uË¶HÆÏøººƒQ§y2F„˘àﬂ‡–9∑ï}ÈÙ°Ì"»ÀÜÂ)(ƒú»s‡ªF §«˝∏[&ÔpÕÓÁÁ/_‡	'…ºïAl!Åx—8;	Ò~t¥ a~∂ù∞πÓ·îõÒrIgætÜ
+ëJu⁄)œ:€#m<ÎÓ0MŸ≥+3^ÕÀº ò∆£>ÛF;µ°zª“Â«ÄæÜ=–Ê¶Nd”BbJŸÅi,á>=0%B4#íCs¯ër“G;ñ‰XçØ‹ñ0('A8¶~Q`”º‚Í·Hõí"+SÀ™ªQZbÅˇBcB∑mP√9h3Íëœ†gêÁŸïDËkÃ¥Bo¢„jD√–ÎOËl≤tZ¨0A∏*t| ˘äÛŒujÂ§¯e∆ÛqÛ#®±YåéX$'w~q»2√B“ÏAµ;—úÜô=√ò)ü|£b°‡’&’#]zæ÷”Ew?YÈ}sΩxß™W°˚÷sØè<É∂-RΩKNÎ)“‘àˇì√≠óO7 îhú~*¨N˘p∫¯û›)PøÓAÿSi∆ãcK∑C;W	,£›ΩÎ›êa÷ÏÜ\PØFœÍé sÜ∫†ïTBz!¸√?˛◊ˇ¸èﬂh¥›∆ ‹¿é·oœ≈¿wΩ]Ówõ‰Bzπêf∂Q§bèÔzßHC´98¥D´\òè
+8,º–‰$;2p{Ãµ-¨.´∂êÍZÍK>=9ø /üëÉ/.^û\ºÀÁø1kÔ¯Pó¢º¶.ST]%o™bkz◊’‡{=ú#*™RﬂZ}Ÿ⁄Oö+®µDßè` ﬂ$÷yÌ¨ŒrI±Jµ¨ádXìÛ¸
+÷hã–nTïøR≥’¥∂ •Ø∏Åﬁæ≤ˇ¢‚lpRÅŒáÃ„ää6Ë2ÎÃM+¥ ◊eÆXœ[óÁÔá…÷ÅÚÒÄI˘3 \–â¢&—ÑN£Q¿∞ÛÙZLÂ≤Vı®S<2µ„“ç#…ú´ƒí≠πß”w·∂∂â Ö©”P2nzZÓÏîµñH%€.2Ç•—¸Z´W®Ë§Ú∫hÂ¸bÍp+Á©≈©uÛ0â˙A öiTpÍyG ∏›hƒnÏÄıø˛õ¬¬©≥ojôï}ÙHÀW¿PfDVÂÙ+∑∞≈•«¡vπ“N&ÿ¶çK√ìSãL!µ7GS–˛«›Ö5X°Jˇì“ºì∞å∂bÀ˛È……˘/ƒπÿ˝ı¡—?)ªpÒ‡◊‰ÙÄúø|Iû~qz˛˘ÒØ_‡5Xj˚Ωâ…íK^ñt:7”/çF¿S*r¡ÇVHËWØl’~[2'îf’I¥•é$≤1€÷Üñ»Ω≤ˇ•Î#FoÜ,!v√wÛ°±îç£{E’´fsà”èp«Ù¶ÀÑA•+˚Ø=ÔFr◊¯7ò[˘
+Â∆ÃDK˚If&Zf¿ÊÅ«(Cvp4§∏z™*#)YX[ﬂ'x%âö?Q`*UC¯Ie›D÷‘ hI∏(A›H=G‰#rAiËyW#Ãím≥ì7˙Âà∆Ñk¶iüD‹zÍSáŒ›d˘Ö¿ÒxXŒ›é˜_‹˘«¿“‘bÂœ_∏îÊ~>oôÔ˘†“eéƒTz†ä6rf©«,*úK_”Ê®…à£◊`Ç˙À˛7‰	ô∏◊Ë©p≈”ΩÿÉfL«SC:o„›1Ë%¯8¥$⁄Ã™‡eQ—†›Ûó≠U#ÆËbWùÌëñLÜ≠U√≠3óÜpﬂ$1≈oe§6mÚÆ”&µ7ﬁu»«§ˇ˚∏Ú¬0uïÜS ¡±nv,– ó∆ﬁîdÈÍØôÏˆÈ/˙0ÀÈ:·≤J«Êv'Àﬂ®]¥„B—y2”pÌâÊƒıœzë¯ÂªÔ» Î â—ìï™5+u≠èhÙ¬ΩN˘Ç¢ıâÙ+àº≈üÂ_%8UãNô0Ô:Üéì“’ŒKw†ÅhSŸ$˙´El⁄V 6’$+Åôê«È\¶ıPOeqí'ÔWPçî∏/“´Z¶wõÃ*mÄª<°ß≤ÍÕ"=G3õıìf4I1¥ê@å]?+∑_aR78dkÜ◊ê
+Ö˛∞∞X9IX!1∑¥≈e¯Öä©È”JÍôTu◊°∫È≠Ô'9ò˚c∑2&vy£HÉ.ã}y8%ØÛ˝Ôˇù0ƒÖ÷›mëπ/{°6Èm˛=•ØT≤S–¸%Ü–úw…÷Lª¸Ån¨kıÔ‚'ÂÄ”∂û® ÏçèÚPVeÏ\q¶Ôì√)cÄUXBiUÃ[.ó‹ë_<]rØ‹>êœ#£¯C‰± √Y†ßò+%–ìHÜ]NOamZ÷Ü5∂â;qåæâB´÷i’Mì™ï)’¬µ-Yª€ôºaïC-€¡Ec¬kÛtëØ∞2¬ªïÖÜïcJ·˝*_ëêuîI5—%ãπF8êÇj_“*i∫°–4Ì:Q0Ö%z¥O”~XÇÆ‰˘	RORÃ;ZñœêJä†ñC.©ª]ÿ◊–ãÚ·.85XŒzß+mSÜCéπ^˛2fò^{an–∂ò(+é°≠ªa≈0l©a	‚™ü¡Ä¿pœ¯•ˆM1$G‰ıÒ·À_ø˛5HòáÁø"'gØ^ææ Áø>ø8>≥#±@◊JÊBTîW«ú'–Äßap!¢FŒ ƒèﬂa~«˚ëÆ°¡–"◊!ºbòÇ√¡µ"7Òﬁqä+¸⁄‡îœÿRO‹PÁ±‹lıìK2íêD©
+}Ì¬©‰0ÜÓ'¡•$î;}3¸ XÿUè\h«$êíA÷ÇÎû√¬Ò÷µ€'}˛ö≠(Kÿ©âB·‡Î˜»ËÃy&˛˚ÑD¡4glE¥`ù—_Õ2T≈2-9 óM¨([–FëÓiF†îNTé\Tñz†x≈∫¥ø|ÿÕ*i∂ü˘d¨∞∏w.ÉêúQÃ≤LîKMæ]Â:⁄ñ¯Ftxö*fïÙüìöSÃùXëŒ•îìWveüΩ<àèâG{∫.˛%Æ9πu∞Ü[]64Zù”2/¬Íg°
+¨[Ãza;9ﬂ˘ÖØ^0√qÎÄ-6ôf7?≤f˙öu⁄˘·N√U‚97SÌ¿l,ºÚÑssß8êåU7äÇÎb’Áı1ôÖ{¨ÄﬁÂÏ1ë£y€Ô¡{ﬁë6|	BoËMÓ,™⁄+ª4x1DgœpRˆtU∞pëÃ¬˚fnvSÊúµÙt‘K¬µ![t[[¨ôf4 Â¥‹Ó[Ë]%É∞pì43›TcU‰E8 %C’ÛY˜‚⁄P’¸Ç∆+M™ô·≈ZÔz8H.20Tj‡ŒEç-I`Ò•oªîe™e	57®∂÷<®)Ú™ºørØ	Ä©¥,µ∂’ü¢¢ÿ\Ó∞‰0)Ê|ÇRç\7~˙‚y0±kÌx2ÙΩhƒV¸)ç£l›Be<¶ëÁœ@‡√é=)∞µÒqÆB“ÿ‘¿eãFéoÆO@:ßìà≈˘ÙauŒü‰©™†K¬P∆S◊*ô”ø¡Y±
+O:"9˛$}(mEê‘`-U'LﬂÔ0z{!ﬁÆ)PÃ|Y–ïbDÀSqá’√Ö”õÎ]'ŸsÈ¨‚fh§˜)–’ÚÜé<L*Á zkõ…	Ùƒ˜<ø¸–…úÕr3”§ÃÊÖìﬂ%7Oµ¥Ò¯Òá1√“«6%—ŒùgY5b Iá!∞_ùıBØÏåÃO‡åÿ÷ ˚5x!8)ŸxÓîÄé¢R%>"$tE,‚r≠2÷· uz˘ˆùT—øwÆÏ?ı
+àù‚QFÚH¸+Œx“1Ë5åR⁄«€j ‘±zçıΩ/Pë^◊ZQﬁ§J˝∫4ïÃlUo#“SZ%eeÏM∫ÇÒ÷Ñ”≥Ññ∫¿˙4ôEì±b4Ñ‘ñ-'#t7U⁄snC„&_±ÏΩe7äµJó‹Ê!ﬁX◊¶ŸOkL≈‡≤N«0Æ∫äsE>÷{X_%Înhç@≤˜jÌ¨Rº∏géo\≠∑ªY∂|ñ£n£∏7°¨»eÛj[≈÷y8¥«”E_‹K´iç‹Eõ›NõÕn±	«´´·`0EƒœÍ† ˛1
+Z	A¥≠S®Eπœl™äŸ´%/?R„h≠Ü°u	÷+c˙Hti∏bÚtÅÕ§D+cRıö©>E
+—q‚Ë‰≈sÚ
+ã:æ|qÒ˙Â)¸Ò‚¯î®´Ï‡Él≤|µ¥√)ˇA†∆ΩÀÇ«áüø&Á_<=;9??y˘‚ú|qtrAN_>∑z…(ÈèΩ(¬d:˛¢ÌJjO‡!∑Á˘˝<õåçπ'5É!‘oæí√o§Ø TùÌë±VÜ‘eÖÀ‚¸|«
+É±rÌqè›8ÙëÖ˘q ΩﬁEúÁ˜”¸¯÷|∏MXÛ®-¨®>ıeÏ‰h,ΩçE^†s//¡ÿ(“QâLá	ñº©ÁÎPHlÃçâÜﬂù/•5D/:˘ âçÅáÓ H"Z%”0Ün¡$”à€	q›@Øvo(à¡,8∂CLbòñ7DÃ±…¢˚ª∆Ω!œﬁyL„à<«2UÅÆö`≥M$ï¸œÌßG€RŸj€ç”õZ≠Cìßé≥’¬Xîs.∞æ±<_F»v√òHWQYﬁmï…¶⁄µ	x«Z¥w1î
+c
+Õ=OzWø4ÌG≠˘_·9ÜKùtY£7Ów’j\z>∞√vƒ
+bˆ–X¡èQÃnDú¸Å€Í§K¶Ÿ√ÀZ«åÛWóQ¸Ù ´(˙R-"S…1p=‰/»Ïñπé¢„•.#rË[¿˜ñÁù"P÷˘l2`gC2˜Ó”¡=‚KÜ¡˙$Ÿ7y¢Ûp(zøf≠éR,Ÿ9´CbEÖ“Á(8ëSî‡@æü∏ÉÿuñC!Ùü1eˇù∫ôﬂ|«oF\ı≤`eyTÇüg4uË@É◊›G€YaµppÓ“p0R
+≈hdæîé7÷6	G∫bo2cJTmé◊4x«∏	[SõmﬂR?≠-◊?¯®ô∏∫tﬁ‹O÷v≥Z ™«€n/¶·–ç{¨çÜ=&ËéXÑ„ì1e E
+>ánmñ#Çxiu^›‘ÜUñYÌıA.›¿öö‡:ÑÈíÌJi`êD{A≥]á\\*èÓ¨ØW“Ê
+∂0≈À©îKTÚ|\át™ ÄîHYJ¿T2n‡TS·gq¬`
+[MW◊:∆œj§Uì¬ßluî%‘S¶¢Ìôè◊ﬁ™aÎäÊ3N,ö÷ÌÍˆY°ªΩF*£;’XÖËaOAË6~!ÌiLYÒ=>=+>à<•//ØÒ_µbPf´…îL¥x«f[w⁄%≥u«E,˚4ñ‘mÓ]gha´b8Gu€Ö∂‹ﬁ:Ñ[ÜA8ªóÕ3∫‡ŒÇ˛t∂æMTGÿ•ás=0’a≤+Bìm‘*$+˚LyäXâ–•ÃMXÏ(´Àz…T6!‹™Ö\jäq∏Uòú”7=ã¢—ipªÒ	Qä]›Î3ú"∑≠L˝hhå_∏¥c–
+ìæùç∑3∆0C7≤T VÒÖã√ÈyìÅü¿∂ÛÈêÔæ´qá…÷>ìÈÓ£Âl°,ZWß’f%|äkU8{π∂õ¨ÖﬁiˆNˆìˆAõÓô6Øj"SÛßW’®;nå"|ÙQy§+ö¶4†rﬁ%iß¥Z»êÍh»≤‚¨ºeg·±o-º*‹M3ÄßÚ+ø¢ÍYÙpø¯¨°Ó+˚ïxWƒ*S≥Û∞Wó_cï4∆çG·åD¡%jÏñgüÚeeƒèJ’ +ï‚ØfÇ·ùB˛‡^drñö"ÔïÑ°"± eêÖ§o@ì‰[√ãéo`¶∆˘\Ò5g}˘Æ°Œ¥≈0…ÈY
+Ê&„RrïÇRf`ãhIÍŒjGè-i	ôEF£ åµwQ"uwï1u]ñë ï˜i—!≈L@â•~T=+4Ωˆ¢©Ô≈Ìiutwà„jÇãˇì	¶÷ÑqÙ•è⁄≠ÛQØ’AˆS∫~F˝1¸¢m2à—ﬁÇ4«∫úºYˇJ{◊7 àµ[≠NâΩ„√cö©≤abL·Ñzß¥|5≥zï´EñÏN2wV75•mJÓfåKd¡o}jÙÈu'u)©
+Óc≈∆mK[˚32A˚ƒûÿ»∆4´Ç9z«`˝≥Úó3Í™xô;*ºLÌ¯åÒdzméë∫¡7≠m‰ˆÎk4Äç?í~óUÅÆﬁV:≥«ı‡ç	Dˆ"ïôA-Ågò˘Å n3†°ò·m µÃ˘z¨M÷"SÙ.›ìYÕ¶∆êgÉì÷∏¶)àVŒ
+˘s[bä60ê˙†jÈ.É»µ%òΩñœC*æˇõ≥KùÆ1gî‰*yN¨ ^?Ãy¡xœ¯RÖ‘"îıK`[ì3ßxóMJª}Ÿå]Ÿ˜∆‚[ ’BA6]G€“m¶ ™Säüyvç—=≈™JòœJÑ¶	Ì_§≤‚3LÊB•˝í±€ö“Ó˛i0D§:6©≈å˛,[–ÜC≥ªZjÿÀ .£wæcOs2˝<∑ƒˇŒ…K·Ïo˜?≈TK∏2≈4¨,Ç.àÔlóJ%)Ö€]DSùæ
+É)2—©›©9gî∫©%Rf{Y≠ú◊ ®ÿ]e«Ø“≤Ìq≠™‹U:Ø≥[ƒﬂªıƒV¯√∑∆1æJ„”^≥à56&4*¬ûB∑P∏∂t[´–%S‹*y∆ˆ÷˝“¿4¨ö‡î∑@=)6â??˝»®Üπ–≤~›Ûwu´∫$∏√¢ ïﬁøˆ®RC≤§iiA”KÇv?P∑Ä%ëOód≤¡¢pò[®%oN¢=∏™%ƒ·»}Ã+Æ;’à
+ÁPCóIö◊]ú·ù≤¨ô)jå™∞‹ÄL_˘EYü/˚åÍ&8äg@Q∑∑y{§÷≠ê¡Üµ7v◊wÿaºÕV›i•Ü•’	hö‡cdFâÑ#Ï˚πÀäËòç<PÍÇÎ¡!bÃ∞íf√òﬁ¬ÿyF_3ÔB	≈ôπ(Ïëı’43æ◊”èˆí[h°»”íöŸ®o∆ΩÒ‚Fë$6íR"<⁄€l¥Ùû•tãÒ∑JÃ‚)eä⁄˚K-ˇ∫) ﬁYhèèG;:5µ©‘ÌUQë\b"GnL=?ÇùMaa≤Ûé’àjUÁ«®4Æ‚®ì¿Æ‚È∫ª.’©TÉ5◊#ëå°∆ÿºÍÁè¯Áˇ˜üˇÒr$¿N∫ÃÚ…U∏Ö)dòÈ‚Å√Æ	I.çí‡ÆQt)ÃlfœZë∑P—k5dE`•:DØ·ßlMŒå“ºûÆÜıö“ßn¨<Y:5áàbcòıd\∂'ÿ’	,å*ÖôÕKÔd◊}CjwUÉ»wä7c⁄ÀsU#T≥&è\Ò^%`≥4‹reˇ‰®>7ªI{"≥ìÿ•ß€∑,ÁôÆÏÁ¡-˜◊«)®´ •§öÎíß	x∏wÈ@%Û
+clÉÒ∏æ`¢¢õö\„ ›Êº˜Í[,'æ¸πmKf∞àün<Ö3KâOÏr‚´#ÎmÒì¶‘7|5$<É*38y`◊ãΩ¿ﬂ≠mSO´¯â$E'’jLE
+5≠Q∞&‚§ó˝9wKHÖ∂BÛ÷rv~mÏ\^Ò"°ÏÃõ€‚™Äﬁ_Æˇ¯l'ßΩ¸   ˇˇÏ}Yo$G∂ﬁ˚˝1Õ∞ÍäU‹ŸlNw\%^ı&í=“†-LGU&´≤ôUYùKì5øÿ∞Øçôk»;∆ÿÜ˚¡Ü¯õﬂ˝#ÙÓ¸üKfdfDd÷B6[1”"´2c=q‚¨ﬂÅ^≤r=¿	1®Ô)˙1‰`ÿC˙'kxäˆ⁄€…›y6a™7`˛—·IPcG·—~‹:[Ú∞f
+ÔjïBP˛ë&Uºì‚ú"»9B F∞kØ›d]M∆ŒÀ@ ÕQ«Ië˜©G±L≈£)x˝÷∆›ò¥Á⁄>œR√Zª∫Vπ(€sYÜ^≠™Ö≈„aß‰8µ|‚sÏ˜)lúÏTbÛ.˘_Sw∏®ÿV3Kj•À^˜S≥&aÒÁ∫<ÁIŸT}•¨¯÷Ö“kóÁ,˛Ó>FlŸ•W?Ù„–P6çèô~2◊ì@‘ë`·JMÜ]¯rA\á◊9©bäuª.â%U1πZ∫œÒûÁp©z“ïü|'”mÏ∏Jö∂m8KÂ«Î=i´ŸPjÛ'€ƒ¡6±‰”f∞z¸ﬁÇ\Ã˝⁄s5,  †cµ†€0O‰{bI@?%Ê`î®‹∑º6Ÿày€?È%ˆûßë–Ï—ju+üË~Æ_0—ÜπÜû1ìDƒ¯ÖºöØoΩΩz|ªDÿ∑ﬂNAvÈlÿ]/ÉÿﬂÊh∞¬Oì√[◊H©’4ñãfŒÅ©÷,õÑIò«y“a1ÀÜ«ÚºΩëy´ ·Rﬁ¸b∫UúJpƒüIì¨∑Z>•‚K∑•ÂËO/j›Sl(◊˘∆ÆJF˘üë7ühøi«¡ëwÂ:ç’ÊÕ/ﬁ†“™+ÕÚ£ˇ1KGvÍ¶V<\¶	Óﬁ™°£–ŸûÏ,∫ß·ÔÛÏdˇálEIÁz‡èQ}´3Ç
+^ı¡:ë˚u‚∏≥∞%€ìVX·ö!Ugåj>Ωi6L∫÷èî¶xÈüyˆÙÏ’¡·Û3≤{vv¯¸`˜˘˛!˘˙≈…óß/w·∑˙ªB‘‹UB
+l ¥…–{ó∏,5ƒ≈\ ›0§„6°60ı‘ç$≠ƒ6FN Ω•åæŸl ¸…Ω ]:Ã≠^Ú6tõ~fCπ]^]¢‹wñWÄm8$b2±◊u£Rü2∑W"3°Ç °"Ó ÈI‘¯ª˜ôÀåÁx|èŸh†QÒg.!æ…â'+Á	Ãw5)ˇqò›1ó]4"˚ôÏ≥úŒ^∆¿!–Ú≠…qG.ÃVhÕÏ∆ºR∞_˛ç„fU5ÎhAP»µìHÿ¿öÛúiÀO1èS¿7‹Sê!∞!pÍUõ,§9°ÔSøÀ´bEH÷√:x]Í˚cÊåò∫·8¿Â%°8$!+Õ"eç∏”á%Ê¿F¨¸™=vi¸ív¨Ô&Cûﬂ£<†<a=Çmò”!,õıº!
+04õÒ¢Xÿ0ŒΩ°”·Î£LÀO	∂∑`‘∆Ã(ïå1’æY>]?√ÊÀG)7ÀO?-?qÚ!ºéo+æ†ºœ≠‹¨∫1ì∂ <jÂ&”Ωú¥Ω›éaê
+î⁄¥í≥‡€éç|:V»3c›Xé˘ﬁSÊé ôÇ«ıßd_biÀ&_A~6nØ∞Zé‹)fÛ8„∑Ç#îŸÙ°\„`_	⁄’l≠ò#zCœ·cü	G”ØÖÀÒ•UMÉK%÷óJ¨¬é¨îÅÄÛà·œvCÇíbMvÜ§ÔÏ•Ú¥pK–TF"§©Æˆ€C÷çÛ
+ì.¬Sú≥Lm©/‹KÖÁ%é≈y 'Rò¨EYˆúÚft/ZÃ†ÄÎÉ»‚/A7o q9H@;*ıî…Tâ¶çè•—RÏ¡°6T*3≤”è OßrRˆt˙Q˘ÈåwRæµÑª†`dñ^‚ﬁ’‘5o>bbãèäPGÒπÂ]Ì∑⁄5~ÎÙÈ;:ƒ·q≥èÊë!u(=g=ò:ß¥èˇ˜∞≠œª§eÚ÷ÉÚå¢p‡/rÈ˙~È%N«í∑A–Ûbx·Çí.ç˙4Ñ_\å†¶√ò∂q≈v©√È”¿H3X‘√©AlTV»ìme[ˇ¶®6ŸNöJˇ≈sˆπ6ïøÊYÙÇZK≈ô+øß©Eˇ√™ÖQ(≈˚)Üë¢6îãa¸ïrXvC∞J“ª™úí√´ëÑnÿú¢<∆ÜÇa≈YˇnWG‘9ç‡¨©-ë~“ÒƒâÜù£ ÛëwHpºGˇ≠‚∞ü~É0[ UyÑRá$‰Ç¬£\ø}:éB˘LÁQ#√ê}nlÿTì¨Ñ&≠MÆ‚∆${£1cçÊ »Î¬á÷ƒ7Øb>E·êØîzûâJ:˚∞Y&«ä4,§∏=&Î0ÀÀk^*)‚˜îí"õπ &l,*¬
+ç#s[›!¢`áî⁄à∞Û©¶úöüñÂ…∏´Í*_øA¯§R°ÿîyçíıcÄ™Z+•∂1,zêåÑëj'BXå÷Îïˆ√ÌoÕŒ´~a¥zrÛ ëó¶k$è˙ΩïøBê€≠Òˇd¸|yÕb„Á°qU0æò3ó:˝≥qm§üÊµññCªä0poÙéW8Ø?’b{//rñΩ˛c )à[qÄR⁄ •!…Ic_Üf≥≠H≤ıÊEØÁWf∂‰S´¨GëÅ≤8“¨‘áT∆∫ª&A7Ú‹D9ËíóËﬁ[‘ÓüπÆåV[ü˙(£«-MÒÈLFÄªgµúÒ9pûúÚÀ2∞ﬂ ß!\å≤$˜÷
+Á-~.‰«´y–~ÒÒ¬ì?ˇÈü˝ÁäÒLXN–J≤hª¿häÙ∂≈z#ıÀàTWlZxrm7‘T÷m2w\.äRY¿k/Z˛pÊäjØöÎ≥Ly=ËÉÚEqS•+ıÒ-”·µ∏o+È‚˜¸éx*ïé˚¢,5/Õ86AfmáÏî`F°˚ûY˙ÿãôl˝vKÒèG‘ëSÆw‘jjÅG≠¶óxÒæÜ»S≥∞[π∂π Ë…	>ÚªıπK>¬0π‡së\R¶]R¿_¿ﬂ«™#ÏÔboÓÖ‰c√ù(◊¡€÷ÄN|ÅbA=øB1›◊xÛ˛…äëwø.Xe1‡äU}MsºJïì∑DÃGvù™úXã4W*±X∫U’p≤˘]´Í¿j˝2;µç]∆}õ∑pª⁄Ó“ıÇ~«{uë¶©ÖÚÂû—œ Ê[qÚ¯@√Ì…ø4ﬂù2‘∞ŒÕ)ü-ﬂõÈ≤[3UÒŒ‰ﬂÃˇ∆D¡x Î=+•}:∂›ô∏—Ö…◊Yw]û¬$ÿtg∏-ˇ√«s[¶+weD1«ã2=dX4v?≤;2e≤˘µ Æ«åáî.«,6y~Wc:ûÙ^ÃéÁﬂâ;Ñ˚†Ô’≠(‹‚ÍΩ(#|~<7£òq≈›ò"´jÆ∆óU3äò˘:£x¥|/¶@∞%hÿ“≠»æòˇ•»#º¶ºË`ª˘&|Dw"[e›ï¯’«^Ö-ÿv˛Ûˇ˘Ò‹ár‡:T" Áx! £µÑS»Gv#*6∑^ŸïòÚé“çhœÆôŒ€)´äÏhﬁÒm∏πCd¿·Ω∫”(HıFÃB#'ø·&l!¡r{˙◊ÍG{Y¶ãQq]f~_Õ}ôe«Í/Ã‘uX€ÔÃ–xéÁ≠ïby§5Õ≠ô¡Ã˜⁄îA·S^úË#aQ{>%èÏÎ!'/ﬂ†rg>¢;4´(SºDw°5»ÿ√¶!g∏Qˇı«s£¶kWj.°`ÓûMå”{"©Ê#ªWså:_·GÅPæ[”Uû„Âö^ØHƒÖc{~Œ	ãÔ:Ô—}Ó»8≤≥ ıïÙJÕ2H° 'Tµï'ÆV[E‰rcÏ⁄Ü%6‘ ê`¨;y	ºÜ,÷`Ç™ÊÚ
+ÁA√ú∑06ö°eåå9Úè|⁄q˝˘B¶#Z;ãPÒy´3JCœªËìe≤œc<òMâu]è·Iô¬Ãÿº·(1U>ó¢öc¥ß‚è¨èÆ‰'ü’ñEœ^¨[=_}E7Ä•{8iQ˙sÕº›^Ÿ$π¬Èºñzzvƒüπ‡7‰X{<'˛ô÷–ò‚˝hÑΩ°C√\¥|\ÎÈ√ˇïÜÅ£ŸZg—‡∂Ú*˛d*ì¡î ñ…É˛ÉêÑ¡»¡í+≥<.r}¯ì'¬Ÿ‡‡Ò9Ú	œ˘‰Òå∑ö«ä`™s≈ﬁ¸VAöÂú§∏ó·^‰&≥5#<
+F¨‘ﬂÑÖ]¨Cê∆<… }“Ä/à»Æo>ZÊ/ô[ΩŒ•„≥<˚ÆUÇ#…¡0$x·F“˛˛Ñ˝[›∑£dGFäFJ›Çã#wxà‰k6M–´xóı@·¥‹˜[»˜}ŒlOÊœüÒâT´{¿˙“l3‰~ªQ‰ıÜ \äôH(Ü0Ô˛ƒu?SrAA(F*8°XÊZ¨P‚Ç0.»˛®‚É96»ﬁ`5Õï§<ø9_’@f`ã0ô0sﬁ>˝ÿy#√?pù‡jfé±¶ÓC<5ﬂcí õõ'∞~ƒxΩsE^W„„ùä]ÚWÎsK%#˚Ò¬aª◊&˚¥„x %£X"ßg≠ïıvªm˙˘≠5!~ h"¯ÄJû†¨€` yb∞W.[-≥_ÜSÃ¢…«¬t˘ 9VUúp…‚∑U.CiÈØ^QZ.Ÿ£o4€b-VZU®t“¨◊ù‘Lò%7?zyÍE105^ÿr[·dv¬b;cY*~+„ºAx¡çä†ÆÜYçñFËÔ\e«µïÇ∑n“2äÎ¢Á·Ê‘ı~ö<>ØŸAı7*”‡•‘+·äô~_BD¸í(…èñ˚∆.µÛë¨¢r©≠‚xmƒPcJxÍ‰´¿≠|]Qé‹ê ≤^â∆Yﬁ¶…#6u·µ3Ù©DËÀSó˚îÒH]Êº∆≈;W«*÷≠¿£U£èj Å÷∫«|¢‰çêÜLâ©ÜY≠ﬁ[åè%Yò-i∞ÿ·ZVvcçààW¨Ss–¯ﬁø&:-i§^h;Lq ÷Zu„'(?;à@˙£√±g¨fyïAT¨rÓ¥ñG
+œÿ¨π2;Ø"V14pÊÖ≠ÿ3®¶Güˆ·VÇIh√ “ü
+¬ˇ˛èˇ¬æ{ï≈‘+6ÿ¥¬6HXb Î’’"¨?˘V‘Ú5Ω¢eê$o=†ZJwLÎE∑<èt≥# ëyÜ+i|M∆–UΩ4Êfõ<•⁄zã/Øe@{¥KKQ"⁄ıìd ü]∞4= Ñ°©≈’bYÙj¡ÉóâÆ*d\qñkù‚¬˘µ‹◊9-t¬â<&=wWmÏäıﬁs˚ÙΩÑ≤ÏË	{.‡”B˝ qÇ≤—sC`.ZT¸Ä:ç7N“ãº˝mîtíÓoƒo;¢óﬂvE7ø˝‰sôó≤ŸéÉ„”ß1F;¡_@N^‹X<[læ^˘ˆ¶_≈oñƒ¯m√v‰∫NàÙY‘k,|M√éw≈Ãiª}–ùﬂ9(ßQ–*É`Ï©®Eó¸∞xx˜≠7¶„ü-TÙuÊ\–r)ˇT;ÕmâÄ µbnƒ\s=ØΩß ?
+‹x)Í9@Æ5–ÄTß™ıy€f—Nj5≤»'F*Mk8rÚ L.DA$QI§jTéâ7$gﬂúZ5Ûi79%sù!≠K¨˛4Ñ÷¢v CAmG”ƒ?¨lˇCÚnÙæ˙ÑÔü˛∫÷ÒÊMv¸†m‚a›É_Øˇ^rtxt¥H>≈Óæ]"◊≤H).Ô2|ˆ´.ËDp 'Òyk˚WãZhB7IËC/ØNû∂ª°cÁ•Q‡Ô†˙}t± <u–M	ëµrËª¯WcÅZO3æ‹Ü√Ωz∞%nc°∫ÁK8¨	_t¬À∑¿auﬂÿîŒ1Ò€hÎ:˚}œw8‘ ©∞"´ç˙ÑÓ 8QΩj±g†M“8ºÍ∫~Ûc·…jés	⁄‡ÅBgé|9U›oÅ≥˝¿≠πÜÃñ¶&7ÜAL√ç'Eö´%“2˝q≈Ä≥§≈ı{Ü¥≥U¥Õä¬èesª’ˆV>MÆù]ﬂ„}/Ï˙Ö¿ßmÿãmu4Îñª—j&∞[∂å˜3ÚÊgMp»E¬˛&}˜AJ[¯D◊ÙÕ≥∆"™èC::‚îé€oåΩ¡=uËˆ§ñË¢ñàò∞˘˛;IrÖyYQ?	ìƒ°}ö{˚ÖÛÊ–∂1N’ºN”€ˇ™L ı¥ˇ˘(˛
+	a§7)0≈‘´C
+xK%–ªUµ \}N8†Uvd&˜√?CM7√\ êK•≠¿Ë¡∂	|⁄≈20ˆYëk§ˇ´M‚¿t∂ôë?™30ÀõÚ:∞üédPÃ0Mµ¢#ñ1Ã˚3>|“r!Kf_œ
+~V≠n£N—Ps+2≤¡Ç÷ö”7§ƒ5Dú»‘≠ÂkòÂ¸Ûh9ç=Ô-∆˜Io…Ù”˛&Ë≈ä◊eô<‚äÌ∞ü™(8:üÚ¢U“´§≠ßêˇπÛ
+	∫ÓEú/œìV(‚ù∆ÿ)Ç‡gΩ•ıÕœXrÒ’êä@∏E[áñØ¥àÊ≈‡Qñ{^ìØJUΩ/åJÎ.»ÀSWìÅÌ%/¬PYDLg9W`‘6V ∆,Áqu≥îÛ»#¨¨·iÚG®´j	Ï5ıt^±ì'¨ÆÅÑÅG1»MæÜ
+Î∫¶∫"?Ó⁄∫µÌM;6e∫üu ‘Yz.@†n2ÉÂ∑F»‚Ÿ⁄|+ï|¸ûF~Rk©*‡¨ÊEÈü¨6ÁüˇÙ˚Ô™'PØÈuZì™ÍÃo£¨lÊ¶|ùØ'6Gíÿ,î-Vÿ‚\z©]PÙö›6¨_•”RÄ(˘€ÒÉÓô<í '∂’≠?j-˜4ø £Ê˙OÛ©:Sıœ⁄ı>Ø+Wãπ€”v*ÊÕ‹Á¸Ø·zı.Î’µC;+Ì›å3“c.ˇΩò⁄[kΩô+k‹<en˚yÆ…]∞¡{œ6ÓúÑO
+âræi˝!–Ìññe‹Èq-˙^ú¨º}/ì´û¥ÓÆW^)^GÙ™≈¬”‚0v1ãVà±◊º ZV¯âÈã5v≠¸ÊgúÚîO4Ò∫Âb	3Ù›ÄD#∑Îù√àáy≤zf)®¿ÏÀXUOŸ¢«›XÚ3,Öî-ïéM&.C›ﬂ¬ßL{Ëª=:åâ√j\Ed8‘'ó}wH¶Wµò_JéÛ®≤öÒud(¶e2µ2	]ª
+jËñ°u°V»Ôê≠§∆∫13÷e∑—CŒñ–ÂÑ¡¯f2ï¯é©˚˙ëà¿ﬂ_≤[±⁄‹£Ø©ƒÿ8∑ñHîëU§6iÏﬁXÍ?ææñ’v» ÅW7óC‡Å⁄∑Õ˛7Q¨(◊ƒ*kb%ma’¸∫{Â≈≥t?cË6õﬁÂÀ,áR,∑iÒt;çï‘L:w∂’<K5£ó@x†ª„VïKrÛ£['´‡≈c∏˘AC•√°4ÔöÇijùë èœH¿ío™”tjû∫[ÎvªrIc_]≈:p´9h+IË£´5xÒ'∑ƒ˚íT<\ÿ
+Óœ˙Óüÿ∆[•†[BÎÂ„©ö`ßUZ∂WìKñ€Bº|µR(X«‘—%£Âj‘a#K;´∏sçóÑ4°>Ø4dòk€…Ô≠À^ıuu6Q›‡ﬂy‹ÚG„IŒi È©X›Ã<‚úlNvN¨Ó¿Íá;ŒK2gw≤o5E.m @ÚYÒç@∞<	.·¬33‡r‡†ı)8üÍÊ√<ûˇ”_Å'Øƒh∏N…ŸÕ√hieÔaﬁ›WÉ±XÜêbh …€¥d2ï\‰ÿ©Ä-c™√ø?¬mQó*¿ºg⁄Lê©ﬁÙ˝h7É?GU¡y*œ›’X?„ﬁÿYpëôÆëà∑CÑø÷TºS¥^UD‘åºfh¢ó*Ë≈ ¥V“åk\€¯æºµYÃœ[-%£UÃkCgúWFPHÈ´›øä#ûµñúœ≥4Ui‘◊Úıg>´ˇhŸú|}—	ê⁄ˇ+ˇ5º}’Íƒ<¨&∫ƒ¬%õ∞’3g÷fa6fï≠pnUÁ.©‡XéeLfáØœ9tµrı>ú˚w8k¨…˜¸líﬂˇ·|ÏÁÏ)õ-y)¢çÓî›)Û<j_[eá˝ tI}”Ëb√zÖ±¢B‹T<pÅ3’5-y°º∑[#ß”$§iú¬GæKN‹˜^™}sÈ≥‡èT3aI‘‚¶¨tHö’:6ã*f8ECù—M]ÍUÔ„¨Œa7πŒç5oÂ2^ãﬁã√≠/ ˇ(øCª§Ò9+BÒ“=N‚nÈ>ÌÒ„†{Ó›®∞/›=œ(£è≈˝È™}˜É°ìtπÈ†èu_n”¯±‰˚ˇˆ7˜∑∞HîƒOÏR-@<∆lfÙß•Á‘Zôa∆-öˇ˛èˇ≈≤?C1Üª9ÿß	^ûIB4§„Äú¬†∞”v∫ØñÑÕπÓ3lçbÄåÒ—ø±X}ssËwq˜ÇFQT?ƒÚ€û/Ô.N¯b≥YÅÜ•£Ú4rzôQ∫V;ŒCÆZ#©´}Ãr ∑≠õâ·•ÈZn‘Y¯◊~ÜËW¡ﬁ˙‰ó‰%ÌπıÏ≈ıî€:–*≤õ‹  °Y‹ª˘SQAoÜ4≠ùíˆòÜçI0Õ†Tì Ö_sP=E¸·d∞S{∫’ëâıH™22–< ¡jÊªÓ£$ÈPÆª¯´w*>ü”⁄Ô±âÿ÷ûOı¨˘∞Ó9oË{/ i_n®¯´¥°‚Û9mË1Œ∑’∂ßr⁄w¥´≥öµ†˘jì¶T÷6Ï2¶ÌÊÊ¶"af’!PÛ77ÀnQR≠zG3®œ, 8FgÈâbŸE◊ ÆWçkPoÄérqŒÖˆl∏;21]]lXkﬂ•+¥Î˙£TŸÀ|°G!Øƒ§N—Jqf“œ[/<X∞sD∫œR¸]πtÅ∂Œ=ﬂáu∆$Óª2}¬ﬂ^D∏©∑Ω`;sê¨wmO¶'3ÅDë9»añ≈Vƒì˘ÙksMÇÂ8œÄÆ"“≥≠Â3k Â#ñìbÇL_Ã∂Ïå÷F}H°êmb'Ë}?à\+yUÅ9VÑvY™.g±“≥E“óÇﬁˇ"ˇ}°%‡¶ŸP/<≠Vã|sxx≤{ÚÂ.˘Í¯¯ŸÓoûüÌí∆·Øwüæ⁄=;~˛90πœOv∑ìWOOõ‰lwèΩßû†ÎsÍG%QÆxé$√ﬂñ1›-P®]`˙EuÉE>#Êı[Ó{¯'LÄ=ŒUΩ8c‡3>3Eıp´:å{ìÔgîW‹ k2p2pl¯Ω€TPK/˘êX›M˜˙Á´´ÎŒzWÇÇ&Ã\÷Kh~Àà˛·JLœo\7dQΩ_y∞•!Áx{WpqRÜπ¯e\!àŒb~¬e™%~}¯¨Ê4_Û%óäk;=ÖÆ
+w”Ô‡˙⁄u/¸1Ìº⁄áﬂæJ¬E†».¡2$„~äâK4•r‡E‡Øç%†\áY†›òq*ﬁ2æ≥Í°ÁF:ÃQ-‡®	öJ'-h2pÛÎê’†º‚ÖJ∏`•W£Ê˙Á≠(Ü˝©ÖÆ πL∫yâËíπ$˙Ï_’d≥í˜OH1JÄØ`4.9 ¡Æ{æı”=≠∑¨öuÃúY’q%Vw$ùî©†$<XÍÅ÷‡2⁄z†[Zf£!ñ<äΩ›îÛ0≈◊!˝è: ’v72—Üû{Ëy„≈[õ+»Aæ˚k…AV€
+ÔË≤$‰àÔ8N–°‘ÒëÅPåΩ‰{uIÑ?Y§ø£ÏéÜtà¸ı îy‹‚™ô›Å«s˛53>ıÖ,»;òãÎé%√Îtq‡•i¿‘÷Xèa√KΩÑAFîÜ‚=é^L`[~—&_AD.pIxÆ”;:ÓÅÉMÖ4x=l∏ÏÒ“∞ΩSYj.0c©YO^¶X~úN‡Ó&«@7Ü†u]9äBvç∏ƒ1ø&Çÿò˙lÃXÙ›Z`^OæÖ!•%V∞¥ ä(¥ÇEkV¿˛…∆C…s≤÷ ≠dd *0ê'ÆJ^ERVû≈∏∑™±*≈Ñ>Â¢Gy†¿{!<’’Y_tTxmlR∆Ôˇœ¥µ∏˚õ’ÊÂúÅ]¬Ó¨/<yJØÜxíñ…Wîvö4Ù"DŸzÊ˙Å3n'Ÿ4tXáõ‡%W‘œsåE7nﬂIáY ﬁòP≈¯%ec$WÙxákÓ^·ˇ»¸è!®ˆzÓ∞-‡ﬁS∂‰S`; ∏N‡3ƒ’+:lu‡_†£–Û–NºÑØcòÌxHË@vzÅ\»ßÁë	e› ≤nÆœcºE”8´Dì2Éu∆µMÿ÷∑Ïû⁄÷ ˇdôÛ}∑Áé·•«+XE“X_˘Ö%òcR“Á\õñsf:Oâwf˛á{¿=39c„üj"ÎΩ„†ﬂ˝ÉªÂ†«à™	"JøêÂIô9ÍÉ≥—L⁄Ù≤·rûÍH˘¨+ìU=ê‰ŒΩ˛;1D!ﬁÒΩ°îÂCN˘
+r]'∏Q9·≥≤D—îù)™ûf˚ﬁ&[\üñ-*—Í%æ®" |x∆òçÙ£„å*:˙\Y„⁄\X„øº[÷¯çwÓ†∏ ¬‰ î◊ﬂ1<r‚[åyË˝.#‰qI"4‘Ñ$‰
+G>¶cBAdÄÿ›$J:L|ÑúÊ∏bõH)Ûí◊1Ù-ËıL·Ωƒ@™w 6íã>≈‚Ô¨`*[}⁄£Ù-	≤ﬁ>_µ˚¡OUŒ0+CUÀ·ô9ÍW†Ê√J§¥≥v{ºtcZ^öÊÎï8iö∂w¯®ÂG«E˘¿ÁŒCWÁ¡Cˇ˘_ﬂ-=£o/=œa¿◊´<ÓeHª±◊Êx}?pd]ìà^1ar	8}‘œﬂy|qE√sdåçg»ÒË€&1üΩv%›)4¢4‚f=îG”ôﬂNòùÏY˘`Vû”ÃSìXG“XΩ=>∏9-îâ∆%6(ÛçÔc¸Ëò†,‹uÔx‡˜ˇÌoÓñ™ÂÏd\<∞Èúf„π¢Ø∞0Qã€(=/¢KƒªBq:∏@˘ë5x»óX=ñÅ¨PÈ∏`NY‰ñ«Æã»√l	ﬁz\ ·zßËÓ~ÀîÃ .”¬¬fny+ÇBcFt6ÜY˘°’ë∫∂ì˙Ÿw£»ç"	#˚‘Ô&>ÂÓ‘_Ê<Í,=Æ⁄«ZÚPÂ\R<óiª¥Œ8¨ÃÀﬂ)ÀB· £
+ªœÓda˜—ªk"Ti
+Âﬁ,FdMıvº®Ô°øì¿Í…búÀd à„}Æˇí'µ¡\ÙÙ{n§—\üÃ¡kÂyÜEHu\Oº0≠ú†P|—…rÃév@ÖÕŸı·Ãy¬?ED¡Hë29ñÏÇd@{nìÒLY®»Kcj†È‘°åè¯Ë¨Ò±pïáu™"“√¢U–¨ñıŸ‚P*Öû¢?°näQï´9mã’§32  J‚F°Œå&ƒ‘XTûiá|≤#,Z$”•ﬂ©ÕÁú…ƒNª(˝Úòº˛ˇâ4Dê»YS?jíˇ˚øÄó%¿‡Çs?};°0jäô[√†SC∞≈ƒÿà]ZÍmUB‚0 rÎF F‚ÆY.—üˇÙ˚â…êœíAåªÃ8≤Kv≠íT±}mrsﬁbj∞¥¿xìiG%–Ö'W~Aæˇ˚ﬂ±Håâ/–èqo˛Û?"E«p∑˛(&ö‹ùΩ˘ÏNèô9Z7-˚"}∫˘MŸõ≤˝∞˝G≤+ˇXÏä‹é˝˘láæXüuKîºµ‹¶<õÚ‡G≥)øˇWåç—w  ¯ÈŒXë'ÎÔåÆFâïÖ@“‰∂lâmŸ˙ëlÀ˜ˇÓüí⁄ıºÛtGéÊ≥#eú	Î~‰aÊ‰v»X>‹ñ∆ı|◊ôØb¶QxTÌ wﬂª>™\ËËgQ&›8	µÿ?©?S´?ˇˆøJıgΩù¡«"Õ©c•“Í°˙#ª_∫Œ3fSm+âØD∑2/Ø’+ÇZó∆I–¡EB.ì´$Aüü˙è◊ı–îÄF4Äôª.*Dbe.(ö|íKXWPjz–´ºÀ¬c±3/Ùz ΩCgËvƒAvÏAøÅÁe&5GR*ã¢üBËÊ°Ù6àe-œëG°n…|îÏ∆
+◊,’!ã…%¥ò)aÇÍ£~˙x(¯ÛìØ^V»‰˙¥Fãe7ÉaØÙär~Y2ß$P„æ‰–Géì&Z4ˆA)°·'kq2ª≠.w§p&û» ¿H≠˝ ›q§ƒN2fÄéÕ¢*«‰äæ#	AöˆÄVáË$ID"å D™≈hIw‹È1º]∆hòÊËS–ÊU˜a~<+–¡ê’[<M:	V¿âQœßÌ©ŒÊÃµH…e†D√©0€’ñª!‡]Á=æ9‰o siåvŒÀ∏4úí-è¥H»9bä≤@ÌÈ¿‘áj†∆;ävcyA‰ﬂû ÇÅÁÅ‰9åŸ.êv@diVäÃ 2Sß]âª‚D¨És–±(	ˆ\“8ÂU≈%‡Ám“ËAüvê4·∆gÊÃ
+ç¿Y—tå5Ú|ãÄ.y¿:ı#‰ã=ÑŸ2ñxäd€°Sf∆ÔòShDL»*‘˚C¢Sìäh“ß#Rª>{7D*¡…s◊≈uhºËÇPnG¶»‹&ëÚ;>QHÔxÚãYYû£$yπ(‰b1Â1∑! 0πÎÇv%"/FŸÅ”<£f…Dô$ÕDm~@§™◊ù
+ÛttzxËôÈ0¬¯é}¸mÇºÙ)ÜzæKºê´˚∑~„3»ÖtΩ≥[#5›Ò·‰ÂÇ\ÎÙiW§	!	≤àvîVÒ%∞·VœzºÍ∑{Öpt†“Sœ0CöyÌá"P˛ku2Mp&Æı±Ÿm¸@áÅpr∏x¸ÚÏî|q|zˆ‚‰7zêå4{Ôû—#›ÆÎç‚Ë/äÉpÃÅè8áäÆ⁄M%&pè˛{◊9/ë«§·ÄDèu¨dâò—T^€lË®a;=7ﬁÛpÅ{‡˛(EÖõF¥î"2…6ôã™ô´ …;?˜|81πŒã„iÛgù‚e†~t˚.ÔﬁÔ¥¸7X	Ì8~enÉœÖ5" n
+‘sq	äáXBp1ﬂ†wN?Àç	^¸YÆÉ&L2N¬!a‡˘◊5Éã\v˚OÉK‡-∏>|.ßÏ”v∞/ˆa∑M›‘îZa∏µµxØH⁄¨n$=ÛºâÏœ∫àQ?xŸüuHãÂ&V7ê˚C¨º≤moÿı·Ø®°,t€’qátÍìΩñNÿ¯öÓ≠tñ˙∑‘iﬁ¿_ üÀÀÃ∏äQwH≤QÈ‰≈ËñÁÇ{Üóéc€wáΩ¸âQﬁ>r]x”ÁGL˜6¸ût›F#JK§√qÄí˘î<OPÙÉm§Ïœ.‹Js	˛oËm/ôµ≥∞)◊≠Í¨“°√ºÊjwö	ZWn•ÂÁj#œ‰†f‰ôoı9G◊F}¡Ô‹∆r3å*s’BÜ!©5ôÀc|√fÙµí8ÅÒñò√|%EÉu‹Xñ%ﬁGö%ø∫©X}∂¯ò 7«nÕ⁄ÀêCÂ¿E0‘uÀXΩœ&é|MCª˝Kr@·by„
+O@—TIı˘µöytç	SED[
+p:£mÂ±«Pâ0|íIfs”9êãæÁxèV¢“[Ó◊aÖMÇcS˙Ä≈‚Æë]ﬂ'{Mm}m‡ê‰	Y1TÆ∏j⁄™ÜS+¿®ÅízÍ°Ôb¿bcëù<4ã 8Y∆*:(q,p’4xjÎÈ)ÿR·‘ÿ'™ú-¯;™«µÄùV@VK¡0Âor<À´:8dÓ	”L–p»¥”^Vìü7DbÁ·n‹(«±©•OÑ[ìÏòK~ùåòÚlÎÉ…´ÜZZ3">c¡À8ÔÙú≤ h∂(ÅÏ”ëˆÏı◊QRé»ÁK[}°ïBn£Åfc“õÀ‡gÆâVœ	y›†“[QCïPƒlóïª—Ï5ñ˙7Œä:Ë*d"I≠eÖ^-n~≥aıCº%◊Di˚%Øé~·…uYTµb›|µ…<À|)ÊÉ∑"∏™Ì„»™àÎÇ68Ôç¡c˚ï7c¥Êá¢[5’zj Mx B&z/ì/π∞p_hW©'S†ﬁOÆÀ™(´GﬁïÎ4÷ö3P≤íÄØfYº:µÿ≈oãê?GÉ1≈À Óá.ÌâÎ‘gÚëRØ°2-ÒÇzò#‹=ŸjÀﬂ%—*ï ¥4´j∂Û!YTÒ>Rl˜Ffu}8í%¿ÿN1s$·”<˛Fvn&¬O•˛i…˛s¥¢‰ ˙„Ë"iı‹±•ñ—]>õ]Y–¯‰Zc˚ô·ßzUÊARƒè€= ©ı`•ê1iL}*èÑèXjùòéÁyƒîßàÏ1≤ª’∞Œ*#◊|¨Zf≥® iè{Iq› ó,≈Ÿƒg†3üv\ﬂ~Ñµ"2]ÛÜSªösvª]î≤—ò¯óÜê¯—2Îªûì-FU>5ìtﬂÇ˘vÓcΩ<‹éFæ7[ãÕ◊+ﬂ2'¿⁄ ⁄ñ•†m0‹Ôc…„ÎÜ[rÖÑWH∏î*G∞ G∞≤UÂ¸\Kç7ü\ªÌòÜ=7n≥Iﬂ¥>πfùﬂºiö[º1O6oﬂ®À¬“içx_Sû)ÁTç<˘®v$1≥à2÷_0Óú›$⁄Iè∞bÎÅÛÑë	/ﬂD/¿B^„.o,.±›ﬁˇ›ˇ} ˛ª-˛˚êˇw}E¸wU¸wmÒ[Ê»èë¨•ºÇ”<.‹Ò„ÎÒ¯Fí$¸˙ˇy¥Ã0è∏i,l ü√müéå6Áz6∆»jıpN{8∞/<ÖCÚ”ŸPÆ_[V˜…e® œ „‚Ï“"Eá	≈Åõ•:ÔØ©ÔØ¡˚Gn'ú§ÅuµÅuh‡˙3ÎæΩ°æΩoÔ¬Ì◊}{S}{ìı]{‹[Íª[∏p	ÏjcèÁT˜É–m÷mÍÅ⁄‘÷î_{€ÍÀ€∏IDò∫Ø?T_Øü∫#êL:nX≥Ö’•Ö’h·E7&x_•¿U§¿Á¡˚â†í‡*í‡ã 8ÀLƒÒ»hR¶œˇzˇeΩﬂ"ÛüS&´”´ñ•∏ÿ]ì_%¥»£Uò’TÆâ$IâLdñ#E„:»!oKk‹B]ÔQá`X»ÚÀŒ§Ç±@8ÜRM¿}èqP\09ã`(ﬁpîòÔlÓÔ√ûÃµÇF†ß∫}Xo7|º¿Vã[$ñ»9ç®ø$]1p∂€ms[ÇrÛ!Cà∞v'πw˘+ÿRµ)ÁccPN#¥LêQ8√ïõsÅ•jl·⁄-\≠Í-lZ)£W~~ÅÄe¯å≈≤?uùL˚Vu·È’Y´ÆÁ|Û◊Èç&#Tuâ†»V8zÍ1píÃkï˘ 0^`œªB(Pc≈ÄQµGusETJWÅ∂¥îÛÛ˚¿∏∆;∆òÅõ™ ΩE»g
+M¿XEcpB	=nT5ñ9O[ç˙òr\,‘S úìkf≤Bj£P–dc⁄≥°JÁ°FXCØ7†¬°Ü	lJC@¡ÙƒVç–ô®∫‰k¶	£»~“Ò‡û·fd¬Bu–l&r<§[›ÊFsçM0˘ÃkÜ§∏}W-öƒAùBó¶Õ·I6eŒñÔQŸË*>·∂TE≠«}ó:fIÈQX]zÓL^[SJıfé\‘wõÿÁƒÉODT3H.ª<t¸—r‹üÆ)q0A‡Ö÷û≤€˚bÜÊ0/äE3.√UÇe1.˙Œ‘Ìâû- =Æ¢u≈Ÿ:á∆—#&Œ∞yå∏Ïiò•UŒ˝p˜1^{>m…üÀòô˚év®coæçÁiŸz†≈ù¿´cf≥5&‚ó*Ä?ÂU(&ÎYàòëmÙcÉÔñB~≥]¸∂£k3ilÀKre[˜úuQ
+5Cy˝E£l˘†¢Ä*ÔÕ)R WF`≈‹ÀzÁúU>Zx¬&¶Ñ≥[ΩT÷ÓÍ∫Nè@®Qz=ÜU˝˛ÔˇGrÑ˙â¯*m∂ÊpÄ†-◊C’‚ñA‹4°5vÄ=üõÌc>9‡„ÿbBΩΩi‘˜àé1 î]8ÚÁiª∑=Êå€¢bjL‚ìkóP›∞l>Y¿ƒ§”)≤µ{1âkPk2)7ø„°À€sbvv˝F∂¨&fí‰'∂ÀL˛pÜWH
+´Ò’k—éÚ¿éRØÉ÷Å.È∫‹xöt]›ÙÕõõÍe'Ú*(¶À}&Ÿ…2Â™∆û°>uóÑU€.íØL[£i{v@Òß~Òu˘£Õx1ráB¢;
+B¯ôTÂqÊ?ykA¡ÜóO»koõiZÅ>ø∆ÔMÄ%˜X…ù¶/úì≤Äõz´Ì≈>ÃÒ–Ì•i7¬∆pAÎ¥Pg˜M9	Î¨1¸k15Áû%…;–,¯8Î–]eE˘ÏIc,ä˙P’Å¥i3¯cÛÂZ‹(L—1YoôcSK˝ÙÑΩ›≥˝/»Àì„Ágd˜‰Ä4æ8>88|N^<'ß˚'ááœó»ØèOè˜û‚G˚O_<?<‡œ7M∂^ñgIÊY»È.¨:ÉÆ≤≠Vk√æ=\›˚Bi„öµ⁄¶€Æ\â´k?˛‹xÊœΩ!\…üë¸∑;$ﬂü•+´ #≠£B¶ØóF…ﬂ∆è´¶)¢”dÄ	¢ ¬}*f~;t‘z√ﬁÅ€â
+Fn|∏À@ªV ◊;låön¨ 1#7√ôb ÚFp≠O§÷¸Ê∆Ù∏z0ÔÇ†Ÿrcüå‚1÷k≥ÿ5¢=w/tÈ≈Ó9–Ú.ì-L6ÓYEÅÉæÑƒA˝K:éÕ˛`~«¿ìk£+"Ï⁄?ﬂx∞ππı∞Ú≠
+äpƒ‹œ£+À”#Í`x)v≤a}p@Øæˆú∏Onl¨T<ˆº!ˆΩ	GKØm∏ Î˜ÿ˝
+/0ÁëÂaºèË¿Û«pn+rCÔ‹$'"lå&)]6õ∏´GËG*ösuæÜuPVR‚aó˚ÆÔıp5xKãK‚˘Ω .∑Æí≤ª›é≥Èb¯ÅÿóÏ!‹Fòê≈ßITŒk\<EYµ◊HÛíüƒÁÓXôJ∫´+dÖ ≠å≤¿GOΩﬂπ8¬m$
+ˆ…◊¨≤<ä¸  ∞Qº˙¸Ù¯Û]r˙jÔ’æ)ÔWÃCá«9µõ]!Â9¨‰F˛êúIm◊œ∑6llw‡ÏÂ≈∫Û ƒ=Hª¡Ë7ÜÕ<—.?=+ÌïMw¿Êz"$0¬"î[21˙$-5èæ¿‘RopÙòV‚°¶Êå ˙…ÑGÕ¶!¡ç+l⁄∂vÍ8ãoË9˜f iÚ9ÉK◊2bsËáÓtÅ∂≥ë€Í˝Ê L2Fµ∫•!æ’¸DV›µáÎùäcœ–‰UP∞íB6«ãFÃa∫àœAá¯ü3w0¬Ωÿ¸d0d<˜<$¸ûé¯*Œá≈Üd«z´ÍX€≠”'&Œ–ÃNL∆¥Ûd-YiÊ·]Ôl[èNÃi
+`K/≤L´‡w/ò"Ø"ez6§1ûËx±Ü∏R≈`‘§Â˚Ã≤Uµ……&¶><Ã lm˚Xo◊ä¶„…ˆÌºû—‹6Ÿµ2ß”ï˙t¨õîg≈RRô Î3e≤9À“õiÅqƒØ—Oú°˝1«⁄|ÿ˙DÃ|'^≈NU±
+M∞[y•Ts≤Öª•âxµ»tÜô¥/˛|˚úûwSuA(
+Q‡ÉîÚswÕ›>_IøLµ=æyä¨§Jg¡®ñ&a∞'CÎr∂LKà›+b•%?lÜ'Zﬁ˜òØìËHØ1¢®0mÈƒ≠“VùaG2œSo„FHá≤ã⁄´y0kﬁ	ï◊ˆû>≤c: 5∏Cµ-wfÜ:ß˝√‡Råø’m¸ÇóáòDnñ”´4a…Õç^Îubï/X¥È w+˝≠Z˝8£›∫ïæT‰√F«·œùÓy◊}¿,y??wœ◊ªj¥ﬂ≠juukks}É∑˙pØŒÚdd'¿ﬂ8ıUºW}Jlé”ßªdÔ¯õ„ﬂÏ˛Üˆ´√ﬂÏëΩ›]¢|^Ì{ü;®'‡W^fïa˚ËÂ≠Iìﬂc©9Ü€œjJ~iá)ÔF`|üôbH‹êaëâ€‹©/çïªX9_}∞FçΩOÆ3J]¸Å∫;:Ø˝∫ﬂ[≈ÀèvxN@∂qÃù4”Œ	Rπs≈Hôy(”◊·∞B∞AD#ﬁØ'EâœˆUﬁks= Ìì§,±nÃCbw&ÆÌ˚¸ÅEV≠OqlA&†:Ü”¿–Ê⁄Ã¡÷E%É‡î0Ö±kyÛ?J&1’ñÖåMü}+Ö8Ω∑≤Öè¨Q#*ŒºÊ›â7ﬂòªeÂÎ2ôÊ8A*˛Á8¡VI]ﬂ≤x’™Øët¿xpC¡ìzJe6⁄\ÓqØ(·ÛæX>ŒÛ^„¨ü»(Ça§Ò÷2ÈQ¯+æœ≤;•¯ º¯ÛŒ∆Ê˙ CÆcTpÒäsé¡˘Njáﬁﬁ∫πé©.√ v£*¡CcÿìÅ™Àõõd‘Z7€ˆ“XU¨”éF=ç˘Rg‹;?Ô∏ÉqOjìU∆ΩÌ©l{∆èÃ¡ú’D“ôìY˝¥¶°ÿj]	UvfÍ˚A0feS§k∫ﬁ!—‰s¶	Ÿp.Ø´ÊêîÍ√TE¨Æ§ú˙üDmúµö´5ﬁX}˛ïdoªKÑlínÒ⁄€ ïV›ªìÄMvÍ%B—¥wåÉ⁄IChÊÔ0/DT‰/Âxî‹˘Õ◊Rú“+œª¬Tp—∑íEÇ‘¢€¬¶^∂÷ˆV4u@9e[€•à’z»Âáæ<d<NB√ë“}Q˜Ä≈Ñ¡$Ï!æ?y¿x¿–sèeQ≈‡Aßg¬Wä”h©U]Eö2êK/«n}Ëí*M¬„RIç≥Kpƒ
+ˇXì¨_O;îãÃã≥»º∏"2Ø¥‹ä9Y+Æ/„x¶†>˛D.75ŸY√–å˚5•πH‡†˜©±≈¨Í#:ã–Öã¬gäãÿ∑k¢Ø4Å Â∞yîZTZ∫i6‘1˜Ë£eîM”∆DΩ≤Èî<{q∞˚táúûΩ:8|~Fé^=}JéüΩ8y∂{v¸‚9yyÚ‚Ë¯È°Ú∆L=+·¯◊∞)ó"„ˇ¿ç©Á?‡29∑<≠*Nx¶ÊêÇÚ%XÊP!q›øCèw°I±∆€aAÌ≥DHEÀacnp–≠NOøŒRÅtX¥,≈ˆ!4"_ú={**å4€aè˛	C7ãÕRB¢˘ió≤1L|ø@¨*ô*Q≈*Q>hUm√“Á«=Ù0±πF‘•(Æ¥n-ë mW–J1NY,≠Ú∆™Ú¯jÒÒ2á‘H'êG„†;¯ΩÆ ∂è'm°i°¡>÷ë|ﬂˇ60o‹⁄Àê"üRüŒ3YJ,TÜ|Ÿ Q*g›¢–K%ê>*AóTZùFg.›§+€î´áº≤ºñØâºûé™™€ÙËUÑ∞ƒπ›∆,}ñö«XÊ™®cägë¡êºÉsœw…Ò/,äá¬ydåıû¯rQ–∑”ıìd¿Àu.*#€¬≠Î÷∆4gB⁄≥é|ßl5…Ì¯6Ï¯vJ6Ï¥ß'c[-äîB®Kâ$W…‚≠ıè ”Ià˚~ {¬Œ~ÒôÚíˇ«QZo]≤üN`ïw∫!¬˙ êP@kÒêh∞3Ç’+\UiT÷ñ∂fù$gê⁄»Ip9qÌ:dªƒK61pj”¿¢VµyÔ}pm#ßT‰Á≤‡ØŒ.‹ ÏïD"Óo8ƒ‚Y6¯CÉ¿“Ü;ÆÁæ
+}ÏL‘Ù†Ès7›e gh¸xa¥‰G éá›«UÕﬂÍ«∆ßÜ9®πA˚¸?AÁ-hn∞çÔ±;≠l¬æ2(-!P_∂£fêæm≥ë¿∆d±Ÿé`Õ‹∆ Y„eqá»ÜØWæm∂ﬂ¬Èn¢§Øê£Ú¢§,≤˙ÙÃπañÏÀœ◊≠A°jrpR2¯.y(W&"ÖzCkÄ}∆3àÇàùî;Úì¨í∑•>£>œJ~¢⁄êπ™qòª46ÉàZâÿ∞c¶L+=T¿(P55	+ìÑ5‹x+q+s·e¢ç∫k]úäz ;¨µryu•YW]ﬂà~¬¥Y|Ç8ë]˛€29Ú¬s/Ï¡ê˘dNìh‰2$êeÚΩ†éÒ8V‘„®'pŸJkV_∫≥≥:QıìÇêó¶~•Ú‰1˛Îù{ ◊à)Î}KÕÚÉ2â®H√Ö¢Ñ´•c∞ƒxÕÿRò∏yÃj]Ôæ±©Ó$]´π-Uà∑´j¥&–(!˛”ø˙ÓÔ˛ˆ‰ÑïX≈‰Ë+1î˜»º!k3djFöÑP˛≠ïM©=Gh¢j9™2ó[*≠ì¯B–S˝Ö˙˛ˇ◊È¥Ôù«ö%*–m tÕ´πQÑQe∏({A‹üv9ÊÉ&å•2w»KPcÉ!ö¨»nÙˇÅ◊%œ‹8Ù∫—4u4ŒN1iSádW7{√ZˇJ»$Î·‡QC£œ*».Eë¿k…¶¿!w,¯=È≤˛kî]ÄTi˜∂øQG§JìWd'#òÍƒÈ#ñ˙;8ÍûÏˆ\Ü0≥ËT˘ÑmokØl≠Ï2AUT¯„?F9°W!yÛâÂÈrJáCË1pﬁ†ÒjbDÔMì Q¡ˇ,&˛∂ø¿Õz∏˚¯äN<Ìlõ-50.ÑÍk∏Îæ°i·ÎÂüÕg-ŸÖ?Ø•<¬≠ôt„ Ñe|Fª‘˜1¶¢j%uÍõ¿∑5ìx£Q≥bOÏ“nï<FTHäˆ∆6˚.å6úßc3±4ˆ∂Dºr¨GÂ—t∏FåmE.<Áú…·Œ2≤Bkh:@õﬂÏ ≤Nm.{ü∑ni]vâë˘N~&∂îÈ®ú+QqÜÎdo€:ØDÅ%eﬁ∆ŸÍÚi“°Wµ‹Ô5√èØ·TÜ¥≥k-±iû˘:ó•5^„Í›µ¨≥öÖJê˘≈\[˛ú˙¥Ss1k.ge¨`EVd∂Üõmr/ˆÏ5W∞bÁ	b; uæHb?.»YËù∂»ô
+ÿü√Vé*ÆœÍõê_K›`0bÌ¡Õ‘scqïÏ√ßnÃ\1ÏÀÜ—&a95.îI`jUd&FfSÂ¸≈Ã€=ˆØ7Ï˙0¡®±»◊cw±Ya‹÷…ŒL˝Ó•˝Ê`C%>q±∏Ò¨›Ìß›ÈM€ô˜&≥5Ã⁄ÈA⁄©ßWôe–;cèáièe#Ï∂∆[—›bŒíW8∑EvfKè≠Ñæ.ÃÃvU›î∆√jæ∫Ó£nˆ2z°Zc˙sbÑ1∂ïcÇ≤÷À]q@K®Zo©ÕûÆõ\€Éôﬁ»?ÿø˜ÖòÊcÙ{IaNÀ√ÉÍÿ¯fít∂ø{! ÒÖ m˚ÛÑÜé¶D»ê∆◊î˙à–‘,∏NZ™4åFÉ≤a‘*EY*zWxnî* CêTr^0q|◊ &¥ ÒofÎÃà-yÖy∆ZΩ~éÎqF}◊=ßò∏¢¨	∆Ø–nL^ˆÉa≈‚P¿m?tœAJã]«h!‰K¡zÅ€Õ–PqFJîÇã.eêü~kƒkx|Co3≤JÌÄÃ˛§Ô˛Ω—p™N‘¿ÔËÌqª#oHá]è˛à˘\∫‰Ãi∞tf⁄üg´À Ú—_Îôﬂ`Ø«æ,sˆfÓ‰gÁ@hIäøN¢=π.f„≥bk<Á´5[Q~ÍXâîç∆ílL2>“»!Fì?Ü!U‰{XÊ}^uLù?ˆP\r^‚m“%œJÌT/∫I6lGxg„vÒgÿV1œ'+mI„˘Úns⁄ÄëZõyﬂ3§"–Ç¢d0†·∏Lï‹Âç*Nò©ª»ÜÊƒï≠¨ÕïÅlY˘![ñ∑Î≈îW◊˚%Ÿß#–A\ÚÖ◊Î˚Ë=)˚eÁ'Ù≠Oƒ)1ÔÈ9fìe9cN¥≤2Î∆û⁄#’a«Ùœ˙˝ø˘ªø˝ÉıD⁄R…¶É-Dó´°yOûRPFw«ØF„:”ª5!H¬õçt
+gÒ˚¿ÎäX⁄7Ç∂“0≤ˆx,ÉÖ
+Ü±?^ºi2FÚ< îÕ4ThÓ*åÇûØ'πˆEr/àÚªˇ}Ô(rœÌ”˜^í_ã
+ÓE‚Ä&†H|‹FëÏÅª%√⁄∑ü)K·(‚ZŸM∫®¸∏,˚ÁlyÓ–)'0}Ëï—Uã≈NÆ©E∑ñÛR∂I\ÂÒ*2ﬂ≈ )∑f´»úA©†Vyªyã»ˆ(Ì∫%;E˝ ÀÃ>œ=ñ%´ﬁB:Í˛ãßO˜œ»—··)98<€=~
+ÌùÓ~y‚ÎÁ +sÕGMS‹A"çXQXı·3T(òãºhÏÂ∆]¶pàÿKø“ΩÜ‰∆Ì¬G°G¡?ì7ÿä!4˝ec≠áA ›^‚S∏<|¡Dº÷;à®ÔEbtqü∆U°ﬂâ:Å∫1ÌÒ¶^r§˙HcΩ¥yq†Fó£”¯±Ëó™£Å€D Ω¬«ºXa≥∆,”ËXB·Cñ tkLŒ√`@º!ìä”÷ÕÓX>˙ò4“y•Ô√_€îÛÉèã÷}ﬁ|ÒLÏ:¸⁄∆‚ØpC»_≥Ñï,≠?Ô- YÏ∆‚πÙÔ¬√ãã9”∑0Úg˝…EVS«5ãóß%wráÏÜ!?RÁ#9v>€ï'ÑÕ˝U˘€ÁÅÓKî´Fû0LZ`V,mÈ#g¿⁄·âEnˆZ!ã†zC7äµ/Äük€t‹®z#§›◊Ô:åY
+ÚêïSøKÜ^¸2ÑÎæd®∫/F@›ºHòÓ[§Ì0&ªjß¿	Æá89q4íø cìC@˝⁄KÀhøOØ>Ì∑"DÃ¯=√≤—·+Ùônâƒcªi!:ÌS‚»ÏçıîD/≈—ÜØ≈o≈ÔAÚŒæƒøîSÙŒÚÎo5G	YJ#=O$8œÛë|F>f˜„Òé≥ìGè9à(~Æ‘ˆ√èõxPcoò‰Ü ;√Ì>
+)+e/¯åÚˆ2)t£6†¸™é&å√«ôR‡è·Ò¡˛‡â∂rî†Øß¡•Ã∞˚ïÊE/íÊ¿«¨≈MŒ†bY^ûÊÌ¬åß˝N øjøÉKA˚˘ª$§TˇJ‘ÌÅØ˝*C—~Ì$Ω»”#zÎÑºÚ°˘NøFI§˝ºáelÙÑ‚„(„‚r0bM7)GVÜò–—hK¢–pFo:HPì‰º‰/˘ﬂ)∑’Æ<!*Nf˝eÓT™1äKÀ)oêiW¸‰§Ï±Ë{R"a≈3"6b:ÑåÑÕ∑K’»"OÓÉl/∞âf≥YÏw'◊´Ü¬“bsß∞84∆°Ûè»‡\-% µ°º∞VÖ’˚,ãB∂,ú-Ñ∏–†’\^ërqû\Û“L{îD˝FëVSyfáÛ9ß;Øà4Ï˘gÒπÇtÉœÊ>í]›AT˙ü/Ôñ†ÓÛÇP°1ˆôÒîã
+/‡G∆ÁôXTxÅ}V|#'%ô}Ò·Lf ‰‚cä¯î?‡≈Ö(ïÏ‚˜™D%äµJ~†‡y5Ksb¢V*ëÀcZCˆ^]a¬7n^πU.®âÜ˘≈g∏¿∂#(/?!X√NôôîN]ôl2€——]©	‰≈FR1oß¸|˙]iØ2Èoß»1Ù›0yêèí˝j8ÇäT∏SîfØd‚NA *MU
+ã;ÍñÔïH6ŸÉ∫ØÅ8©ÊØøGÕ.√Ï∑Ç2∆fwñ+˙¨S∑·ÿ:	e#JK$‰¶¨d@>%°:›\¡d•É∑w∫±,÷\‰ôπ∆qNJ˚Ï»f'O◊E‰
+GﬁÈ•	}ZÇrEã≤0`$∏#–ﬁèq†ç≤Sä¨CyÂgÈsM©/1ê‚bYÇˆ≥≤;Y@J,-r	\†'9JËÕ‹~™b≥√Ñf« .G©úQOê(ÜÙ·§d Eà_≥„®«0∂⁄W&ó=n”yg¢")ˆΩ^o±ô≠%˛M©≥X˝&‘ÍãBæ∂‡çïÕ•ùª)—ãıø‡√2ùaØ	q©√l1
+≤Py⁄36>ÆØÿ¨Á6,æ¶3èÍE,§π™A˝lÇ≈BÍ¨˜¸‰≥–€≠≤M/≤1iüCçö’2ˆm[aÃ‰(Èª9++CJ	`~CîöÍúF(âa~‰ßväÒÈ.,±…©·/ñ¸ôˇ¥@⁄{èÔÉ¶±AüÊ7L€[)M|?Õ-®2M v∏≤6te»*]πY]IÑ/©5ÇÀ4ÊÓ÷ÇBÂ<^Ë È∂–öÆ≈≥¨B¥¨ãiiËJÉiô¢ZZ‹):xÀ¢Q"á0Ypze.Æ¢"™E∫‹¥!]NåuI
+ÅCFpKK%œÏ∆gÿW-ÏÀÌÕˆ•-éÉ±p-uæﬂ-ùÔ∑Wçsi¿º–'Æó¸û∂ a
+£ÿ˜¬ÆÔ D_xÍırQ¥2üij¿V#DÜé"™ˆ´0	y	úå’ yìîæÀ¶,é™.Ù§	)≈Åg•`ûpá8ÙÌ{¿ˇ@¬I+,˛û±(rùz)ıxˇ¶òÓg÷z€}¯&/~%#–ER‰tïc^‰j´ì`6Ú‚Yô≠Ç€UÅ<Ç´Çñ‘Ì€7(ÃWØ'÷πÈm!ã
+ê‰^‡‘âVƒkêîHuk∂C√VJøÊòî>¿¡¸⁄ã`ß"rÚkœ¡[°<§I√ ◊ç†8⁄`Ã,±rπ2.]…∞ƒøìÑU©ÅOjÓ¶Æ–™¶≈ä#jËtîaÎOÜ‰îÖ_≠êıÂà∞>Ω∆?õºn^¿≠Ïé Ú6Ø5UÃπ÷Í"æ;Ï≈˝õTâñ<»P[ƒ˙Tè"D k59»Ù◊Yh!M©≠"Ñ4 ÅãôHÛ¶6ïTÕúh@ﬁÅF(ÍrÔô6!ek_Öû[A ı∂;ã∆Æ‹\Ù‘[Æ$Uû~fC„1'Ó{wò∏3oz9+j¿ñgVª9ÌµíO•€Ígh$∆‘˙ÄòH,!—	hË†v8Ÿ·6m9ﬁ4LSm]z∞Ãb3!™÷Öìœ\⁄ú(s…pi¢ıSq£(ìn€ı'V˜Ç‡‚≈»-©©ºQb“’r™ §ÇzîúÅ"µñW∫3Ê;aê[kAd‘J˚4ÃùAcG‘⁄GR”ÄÅ(ö¬# 2}§vî¨j]&Ç9π:lºòœôä±AÛ2…¡™ê$ WvY˛Ê‘®ﬁnà“îÇJïÚv*öÑ&)¬XUºßÑ:û«ûW%{Å†ΩÜ´k:vJ´ñÔãÍ~&öÆ∞Ú(≈˘–_'·aè¯ÇΩìb’¨7*Îez£€≤‚⁄iíø$∏;dÂÊo ¶ı«RP´Nù$√ó”U
+B™˚"~¨!2}SIµÃàó"Â‚ÛI+Pã’úàLŸ◊ôƒá≠Â≠úı[´Ü2rMa˝âiÍõúûiÚÖù#üÃDÆîMLﬁ?8.ôïú˘0L≤ËR¯âGŒ¿#˘bŒâEN⁄ÿ yöoÆuŒ"$#ä¢nTlÖ¶j§P=¶bÎ+ˆ÷(U–œL´ƒñ05G\z†õ&)Œ%?|ﬁ¯í˙òvŒ†™∞≥Åà„›B÷÷PÁPƒÉYN]`Ω∫√µqLrñπ:Z§-{{öìjˆûåÃ<÷¶xjü¶P>ÕòâöùæÍ-ÒÌÇ+äÖÒÏL3£\mì/˚û3†Í¶Z"≠ÜÂP“(Ó‹/ÖDÉ;®SJÕji’•oƒŒ*_(‚⁄‡ÚÌvY√¯'/öa3¡2ÌäπÜQïói#+>≠ñ¬Å5»'Öö,∫Rß´õ&c!œÈûœ<W~–ÎA˘$∞∂aµF®˙eêRÁ…wû‘0ôœNÃ\7eâ+´#$⁄B:·yµ¬àÚF˚.u¨Yöåa∆<no⁄4Ûí
+¯8fŒ/≈ìn·≠g•SXêkCøk>Zé˚”∑…9CCÍ36∆RΩgòá·]Ùgl”≈Ω"´ù∏Á≥4ET8sëÑ‘(1ïcÑÔCõ¿ZAUè‚: ïÅ¡π2hçâ¯•˙8‡èûYaÿfc¥D<Áäyá+ƒÅæ/‹Ò„Î∆†`ºæsï´íVpÎ2‹ñj§Òÿ)Æ;_u≠V®´œ©ôÌHçÁ∂£H≥1Láƒ¿1∞ûÏ(]€jˇ‰z]é≠¸§zuR#Ô__x£QKÃ–O>ÙÅµ,Óáó£¸gÎ§Pí©º‰õu∑=‰án3ÃVÒÄy‘$ƒØJXÂÈxÿ≈€-oV>!¬ös_ø^˝VÑ5cZ√3:Dè¸ÅΩ≈ã(Â3Ós∆{J6	ÓÖ¢ˇHâÕÀ¸U}€\·ñ˘¡ª»ûÃz"ªàÔF„X€ﬂ}ˇÉÅLK%òo1È6#≈÷I&–JDl@mïÑêµvÊ.ª@ïÿuÂF≠–J¥ªkVIlJI•G÷P9¬€F»Á…[è‡rº†QLI‰ÙÙ$ÑÜ +‰ú“>˛ﬂ∆∫∆aÊ|Jﬁ—NÃÿ0Rã–·°–›˚ﬁs/%@ÆyñZ…€n•˘`Jô)Rb~Zô>.‚£T»Ú°ãZVß¿’Ω÷–6g‘–T!fmM Cse-ÖÅûQ¡ rRQgìÏË>©mí≥?>òŒV›∞ƒ»œñc—ãÏë©Ä(L¢V≥LId a≈Éö‡dó€≠¿ıŒ´Ÿ+%mù.™D)öA¡ÄÀaDX—=Ëtˆ#*€≥ªﬁz√wí‰ añUq◊k¥≥ü)tIî&]ôœ®•aÛÿEÀΩì˝\≥§£\ñ~µ*}≠¶81ﬁU´÷Ã:xç&ØùÚ(´'fGÚ?∑•Ê6[ß˙?H”X^Ø≠’∏}X?≈eg‚:¸=¿˘\An◊ÍëcøŸ=ÕÇ&∏‚6∞Lr:∞yX'r+>ª}¢¥÷˘™“∫x mçj5
+ÁöÇn‹·ÿM∫}˘‰∫êƒ8ôù¢zHB&◊t]Ω3ÑÃÚOUæMÒß*◊OˇÉIÔ¡Ëeå@!∆√UŒ=◊ˇT^°uö±Ü_»ü<ãb÷J!¨¸úV^J)D=IŸı•O◊≥&´@ƒB	+É¡§Q∏¯´∑≠ŒmÚËp\P`÷IXõçCyõù”]êÍWL‘g1ïü˚![¸ÍŸm§>'à@(ÓÉÿÚ¸ó†l  Õ).π-")‚«»<],M˙…µÄ— B-çyÃ˜í(çªh™Ã≠ê˘◊d»°Lgπ#c◊„c†ê¥¡)ˆ≈X›qªeü©˜Q¸ÃƒœíP√e’2 ‚ˇ  ˇˇÏ}Îr7≤Êˇ}
+ò£cváyøâ¢(9ö7ô;∫ô§,Oxºf±ª».´oS’-í√aƒ>¿˛⁄ç˝∑'bÔSù'8è∞ô∏ÄP®Ó&EŸ¨ò±ÿU( $2âÃ/U bé/o	ò∂ƒ#89Ôäl¸Z†äß©ﬂ≤AäJi¬“àÒw
+a|¯ˆßwáª˚eÃëåIÌ†—¯ˇ¯ˆ§A^7vØËø‰«∆ŒI„oÍ@Lﬁÿ!dı›éÈ¢ÜZ~±¥@˙Én5J•ão9åà¬	aƒÄÎìà+0œ¨œV øjb‡i d‡”n,¯\N˛C#hnAu‘ÇäòÒU2¨P{ ¿Åœ.À∂Üû-}nˇJ∫åx‘Ÿ◊F)»AQ∫¸Ue¶ïA¬2CX”¡˙≈9ø8¡Z\Y≤)ûk4cÑfœı€U«vp[¯§ë¨z£+ÜØÄ√Y4…∂iBÈŒ;Íæ π’“%R&)Áu÷Cõ11V´ú√Ì$¿Öé“Ó+õg•3‚yÈú9˘zqèM˛„øˇ_"lﬁ≠»’^ﬁ
+e_h≤&$å∞ﬂtaHTŒ·Â¿˛<‘‹·Fà`Ñ(5-ñƒeYÕf™Ge;;n¨U‘¢Úî€?á≠Oo˙w,Cñ®Ç+±n«ï0M¿ÆÉ3À·}öPå	ôÄä1mÂx
+Ñ•|K›*àzúî—Î"çZhKûˆÁœRÍ\#üìHôXÉû˜C√â•ç!äÚÊ ´ÍÀaÁÊéˆ<óXæ!üJpÉ™>ì˘cH]q0Íd±?äôryÚ#˜T‡dêow≠¸ ……¨gºHπ÷1O‹l’np¨–aß-¬\´CLlhÏíeV¢ √(fÿºsZR! •t£«©«Èg<b]dâ&ÛE\∑%R˜ÃcQp[BÌrO	r\ı%Âíx!õK2ΩUw"‹1ï:x‰´rVQQæñŒΩoø 3ë—ÿ/Ö-ÑÇÌ0…∑Yöæ¨Ï–◊A`œºπ≈xrØìò5PÀèù∫^	Q√ÎîÊ”Çˆ∏©ô‡H˛ò õmG‰ÁËÏ®9!µ∞ªúÍxz¯üDã˚⁄˜#i™r7P:•¡}V2∏√pòÈdSUì√£rñëW»z µØqA
+7®¢]√Ï™}©S-±ıäC™ú‹⁄õÕ’©y“^˚”ºB?dqöGE∏©X]<T2√ˇÿ?ˇÑA{W>ÜŒƒ$H1bÄÂŒÃ)Y+Â≤t©Âã¯MtJÊX¡ØÓeÎ^µ∫OÀXq±>ECœE·sÄ)¡`òlPO†Á˝~ÔSŸ¿BKëœU´ù∆Á/nNáqgÀ√
+ıØæ=ızõeûJÚä7/%ßΩÓ„]Øõ´ ∫¡„·9Rç‹«©N˙pπLﬂ›}€Ô7#Ú&jvì§SJSe÷0‰√92cã…[ÿIÇLoGæ'≥Ø¢^‘Ã@—⁄·wÎ≥∏√ÿ(2M<¥u%D˜{zM∆hÓò/∆X6õ §˚
+-ƒô~Ò¯Äéùzelª◊IO€EÏ"iTaÇTòW∞—Q⁄ç^UF÷q1Œüì4IRPb∏;&©âY˘vr‡ª§ŒHw”È™5c∞K3©÷´—Òw^≈=4∑íZ:ag…Ë	â⁄‰”à\%i/æÓ›#õ‘¿}y∏7:q^Nià;æ,û˙ôfhquΩ¿›¶Ï˝sé0ÊhW4/©a—˜5ƒJ Ø/6»†∑E¸_„¨|Ûó˛nC ûåà`£]¯B¯4@«,ü∂ºÔÓ’ÅªV¬ÇîÀïÇ"ëT=∫¬8–tü:ëÎö.mbáÓFi51ü,≤c©õS{å´≈uôNäsûÿùæ=b¿HıÓX9∞—Q †§ãµ
+õo«ÂáÈu’π⁄-ñ3€€≥SÕ@b≥AØy˚Ñµ•˝,Œ+£øäu—€é™nOo´+$∆L‡ó¡.£∂œ–S\“¢˚ÀJ#á5˝_√¬+TG∞ÎÎ®Àı–`@[™vviSõ´g≠Ë∆‚5~∫%\u.C i»yÅ3JmíÛqö≠çÍgˆt8%g‘xJ]+s0R≤x¢™Ó?x®OBˇuLö8‰y--ﬂÕô‡ÉOß5ky"UÔ§ÂÆöô€É$L‹8}ï&ÌÊTôµ|_Âê•ÑºâÜÌÖntÖÈáßº »|yç’)†é ßN%§C.Á6‹≤ëJG}ÏEù“	¸Îº?À˙˘!€."ÚÅÏEΩ≥8æéHmoèqæÌä.∑:UÚ∏◊∞Tﬁy–Ìt¶≈i‘uvDb~Ÿ6⁄ñ9x¡t«3øÍûg´>˚åemq‚9yÊﬁæw»´¶ò;¬≈ãz<D∞âÔìE∞ñywÚvØjùLÁ*%tvê∆ÛÏ∞çœ9Èa¶dnÌ«q’í÷ñ∏ç(¸é∑äñπ¬ﬂ&~Ûn±Y4ı’≈p‰ê∏8œπäL∞n3öZ8ù]Ã“Ï⁄Â]≥• eè“„Âx8DPïˆ¿eì±Ü/Î!~kJàüqÃ,Ó‹sÄ_÷-9÷ÜÂ_¯,Îzü≤vÏfá%èGÊ≤EgQSÏêé¢¨ã(jª7ôˆ¿B;Ã]jÖNñ∏π‚Ñ}ü—54ît;Ö,ºä3Âı3®7lÅ°Z±;mÏû˛¥OéO>ÏÌø=9Ê!†˚{dÁhøÒ◊Ωwﬂíùøë›◊ç„cÂÂÈÖ}Ôj–l¸»2c“ïìo..íWü"≤1fGö4áùkÃ’¬¿Ó^ì[?Ï$Óg<mıGgùxæâz.PÖ¨èe÷¶≈iΩŸπ!=†Ã-ZqÔ‚πliKúsˇÚÎsB¡Dr˚ÀØ‰Å˚≤^µ√‹°üåz…?F‹t)#E±gÙÂSØŸ€Âe^êFöF◊”QÎ≈ó‰8÷"m¨(ÿTF¢rÏÑ˙"=Ç›˝ﬂg1NÌÉLìPü≠ÉÆã`®"`˝Dùx+æKôÙX§[öÖî¢@ÕŒqéœlÈJ° ÆQ±≠R¨©ÑŒ âÂÒ3˙¯,j]ƒ[¶YK”Ó Ö[˝°Ÿø•Yr;g˝5˚¢Â¥åã∆‰ym rö˝◊j41’ﬁÁyeúùå“A'vvû?∂vû?stû?-t^´ë®EçŒÀûπ;ü}∫vˆüYªç}∆GÖÁY»Ë*ÎáﬁOX∆Úou5.ú˜”˝®ŸÆ’ö∏∆rl7U/cãyÆ^c©û'9lµ÷™,WjÂ¶≠j*õhÏö‚gºkˆË˘7ÒãÉu˛™Ωò3ºÖ¡(k◊t’í1@ˆï⁄Éú“/‘JûHª≥ c¨<æU:éÀi<•=M•)&a
+ãÒﬂm¥ê˛ııIC˙YP?õﬂy1,÷à˛r∏¢∞®~W[ñê~π%∞à’⁄y‘…äöøÆ§i⁄æ°Ω∏Ç˚«	ÔØ‡≥_≤øZ1fs˝s˚W}^Ã≤x}€ñx√∂%∂¿[èNY%¶Ωs·	2´òÁ’‚úO„}√ìºä¥9Izû§Õ~øáêè{£ãwM5F◊B!ÀÚ<Ø/∑ÒB‰%f≠¥Ì∞ƒb,O,QéZöh_Ä"ßq¥ICå“·qÁƒd>.úèõ+îmÚÁó)DuÓh®4"–•øÅπ©SsÙÈ‡d!aË∂9ù ™«≤òÀÀÌÎŸZæa-∑,"ô7öÏ%∏≈Ä~£/ÌOIÜ)∏FàkÌÕ©?BIR$Ωö™0"ù#´ı[¬d?Ê∏Qﬂ°ò∑⁄“ÆÂ◊ÿZãYÓıqsW–≥8<9KîHøêRÔüîÂÌÔÛ¸âhpY≤w√¢ª&É‚ˆ≤vQ≠∫’fÁ…ç–ñŒ.n]ŒNJ!z„∂\∏è• <‚lgÜ™kNﬁº{[íD˙!≤ç™cP=ÁËÕ©-õ|n  ª%∑x6wcù€¨˛
+îä!ﬁ€ÄNá‡Ë≠;“ﬂpjæ˝7“?7Öã3m∂R¢‘õS4ú+4Ö˚•[≈@Ê£‚ ·ÓÜ€	Í•œ]—∂Ùn+Ê3aÃTxƒø¶jœ^2GõòüyŸH)…∞"´®ÇÃ1^ñ⁄‘œ¶b„V è|	¿NıV√8Ω-âO√©˝é,ﬂ. -%p7ó#5˚Ç∆ï~ƒô¡ûπfbo≥$U≠ˆ·•Î¿Îmø†i#Úga1ÿsu∞Òr2OwŒ˙‚Úv›„ :ï’∞LT:sŸ=X≈e>X©˚»√Hòı”5ˆÛK‰ü0Ç!8”≈ºÊf´ıpo“öòX™êÁ—WùñùCdõE,ö
+):H)é1)O´¡:9ù‘xôç ÂlédáAπ5Xwxñ≈ågYƒw'O≥»™Æújz¡’‡r|ˆÚ&J!ÙÈGOﬁò±ï7’◊¨brƒÚ∂Ïh¯Jå≥åö`Ùé‰≥ªTØ
+ÉB¯~o^á»õqÉy≥=ŸÈñÁ/™õE’˘On=æ5Ï°∫.¸©Q≠Ø_ì˜ç#Í»-yı°q¥wÿx{¨¯2‘∏ø√"9˛p¸~ˇÌﬁ˛∆®˝pxpr|7∏÷@e¡ÔŸp@è1]“‹R¯9v|®=ôÖâü%Û/	¿Äµ°?ß‘Mã∞«§e$¢õ"ÏZûCWØIMds≈<‘àlî¡ñø•bbÂÚ6≠G^ÍËµ/Ó≥∞K›õÈVDØh ‚w†ÏﬂYîﬁØÿC^ìh@û8ÀhBﬂ¯Ù‡+⁄…˘P{⁄Ìß=Xi Ãf˙7ºa%H≠ü ¬Ú˚˙gDÁ–~ØﬂÔy*là2Ö*ÂΩRs˛‘≠–é˝¥åVŸEÃlHx¡ºFf¨`#∑8U¢µ”·?>&√6#8q^Õ6Ã&]*è@s†<+«…[9Ãú•IÑiAŒı>e,y∂.,#î?Ø‘ÄBöˆ6éeÅIöëÑç|√[I≤˜b·»FÃ6åqd≥µxå≥0ú¨∏⁄A»ÊYp˛Í˚áøªÇÈ¢ü^≥±x#ﬂvçƒ-â·NHOÚ50^_ ˚ì˜Ü.ûÒ:≤√^uˆ°0áQ⁄lìåb® `
+±ÙèXòÁ¿6;…*´Óqæ€›øå”]–ÃlF¨Çn4l“)≤∫˜–_Ãx”ˆ‹1<'Y” éYïÿEø»'ﬂﬂe˝n\À(ø1‘è,§Û∏0ﬁÉ⁄tHı∑ø6¨ŒR[“‚’–åª’ﬂ¸ôU¬ï‘§Uc,ß“|∂aîø¯†;ÈòW3LG±√]áÕ çB‚ÚÇuªa÷«Á∆Îå˚áº/$√@˘2¬—Ñ‰ˇìµ¢H	GC\To∆*&ç–Òﬁm'ù‘ÈmÑ˙®◊@·jŒë’1·OÚ)òÑÁ@	S&Y?-ı»9ìŸíåqÅS˝≥Ì˜Ö&Ü\d#D√T[Ué£]"tl¶⁄.ì/≤IŸÊ‚∆LzC#”q3ﬂmm°CÉ’_.»?éã≠;ıã3€˘√©ª∞˚vÑ€P·Ê¸w≥≤;}Õ‚Eó[Õ÷(•∞bÿÏÚz5:<ÀÄŸØêgÖaäÛ”Ê\∑e1œÕ
+Õs#íﬁ0lÕπŒpΩõæ∑—¨Qíæb∆Ø=yrÏáˆ<Ê±i÷Ü≈iﬁf8?ôéÕŒ∆MN9.¶Õ—'á?„)uTWÛ’%-˘áß”¥qß3å‰%–ˆ¸Ü+ Ïh–ïpry*éìláà≥[`ôP8ˇöÿK^ç¢¥ï¿∫"G‘üœé|„v/t¯ÉP‘!Ò)ﬁî<Œ~SXû®E=Lê3L˚ΩãBC"1NASªÂﬂªΩ»ﬁ|Ij7Eı‚ñy`÷iBû„—YtÂnä≈’≤T?µ‡6o	+{u¢3weËêœ™≤J{£≤◊—Y‘ÇˇªÎ„±¨J´ œ´tLoï†⁄˚r·¥≤RﬂÕï$A9”?KPHû G¥e`Æ†q\:¡`J øæ?$îê≈ÌD!%≈o≤#ªj†Uı–¿È¯ΩB≥Ô∏Ö èBTäRÌ\5jB-°.t*CôDıF[∞Ó§‡•"Iâ1±SÇôÂÙ˘≥<hÉ˙–]ˇ…µÈï,-V≠QòNæ∆‘€´Nh≠∞Â2ïƒKeéü¶£'æOn gF¢Æ‰kÅWAoÕΩvÀÉü“Mx pç4£qÙ[lÑîÿZ>%ë4œ"fùBp¨/µöπ›‰A/h÷GÔöV¢H,´Z}j_◊Jâ*+ªà® ÊTè˝ÉÆn~àÛΩ∂ª¨.qeúÈ"Á°;µ<≤ßÏé+õhgÕU4Ì5_¥b>ÿEüüÜ=Ëuüw”ªÙ|óe›ÀGˆE/WYÒ(¶D√Ã◊:ΩÛG^Ë a™°¶-t	™FWy„î¯[SYﬂ¥˙˚[‹÷ÛÉªæ≈1ÙÉ^›Épx[˚‚ŒüŸW∑|^eyõ ∫9rnæ¿%òŸvÖ ]eX¥.áóÆpyx5ÂuŒZπøÖn9ø+_Ê÷.Y¨ÏDçÙItÜvEÓ(fmpöÚºünÀÅnjÔ\l—ø”˛%'∫lò∆CË
+<	¿ZÛÿ!ËßÚmÌìﬂ'ùé=“*Ãé	G$∆€ò˘Çæ√Îæê£nä1≤~ì¯«ËS{H„–È«zº⁄9EBπP(™å«tcHÙπ∞¸.™¡Ø„Ìï
+Ó9tÃñ9π-;B`‰g ™ƒê)´ΩØZ ∫a∏1l°N$uÛweEìJ7◊Q+Éø√d·êR˝ú}v[≈êÿÄ¡’Ò©6à≥ª÷¨˘÷bqX÷›®•N}Í^óèÙ™˚äóê¯Üíe$TúÒVëx€ƒpu‰$05´Âi,ÆÌ„Q/M23›`	F#aß[‰ØQ'A‡Ç_Ø÷ƒ˝,LÈïÏVâgµÅ_)†Áz◊ßÌêÓ+]°ä∑ÈWºFÛØ(Y•x::∂§£Pg9Zq}‚]mur µÈ¨Õ™ÎíÀuiqé◊∏'ëô;¯Ábóöb05x:ﬂ™¥üw•Îí˘]≈Kí~@…j‰æ„.H	ì®a)ó%†≠Ããq
+ã≥ë¬ûu|><¢ó◊)Û¡‡˚æçF°;–Ói•≤®mûÏÎT]˝“∑ZÌÆ$cØ÷‚7òâ◊ÄP‹Y#==rÈ&Ω˘À˘_V÷ËH3GΩÃÓe¥Õ€–HaaÕÙ!âŒ≤~gdèVCñb¨+oqÖÃ”%K^„ó='ÈFCO¬ÌÈs‘9b#Ïì\¨ı.bÈtZ‡c≤Èz∫@rp≥A'j∆m†…8}1sE≠Ü3ïŒÿ≈Òy‘˚” ≠˘O—¬¬Ç˝cä¿ÉŒ¸32HÁ7iê©‰âEØë¢ÂGa•˝—êõ†á.¨¢Ê(€í{:ˆìõPï9˙Ï‚ íxIs+î–x<!¢Œûm_hù|◊‹π3:˙dXà+óc˘¸œ∫$ò6[r–xuéÁX•yíEi≤Ø‹” ùÜ˝?˛œˇv0%Î±Fô[-¢nª'?‰Â˘(÷Ét˙-s∂™b˚fO∫4»ÊßEß©^YMª¢9ø⁄—,ßÓ»ªÇ14Ωf4¥E∞s!hü≤ˇ¸˜ˇı?Ñ7„ÀüG–P;“Ä0∑r»ü#–ë[VÁ«f4†X=ˇåôç€j˚7º)©<´Xõ€¨$å](hùØxù/›©ÏÊ˘0køu7<ÕœÜ∫‰ct≈“vG£ﬂì^tyTï$‘7FXn*fi1–∏ÊV9n‹≠ﬂ»Ÿ˚◊ø<Í±ßòdùı{d‡.üx5⁄amÔZÏÍ^÷däÎ=käºLíQ¨µäQúí	/Õ9dlô∫ù˘Âj¢d/9##“å;	©≈ç§—È∏|‚ÔR∫(∞¨lòif·V«	ΩY.Z8kÛõîq≈ùËE`ÆˆUÌEd+àBP64‘5k‡N9⁄⁄äìiŸ*óÅ¿?FåBó„üu–µ-¥?d];(ÛaQ	¿5/F›à¥Å Pè“—®Å∆ÓqÇ≠c∏ÕáŸßiE◊xr∑Zq÷Ó„é=Íµ®òj∫4œÂ∞sj°N0{lÙ¸‰<…˙$Eïø7å*fﬂr œï∏õ/cLûÍ}ﬁπ–~R	ÁƒG,ê"Ö“b<ºµWC&WÓ^®
+jTÆã≈â*∏Û@^á-÷_I&c*ïxt[¥ÂsRb	zØ-ÏRø(¢ò¯ 
++CËCà“=q¨`øÜùK?¬7’Tßqã]r™º•–ö%áø§§∞|Y‹r
+æÌ2,(∑à17ùe’[«i¡RØ≠b£áz%ƒ-¿ß÷.ú¯÷
+é~›®5B8úˆ≈e7¿±ÀãVÇŒÃ$ {'˝9Í_ZÕ@f•Õo:tx|Œ–œƒ[äéW⁄*›(¡vô¶Ç†M,„À˘g ¢û©è“ g”+ËRl	 VªB◊ªî’ˆBY¶˜Ÿ–j
+9ì
+.ÏÅU˘r≈óØ^èUΩ'EÑ¨§Ÿé“∆∞Fa˝>†ÁC»¿~}t§DUØÄlYÃ†◊p≤$&Ó±ÔX!Å2îÔ™˝÷ˇXï?Ò¬	kÂ¢0ÇhßÒ9µ‹w∂Ñ%ûÅ¡¯ÿûzï'ﬁ(Ól$Í$EºT≠è˛$è‹◊O≠4UQÊ⁄`™Wÿ|l3ò˝‰œME‘ãêÆ^˙†ÕpÇq∞¸“≤É∏cäﬂ∑¸Ïgë‰Ìﬁ~F6¡ ï6ÅOÉJ‹ÒJ´Æå Æ}d˛müF˚P8·*°OL©¬éº÷µt( πò=´±Ó∫$ªà¶8KíJÇ)?|>πm`´–ΩFπoÑΩó‹y!¿·!ºÊ-∑`ˆ∏;Ö‘($icÀ¸yë›ık;¨Z‘{2úÛ∑¸Ä5ò¡·•úáˆ=∞ˆ∫óêÓh∞ä>.ä`~"ïÜá9¿‘ﬁøqß	0zPatÓh ,x˘ »ÏïÜÅ˘Á’”Ü0πÍÙ„6/E$ûDw$,–9Çe‡2Fû†(24A*'™Ìr™YÚwÓäü≤´dTlCâÂ≠∏Õ≤Ïéä’ì¬T%Ç-ﬂ…2u€Y6È#pÍ´OææÕ5\ägçyÿ®0∏⁄nÑŒ˝mYó¸∫ëü
+RA˚©Ão’ÈgHh⁄-∞
+')/¥[--pìåÛ0ŒhŸKÛ,Á&r3+Y9Q&ZÛﬁíîÁZ≈Å[›ÂÔE& √Ã¶8÷•" `2BˆK4«Wí‡3oí^Bˆb‡œUÌw∞°]ïi}ÈòÏØó˚?Ç®l‡ÎAsX<PwÏÇÇé÷ç∫_•QkD±Óv£Å°wH0ê±∂‡"iÌFûrËIú¨Q_F˜BWº#Ü-„hÒáóÅí$]zp,(†Ï∑äÉâKø‰Ëà≈…|0Ûb ”Aìzü∏∫.8ﬁoΩ±[Ústù§QﬁÔ00@˝õ¿0Éâπ≈ÚEÜ…Wã©C)ãR-gˆ&ï‚…^V¿lw]"Ö3vºP0âijrÃÍˆx»Ø“Sµ¬†j,û¥›Üæ¢ÍDÂL/◊´ot58˛*W¢(`uTQè“1´÷ÈÈS!ä¬“™‡•üv=’Oª∆∞Ó≥+‘Ó∫Ìı≤´b£Á5áeTNÑÚI‘ëáÕVÄSÃVP<mùôQÿâ —|Ô8z@’íÜTc8K®ñı
+¶◊¸™›hxÎ»Ahä3Ú:˙˚,zﬁÜnÂ√e®(¬äeÈ‡Ù1Ü¡¥cÛ®Ÿñ?¬Ãº£éòâ\3œœöÏ:∏˝”ñ|2∂KJà™ÜcvyÕ«∏ª∂ÙÓåa(V{U0WÓè◊<\©∂‡≠?ªnä”Ç≈˛pé°&∆Y∂ó=ãÆÇˆ±Ï™`„/XY]~îóÔ.TØm≈A¨¬ÄPûm§Ñ´˛i„~Yqu2+ú}eV\cË&bﬁé ‚öÃ!@\’…\ƒ‹S›√Æ±‰ Tãz¸á≈eKs]πµ“"ÂBìö/¢¥%RˆŒ˚%Ãj≤∞òíºÄ¡ñâJ∂ˇ·H€pî¨©[!ƒŒœÈ,AΩ¯ﬂHuªxñt˙ÊKRΩ{sG⁄ÈÕNc.Ø’ªÀÈ :Z+ ã.ÄÂd£G~&ö¥JÈé*KÂàÌ‘Î¯"∫Œ¡⁄=.ô7t-z}£z}.w}#w}.t}#t›ñ|“á°n·{ÉPÅh-·'O®¥ESÜÃ?€¸S' ≈åûáo_ëìá'áÔﬁ¢{“ÓÔﬁΩ&˚˚«doˇ§q¯z/œ™‘0›åü†í¿§wœv“8˙S’£ﬂö˛SdU¬Á/à˜}3=}âßxªàáiovÆﬂà€5Z@aˇÚè≈EÎùÊ©ñf’SÅf‰2ÅÓXG»pDIèú'È5c3#ºˇ°7àí÷	+˜:A˚#©µ¢aÑ˘;§m’Ò_~UiN$M ËÚ‰JûVÄô3y∆8”¶…⁄O„&»6;Iß]Ê_˝îÁ=UÃsHîœË"⁄·hÚÙ“¨ÊÖ¸…˜ﬂã!Rwpw…SÂ˚3YÎ§èhﬁj€Î|ºYóﬁD√6å∆UmiNÈÍº“Üµé$csÉY´îﬁ`íΩx°°îÁf}ÂŒvﬁ	kB:ss#&¿∏ÕF√º+´∂?¿òOÚ±2ü∞(ï-<„ÂCõˆn"Ù£ﬂ˜sˇÜı:ÊüíÂˇ•˘/¢µw´•ÿ≥—:™+H ¯ÔÇ2≈/iŸvQë.ßÛ~ sKuÎè
+™w\zò–µë¶—ı¬y⁄Ô÷zÒ%9éá5€
+•+KÎã†l)¯Í¢À;˝~'ézu6ò%ÆwÒÀØzg∏f√˙{v“ñ"I`_Z£—k°	icπ’ä}5ÜN%.û.cÅræî)S…I)ﬁÄZæ˘.H˝£¶çOOÿ6gÎŒƒçÖÏèzl’OPÅndø∂+ôZE2È§∑&•˜Ñ0‚◊fïﬁ*DúcÙï}h∞å˝uµU5É¶§`vj?91ÅÏÈ˛—§m∫…€øƒÕa¨ê∂S"⁄≈†LÈòç∫s$c*Ï®Kæ¢$3M]ı9Mí(ù·ù‡¢®jG®∆[>	+d´—Ô¥ÿÔ¥ ˝ú˝Ê∫–^|6tÒ≠5§•AÉ«3_ÓÅn’ÈG-≤{¸ì—~8W'Xªîåé¬!,DLb“Bk’∞_ëV∏HˆmöŸ)~ˆÔ£É˝Éë'˜poé˙$PÿY~èrÁ9z∂Ç!´îFÎs,íˆìLf∆ãùƒôÏLyH◊j}é€"“ä°⁄ì˙ùò„>9àRˆõ+Ç;l$È=F ÔÕ?%Ì_‚wX9º&vt%Å/ƒ”ô'7≥ºùô3o“†4¶ <µ≈ô≈ã92;33[gE}ÃÚ-|ˆl=Ù]ÉAæ]lT}7Áâ%/”w•ÍÏÛ |÷Väèq~ÏœsZ∑?g –ÌÃ©Æ¶,¸Õ⁄,Ãf]ãöÂzhßÛâ⁄ƒ¸Y˚E–Íwt™ù#7t+ŒÒ¬õŸÁÁπ˚Ì£·˘¸ÊÛY 7ÕzG)™ôé^/4aü3åﬂù˝~◊∞EÀ¿x>¡≠~s‘•K_„âAk3—åˆñ^Ä>4Ü,≠m\õ¡•ô9l∏¨dãØ{(}∫7∫»íãË∑„—Ÿ®˘#Áﬂê¸ˆ‰ÜÚº[¯GgzSC¡wx¸ÓòjI+tíamˆd∂˛À“Ø∑08ßZ„ÚkŒ˙≠ÎÖhÄã∫å’∞[≈~6—§QÛTë∆›˛ÁX´B)ü	]oazÿ7ŸEmÜÁBå∏€Çü%WIè ëF√-Riíı˚§ˇû\G◊¿pÄ
+Œ∑ÍﬂËMú$›∏?÷§·EmîÉ9≤∂¥§Ú¸[_>˘˘$ê/CI+_Óƒ∏EÙSî ß/∆∏˛ﬁ;’ZŸwP€ﬁáW«áØ‰¯√Œá]ÿå}x˚æq∏Gæï∂jz8⁄ˇÓËƒ]ÀõQ´Ö5 ãÎ[Ñìrù[`∂ú»ÍÓ^≈Ω8‚k·ª%æÓ£iH„≠ª
+fÁ;$.g2¨Œ#”naƒﬁ3$º˜‰∆‡*Gr˜cº	¢ı)⁄eÏ¢ˆ£fªFŸ4(‘•'¿2Å√-ﬂ.ê_äÈWbHÊgi’¡/.∞∑Ãw-™¨*!ŒuY–Ë éí∫x*Y·òö@'ÿ-∞Ä.PFô•LπÖ≈8· Å‰≈Ìb¨§k«|£Øâ:=pÿ[≈8∂?£æ[ù◊¬™ª∏àSÿsH~UõÆ4^OÁ¯Gò<XcÛ£î≤u`ËˇËß’£6ÅŸúø’N∫¿¸ãÏ~ ‹}äiŒ7|'@2´˘ö=èy¡Â2(Ø9#◊˘sòØªMnnk»õ·‹e5ÆıFùN·Œ≤ùØ´ŸŒ+Á9Øñ≥< I9.Á©…9¿¶ë|‹ [ëiÀ?∑ù~^rb HL:NZ†â“ãõ'Ÿñ^Ü˚àRPKœ,Æbÿ‰~ ´nú©F'NáªI⁄ÏëÇƒóG‹â°[)ë¯‘ráã¯Ä›Uî_sEπ&dÆA"·íá{≥ÖÀåFésˇ<ä⁄¯ˇ˙≠p}–ÊãÚ˛a‘Üüπﬁu•Öﬁπ¨Í”ØhØﬁÃP3¡∂üèVK∂ΩÍM∂M..ˇÒrmÀ@ß‘ñ&È+Áç*¿1ämgÇ+tçI«mc{ñFÖO¸6ª™Ñ ÖäÑÜ⁄P—≠∆ÀÁÊa`•qA
+ìi*ù~gù~Û”ÃKU’Æî±ÕíEÕ–±nˆ¥≠'Ëy“ã[h,ÍÇÊ–uR40˜{{…EÇ{Õï9îΩ÷'Ë≠‰ÉSw•Üs JÓ g¨;ƒ\>r2b´ªåÇr"~8$îá î—êaò
+IﬂÙAÚ [uÇ‰R!ê``πVB8	á yHT¿|ﬂKiÄY|{ü˚I≥bÓG'	0î…Hå≥≥¬LÑÀL?u˜¶õêåî$‚§§`< rR¶óë‘nø”°ŒOù¶BTZË+',ÂÙ°U¡]Ù§ '¯h*Ñ–®/7Q
+˙ÒoÒ|"s‹œÑùåœQáXhŸŒ˝tãàëÊªï'$ÖøÀ˝wC˜Ω≤–elíA?[)^IÆbwnw¶VÒTJl…TdŒfœ∫û_b˘Sñ0È«™e¡ÚY$c∆™¯3
+Dñ„£KùÏ›∏ÃÓ|+ÂW<ÈNÿVÚ”û–ÉÊKq–åp…á{ÛÓ‘'y&´Îé+Ã¿ö ≈ZCX&óÄ,sØh©<l
+»m	Zî]À¥¢•m)O∂‚H∑Çq‚÷ÚÎ{∂÷Ï“6ÿÓbñº+ˆ…¬¥+Ój 3Ø¨0äâV–q?$≠ä/bŸ‹:óß ro¢ŸÂ≈p+ïiª∏V£Tµ∂X\xä{TÖJ÷˜√ñùÓ`ø:÷B3lP∫°Ï©π»Ã‰q˙Íí±æñﬁ:Xjüz]Ú¡ú¡5˘≥ü‡!:=ÎÎ–c›::qVﬂ^dÔ8V©ÍÀI]eöÍxÂ\£º# ﬁäâ≈ø_ ÛF˙”ﬂt›AÉåÜ¬µY§MÆ>4öÃ'u¸4‡+%9[¶ì◊–„Q`ß‹Víaæâ÷ﬂ~ï9|çC˙À÷,‘¶¯pDóÑ⁄=©≈ÁmÒsXãˆ‰∂«c~V¢ü2Ú#F<`¨°[∆;ü¨∞∞»Ùæ( ⁄«•„•zè(µ{xÒì‘ÓÒO˜LR "'*ek∞4í ˜§‚2¢ò÷√à≠√Œ5ˆØöqáz$U•Ø„AG≠¨«~2£c„$1•˝/CjL´b˜œÆÖ?‹,=…∆¡ûQÇbá…Mò‰DbÍJrw«‹mÏ∏πEÜ{Qt5:ΩÁ*ê$ùª8ùÄyüj¥¶j‘8~"&ñy©KiíÙK’nÕµŸßÓ~äû±·lŸ*‰…4∞6ÚÆ◊πvüﬂ€æÇ{0Gë>º>OÕX“˛Å‘ÆÍ¨HÒÉ3ÿµwœΩ¡3Îïp[πÙ`‰J'Û)"‘ßàÃìù®7ëˇu@
+o/∂W¬œ…1*¿ô¨IKD≈R+)~EÓìÒèÍQrM9Æ{é¡m
+¢i*öJä»Fy∆R—á^ª¶Äõ_ûDQö$ü⁄-Tú-Œî¯ì€g≥˛¸ÒªY¥^«hRõÌç@¥&ÕYw:˝ﬁ¸Ñ±Q˚≠Öy_ƒòÓ—zËOâ7ÊG·F|/æÜ)A_8ü¶ˇtﬁe±toKÌ^óiœ1˜¬Ö+OÇfÄUI”ä∫múVb4ªqVKç¶ ÇÖ%G≥∫wx”£â˝$1#Íüá+ÓÈﬂÊ´Òç3cZÄoIû3Ìm_∆ˇ2^+√ÄëÁBáaêiX‚∞ùdÑÌq∂›˘⁄\ÂF%7âB >‘π4ü)˛›3N•ã≈»úà‚s	B—D8¿6äíÌ!Lx·=Ü©qdA,NNÃÔ†]ä˙˙„5µú-ëMó©5S6≈Ï@ÙéôóŸ^∂«}Ÿ‹4Iç".Í[Ú÷Ü´}ä&©OÜN}ã–	IíNR˜9@√%Ù4∫öRç4tkz’19Bj4 oÚZÖæ¬\µß“G+§≥<ï’œS¶N…≤›b∏ç⁄?w≤PMZy◊ôCà“Ñç<l°$]#ªX∞Ãe¥ãë€Ã…ˇEyÃÆN˚Âø-Õ?˚ïF®˘ﬁ™-Ωâ≥,∫¿f‚^≥ﬂä?Óˆª®6£ßç¨	⁄	*§s(ÆP§}ë´Q6eò*πG˝Œ-Æá¸x…oÅ~âg	î”Cf–D ‚ípÚ·xã^bb[Êπ@¢î%Ωà˚¿_—Oœ≤≤ˆËLtqXÙ.ãzIÎõ”∫3’$ª°qQ
+PCÆ%VLj{±ÉŒk´Kñ<WÂpd€√ñgÖôÿ†®A+bgÊÂÙã…¿jÒJ∏í÷¨˙œf ˙üÖ0ﬁ*¯∞MúÇ€:Ω~⁄ç:8FlP8‡ˇDc6nzâoné·éÂqJ·xzz]CEç”√Vº™X∂bÜÇj'R[ÄmñêÁ›ÃŒì^´F1hÜ"H√˛=ıÔ%BÑΩ@Va¯∏·ôOBi„ëñç†tÃ¥Ú¿µA∆çf)Ép‡ló;ÑÓnrKÊedóñù—’—Pƒnvï%'`ÎNI‘XLﬂ(´(ü)Iâ«^ó…ÎC25äã[f?FMÈÉ˛z¯îk“«j®ı˘ﬂÿ/˜4Ö”HHHŸû¶≥^ﬁRT°∞$«ˆp8»∂/£Önº¯DÎ¡Ì˜H)/&W´ë'Ã:u4x1ÛÏ~{ü™–Íeù3Ω~Ä·”§E|ß©€%ƒ~È«
+“ØÊ»Y<|+¿ÒJ´ﬂ[ÿ8∫-Û¯√ª§04®⁄Ä≤eÙ61)9GShè|lG√¨1‡â.*≈\kg⁄0‹¨“Bï’AÚñˇÛﬂˇÁˇ´B™UEPB8VkX•ïÌçß’ö†Iut)U6ÃÄñ=y
+Z,€…[’m_‚é5ø≥ˆAaÎ–5)Öó—3ú˝.z‚äππ§É‘Ô6¯^&X~*lh>E-˜BU¨b`´íh◊a6U”ô)ªO3jû,©!?F◊gyjπioÇ˘ŒòCƒ≠
+-ñêòü◊hjagË5fõ˙ ›…ª≠ì!º◊„b^Âæ"Êe¯éÑ&"¿Ÿò≈ip8k√Tı◊RØ¿u1øów†¡ΩèÆ§≥™Q÷S@∞_«ñe¶Á6@˘=√«Js◊ªÃ œ‰º.%õ® GÛ‚zﬂè†m2Ωn^Ïs,,»◊˝„L°*Bj[Ù€,@sO‘“„‰¬Ã¶‡^≠_Ë}Ä<ˆ:Ñu¯=≥ıíÂ\¡¶Äóó$}â†j<pp{ò”≥À™áØ◊‹jæ@UÒ˛YƒêyæÈ 	!<>Ä[p,ˇ0ˇic∆OÜ
+p5ø˛ Ò„Ò‚ﬂæ";é…A„hˇ˛!‚wF!ƒ^ü*@¸»/˛‘Ò4°∏èóÌ>^∏'<Dô@áœùBhÌFó§ˇt~R†x≠l⁄∆ct¯[¬‚≤[u
+©≠Vr`Ú¨60˘¸â&œø¡	$œû[Å‰ïG’Å‰ÛŒÃ+mî…´Ω	íW s yÂŒvﬁâÈ…À™ÌÅ‰µ9´ $œWÔ›Ä»+ËÒˇ†AäaÚ;h/(0òJÿÒŒ#t¸:&u‰x˝Ì˚égÙúÍàJ› 8x.F¸êÍP-$†$‚»Su‡(Œ˙ùœqÎàÚ—, √›<eÓ–Æ	„.ñË}B∏„|Ü ∏ãæ}ËÌH+*Ç;˛v¢∏è≤âê‹·˝Gw?äª‘;(ÌrÈ<¢∏Yw†Â?àªüÑÕ‘'†Ô√√oáix@Ì“ ı∑#ogÍÇ›Æ3l{.
+–Ì\n9Ùvî7è»Ì#∑„k»ÌV!U@n∑À™G‰ˆ	%»Ä€K∏¸#l;ªTÿv Ê{AmW€	 m/r1€1€´a∂ﬂh;{‰BmgO=∞Ì(7æ^∏vÇæCôÂ~Ã#©s∞v∫sy˙‡ €¶cÛ¿˘õá›çÿ~Å®|‘J ◊ÆÃ˚Ø›¡B·⁄ï˚èpÌ ∑2\;’€Ô≤=ﬂ‰=L‹G‘ˆ;Amœçwá€nZ ⁄{DlüÑ*!∂„Ùﬂj˚›º?FràÌ4X åéh—áEH¥K!îÑ4$¡⁄ßBD" BR?ü|(Ùœ˛œ˛u¬≥‡∫Åú:ªÓ38ª^¡WäÕ.-w ŒÆ–≈f7ÊÍö›xÂﬁ†Ÿuˇ£ »Ï˙Îè¿Ïè¿Ï_90;sF.∂πq=b≤?b≤kﬁÄ˜HMèpÏñÎO
+«éßƒ„†±Oãß˝ëÿUßàGıª_◊Ë˜{˝KbØ;èπ¡÷√¡÷è¢O∞à?Ÿ–÷ãî:“:xo›‚:y∑êÎhyÑ[◊Ín=¥¿äu]˙[‹‰:∆’>¬≠?¬≠pÎaù{=O]ÜVMeù	Ô)T˚≥^f]ƒ¥˝i ÷ôX´IVßÆÖjùuı· Æã†Gƒı?9‚∫äÇì˛¡˝¡˝¡Ìæ¬ßÑ<Bp^è‹
+n©–=Bq*|Ñ‚6KMä€<¸%†∏ÌÒ…èP‹èP‹•◊#∑ˇzÑ‚¶UˇY†∏£–]◊A‚fl@sØ…Ÿ«Wâ√-ïª‹B«°∏ô)zÍp‹ÖàÔ1∏π=zà=}ƒ‚ñ±∏Ÿı%"æ°∏È≠á≈›ÿ=9¸iüoÓÌs,ÓªG‚nPÕ¢TŸÍ±ApÁ–¥yöa@µ≤ºOÀj◊∞<U8k;"m§t,ì÷zÊQÀ∆ƒúÕ∆öÕ&AóÕ&ÇîÕlgmqd5(ZùJ->—|¢À‡Cs_@u¿á* £wÇ$Z„.eu0h˛ùZ›™É4à[âﬁ†Ií¶Pú◊Ò>'ëví©Vﬂné˘k%ﬂäΩá¿Vj,≠K¡NUÜåÊí˝6˚Ø›ÕGIøMÌΩº:,ÿè$Í!÷fˆcV)û>ôAˇ-;vË‹˘Œvf≠cêﬁ!Xhﬁ”*ò°-é¯ñQƒ7∆íÉÅ˚çÒ/ﬁh.1bÏ//’ø`®u‚–°74¥°â>d≠I!D◊]hseÃ˜˝ﬁ¡ÿÃ∑@c0ê˜w¨∏¶≥∞>fÕF®.mëYöI£d8´gıí!<Ìvç˚Áh ∆'—⁄¨∂¬¥n@êﬂß}P'á	H(ΩtK∏%!l•´1üë◊É†ìÍ©ﬁ†]‰Ö>äùçF√v˝jµv¥BF«A/˙!ÓP≠BI£K·Ã›ÔëàéË ∫àã%yAòD,¬P≈∑Hè˛k1Ö–ñË'8⁄3>|õ¥ã^µ’’9≤π6G6ñÎœÒÕV»Eäæõµø¨,ØØ≠ñ,^√Ay
+|—Áxò4#‡ 3‘÷l∞i•ÙqÚœ∏∂bf›¿»k3¬,‘∑≤Ñˇ7›W†ã0‘C◊á…ÜûŸ;í¯|¯≥¯ßÏ√_—o]ÿwtÁËú1Ä7Q‘°Ç*VãæÆõ}u˜Œ(¨“oÄÌ&0ÕÂ¯œÍ3ˆ“∑‹ÒØèˇ⁄ Gçø6;«NÓÔìÉ√#¯ﬂÓªwoÅ}ˆØèOÍ¸CWÕ94'ËM<åxP3(PΩ∏5E
+⁄¨8(ˆq8=i4éˇ˙√^√'\—õ>øSt®?ÖÆ<[bÉwCËêlëÊ–h‡Ñ´]¸ÿÿk…ô¬nöÏ:ØyΩRÕÔØˆ±æúù»öV]}4'yè:¶(r≠+qõêï%Xj+À¯\#9ïÆZ®ﬁ|5~LZ√vmiaÕÚÿbmæxu;Mˇ∞tê¸p≠…JRIß√{∏∂ù[[«ˇhÎÌ9gÖóS¥kHjõüMPRf ßÕß–Œ&ˆzIà˚@åªB÷ùL÷æCö¡ØÄØqøóo°†Ï”%oYcè5√¯¨ÁsüE˚≥‚áÌ–Ùçæ∂!^sàDÈ´„ßŸÂµM¨lfMù™µrö]ı—,≠˜˝C+v´ıë‹˘‚±ø¨©≤R!⁄@ΩÍ5º¥æf›ä˛”ûd”ñÊÍ=T˘7x∫Út…‘^ppõ›⁄÷‚+¥`(∆∞#CåØ°¬Œ®´¡ÉVÜ~Æ_‘bê"am≠k´wÊJyK1)	àt˙s$¢∞y1£ä|M^ Å)¬cO¢Vü÷åi'bø˚Œ|`ùCΩHq
+´b˘@ñ¶Vˆ∂∞®höÎÅ¬ìèE∏gπHe N‹â/Ïæ0®t¿…øë∫·X∂è´¡¢7QÃQY∑¢´:ãÎ&m∞Èkÿ ¨sN-◊Ä‡ÿ˛/§Q¸√t‘k“mlq`sÑ<DÕ	Üó»G=˙hÎ√+ÿJ∞Ï]mÎu‹Û®Ì¢
+x^Üwô	√ú.n¯ÄRbœˆí◊MæßwÂnö›≠ìÔ»Ï¬fWÉß∆Álíu -N«¥ÚkÿB°∂(ò ìÜxª{â[Ij9≤∑ çJ»}≠Õ0cë˝Ì‹¬Ö∫Ü˝uîæ∑©(AZ	◊Ê=BYQKQª y≤¶QÔ3ó¢Œ'Å	Êkü¬=Ê.c,•ÑvçN4”Ãé…2bäôÏwìì…æª ü6.·Øm˙^]¸@ŒÖã‚©D5ı(~eb~Ÿ'ÊØa’≠rIOˇ6;|çŸ$/Ú§W†-Gü„⁄Ù,lÉ÷πna´lÛ™Ωﬂ;®Xæ–ˆtwñØØ:œõøy6Pwöi¡ﬁí/◊B·§Øvu≤¯üe°4…¬Z≈$õÎwûd¡à+}∆Hπ`ç¨À=êª	TÀ?Pt•Q¿CÛàß[çD$ÿ@Izû§Õ>hmµÇ=◊;b}(çK_/D˝≥(u&Ã˜L2cs_$=Ì¶Jr÷l˜˚fã≠<÷¿ı˚J‡‚•Èñ	uŒ,:èÖÄ.&Àäª&–\~‰î›A,+VñŸ¡ê€∞Ek
+
+Å˝≤¡—WÅ∞⁄≥(ùÇ6cY)Ö
+‡Î∑¨!q√ÒÍ¨X∂∏P◊¯⁄Ö]C<ÑÍÀmÕe»ÀÎ@º©#‘R\⁄U	Æ)êg¿—iÕm÷ÿ6>‹Ï9è@ÓthØé8[é3Îpy©Ç4€∞W1÷¨ ô]c†Y\@` Å@≥àfâJ+‘£¸‡¸_ÅíeïÂ˜´Å»:Üo"Ÿ"˚tç¨¿ÃW vµ<lÅÔVGà≈¿∑‘5c#¡ZÑE√∫Væ◊È<ƒÕ‹{hx0π¶,Gù≥ü¶, 7ˆõE'©=è¸ñŒ„øe¸èœ”Må†ô#Àâ$¶tÈw¥ı®„;÷∑øÓÙ	ˆÇRÓÌqØﬁCåE5√µVµónÔÖñ`S¸ÂiIÑƒHJ¢7$… ô/CE‹| ËÕåéƒiCúÈc–Wü5à∞†/_ñ∞BP3˘^ü˝(≈ÕºO∫õöπõÓ¯f>ÎéAÅkœ±¨H\VÄÃR⁄*√ƒ,Adıfñ≥Óÿ˘¯Æ ˜éA¥¥ì÷ƒêñ5nFÅ’õ ÿOÃëœIñ`/€≈T¡˙#¯eeKn√≠h!°rì/ÿT=PLäs)áŸf…a;øª∂¥0Ó±Q-W& ÆtÌÏiª34’∆ˇ(±™ÉVÆV≠tÿÊX(<‘m«ùÛ@_Òsq6]%◊R+çZQ;rcFZ[∂√∞E¯–h[ˇÎ,Íëﬂìîw œìﬂ˚–¥Pî/∫X€£≥Ñ¥ìÛÚ]Ã¿ê¢Â ˛æWÀR∑å∑ÁY«|¬EWôAã˜„¡Å[⁄ ,û´›ÿæÓI6=8ÀÈ#RÊé]S¿µ._S¡∑‘"r&©—ÃsWàè§◊gøf^:√Öd˛£øTÀr‰G?tÉÃ –•?œZ9Ó¬X}7,ñ*Ôƒ_Ωâ4hà⁄E⁄õ†!~^é÷ycÜ_ÖÁÖ¥(7˛˚Æ=∆ÔÓÚÕ∞∞)5©`’(Jªb8Û.Ê'7Ãa∫¶EÖ’´ÍîE€€Û…wÔ3ú>¯DÏOO?ÓaËc$=yxëÙ«'ˆˆﬂûêìá'áÔﬁí√∑?Ω;‹›ﬂ#˚?øﬂﬂ=Å?ˆ>Ïﬂ}\˝…àŒå»7Ï≠ˇ–K˛1‚ä2≈∫OyËºÍé <G¥(Øúßn#/H#M£ÎÖÛ¥ﬂ≠·v˘8÷ÿi◊ï¯dE»‘E˛Nøènìız}lXSù’
+°ˇ“Â¡˛üc¿2¥*aÿY∆G’ÉÜË£˙óù.G	Í√ ¸‚áÕvÃè–±W#ÎG‹Ä*∏∆ò≤¸èÖ…QÚ0r∂Ng[Tø∏ﬂ”ú(—QÓ}°≤o‘Nà†WB9z·mìz(±ö=îu”Q\¸Ê3?uÃA‚»E<‹QoÙSNœ®^«¡¶ª÷êey∑(»˛¬U≠ùÔ¢.»Ö!-Bug-®Õ»JÄ∞}ã‘qûWÑAS∆DÈÍÀjõ¿Îî_/…“-1¨={cdIiÇﬁ⁄V¨ﬁ’±7∆¨nﬁ/≤“H)ûÜ!%|êk,√’pÄi(®\ç©ÇiÔc;‰'ı9:ö«}r•Ï7O˜≤√‡ È=67>‘óh≥AoLuyNkÅéøDÕÒ{AﬁD√6åƒ˙É+’Œ´}µ÷$–-=K˘{ƒΩÑUèGs~Ø`bn¡ﬂbybî‘£EñA*ëÖÉPRå“e–%¨x>L⁄o˝>B«|l‘ë≥Nˇå6Ï¿üµ_të_Ò0∑B0v4íÁ≥F1W.”T˚·Ë5GyGÅ‡w[ºCphx|T>¿ø%úâ˛ˆ‰¶∏åoˇP%Q‘>áˇ”åwÒ2∫:ãRt:l—„øND>¡Ø‰<∫∂∆rñ,dŒtÄLñ™ ôRÔc?mMKÏa†l{ÿE:>›¶\u;Ωl´ˇbJne†v£læõ4”~÷?Œ7˚›≠˛˘9ÙÉˇ3Àﬂ∏x„zŒÀøòEåyÑòøº\∏\]Ëßã'GãG˚ªÛÿçµ•Ÿóˇe[òv∑ª¶ ñ‰]ì‘–±M=
+ß Ö9ì¿ 15jßêGhÉ¶ı`çŸZXé®Â¯ÜY Œ£n“¡Û–„¯¢ìá≥s∞ãL0uNı≤˘vüÁœ	ÕÍ≤E˛≤∫∫∂ºæ˛úá¥W†ÒhiÌÈÊ˙”Á‹÷ó¸76√Á∞H/íﬁ¸¢ot∑» ‡Jº?Ω‡≈ó∞∏®ocÌÈ⁄Êô|}ÿlÅ™≈ﬂdGJ7Ê¡—='ó Öï.˝õ^…Úzﬁ†°%∞u^~Ã˙≥ççgygŒÈıú√03 <π‚ü{IΩ∂örû?iÄ«ÉΩã-≤â-≥>√≥¡,I–õ»_ög≠ıxYv™ù
+~GiÌŸ¬:6«jYP¢7Z«È=Vl{ë”≈ˆ"# ma‹nØº‘P[Ñ√ˆ‡ÂˆŸÀèç£ù√üﬂû4»_«?Ó5»Î∆n„‹˘ÿ¯yßq∑ps±hÉëVŸûA)=fQ&·oaû%Æ(©ÔE≥‹íÒ ∏3Ñ‡%àïaÂ.∑zvÅ≤(–0W\K˙ ã€;!4∂ΩQúï‘ƒãÍfh—5%mh“I]ƒöl+Vd˝u[5]√£óÊ…!ﬁ37ıb∫g(ﬁ.`Aã–˝D·63)ÒÉxû,ŒÿSΩcœWÁ*Ãß»VﬁíR.∑˚káwÏ†ÓÂ©ft0Ì[≤‡q˜2ŸÓÖ«ÊO{£µGïâÔ@≠0m‚∂SüÌaô•∂¡°‹ÕzäÑ•ü‹®[«qì(~L(ﬁ?Ë”ﬂ:®ìGs˙:z¢Óé œ“Jk	ÀqQ^õ‡†ö^äΩRòµ]˝∆>N£;›X¸
+á|@0ZƒPó¡Q;¬ŸøèŒ„ÛÛYÿ‚KÍñ60∞A°¿ã›Uÿ«ÕaÊæÊ˛7ám	-{@∫·™·∑‘I‘é¢ﬁ˝Ô˘|¯ïA[æπ}µ ñûÕùEIvÇ[
++n°:‘4Û:√ /›_Y ±*NDupÀz	ó¨/)Ë%<?±¥Ω{˜–ïÎ• ]Yﬁ1)2À 3Ì€‹¯éßŒCm˝,€∂´nˆ]ÿQﬁm˝î»Ü„Cú∂¬*rä≠HÍ∑$@˝|8ûÊ¥†#ÈÓlˇj¿∂zbl”ÏõNÿÏ4i1πckg…'t’â™wä8f\Héµ(q!g©¶d
+M*ßnm≈¡h| ÚT™⁄U:¸[9kP0√V7.lïB¸ò®™DcÂ¿é3¬R‡7ûb#ÿ“íç ‹uœLg*ú∆◊êù`„Om3~FQóüäÓÇf∏Ó¡îTIço˝åqu%∞jòa(TA/(Áãÿ”Â•–˜pèÇo¨Ö∂§ò(J¶ÒIc,
+ïÆk:‡Ö⁄¥©
+wõ`{Pù~Ì@â+O◊Ô#ŸGÒEœ´„¨ﬁ3†ˇ(Jak"åBKÒë–«^nÀƒ≠éZV&nΩx§N∂© ïMˆé.ú‹ö¡8…µ\gâtî≠$t¢kûâBµÖ</L°R6áK\Ÿ¨ï®≈@Ofòç∏ìÂá„':æSyì1<œáÚÅ±òdÎsº™|3Á{¯’3çÛÛŸk˘ ,Á k‘ãjÉ∞8Ï]ŒèÀ«¡f6‚¨π2µxiÒÙâ‚µmMi3üCs◊)≤í@¸æiõ™Ä˙çe
+¿}¯]ò æj?>ãÛbÔ»œŸòÀœÊ]¸Á«‡¸÷´¬˘m>¬˘√˘ı˚ü0√©”Ol≈|†~NKï‚’`9∂}Ó¥±˝4äl≤ıﬂO#íE—F˘Ü¯›,ÊÜÓ-/£H≠qg‚Cø(†áâ‚ 
+‘™;E4¬^ÅG›nî^<™%ªQ⁄ Çp/“Õß	ıu…ÊW˙/ˇπ∆–É∞˚`⁄rãäg?0†(ÎéHu›õåK‘Ö}Æà)Å–i≤wàΩÖ[@D”œde£`ï®A®
+S]‹§≠/-¨œºî<ÜÚÀt4åŸV˝q
+SLk˙ˇ   ˇˇÏ}ŸrG∫Ê´§ŸÏÊNQñÿ"˚ÄãdÜ)â&°∂n«Q(e(®
+Öa3b.&ÊÍ\MﬂıMGÃ£ù'ËGò¸s´Ã¨‹
+ …@ú”¶Ä™‹Ûœ?ˇÂ˚àÄ∂OQ6D‰0k∆îs[$Í—ôµ≈M8
+jô∫∫öJ5Éy∆XiŸé‰¡YL)»Ωı–©)ßâ‘∂ˇÃ∂ÚI'êT¨Ìæ≥∏„9lÛì}¢946F;≠Àó ˙©~–ﬁdÅ¯ZßI{â¯«¬VØ.MÜJÁ_ö≠NKt-¡Ÿ¡<∞/•7`FS ∫s ±Ÿ”óñòå°ÜΩ˝ñ†<AQ‘F#ÑUΩK|Ü®¨·3j&üìB¨ëI¿O	æ‹è˙ê(%v∏Àn⁄(¸¨…√ì‹-X+öë≠ ñTn¯sh7üπM:sXs$rcÿH|9H=zÆ@≥pî∑u:ô+t
+˘∑Íú≥Øˆ˛
+séŒ¡ˇüˇÎgöJ(â&˚Öí1†sBëD™’DíXÅy k)`‘»∆vºˆ„j2 Ö3GÛ-óyjc∏§ŸêÅUái§_Rµ⁄ ºß∂rÀ`=Ï5∫E‡k‰Åæøv¡_Ï™ÿ€û–mGœ0a7¨ÂÑbaﬂ1∂¢¬aÀ?§£!8y®·““nÎƒ;∆÷ÖëÌ¥<HS†Y‡Ñ æ∞l\∂0€nL‡KO≠j°·“êπ4≠ûI\3`&ú√1(æñ÷ò7ôî`_k^O^.Jôn^∆ìù`SYp3Â„5$¡«*5”±&–\ ÜäΩ√N‘ÎÅ&Hr¶ª`¨’±X`∏¯˙M_≤nHöIgnπ!∏xcWÎÜOkÎfˇøØV÷ë»“1¬Q≤SüÊ!‹¬îÚßXÉr1⁄"L‘ıkÒ'|ÿF sI◊"ëÄ≈®
+öÛ¬ﬁyg‘Ñ§QíQπíT±∞˜C4n¢˝‰3Õ?eπïK£∫3Óh<Ó£5T«]›'∞W´›%À€ÙõÜ5ê≈ÄÍsWYóM|úX±⁄Wnåæ%·«wDZœº–_äãºd.vß@	◊®pµC|í+œ∑+Q p≠ÍÕ¡kËs+Óﬁ3≠ªÜ+Øé0~wÎ1à·N÷„ê$‹ﬁ2TxÓÑ·ﬁ©ºÿd]Â∆ ≤ÇãUˇx»ãJN	∫√≈’ﬁÔÍ
+!ﬁ(ÖËT"ﬂ∏õ≈wó3_âA?X≈I˚ıRuúÚı5)iá}YNM‹1ß„®J«1aP”úâ#úâ√
+	2"HëöeııﬂùáÜy˙–y=åÒ~˜JÓA¸Vnè9£∆úQcaÔ”0KÃûé„"“ò	sÜä—s82‡ÙL\≤Ü :´Rmê?’K‰™H(»X÷c—è'ùƒåD?∑ZdÆdz#gπï@ç‹-ú‰»\rí≥nOàæÏ*óÁı¢}XÀŒ≤©@¶œÌP Hx@™í'ää,È—{◊ê/˙'¥ƒQ‚®ÕNa„-(ÀM¿£•8,z%sƒ§'±MAw„“À•jßù[#∆	´sñ‘8”Ùrbr_•fz…ÈÅkU¿∫fQ= ñÍÉ¯öEÂ<~NÆ<¨Z˝\!ŸÁL≤€ÓÅ•äıÕI9<∞≤9Zò˝TØ\…«Ø34∆©b2G˘£8ë√˙(uËù≠8∂Ó`‹"–ƒ®—y∆å>Teƒà«\x oa»n}ò∏ìMu©9â;·Ç«àƒﬂˇ¨«»‘qñy(¡4˝s3g{òåaSdNŒI√»Wã4lˇ›˘ΩÖÌèÚ í0t◊ƒWj∆bØÒoâáUí-^8„ˇﬁEµü^´Y4.àZÀx◊õsiU·“ÚrI∆≈§”î?t™ A§;3ö†bÓû!◊Ì4MQöQ7æ6£"ïÃP29©≠V£πâΩ∏¬€Âf‚çﬂ€Â/ ¯Ÿ‚◊9˚œ5Òw¡˙SÃƒúÒgÊ†ŒxpØl?Õ(ˇDÛ‚Ù)~§C IÔ~J}ùÃ> 4=$VüÕçÌ'[ÌØÖ’gÛŸì÷∑sVüj¨>˚ıÛÔÅ∆GπU¶ëW∏‡Xíf÷(Ñ 	˜—Ö∆úgaORüÔåß
+ÛçtÎº“õáØê+ØœŸf&`õ°É:Eõçiãs$Õ©c~7∑å/Ç6Üﬁ-_å§∏∏b|˜á““˙bib,7Ö*1J_"-Ã÷÷2zˆd=›†ƒÌ8|î0õ@MˇÛú1¬‰∆X.èbs3ﬁ+
+˘úÊñ(``∑∏Ë_¨ó‡tq\V~wÑ-O÷	ß(lãı=s≤ñg@≥EhL‹à¨eãZˇ∆ú≠%‡vµ˝˝0µîÔ síñRøÊ$-síñ9IÀóD“"ÀÓã†eñó˙©…Y¨Ó9+ãÅïO››0≤+r±±Ë!\s&ñ9Àm3±D›÷øúj8‹≤\<,6ﬂÛ√Á^1FAH§+$yÅ~@d+1'Zü9—äâ~ÉXJ¸–˘ljzˆÜSÂ#Wëe«¥‰∏J~∫Õ‘61!ïås2uB©—a÷\*Âhçô—®ú≈óIN¢‹â»ü”©Tö©:º,ÓêJeç{O†±5’∏TyÌ-ÊÓ«/œiT§O5™“ôITäúó9ç ÔôFe_Ñ÷|=*_3uJ€…Ìqù∏ôN¸<'vñì‡˝¨Hq¬ÄÔÕ)uU0Ô˜ç%L¬πpÎ§&Ù˙¢ö∞/Õ„dôJÀ∞πxKº¨%Âã∫edù|%wŒVbO(w1ï∏uç˝÷óΩ†¯wçÖØ¶H˙!zÕQds|>(es¯˚ê%}€Kpézˇ%£ﬁkÈt˜øúÊ`˜_+ÿΩ‚˝¨tÎkÓ+¡∏áìséoØóT∆∑7Øƒ9∂˝ùc€WpœÒÏ´‚Ÿk˘±”cyúπ…Àr; ˆ*û–C«Ø«É;áÆüC◊œ°Î',Ò˜]œÈ4l˝ó2Ø!c~:Ã kô¡Ê˙{	¶´*∆ªå‰ı¯±¯ÁQú≥º9Æ˚◊›7:s\˜˚¿ugˆ7¢áBbÃ¢Zœ=H£Z≈s,ı9ñ˙K}é•nÆhé•˛b©Oò1«Q'_=<ıÉ∑''?˝Â——9:<j‘èOd‡@ÈµY©ãPe5◊©NØCƒêYΩŒ˛lzã%0„õÁK@jw«¬^#HÚH¸AÄ‹ÒÜÉ5√nì¯"’J!π‰"≈À™ì‰¨QW	˛û…4`˜4SC ,íNC6qÑ•^ ´¨xéÚﬁÑÓ7WYáwwY-xh¯Â∂tüÖ
+Mù`¸f`æñ«Ìñ⁄≥äo˚£VåØ˜£ﬁ2¢p!¯O|Òbïf•Jóï:’™ÑBÍ&˙W–ÏÛUÍúÉÓâv—U˛Ì°⁄»º‹HıéÓj†ÖÏMo˛Jyñæ¶4›Ô’
+^ª˘≠'ÎZ™Û§ÏZˆz≠è™yÓÓV’‹›ÌyÓnpÓníµ ∂ß€ç≤Û‰RcWñ2xy≤å’%•‰Ãû∞Ïÿ}öJAŸQéw.†≈JøìÑﬁ√x%]„Ä“rò1ΩI§˙¿ÈGì∞¿π´9®ˇìuù“!0k˜rv˜I∫MÚñ(<W˜«§ß≈y∫∏=)Ow´Zû.÷ÈíÀå◊ﬁ
+ˆË9ùm"¬ú$ŸyY)œî¥%…áI¨√Ω&ÏC—$Ç34¿agﬁ‰¡*⁄äµÂ9cS‘¥’Ë®Ÿù≠√*)Úu6tCkù™|Yë àí⁄$Ì™ZJaÿ¥ñ?ˇºKÊæi&û2Û0·BêÕz÷yC¥iıÕhﬁy5éâø.];X_ p{r/Ä∞ÈÊKˇd;Â4SM	ôhAê4´.©9¥œ∑ïY6B\O<«¥äßÎÊÈ};Ê√àvê´’∑¥;ØE!a¸¨
+qß9L¯i∂t`xïUá¢;h⁄ÀŒì™f⁄ºÖu¨B“+ã uá€© ,Ñ[mj∂jÈ¥\«Z ‚—‡JG‰’IíÄRªü@–‘8ÇÙ;T„3E‚ä˘:â±êŸb\;O™lGÀ'û“é’1míŒf0è‘DÔŒ-Ω∞m5G üEH˙B˜|⁄?®±	ÓD“R"GcÌÍ6ª®æ7t÷IÒ›”x°Ë¶óó∏8Õö6éá´ñ±4Jë[ç®˚}F…Uéâ€d Ád¬∑ù$ä™(ìD¥°ãpõ≤0à∆âEOY¡√—:ã/¶) ÿ6Û2OâÇıeD°ï‰ â?ÒgnáÆàgÃ2û©ˆ∞IG{ä¯"‹Bfd4iàã≠9>‹ë™<ç1
+Ú˝:GGòùT;
+æä¯¢†k=™µãîÃŒ≤Ò+≈Ù∏;£G™ï™ôˆå
+|P‚ñ’´˝tÁ‡ˇ`,¥ãÁ„>x$.≤¥∑∏Ñµ ˛D>Ë&CÌÁ_6~]fIØá„‚Î®ñó√†ï]Ú¨€Sè?ç:2[Ò%(≤'ÃcAº%ºŸYµDø(15êE@i-)\’ö‚{Xö«5<ÿ∏Ü©l»Û ÙÎ
+:®7é^Ω=˚´èGGËSëKÀctvtp|z|Ù¶q.ï2≥xñyÄW¿eöçÌƒÒ<ËV#{Ì"„Î‹ù∫®;∑[Ï1†ˆ¥ M5‚yZZ¿ß√¬9Ω°J¬£œÕ(É;{ˇjéä¯.Ó`’•®’â±DM.àÌ5c»±À…¨ŒRÁ^G√VØÈcxa’‡≈•Q¢PÍ%ˇ2£^vËﬁNlOH	‰éÎæeÊ≥'EJ«+å'ƒóÄ°2ˇt„„ÃÚSµ;ñﬂ»Ü$)ïK˙≈]ºÔÉZ{«Ê≤ÒƒEmÛO_›¸Ω•[Z;"≤≈¸„_0)˝Ωˆçy\Òä/ˇBVÒ∑åÜéW›´ﬂ:2‘càoå"$Î=E®	˚5◊†∫õŒÿªx!ñﬁÑŒ¸ÚÎπr‡ÔÃÀ≤'-gR~rï‚¯Î,‘Öl\Ñ∫»◊´x,Z÷Ò3sœﬂQ4uW≠YãÅBÀë1§*b√"”D˛	Ùhßå‚…[´GQò«K¶¯≈”ªLm”âÕ¡πi†)¬√√;¿õÖå¥™ﬁ√Á€∞ú[#^TÛ{‡ΩàºbNÍë˛ƒã(‹v√#P`]|Y"ƒq‡È&·Z¥$ê\ƒ≈;Ü“åBÈHØ‡éÁx‹ª11Î<±÷äÔ√5J˙Í–-ìuCﬁXo,·9Qû"f.ËvŒ2©‡Äóq¡ÍTÏ«ê?#È’Ë'µî•3éEjó“˘Ω]≠<∏Ä[öœ˛ÿ)÷î»v"?íàp¯}ë".™l—it;t#Ô¿*eû≤w‘ü‘y1˛-3ˇ"¨˘:P≤¥ì»Ñ¨ÿ«í8é˙KHUœ≤h¸B°R‰›ä˙cyJîNë_˘Uô2πgúÃÙ Ùœıª‘K◊c¥Ø¸Xó˙πß ı˙`–sÑE\,@P ö˘ßKoûîXﬂfπŒfÒ˝QZ≥D≥¢Õ∞Îí‘ès÷Ê]ÙÕG"Rï)áJ˘Yó¸dê»πLãKj%≈©¯do@QEä“ƒe±ˇRâ:eQmÔ˚“ÀÍÓÖ£‰eL≈1BÃK+SFó
+'"∫∞O» É&ÎR´êC∏Ú\ô’OS“bóÑ4Fñ…,«”–÷oD[mmbE≥Q,ãuÀâA/∆õ≥ï”W}∑ë/˘£«y>ä€ÁÑ2‘≤Ÿ¨Ò√Ÿ™v⁄YÇryÅ‚.>muDR˚jìF~⁄˙d˘è÷µA®Vçüxö@—ö•‚à5>çT∫@tE_«?øﬂù‡Û∑æ¬dÕ
+ÚjÖ4üˇèÆÂ•FN*›õÒüßoœˆÇ_≈˝8√Eÿñßm∫±¡6ﬁhÒé‘0i„iÌ≥E’∫§	e®y©k¯-bYñ_ëW¨ˆñrZÍÔ©kO~”ﬁ¯…fúî'h9JC,}M¬Ì-5Â—uBÚ≤W9*˙√£kÁ£z/ï¬ÒøŒ¯Y∑∆úä0ÒÓsïòˆ=≈íì”Zîñ˙Î)÷±^THu6xJô)o¥<ıä˜PrÖƒ√Æ‹oPÌ|EÔ07KÔóVKÒcq-ñíµf¶>¢U+[[—T?‘‘3àÒs˚Q7Í∑à≥Ù∏¥´^o,W)’≤Ë∑ÓÕØî4âEO+O£∞√“ÎÚ2Œ kêãÔ⁄{nH¯OºM4;±â¿mÜö]˛å9¿fgjní;Í˘i,.˝≤˛ÎÕÍÛ˝2Î©NFßP‹˝e ëù;Œ£∂ë‹Æg’π6ÎX‹^ö1’ù|80m¿·xê2éÏY¡Åº¯∑—À£ó/ÖxZÜa\rÖ),ìø¨Ó¡euc Ã≤≥,-pÚo∫ˇ÷_,ﬂ≤Ù
+öcì∫∞∑óa¸Ä·I«%ÃB.¸-.ÈõÉhçÔ™âÔÖe˝EÚ-“¸7!<· ﬂ^[[X√ä”‚¬ñ[éWïõèı]>hˆ'úÇÆÙÑ.·JXdZÈ9∫Ln4Å¬&/ü%É·¨ŸMõx˙AÏ„?kø5˛'≤∂~Ë;p~aôé§µV˛Èœ≠Nî·≠∏;^¨<˚≥N∑LÀe`ã{wv≤⁄ b‹¿∑Õﬂ∞"Éˇ]É/tì˛»ÈK[#©≥◊88ÈB§äx»HÎC,≤ö#,¬:Y|±∞˚û‰?}¬è†J*∫é⁄’6˝ˆA'È∂k–ˆrgZ‡i¨9ä»‚^˙)Vä®*≥A\ö‰6|Îr˚ãŒ}djÖØí[Õ|¥VfÀ{<6x˝~Ÿé>p√ÍT•œ◊o=›ÒπÊŸü0¡—¥lâY/ñ¨l	nêµ5†ó'X¬ì ‚ıﬂˇ˙Á˘˙Ô˝„üãfˆ	kå≥%2%8q”6†Æ§MS't«7ø±ÊE¢%È£‰7<aéﬂq È˙"≤∑L˘òÎé∏˝√(∫*8πö$∆ûp€t£ÀÍ∆Ò8Í‡@±€ÿZ=AJFÈÎY¶s⁄Öû7â≥Ñ+ek“%$bqJõ¬áhEÛ‚'Cj∞1KbÇ,Nñ1˘öòk—i“ÌöR]|,ñÊ0pFQíbií>ÜJÈÄ„«Æ3´Xﬂ§á¡W7õCŒ∏R∑Ãi‚O\©64˚eO6!V ‡“QΩlú"yÀdëTÏ•0∂I?nÉ˙ﬂ√«xo‘{ôE$CÍ0πLÜ˘⁄\ÜÉ–¯ã˝⁄é<ò~cŒ∞AJ∂¥ä XèfÎ;œ‰BŸ÷lõúrÊÉöF˜jÂO?¨ıjN0u≠ÿ…RLÌãV¬œ+-[Õ*˛VÓ	X≥a8H˘´…∫∏P˜ <ëgYë&ÖØ)…1£U≈ÈKK™‰0yã™ﬁç≥!
+±.-∂ *¨+ª: Ï>ï—>PPè˘2ôX&1‹N¢&∞òmôH–ä⁄b‰±ÙqV⁄TâY3$o7Ñ¢“EPI@´J®*ÒŒÏB&Gi£iö '≤ƒä99Õòq!˛	IÃ∫`ÃÖ•îñ∆≠‡„≥Tÿ,_GóQ+ZFBt}jˇq0X2˛JChã˘.`¢Æ<(ø∆[YŒà‰‰ïœ4~ ë H\iI IïéÜ$9ÊC•∞îòŸ˜l≠õÜŒ8ë¶q¥≥YÚ+ërˇ1‹vL„ÏïñJ¬OŒSiO]’Ó*p@u‡ÌÙ¨æ°‡,∫„ôøÅ˚Œü´ËåIüt_+,äiﬁ¡«≈á3ÆÉ√Àœ‡Âôg⁄˘⁄"æe⁄“∞äÆ_øÁúZíQ¬“≥AåñojáÑjâ≈úã{KËƒ¢·Fïñﬁwã7ÔMΩ0/¢√^êπï|3‚ïÉÍ.fL
+-ª˚y+*g≥'i™≤ù,t˛$≠Ω“®u˙x¥%cÊ	≥+Ÿ-=ËŸW¢˘Ó~˛ÂÍŸ
+‡*Ú$”œÅ©+ÕΩ°Xq	òÇÌ°çÆ◊ô√h€ôGå≤∑á>∫‰ª8AJ·Ä^uÀ@¡∏QNC‹TÕ.œÏÏü¡úüv¸Û Pö≈sÊ±DWÖk™FQ«ÙûE3°#fïFœ4∑i8çü˜#xJÅ-’¶Y>	JÑ’ﬂeúN?ÕÖ‰	õpJΩÓÎYœ4UÌm≥~Ò©}"·b¸“pCF9#‘Ùﬂ¬≤b…óΩÚT¿/öØm!EàA>™øßF	qõ1h”z718ÃÚë}faŸåíØãÔƒ¿÷çæˇñdXØtpÒÖ #Q ‘7i)√Æ∏wJr¨+t)ô≠bã≈»W‰+*yÕ]>ïgí2oÎ  F,$ å¥»Íî*3mTq‘‰C'¸Üù®NÑ
+¢«$L»ïc-©à2\C,~yÚ¬Ñ/˚$È«4Dq“¬T 5Ãq&E—˚Òï”ïWëÇ/§mTátÂ¬Ò`(U@P2€«´ﬂzdp•,nyëïÆíÍÜVÑ≤BΩ¿2%Õ\Ph¥"3√î£I˜5hke(ÇHΩ®ù‰ıøhBB∏-Ïô£kÉÍ¿´ôÌËa+•a…‹∏≠¡‹.¶)ﬂ#•©!aÕ∏ÕÒµ ñ∫Éäè%wÑd¸á"ßIÌ ]Ncæ°°^i$~~/¶'éKkôîˇ˛_ˇ]Î∏	¡$â¢≥p–óå¿Üö=!qWkùÕœ®~\`R¡MæÜùúÜ¡¿wû¸{hªœP©ız~¿=4æpõWjπ%q·V;»©oUbZ-∑ñÚu¡¬ £„Òn8gÍx¿æV˜BqìCx¨!G!ÂÔ8ZH·3Ç)—ulspzpÛÑ’Z,‚LÃ1æboﬁﬂûÜZÍçWpﬁÊÈØ\#|-qòÂèﬂ‹(4üáÈWLI∞ H{¨Üö+ßwîRJ)(V“çÈQ˘òT	AÊsPôÃ±ÿQ}V‘‚„_ˆˇ˛◊?˛7b√Ï]Óv∑¸î{¡ª¡/Ì⁄ä¯“{i3ÆïÏ¨˜myÀñìáÕ^y:)n•§uÃ1+'¸HÃJ¥±ÉNœéﬂ4–y„›·˛Ôi˝Á◊ﬂ≥£É£„”˙Î€wﬂùI/N’ ùñì…ã¢RT§ÁıÕ<´o}⁄¨>»ÈcX ∆T>w"_Xü^æ!{èùsÚHöIygJ«ö≤ã•©6µr≤^≈TΩ≤CÄÊ›ı⁄eÑñ∏'B4√y!œDN‘C=:ﬂ™êgó.Ä´2pï‰uo√ˆdû~ñ‘◊å‡Œ±`BdKBﬂ)Ú´Ê¯,hπ≈Óa∂LÑ¿ÁC›1"^]ÿ˚) F‡\?å¢f‘ä q¯, ì§˝!2Î∫∆0ÓÎù∏dÊÚ>ÚùiT·# ürÄigö…3ntäw/+*q%∑—G˜≠2CAgﬁãzñ•W'‡ó´Ω˘
+aª¡«‰'Qm`syz¯≤¶6·≥ t˝$¶ï«4œj¯4ö"!*Nù't¡2s'<´ˇ·Q{03ÿ¿É9˝V\˘:&“gtgy
+G«ÍX$‹ØV¯—⁄ä2K|´k&	ıÌ∂<çú∑Dæ˚`ÊëåDúUõFz~ä≥s∫õG˘Z
+ãòƒÊ]d‡!Û´*O!g∞Ú¨‰}„:õÆPõπ\â™e^eu≈@‘\Ÿ.wòÇÅ∂åˆÍùÕrÃN◊cÿÍ¨#œ∑ŸöÎéÜÒxaO8|±÷Ÿ4‘lÂ?4Ú˚lªbPXP_0îˆyÖ«:‚Ø{…e!MqåSñôLŸ–¶Áe∆†™~îéÔuıFê@Ù*¬ZDl®∆n)°Ï–9∆≤a	±]D≠(xX7â pÒ6Êzπít
+OXo{ç$ÛkŒñ*Mr∞p8BàVÈÆ2-ˆ¢±À/mœN4ÌQóıyf√≈÷⁄î
+/¯)FÃ4>:´Sÿ›À“°)|≈ürÂÛ¥iXd±Iπe]bx’21[’N>±á∂PUV*∆08Õ)“Œ6I2◊Y≈ë≤≠c˙á'c◊\do¬A∆ßÆÿ∫πÂC—ﬁÄ◊=bÁ\vD/L?ıd^^è⁄Ìà»ßƒ3ÈÅì˚}'i˜"\¥aãFC˜æ¥ámTﬁ"3)`Æ&±Gﬂ≈qˆ!Ï4˘ÓuœA…Ø∆&\-¿1±.•Oı⁄.'ΩAU–ˇÖ%K…∑O!ƒ¿Ô,p«◊ øCû∑â:ŸYã8©yâ∫‹”öE%ÌKPäÇ∏_ﬁVé”’n:'u¥¸”ÒœıüC^˚·ËÁ}¥_Ø#ı}\‹k˙≈,ó€ëo?áÇYÊç≤œõ≠◊‚¡–Ç_¿É‹»Ea _¿ûço$·}TkP:&ã^⁄ôJß—m•…†ò± lyyWœá„Q√§=Å—p¡Í¡ƒÉ_u‹»⁄∏x“ù	F^/⁄]»7’G–ÀuÕVâ∆¿Ií4Ò_Ó«ﬁ%íøÎ@D∞û3›P´€ü<®N^_mÓ P€s Ë›oˆô⁄sNTÁAÎ
+ÙºÌ}„øbÔ¿ ˙˜ç}≈ﬁŸÆ∞w‹tÆÈ£i∞òn≠AÙŒæ%Ú◊≤çÇ5—˛W£QE@c8°˜s<K”»¥g ⁄f1ùw⁄¶|wsvú≈Ω(ÈC‚‡a‹¢⁄wQÅ9å«˝aTmpØﬂ?∫.Ló+”‰q~4IQ|Z≤ËX œiﬁømÂ€wìTªW)êû›—6ûeSÕË\÷E°vHŒ•§cØmovõ˝ﬁ,îoàsÅsaÃ´nØ(¨πE¥≠—\ÅØb`ß F¬túÙe”ÓcÙCä◊\Ó¥t’πù!ŸV¯À,,íñíÕ—ç#à_Å(<ô&ªÏõä˘∞—Yö€¡rÒ	ÚZ!fÇñWÿŸµDËbaÚœ£œIÚ9Bﬂw¢<˙¸Ö°ﬂ9ZüØV6yl °19ˇÃÜ8ˆ¿lk‡~h∑°ÁX¯!jâ≠‚P.U?s∏»|Vnﬂ—AÑﬁùN*∂å_/ƒáoúé €ÉD™∂Œ¥‡ó8˝q√xËÒ«yç¿d–mAüÜ%ıcµ—áÍaï£ù„)îÍ6âL˘@N…ÇGxÁ©9êSyıV7v–¡ŸQΩqÑﬁû°£√„:xwﬁx˚Z∞ê◊NÎgÑ)Ì1z€¯ÓËX»èﬂùüùÀ¨3ÁdÅ¡∂pŒ;à·4Ñ¿i^ËÖåAn>Ë@Hzúm$‰ÛMK‰c9§—BP0€–E+ºQPÊØ?Jëﬂû¨õVó-'Ù≈X=4äÏ<πÏ´3Da:ïÚmÄ´◊X°Bv,{¯z#XÖj∆Ì∏À@4¶>(í¡”õ˜Ñ- MQEy≠	ºÉQ>jñÃíñXKKàè;¿Gœ·—lh¿$aO]˙3¸v§ÙÉÖ$õ2j¥@)ÃÁ6b)ÀÄ ZÉ sG√QÌ ∞!J0>Ê[¥Õ9â}!Qi÷+Ô*Úm⁄?5{…êc5ùGüb6ê7•k•ÿ⁄˙∆ß[ƒà7éÇyÙhÓõ{™Ï0&IæÖòj√ﬁ)o¶5bCÁW	pöíaÉ3‘
+TÍC´ŸÿæNõÁà¶œºƒ≥,∆Ü¢∂8à2¸∑ŒìÊ|∆\+ºB‡¬ﬁ9Áæu˚„ñ¸8%{úª$8ZuSkU¡	mVó\bUÍ€a#kµˇπ .ÌoŸe <Û€U0±€≈Àûƒq`ïéÙ•ﬁÁ^°++/q|ªI˙qûœ˘Ïπ€/rôøä˙Q+O ∑™ìd›≠ˆv√>Î÷Ïê9ŸÃzBÑáŒ9™öÒ∫ˆ ï
+ñ>ÅLÙ-úUÆìJΩ'ãƒ¸Ìu'6i7&.n≥ûö°¯‡˙»0@ >8\ÙÌ∆ò#$ÕÔ(Jã3+JX7∂Ö6&$(¡wÇA7 ⁄Ê0M≥îI`¨®◊î1ZBtµ|ç4›Ÿ9k‘Ø1ƒ÷”÷wó#º1≥x‹_FYµ¿,lì\ÒÄIdÑ>¶Y4ŒS‘$7Ñ7˝> ¢ÀaAÙ’I”ÒÌ+ø´ŒûZ Èè6	˝H˚ëÅ‹ÉÅq#ä2-$ÓïdgF‡Cˇ(L	ﬂèPnc=nYuÄeªÒEöˆ?$In'N‡F†@e
+åFúı‹ &ÖS≠Ñ0
+˛±S)lQîMùπ£l W»§ã1˚àSıA˙á¸ÃT4Í©ÍpZ+˝8=,¯æ`Nî	Ñ‰cã%lYÒ`Èß4œˆX—® dé*∏Â»“⁄Y¥aè;yäMÉ∏÷Ê—J'·¨⁄-:Ë‚~∏á4 á¬—ˇpÈñ£ì$Ø&÷ËÌz{≥t-‡/±#7äΩ´Â‡8◊j-µÖr5s†Gﬁmp⁄&G1˚7GkÑ†¿–á∞9vëæ_”Uú‡”xï≥§WÛ∫@Œ˝7P‡gf£ÿ˜'¨ˆ£ÇA\≠?È∑∫¯"ë◊hÈˇªßLˆ¡edjqW°Ófﬁ®TŒÊæk≥£ 6õhÅÕ„‡Ìö…2,;Ü∏\7˘yÑòßﬁ‡ ú>vG∆áÔEÙ|=MPÄ.”¥I=]8ç;1>&VQMÜ[∞UJ–ñM7≠_!8yæyrœc}¢ Më66HÒv0ú*„˚GÏ‰"{·fE¸ì,cÛçO˝LuÆ\ij◊™ﬂAR[ñiÇ¯éÓ´õP®(£’A*~“r®)BnSPIkk®éÖ˝
+Ω !0 u‹',∏©¡"#¡ßeîIÂiÓº«Ì\»TûCCWYN4Å’§]±√¬éí◊x3«◊‚
+©ëCÕH'ãóæÒ-|”Ä,§ìèíW˝¯Âî+ªDyn2®[y[VÄ˛t·⁄öBP<HœÚß¡Ó?;H,s ÙSkΩ“∆¿ﬁ¬òÜÆPä	ÂJ©X◊H˙`4∂:âm‡†_Îõö”ÿÚGj”OY⁄?#9–Aw%œ≠à∑ `√ ‰ñú2àbkM‘«è6≤¯pÉ€Ê◊)‚«ölîv‚$£¶I¸]uSúÏôÚ_™uDYª“ÕÑ“À™¶d`77câb…rV∂tÜ	o7hµ_öŒö÷üù‘˙»Éâ≈ÅG
+a7"F7v¶¥3ÏÃ⁄h∑ßˇÏâC@µ¸ÜV~m-ÈAãÉÁÙ∫©BËØ‹ª€C¥ŸpM∂¢˙YV=ÉG'pc9^ı∫≥ ÔJÍÿ/øÜºg≤¸xn2¡ÜDï T%/+{PÍıc/À$x"ë8ΩJ_∏¶ÁﬁE˚$íßP€,ﬂ˛Œ=‡;ÃBLM‚»ËÇ≠	_¯édä~%!/≥ΩRÿ≠KÖpàKÂ›Ø√áª|ÍÃÚaZÍêßk˜ÖËú_¬Ä°âÊ∏BA.°)¥»oÌZ§ú”†Grág!BÑYúnûû
+˝
++k6VO-B 3aÜOrYô`ÕÕrK◊∑a≠9&Ê¢ÌQì@ê%îô@y…ª¨.˛∑≠íºW…ÆÂ´¥º7≤MìXQU+$±Ù
+„√~€XÄÖVÌgE#e3Â›*zÕ©„®ü]$˛ø÷°¿_À›á}4¬ãˇ´ørÂ¯q9`EgY<| Ä«B)Xõ&b<¢ˇ≥Î—Eù‰BMﬁEe…#L‡¨Ë0√T’%4uƒ˛Y4„&Ï-%J®™·
+ñ^I[)—\ÖPI–è4ÿj0±Öë¥Ωb[hè˛	€Â3ﬂlëŸ2qÉöÈÖg´1(@˛–ÎE´∑>4”œ~S9ˇê7‚ˆÓu1!„F?ío?ÿRŒ? Fã:C§¶¸1^#Y¸	öˇÂG†TÔ!¸øêù)Ì– €1ˇ‹†∏ã∂6Òó’’U¯{Yjìˇ§¥)¯Ÿ 6ˇ¯Rû
+Z)/äÈ7∂hâjFj˛	0¬—O®Õö==ôÂöORE”µ•Œ∞ÈátÅÖÉ5¥Ä“BG2~Gí@å /u«/„8|çTÎ~‡ëO∏}T*’ØHx]÷.Û´∑€gMuVHÜ´ˆ~î'-R˘2âªÌ|íÜ@P-˛πÂ0|™ŸoL≠Eïñ‹V˜Ì⁄A{ÎÅmRx^˜õ!æéZ=yXSªcª?;WÆÛ ˜GÙeÒ«Qí≈mÀœJ®ﬂ´∏õ∞8?G0„”ÉÜâ¥∞ºb
+‚3Z˘”œ"zON¨r›<!|•\D=Zo&ëzÆåsÔ°$õ_÷)ÏÈ®F⁄ˇEÏ	|ˇçY≥´o“Õiv5éœ∑
+ﬂG=|l}a[É¥y6m˝
+zKhX£R>&ãÈv ÎXàï=Ä'}ò‚eÒÁ®7Ë∆´≠¥Wqê.M≥	HÛM ü™Ë= 6^œA⁄øH.GôÍ¢™2∑ÈPÊÍ.ì¥ªî@rÕ¡ôÕÛÃa¨nÎTj„≤'<ï‘çEÀ´o'xmæâ‡3r˘CYπ£ÀjGΩf4Œ	( '?®–·ó±~GÒ§Kòæ9_≈ô‡(8¡µ"¬`èˆ”œAß¿@∞éîPî®ßÇùBN›¥@Tu¨[Œ¡˚	pË6–≠ŒS‘èyõ>∑o”laØﬁé„À1‡¿=F˚Q4∆◊¸Qﬁ¡´t6~z√ªÙb≠Û§
+W06‘¬ﬁ˜∞ˇ3îw‚1s·'‡∑ÓG,ÁqÄéæƒWæïIgâs¨”∑åº >/π¬¯IUƒ€oWìÚ#ÔÌêø≥Ùä-è∏ﬂÜoÀÓOX‡aú∑≤d`U~l¡º0WfúmHp◊©#7 ›Õyú<∑ü&*4ú /Ï\‡ˇ'Á Y©p=∆'BÄÅ‘m≠ú]Ü©Á¨†Â2\Ω\E˚£—eDl—‘dΩLªä⁄ù8Üú`uB”P… kT15,µk4Äø‡±ë7ÃØ>€2{ı≤§~ï[äKSø†9Ruç=≥Ë7È`˘≥_∆°J?gQHT⁄£®?LÜ„JBÖ QÖﬂﬂ£P˘:ugb£O#g 8zIwa√]P>åªQ.,>≤y~‡íÇ7ı:v…¸π∂±ÃÒ85µπB¿ÌÔWv»S∑(Gﬁıì!:Õ@ã¨(Iû=|Ií$ÄSäjèÓRô≠DÒ$ÎSâ≤æ∫Óë<äZCßèJ∏·eB^{‡rH¥SDÎsA4µ ¢”∑'áŒMãJ∑ìØ÷ äÕ∫‘N¿UqGÿﬂ£T∆Ü©Öë-±»‹åß<,à,2@’Æ) ˙#RwyÇç∞Èm  4æJA:âÓ'·KÙnÌúiı¬œÇñ˜–Üo“Ó5ΩIójJXê_Ì?óQ“¶&¸_ÎGç˜-î∂K!“πŸ∑◊√˜Ú∏{†ƒx≤7»ÍŸT7<âÙÛ$æ˙Ä¨ªÃÈ‰
+u2¸Îøﬁn«vÄ≈I|∑(ítı¸bÌ(^∂ÔQºÄw–˘¬(k`'_ÌßWµ••e$ zqâC ªÖ∏!ﬂñ‚m¶^¯Hâﬁ|+PYÈe`)!»õ$ßqÂ›‚¶F«≠µ√*√ÓÍ±¯6Ù€bÒ=ÌéÚjƒËùÉy˜∞0m°¨›<Œ>ÅVï•W≥Éå<Åîû÷“P>Íı¢lLRwN)0'ñH√PåU∏‚ ∞b‚h~jç|CËh *<f#Çti; ™wèíœ†dú‚?≥_ó“¬©@˙7I42 ‚»Ê≤KØÚ›Î'∂˝Æ‹T~ Mjwí^í/Ùø6$¯DxW†Q7å"ùô¿ÒGﬁõ°€o*Ñ?ØfoÛ˚÷£›gqû¸O˙”Ãb¢¯Œ‚Ào˙Òù≥]3◊V©ø‡K&Ï∆x3 Ü>÷aeﬂ¶$âÁ^∆±Î9UïK≥£®’! ¥[/§!á∏öÓ0‚îŸ’9û‚EªÂ	]ãÑ¥o∞“Jøå—.ääÎÂ(˚#˚∫∏cìÔÌ%“t‹ •b
+˛¥Uÿﬂ!I+b"‹O;¿Ÿº©j÷ƒl‚◊-¯˘ D◊’3∑ù¨⁄n™1QÆ1DﬂÎé3![¥éó@H8hº8Ωv3±¿ÎhláÃ∞˙∏…≠≥Xbé+P1â Ωÿï›¸f,M!p·J‰°]˜≠ÎòîÑˇ˛◊?˛âŒ[ù4Ì"<2;¯çañˆ/›,§| µ+;ysoÚπÏu–Æ˛ ÜÉí£⁄>Hò%{ÎËõåæãœ¯Ñ≠õ&Y≈vq ˘1Ê√ÑƒÛ≤3+∆ó|ü¬r±+ÕÈ±f≥W8âÓÔU—C"üÍ;Bgﬂç–G ‚∂¶êª2¶GBîñßË" Ïñ«^f+˜ô¿CÃﬂΩËÛÆjE ‚ˆ®◊j¯÷±LƒU˙F=,ñ|Ü±e|‚Ÿ-)^ªæ™ï÷yùΩHárZº^∞u;ö}oä´Î¿ò“&mπﬁ∫åïﬁ.¯âŒÓÖ= ˙â∑+Ωí(iG1⁄è∫¿ô‰;™Éi‚„êèÆÂ%6”ÌÑVPi?î¥´rpN~!S˝]C4ﬂ>S« †¥G«Á√hàïgœ,˚·TÑfè’º›ŸŒùÔ:1Äìd∑<øˆ˜‡"FñÛaÜﬂ\<©øÆ£˝„üéﬂ†⁄ª7ßı„√•E˜€–ÅΩ-Ÿ¨ãï˛Ì∫Ó\#_„ä˚2Cz≥∑ÀÜÚÒcˆ«ûAEÓœèı::°=˙π˛3–I∫{ÑÙ˛∏,ìf¨@w«P@—ø*Ω˘·ËÁ}¥_Í“Y„∏~R©Wú¨Y¶N.˜H05ª˙„8ùΩ¯%e˙nÅ≤Víö‘Òbı}tÕ{|›◊| Ωû5Îˆ≤Áx€ôÉ´Dm€âl_RÓZ?e≠Œ!g&~3¨˝vA∑£ÑáöàHM¸íVGäœçrklå∫gbìz&t´2/înﬁ≥PwJ∞*Y£Ÿ£‡&ltz<íZF”ÑGÌ©ìZv€ô,ã≠k'6ù [√hc{m˛óÂ:·∏ø û pÔgôuÒ`î7!Rú'	>Fâ√xâ }ç€	ÿf”ùÂNÌ8œ±ä…—˜P“∂i6Ú;Ô¶¸›}Û;Ó†”≥„7†w>=;˙ÎÒ—èú·Y%zñ^Ω.gFOn`sñ*æbgù≈ _Â…œÌ∞<KO‘ZÜ∏ô¢(Gﬂ5^üuc∞´,≠ÇÆpÂÀ*â*ôŸxöpdÂ,IfeU>4fÍÓÂåâ©üù,d∞p¢ÍuQµ:«t\eHÀ >Î5Tgæ–aö,Z,XI3Mq]≥%º6ïì°Ä.X¯®}ó6?∂!qjaÔßË"Ir|£;å¢f‘¬7o¥È. O—¯€Ts[…Ø…1∑√,Ì>ÑH~&EÍ[en¬N›zñ•W'@rQ)ÑÇjI3TéÇßëíZ¶W˝nµŸlûæ¨ïœùyeˆ?ÅÛ¨∆ÇUô◊â4íUù<>
+’ÊÓÑfÁ∑„KÑ«Ì¡ÃaÊ,&±∫ ¸ULe„ß∆˝MÂ)DL√©-íc	hÍW4«LËöÃfw§ÌHÚÕÉùF2¯ΩJ≥HœNfùÓ&R∂hêPhD¯|GX;IGC≈ôƒWfEî#Î$.®zÃ≥ívÕ£ûjDÅÖ≤«Ú~µ¸¢∆V‘ˇÒp<=ßï§øÍ„`∞ﬂd†µt”À_˙…∞£V‹:ÊUÚƒù!orI⁄‹§/:[ÂêˆnŸÏˆáÕçÌ'[mÊ/ÌéÜÒÿˆp8∫ÃìÀùèö£÷ãµŒñ±nk∞1Æø®›j@ËÅPˇ^EXçàÒh◊?`9Ó%$õø˝vï (µÖË7à∆ÿí™ohqsÉ¿ŸOË, {	™w "˚\˝£é±1FÀ°›B¯:‚t'qp˚ñÜπ…◊ï—˘$(¢S„‡|2pO¬wÁ*Qø»Æ˙gÜ9(FæX.{'ÄÛ#∞~^úäŸ$≤¬`KXÕXƒ
+ı—˛ë⁄zi?EñÂ&≥f;Î?ıê‘ò^fÆÅ”ö€·úôÁ¢πIx*U•ümKãAùPS\Ìe<|ôd9iH˛∂ﬂ/π±V;º≠ÛÜl∂ym£HNÔ[\∂E¸ÔƒKñ,¢äãó•o“Í◊áMLö„ò˛‰h«a07,©Æ[~©(S)t÷ F],ßâ¿ÙÀU∑R?s«¢wUd§	$ü{VLEÉ‹ˇbÍÜ-r\—ﬁ#]…"ﬂëÉßy€- ∑K˜5@P’÷¬^#{±6ÏTxœàãR±%˚{ØëdÈD0a¡°'/Ç’c—êèV.„qﬂ^˛%3ÔÎºø6”ˆXÆ‹ 8cã7âì@P€Ñüå¡Õ¯ùõíê+¥r*\‚v2Í9"g^€˙»“ÄΩ≠í∞,Û∑c°…ÅBX»-˚∆^ã5+‡9-Zá£ô§i•öªÒ¥®K†YL\]é÷~=•1±j§ä{:}≈±z‘T≤K™f◊⁄d€MˆD≤óL«ë‚î¯"++âsJ}z‚>~5œéù@0NC¨œ˜ˆ¯	√¥¥Ûø`V¥È{'ıÉ˙´FΩz˜Ó∞ä⁄„Prôƒ	¢aP!)÷Åäa‡∞»Ê?7i”3ÕêHˆEÀ†D",ÏN«ƒë≤N÷Á¶nÇëUdÎà˝¸Ø¢ÔÍgçJÉv˝^	Õ,åo°‰PàÊÇ  %Ãì8˛’sfìåíK≥Èö†Hª€Sëi∞$ áQoÄöQ˚“hS=1Ñ⁄"`Aàß"jzC",Ÿ+Lbqã´≤¨Ã4À»\fq€3f*˜öÙ:ˇ›——Ÿ˜∞›èOæØW^∑¡π–¯±∞j/ŸdFID ,$á_ﬁí†±=∫„Ø'áøØ*ühØH⁄rñÁ¨[Œl—⁄ÚcâÙçxºﬁ=x˘áxåØS•O ÕñÄ˚i‰=€µÙΩ©3}í:m±Úÿ≠,6‚óßÎˇ„WÚÍLwÕèv∆_ŸiKöànúdláà¯ ®b4»‚f≥¡õÌÿ ∫2e LâøÅ˚C.h»g∑—cjú2y4,|N≈pKCV®lÁ6,â√‡√¡Ì∑ù„ï1ƒå—U‘éVÚNÙë&Yd`øåP‘ôƒètﬂm˚;Ë¸Ë‡›Ÿñﬁ''«o^°«ËhøÅ^◊ﬂ‘_Ω>z”@oONéoœ§◊g’vçIl¨!ûÌÇÿLAkƒQçWH"ƒ®=Ëx/‚‘òi¿	
+äÿ∫›Ä,+H‡ÙaW√œ,ë÷ ]◊5Á≈Aíµ ÷¢€ç≤Û‰≤ØŒéD%H*¬B‹Ë§>è[£,F˚I∑˘Y∂§$Kå±_ñ`w®Å9|ãÔA[‡ñL Ö‹Fÿñ7÷π<í4Æº4n&øÕùN‹Í‘bçk ÷-/Ôß¡~˙“*¢7JœõÙ/R‚LM?
+…ëòƒ≈i*◊·…ù∏ï¸Úe4˚	œË|∏∞◊†±øl‘lxıΩ™@F+\èiJ|p‚ÀP˜∫÷Ó4¢ûÛ√ıú¯¯pg˘ùçÌÖ÷–9¨ﬂ C˚L˜óû^—oÒÊCÏ˛kJä#"xf±∂¯(<RáA"!≠2j!ÕQ '±^É,Wé€4‡`ê(èÛ¥?€8⁄Á™7|/ÖC-¸SÄáAﬁ)¡#hcƒÆmÃê¶Çè’síá¥{MC˜ ÌÜA1NR≈‰Ç&"òótÇÇÃ}%sòlo
+n⁄„ıÃ^B‘úgª¢eªéÔßÈá∑ÉXS≠¸(t´±‚«Ë3>M#PÑ¨Ü* «Ñ/ o–Qí1◊÷Dp>úÿ=¨Óméé>(…Aµû	G jΩ˜¬‰¡p1Öçïq´AbúJo÷,wÄ¡Ñ‚ˆ˙˙mILrq∑ãóπ	„Aä{Ñ◊ÔWΩr´£πú ØŒ◊ÓLÿü8Vi*ûæ¢ˇk[æ;{üøkOfus}™⁄!¨›ÙBm„UOs8œ≠Ä≤J˚üZl%Ù≥YÓØ¢®M¬†!(p≈PçÎ°6ËQª-æÇvm)î¨X	"ﬂ^
+*À	lØı¬ÀåE!3%]ç–YyÅÆ.ÅÊ;a˚çp€”∑~ƒ&Í√®°èi÷ww¿Åïm¯·ã÷“DﬁW¨ûÌì]5âz&ﬁúqJ=´ñƒã|’Àv"›¨xuæpg®õsÃa‹¬Uæ›ÑìÁ4Í„ÂmR‘\g›å⁄HÅ*ıè|ßD+HQ‘ç K¥@¨>òråV,Ga≠®€¡Ñ¥YôrsˇƒÎ2ΩÔƒ¨“éÀÎ˜≤¬ZË´íûó„ï;T=vø¢%TÈ›Å3Î¯ãﬁÎôÄ˜*pΩ÷û≠/⁄À⁄q†IÂI»gP¢±@k¯◊z7ŒÜ‘=®å/˜
+R„fÅJıË⁄0$j∞–∂w'AdB‰ù]Uv6jaÉµGèÒèπ›Ô}u¢6K§ÄWÑˇÍFXˇÎ∆ÒòƒQ‘Èø¡´â!U.ΩáÓv¢^Ñﬂ•
+í†+)‚äxâ•‚òû=ÁÒp»†`å°G¨”>:"SDŒÜëÉèÉ√&’[^q,è√÷xœÕô¬¬√)	ÜÙ˜uY<¿d≈Õ*jtbâñM8‘ìE-ÿ≈x0Ò\Eó‡ãvb¸Sì¢ÖÊ´Ôù≠¡ìuä˜?æ.'G´É¯¢*˚@π¿±§ì3dêf,(5${hÎôR&TO∏‡Œ¿GJ¸&´ŒŸ5:ËOvóàÌ'ÉL∂‡?≥“ãtêˆ`ÇçÃ#`ØfÃÑV«÷lT5=ëW’‹†uπhﬁc≠˘%ŒM—A	:6ÕsT®TJã&UÅLCaâÅÜôH¿P√ó˚Ò*z{Öw,êæ•®âE⁄˝ÑøÈ„é°ó¯Üàü1+7*Y5>I+õÇ¶√G¬Á°È0 .Âã˙πàƒ∞±÷8„È90#…d2«F€c[‡SôŒ*0∆Eõa<µO`b∑TÉàÂ≤©⁄HîÙàJxÅ’am‘MáIﬁ±K˜QnTπÌ‹f˛ë∑.Í„∑-∆è∏¿Úç7Fh∫ëÉ≈_¬U‰MPEª3x¥_tb@˙EXDX»ˆ/í¨GÑnäèº4ònßJseIr†®â⁄◊$dÔ¯ºÒˆÏ¯†~ÇNé_ù°óoœP„ª#tztv˛ˆM0´) ◊ïbY=iüS3∏∫`Œûz∆î3∞≤+˙Ä¿∆k[†|æKr<ﬂIKPùƒÌÀ8É”óù√∆È∑ƒ°ò∏ˆPqpH˘ÃQñçW`G¢6R tó Q˙ﬁ6ﬁá$R(áÍYÜœ◊ã,Ì’˙ÒËÌ¡’’UÆ°Æ6iÄ$……mB]ME≥d&ƒØ÷ƒª á§‹_~5{+åZ?ÌD'ƒD˝O`EE¬¿π8à@O]ÑäæÅG“√q{â_≈	˙Øóú©ùSÿÛ¢Ä’|–MÜµ≈Â≈%2 v	‘ü´√,È’ññxÎ˜”ﬂL˙hu÷\G¡Ó§ß9ê£mÉ◊˚ˇ   ˇˇ S∏xúÏ}€n‰»ï‡ªø",¥K)[ô∫´™4uAÍV%∑nñ‘Æn4”Ãd(ì.&ô&ô%ek¯aÁe13Ü«∆.∞∞—;~`gòÔÈò˛Ñ='"H…à ôUUªvóíI2"Nú8˜ã5l8ﬁ;Ú¸ÅZ∂QÚ2˘≥∫Nó6Vó…„%≤CŒV7†ã›éƒ}…˜‹ÕããKK?! OÎ⁄q#4v}ﬂ•ñß∫Ì´••VËQ£a-ìŒŒØ”r˝ÆÂ“=0¥⁄∞ññ˛Ó'äGªæF§ÔÑëå…sbπÓâÔE˝P9õ÷¿6¯˛çv◊uºﬁedE£–.£ëMΩ®ˆ˝õsk|‚€ñªLöÖ≈ÀÍŸÜÏ-‰˘ÛÁdÒ‹rÏEÚˇP∏DéÂ.™‚\ìÜXFÀ•^/Í≥ßVó»ùr¸ÄF£¿#‘üŸŒ;“u≠0<µÙ˘¬∞πI:ΩfË¬ˆ5∑VI‡è<õ⁄Õ[óDÙ6jvaÂ4 ?∞ìö∂ˆ©„œÆØÆ.º–
+√ÂAŸõø\[ﬁ~≈G·Øÿ\]%◊∞IÕéÔ⁄d4“†kÖîDÅ’};“ºq`ºÖßæÿXßã»Á¬Öƒ`È+x◊Ôı`zc=[ÍÊÙl °˛6¢xÒ^µ9F`ÁAÌø£¡µÎﬂ4oõ÷(ÚePg¡À°±ª¡Ä„“Îà¨€f`ˆdÅvﬂu;V–å˙éßÖ˚≥»Í∏Tû√MÛz‰ä≠ Ì¬≠aHMõı©eÎ«;y4±¥˚,∆ÔW/a ü/Æ›0?1«zèõÎdx€‹Xx!é5ad‡ŸJ‘üÙE˚#:’„tËáÀi^r®Óx∏ú}⁄â¶y's”ºa0áv·8íq ëS?¢•/Öﬂ∂≠î†€≥®„€cyRp‡ÄB4«D¸!P…Hôπã…+2ÅÄvëvÎ(h<x@ﬁ“ÒÛ;˛@À±ÔÂôÙÒ∞ÔH¯ø≤eûß≠±tX§SÙó?@§æêèg˘ !8˘Å∂K‡«?üƒS±@◊"8$‰ß¿ßêƒ];ê„ó§pôk» …/íã6†võ˝@^æé∑t_∂∂©◊üÆùh`πvÛ1Æ>∑8úÁÄùf:@˘jZè““;duû–´0Ôg·–Ú§áÔæÜ◊Z[^≤
+ˇv(h˝SdM)î>Q;ŸèXuA‰™(†-¬qçw=fXT{Õéz\¬´1éÒ4¯∑ì¿W~òr^ˆ•“Óøæ/ﬂL†öôuñ·bÓ)~Ms®$öµ"ÜY†ã0…	dÆêt@Gy€ºÅIáYbWy„’z»◊PÑœcÛÇ4¯F,ﬂ∏NØ°ºÍQÅ»ı¶?åfÓ	R¨Å\¬≥»;ı≤1’?kgÖÿ|ø‘(ÃB<ˇ≈5˘¬¿èﬂkeÆgn[J$ÚªïüìÊ4i‡ì≥˝ˆ1Yﬂ!ÁGßWdÔÏ‰¸‚‡ı¡ÈÂ—ØH˚ÍÍ‡tø}∫w "Œ˘¡≈·Ÿ≈	˚ˆÀ≥œ.N€«ó“ã¶ö˘˘J∂;¶wé]Ä‰DLˇ$èI
+”4§±%¥ºvnÅ¶:^H£Êj™È=]]]Ÿ,uÈ-ú:cEÔ7£0rÆ«ÒWTøA"byŒ º∂@Ær<í(3cÆÃ}hq¢M0~Aûëc?_ÿÙõú≥”[ê~ˆΩ=8™oüﬂ5(”Ú≥‘U‡mEV ⁄9±BÚ˙Í‰¯¿⁄ÏEK yq"õ{˝bQA\*`Ÿ@% !Øå¥˜Èóä¶öù≠Á ±~wjöÂR‡º≠ß[ÀƒZ]'√W˘ç¯∞ïûXìn_Àﬂ^TÁ8â€DEî‰>lh¢\n¿≈∞oŸ∞SÎg@a˚ùw4›øæc€‘„òÄˇAE0÷6üÆæÎE|ã≤´L7îo˘M`°∫&ﬂï%xJ9ÓZ]\(#9á®…6À	<_üs;4∫°∞¢∞ÛzHØ@Õ<˘*PÛú|‹Ccé#≠f´`+ ≥¬ªM9ﬂÙ}ó™X4˚éscYﬁ[ãºçlB)˘•Ô˜Ä…·5’3;§d¥°5∆#˛}`y=›∞ü˙~Pƒ"˚}Î∑6¸ﬂÇˇëxÎhe3i∂5Óif!Õ|œ\,x€#Ú⁄F®.ZãE°Úÿ¡0†gô…0QPÙgùQ˘ûbn—xàV
+ˆÛÇ‚˜î,1™d§*fõïRò¨ãrJÇ”†¬ëú¶¯8áÊ<å∂€#›Q˙Ä◊øÅ∏ ˛7ã'É	—÷<yxƒ˝ TZùg0∏∞&ﬂ÷ˇÊ≠T“¥ÎÌ„»äÍπWÄñ[‹Ææ!sŸ»æÂŸ.›˜o<◊∑læâÁ˚áı6è…“€Úﬁ≈“uÂ≠´æW–˜‹F◊›üxπı∂Áÿ"°Ôõˆ@Ëa∑âü7æYÏ∏	nﬂXdDÖ”¶‡>]À{gÖã5œ_DAHÿí∑ê]Ÿ^Õ*üfïÔ{ hPo˜-´cu…+Ë8∑∫ ©êÛU¢;≤ıdSﬂçRŒŒ»ıHóO»¿ﬁP≠Á¡û29AsÅI,(Úı‹∏≤Kcÿinkåœ®¿Á25ÒYΩz≥¯÷∫ '®‰Ü’¬ÃÇ∑bÖq]”Ò¬ã˝œ^]ΩjìÀœv?€{∂“_WΩQ˙6Tõ
+—ıÚÀ jÆ)U‡2i%'?≈+òÒ¶}±{Ù9®SmÚÍ≥œˆ…¡9nÔµ_ù5„ÀÌã˝ˆØ⁄öW†qtÙ¶›>˝¥M.⁄ó'öˆk|œ/œŒ^]Ò_éæ8#Øœ.>;i_¿∑7Ìœw€pÛÎ≥Ç|Åà‹ﬂPÄ¥™ìJ±ìHJ∂µS*P &\%îC–v¢}∏È^HCƒq-k˙˜Rœñﬂ:¡ÆsˆU„ı‚≥˝Ów%áVhπogç‰—xﬁ˙È3uŸÃN¨Æ;È”≤A(¬k≠ij'w∂d	Ïsá≠k«≥ç	ê—(VW5õŒ:≤ó^∂<òöÃ7™M<Â@RâÇ´TEÓ9¡ﬂÛ=õÒ5`kcP*=î#S.Œ°7 ^l‡ÈÑ·Nû%LÖhy∫ÎÏR‡€$Cç>≥sî9]sÆ—‰Â*¡yCãf∑©Œe∫ñEWônË…|P—Öö˜Ú5◊’ãEo÷—~≥óú≥ØØŒkO¨û’ù˘{eµ\–•⁄Ø÷Dd¶oπ´œµÙyëuL<¡1ô!`éÉq˜
+‰…˛<ábö‘»ﬂz >˜˝…òê•›¶◊î@˚èÄ¿∏_?3ç£7∂›‘œåfˆ"∑–Æ2é*
+i°ÌeF`3ø‰î¥Ì∫HG£Ä˘\√‹œÊ7h„∑D‘î`m&ˇè≈~/†axÏ¿óÁ$Y{|=^‚_7LYü#Áú∞‡!O{°e°BníÓ}¶πW»B püÏ‹#?≤\ò¥ºçU˛ûÄï‰œ.◊ä"òéÂu≈ñùÛáó*É∏]oåcx¢∆ Vß˛2⁄ùö´Ë˙É°Î∞ø ´Äº'V‘o1’ª—hƒ ˝[ıY·∑.ëü‡õ(Æ*ÉÈ‚OIêˇ$!˘2ÒjºÛl°60û3†∂3Tï ”¡Ì*úm=kpéß:âµlò`I√x\üÂ@‚Õ≤¥?—ÎÀ∏ä°Ãá(DdvJ†‹«OB2£ª\úÔ–âUTôSë©∆÷≥ˆ¸qê	»◊ü‹•ƒÂ˛g_£Y·dÂóã¶RÍj◊”µ{çﬁ‡ÅOºÔ*ÂîØ}'‡·v÷D/r∫ñ⁄ü&^ó˜™EÕµm“Äù‚Pª	≤Ãbπ≠Sa¥±≤
+ﬂYŒîç+Î∏~˜m¨H-º∏¥nÁ÷"ØGT—Ø4π éô√EÚkö[ø9ºMΩ+¬R≥™1çcÄïñ√Ä«sÃj≥›„’≠Ög=ﬂMd‘G‰≤è]Ù«qPΩ}œê“¸†ººT€%97ÂˇÆ—Pƒ.ä	TñUsV.åW≥Ë®IÜ6¸T‹¥ã%
+;dÏr¬x]>+œè`ù µ–r£ëv‚ÖXÃsƒ”ÁÃd>›Üò¨fπD≤÷¸nñ¶≈Ba"’ñy,¢-KÊÏRªGÒXæ‰;o.s…pD≈__§ùà‹ìÁ@ö˜’ÃßHê— ·!?|êú)πV0&Øê´	∏z 9∂%J≤	ê3h˛¿ﬁIøn2∞Y„…S+a†J“»≠Qy„:'å* ¬ã‘çï⁄á √
+MÑ˘iAºç%¯f)ªãœÖ'YüM∞–≥îáV∆>*RbˆöƒR]@é{$˘Z0Ÿ@÷«G‰ä∫Õ∑yÉÅ.ˆÙP{¢Å&±yÉi‰Æû˜}èﬁ/Õ~5•ôŸÇı”æcòÿ≤ÎÄ(É1C"*®á!Aﬁ‰‡MÑ'6d—ãúêø î√=Ü¨Á‚–K5ÙOÓNG®[%úìÂ`∏„CJóZëàÅóçıíúÖ©˜VÌ£I?»kÆ¸°‡3….€¶:¨&«768£(e	znµQÖ[%nò…PÙiC≥>p…ï¬¿1Ë‡ﬁcíò„æçm˜ì¢§€”†‰ûK"&L2ÿ2á√ûIkXy\≤Ò≠k´ÏﬁôÌB¸ﬁÌJ˚∏ºÉ!Hª«ÿœt3ﬂIq;P:|Ä˝©•õ¡ÓõıN$·ke€ ]V$áqOÇpüéQ";∂z#rLÈ4’ŸnX:TÓÄ ?€›™BN1cíE£ÖƒE_˜#	ÍCπö„· Út⁄Ì¸¥<q∑ûìòKúZóÁÆ÷{˜Á ß8Ω˘º]AÄ‚·db7˚!ßı”ú÷◊†“œg<n∆’Y. }≥ﬁ§+áÖë_X°√≈Ûô.Aí‘Â∞Úπﬂ£ïR∂KL≈•YÕeNc˛˘h!œY.s¿Ú∑å\S⁄†Q+êq_æ$E)÷‰¨ìﬂÿÃíÇØÃ¶Ï2ü›¿∫≈r b‹f2.cµÂcTr’ÒOöì-Ú°kyÏÄ·|vè+ÂÊÚY‘˜‹ÂÙÃÎÆë“]w\âçÚ]…Ò–ŸèhtÖ%ì…`∆√LIÂ¢JÊ#{¢©‘ùàßU⁄™XgR‘’:y•˜"©Q±yIè€√wøh±àYœ Ñgñ∑‘~}v∂è˜¿#'¸°SELÆrUïíÜ˘ùÛŸóDydg®.uÜ—©èëôãÕ*æ√⁄√≤ÕÚ¸` \G§0Á‘ÿ$£9
+F^Æ.ê»â\äÑè%(ﬂøàˇ™7œ2ÊÖüí≠Ûw&òyõ…˜…?Lwz [@u>OÒ2ÖÁsΩ¶Á3}”‰∂ø ^–ƒ˚IV»ÁNhYg\ÍUØuB?üxŸ€ßÚë¢O,qäÇ<8@a⁄Í£âÒ”æZøq*z	Ç∆ükW¶R$Ÿ<∞sr®2≈òª&;éOÔ⁄']+–9µ˛¶∞ÆﬂU!è(ãÑÓñ9ECÍ&‚„u¯,^0[åØ√.j*ÚÂc)(∆∞¿|Ù${`Qìôx…
+o≠'ôãê¨“Jëë9'w|Pˆid9nH^Éﬁœûû(®«´ÎÈﬁ˙X<›y˚+–œ˚—”]X?z∫' ötØÃ¡”˝√ÙoõÄπG›.uù‡(UÂòìW;ù»<˝€¶‡Ÿtë_K>Äë_:Å_¢‹?àìfóZ£»A	~LB
+¯†∞A3°4ƒäH#‚_ãÑøQ˙¸˛ƒh‡UÒÈh∏‚&œÉ‹âøoôkO2Iç∏∑∑L˚v©BÌ…\π'’áŸA›£U%∑jX≠Œ>≥_Ãs.
+%Ím0ãD¶‚Å=
+Xl2CBQjÅøƒwßÁ3º}R(Ç≤≈.Úzm∞QX ”zÁ;äB	Úß°1qÖ!à†Ã*®2˘ò¥SMò≤@•ÏôëÄîïiíZJ·`á˝¯7¯∑±f %±eHa™F®;ÕÙœb…á
+’‘
+ï*÷+u¥rìâﬂ˚«¨aÆS¶ZÁ$ì\·'.®‰ (`.Cè©∏oŸJTTøº 5∫Õ5·7=üßÄ2…ÌŒ3»„kïßV Ëƒmïvu≠ÜL]aQPBÖƒw&ﬂV*tÿZ°@y÷qìüö bô Ù™R]QB ≈t™fuç?Ê˙¢OÇõ\=¶ÚÀwT3djkΩÈ©™éJS„ÍML]âTz)˚éÔ¨ äµIëØv÷ 3¶MÄC◊Kv÷‹%xº/IU.‹Z≈Õ1S‚P&	†z>ÊlèFd ¬—ÿ'ªå€9◊â≈•úÒ›Å–“
+Ÿ{(=¡◊XËpÄã,¡œÍW‡-X∑àÓ˙=¥B…_±lÒ‚ÈJ{Q˘√‚“R∂Ã•vÕ9r»π#
+«B ÿR«‚ßµ’-ô§ /U¢‡üDØPk0¶(’(Óπ≤V0û¸?™S›Z\9âgÒAˇaÖ˝Í˘jºÆ2¥å5 Uüª"ÚVB71+u±òT_ˆX.fUdcnOáó´¨∫ƒyZ;äI◊ê{îÖ_t†Gxñ éÇ°Kcêào[´U¿"nŒÉeóMrGöº¿1!õ)¸ﬁ9æK£~‚'n@(ÓœÉ'L`∆;ôuŒéUÖ€*∑-)€±»ëd≈¸,d@£¿ÈÜ‹.Ï∑Uao%qÎ®Œ•_∑⁄®4§∞wjQ(èmR≤ÍfÆÄs]ŒT-ò~≥hKÆ§¨µHÃ)¶’÷¥≤'¬E´`€L+™¡\¿ﬂCÔ*ÍL'_ôË˜›üˇë|ju¨[kÃB\æ˚À?¡˜èÂÙ*ÖπÃY9¸£”zKH±ˆGÅN!Nµeoeºn¸àa™πÃ√6Z‰Sﬂøµ-@¥é’˝8∞æj∞ÏïÂJhtb·ÖëhŒH¥Ÿb≈”´zÑLs*E†à¬äπ{Snª‘uc{∆w˛w“˙3"áé”µ<Aî‰^˘>«™Ôø˝√?Îokø£Å’÷î>Ωµ·ˇñe+Ó<•‘…—`¯ÔXvü…ˇ˙ﬂˇıüø'ªñ’áE…¯Ã”?¢Ó<Qw´EN±L˚ıÉÿ»ÎâY’@ﬂÏ#ŒﬁhF·ÏΩıë8~˛6™]©¯ìj¸Æ~dç=Há∫˛â˙îÎ[Ïà àkÄ˛ﬂÒ¥•Ö3”Ø‡≈O±Ö√¡- NËüuàÅS¨ım„é¥Z-¸∂LædÆ”Øv»OÒª¯FÓÀ[–·G6EF±)21≠'æN~eçw‚…'ÆgHá∞ªÛ<–åµ21Sääs.µl<…ÿÁˇdIMÆ }H±o#Îàbt‹J$©¬Íy(˙¬´—o:ƒb±/µ¨¿	}Ç¢Îàå—vﬂV€˘Ñ≤ç¡FÆI/““·fg?ƒÓ É˚'ÔM¿èŒ◊™^5î‡Œl¥ô F[÷	∑MUo›–Ms}9—ˇ‹Ô±R\];¶æµH„»£`ƒäé±ŒûKs±Û3.øºÌ9„¬À1èbãÚ…ÕÙ¯øD≥H¿¨uå86◊kyñRZUçlkõg^§∂Ìﬁ¿© ú÷æsB£Pn˙‘„A%≠PNMŸòôf—„âC«˜‹qS™’Qƒ5XÛ†SÕ&®≠¸ûyUﬁY≈6;µ«[§‡»	“+[´Eüë&\¶JﬂW¸#Y¸≠;Dn, Ÿú=”∞@1ú∆∆©ÛŸ§¡ı5«®ÔÑ÷¥‘öôau™wòªVHÆı∞∏≈ñx,/ô sâV53ﬂà•Ùº£Øòã"—Õ≤∞Œ√v˚¯¯ÏÏã£S÷cá$%H´Öæi∑Yªãˆ`Z=¥Í£<è=,äVyÚÑèyt
+è%ï;ßØ†‡Ùº¶}]?}´n·Ji)¥÷HﬂJ8Ê¿
+GXùéáñ|Ù¡•oµAÚº≠S˛Û·aˆﬁ∂r}î¶ÎìäiÌñHÀ∏‚›4≥}D≈o'xÀ
+íÜ±€œoë'â
+óRI·:)‹_ÏòÁ{ó÷;|h4ƒX>˚2Œ»*§àÒîòÏm°2EåUß«‰`ö$åe_ÇW_ÊÆa¡“Ã”π˝ÃLfø”`:d<óÂh·Na∆˜Ÿ7q Ïã…+s™¡ôö¸à‘;tEÅI&ÿ—>èˇôA_Ÿ«‹WXã‘ù[gŸ¬ %Ωe,(}e√¡Ã⁄ ;…f	^±Gl«
+®Ol≈¶∞ÖÏ)¶4òÎ%⁄ÑÇΩ^v˚>ÄÊhü«¶Ô‘5;?ï⁄Q™j◊+Ù`d©(‹"ñ™Ôµz†
+àÎ˚†ùVÎØ»ÿñÇ+Î⁄\hgN[è~∏∫ò˝îoÅ¶9f‹⁄Sî>Ô˚ëﬂ–NlÛxäø⁄˜?ƒø÷Ën˙-¡jô^®R‹€|7Qg˝K⁄ù2h®ˆAªß*±Ïa∫ô&<¶F?Si#D?”≠í~¶[ÖöCı7"aŸ√ë´2—™6Ö≠öGW>a5˙èû'ùÁÄå≤¢‹\9
+äÈ;EÊ±Md[AôË¢Ó1ZXU∂Kinwä˜gòÔ„u–bæ‹‰[S‡ΩÎâ	#ÕJï¡ïa#Õº8œÆÚÕÕYAa+DnUò`èMòÿX©å9î⁄æ°ZÈì,	IÇÎ2ΩGöùÊó,/(c¨Ge4^ë∫˚_©S '±ö3jîµ±Xß™ulŒAö3‘«æfﬁÆ€.V™Ëp˙òßœ®äÅ™d_°V≥Z≠øâ :Áæ—V∞`0÷⁄v'l'°ƒ8&6ùX†;Ï˙ˆ∏é°¿(ZõE!2uUsØ[Ç+oj6m∏èŒÆØù.h
+i$]zÀïJPÎL,äKå ";%á¨≠b´ê˜◊µG∆ ?È¿Eõœ˙&– ıM#uLiBû&
+j9∞…‡ñ+ú≤°ﬂ‘(”ÙÄ¬\” †¡πå~¸|¡ÛõÒ•›Á˙5ﬁÀçø≥‚J´˚«Ô¸]á]\á¡¢e≤Hº$ìAWi@W¿∫îƒ∑`kµ$àÖìM◊∞Qß>6yT»ÂêR¢∏÷º-wı@ëGx¯ÙECmΩA◊«ÕƒDB4œˆﬁ≤.ÙºJúPÁø\ﬂ46Å’‡§Üé´˙h«+,ËŒË&)6»ÀÌf6o&…‡“§…HÆ88ƒrùNÈxÃÀ+™4hV€tz∂£"H⁄˛ fˆ•¡é=9¬ Xè»%Cdï+dØOªoõGπr*SVArÛòU!˛,≠:]‡PâÌ>._∞∆·(!›∂÷£YÇ‚ÚÑZ2ep'd+nâ>I9iÍ_»àEq˝¯6 ∑ÁUb) ÷ ¿ºÔ†C›/i5Q3.{˙Ñ√#Yv£í_≤j”ljÙ'Sz+3ƒ›g1.D§–Ôë—/¢;∏ŸTò£ı≠‚≈ ìªúT8ÚXŒWc…¬ãsV€òGV7ö®LKJ–t]‚3µœãÄ‚5pŒv¸è<<¸ï
+È-Äxê>∏2<O®‹lÅùµr<$¨u~k≥ßp«Î\ˆÂíï8)ÉAiF¢‹’CﬁÇ6oP˝›üKjÇò(‹¨uƒCﬂG:∏´(∞Áu$9è»õ(c¨W-®…Ì∫F≥0◊ë·±äéYûWfk–Ë•€MJä\± gm¶Œ;]Úµ#√Rï„€0c¬˙Í˙6h¯Á±˛˝Zå‡n#¿Iÿ€.ˆí¨&Dıõ€˝üzvvcÖ◊¨˘§™(Ò≈oìùh‘ÌÉ>µad∂Y1Oÿ∂b WMö_Òk¿÷?Ä9|ê|`8ò»´Ü*§=ò≤ñ3IÂ®EVˆgY©G’>’ Àu}‰5uá‰
+&M⁄µÍyí±4àF^VUÌW™QŸ¯®¬πˇ˛€˝7>SÌΩrÜ;†FÃ[è"ü,¿X?[ /Ú÷Ò‚π¿Œ8—(∏ÆÇí¯7!J˘lŸ!çç!ñ·Ÿ» o,◊Ö∑Û≤f°Û%çç÷∆π%Î≠µÖ\Èî°F∞t2ßÃPUÄ“ˆµ∏Öò{˘—ÿ3¢VÏ\3ª‚Ëı˛M´Ào-Ñ}ﬁâ¯”è˘{À	œÜ¿tã!,⁄∏ïo@^ÅœW’V2Q.€´Ã…a˛¢QÄ∆˚\0À˜¡^Åê⁄e@hä	ÛPí>Tà˚HC=ñ≥1 Œ±eˇHÉ>ñ•PUÃΩu¢˙C’—Y&§êíúı∞JÃÛO¬ÓˆcTiË»›◊}ñÒ!&]®ñA/´ã∏∞áÉp+W-ä Y¢ƒ’Í"Ÿ©ıfö^Ãïﬂ™˝TÉ‚óW∞‚ãè}∂ﬁ÷˝◊˜»DJ®cQ˙1¯—∏®™ÎYÿ	F/ôØ‚¿uë∂⁄[ìk~ßn¥W⁄Ñ[(;Àä√%©_ìåßÿÏú2úå]÷éµò1≤ ÿ‚õ“⁄D≈bmö]q*Ÿ¢ùulñQ‚õÊà=ZØREº¯˛€ˇ˘áˇ˙œﬂc"P’›Âiú"y˛è úyùî£ëqJu–‘
+À›ïjµ±øY≥‰7Ê†v‚ùà¡z£^%®≤?ıÚ˚õ ›ŒiÃ∏1}±BeˆÏ‹4≠ûfv
+o¥IÃÃ]e	Z",Q)M÷â*@ìó-±yç≥õzasŒ¡|{ ´Ú≈≈¶‰@æµb _Œóm&ô…π §FâÃ( ´2∫
+4–ÖÑÕ –≈zBÏ´∆º‰)÷"‰`Œá“©√PßÉ#&˛¶qMi‘ö|7òt[£ƒw¨¨iò”¨73 ø$çò‹3ÒêÓõê]ë∆ãÔ0óï îqî‚eÈ]+k[™r©¿É+Ç,Fä/LK∆vaø¶P(¨àÕàùÇ—’Ÿì/‘T#„T©>˜k~IéòsóÿSüπ )ãîˇ ^¿€ê‘‘Å®≠Æ÷V∑Í´á"Q§âsûΩr∏n ò≠rXJßç©ÆÆöîC…nT„‡D y∂*óZ·Ë ë‡∆D~3 ◊®üáü ÿ€HÆ≥ƒ∫ÃG†‘®l»PÁ•4t/6‹IΩ›ì∆¯∆¿˜È9
+jYuxJ,MvíI(≤ πè<∂‚©UúmUDâZF„$®(CõŸ≤¢àÇJË§†*?5‰IÇπq<€v ˜)!ÁW÷+¶•ƒ&≈BÿuñoóG„>˚<;]å‰⁄TXä’ƒ\%´Bßì∂<ñi˜	@ì‚tÕüL…€:rêÎC°©ú¶Úµ≠Í∏]¯9x&µ§‡n¶
+6ìbÀ∂ØØ5Pj/ﬂ˚/¨™,Í1¶Tˇ^(˘dúFâ/ΩØ°◊⁄‰¸˜1!8¬Dx”é–{0ΩÍvËByÊEHnú®œ˙|®úÖ⁄ﬁ.äMƒWØµdÈ‰
+P%s¢›kbdüπVá∫:Á®æ2D©U,ºêf∞q™x§s…˜∆:Âwç/ìö˚À¢™˛rR7ˇ+L∑d˘≥K<SW¥÷w2Á…∂N(bû%“§µ˜/Y/>÷2_≠Î[[⁄`‹î∂≈?¨Ÿ≈T>£<«ã*Ú(sÎäV´•Çœ≤Ò°,v‰èò€˝f‘Ÿ±28QQ ´êÊ‘UULÑ!a£¨¡GÇM∆ª∞=F¶Ωµ‘I"€‘#◊√#±o…≠œÖãbˇK∫ıƒí©`Sy2I∑
+Ÿ˙\|óÃ— 9$wVúÅlXómË…Xy]?*æØ¬H|.2ô˙somOÊÜ"*M9˛C¬45ΩJÍf‹È∞Á˚oø˝Î¢nC·«cÊÊÔø˝”ˇ5÷h≠À∆nàâTi‹ó÷∆?öf∫jj0Aº÷zã≥⁄€1`¢õßÓe«Sé´ŒOŒW◊K˘jZŸ8Í9eÍlÅ•∆mÜßg™ºz¬P„œõ•∆„|‹L5ﬁ)È¸åü˜√R+§>VÂ••¨Tv\ > Ñw‰≠®)ÔHT2•˝S˛Teô§Èπ≥éwÈ°TVËÊÓ≈ﬂˇ«bï¯‰Ï?x™æ—"ª¥oΩs¸Ä\–Åº%◊u’bí∞ßíKéÆ«ï{„Y?¬ &{‘çƒ¸M$ﬁÒÜ£H	PN≤pd5¡∫∞‘>ÃéœZΩπ b≥LNú0§6_"S`1÷5pX*—2ŸwB\“'†TÍóø≥‹%ôÔàu2BèÆ ç–¥¥oy=öT’©KMk“Qy^;$Æ◊”bK©Å≤*StÜXf√ˆV`…ÑT‘]ŸTé¨3GwÓ‰Eaq5oÊN™F¬≤5U^	vredãSDÄöŒ‚fK†p»k©˝Ÿä|u9§]Á⁄È&s∆É»ãaöé`º2%.`¿‰Ûª5¢è‡	œoáÛ∑EÄ[Ñ4ƒﬁ¡ÿñ´OæÖ£Îe“≈F\±GcÀÒ&8ÜñÿE\ˇ0N_2ùy=,*7‰£rº»»3ß."¯’ hM˛í‹ê≠°ù=Ö¿Jaõ˘ﬂHïAsÁT[!?˙c©º®∞[∂EQu∆∫U3'	:yØÒ&u<.˘∏ëz#;ÚA'y˘Óo3ËD.:Ñ•/G!'∏´µ3µ!>yˆ»VS	≥˝^˝åé<ÂçêÃº:“%´^%ämÍg$÷Öó2πKMTWkñnl~ú2∑<N.«7™™{Õ?$Ii/’µL•“·|Üß#Àû0Ó™œ:¨´kÿú	5˘éŸ‡éÜ0°kJéºp(:p<"Á}Á–õbPÃêˇ¿ƒz£sãàŸ@/c¶º÷S^¶ ˚ZR4(”aoäeÃ2Tf˚·BetCÈBe∂nì‚ô’cf÷+∆Ã‰ãt¬à˝ÊóOWﬂıø™N≥ky-Ø“i»ßa3Ÿy Ú∞øAN«øçy∂,…†–∑#Õƒ◊◊¯,ïù¥AyO "ºú√ëD|+õö$ ºs#Õ†ù-˜`ú£V€Y≥U˘‘rß&¶GXP	6:+u>ÿl(B“ÿ	¡HD±CQ›%v£≠æ™∏÷a#NJæ˚›üÚ¥UΩÿ:9—èa
+ä¯ö
+y¶Z⁄£°üQ˛œº»u˚TUÃ¥(}jæ"<å≈Ñ≈Ò&nØ<<lÕ(Uät/ä<Æ˙£†KE0ã~YÍjFä˜EŒÄÜë5Í˚;+ÇcnC}`L£Ÿ¥KœÜ}?bEÇÿ»;∆¬¨∆Äi‚%ÖgîÖ˚™V≠W+≥U˚∏»ﬂÙ"Æ] ¸ÄÇî+|Uiöß<ºyêGKÁ$YZ-<√πÀ	œ€úÙî˙Ç¯q´&I_¯Pµ◊Ω©yà±‰
+˚ÿiˆ‘øy∫2à∏Á˘ÛRÕ,QΩ¢uZOÏ∫ÁÍ=¨¸…À€Æ±*÷	{√“©+Ó^.^îgŸ©â©+ˆ~z~î¥˙©+?¶^√NA‡ÂU–6πÊ±Ul£Ïÿ^Y:î}J|w]/ÄcÄ8x  ë©kÜ∆%«rˆr—eB+Ú)áçôs°Œ‡”§⁄+—W“Sq]$ICéó-ózΩ®èû•U'©3W}µôO5€k«Ö≥∆[àÑ-ã˘∂ó2k á∑¶\%Æ¯—‡ÿµ@tò/ﬂM?lãƒ¥≤ÿF‚ŸŒÌ‰§È˙≥ÓrÊ&-‡˙7ä_#∆1Ÿã:√Ññul’ÀÌœGõ%n…Ÿc#b}r◊(ô2NıÀØñZµG]⁄hÑ£¡2Èp¡g4 ø ß¨’^£”≤Ä—π¨ó∑¥ˇoE˛!Z´K˜˙€ƒ…œ≠Àr-€"W∑ﬁáÅë∑ÒîÆPhmsÚƒ&;7¬7CóNJ¯íÈ∑ª]Dª¸‘„Àæa°ô&éŒ ‰õ™<√úÒƒ˜Ëò∞-øÆˆA`‚ ÁîL)èÇÒıπ·aZ˝§˛‘ÔùÔt¸˜H\Æá|äK˝áªe.GùÊ©ıŒÈY¬ksI≠†€Ø¢
+eãzPbUﬂò“™^C;“˜’N\¢¿;∂—f*ZGiÂπ˚Rµwƒ±w»bó{›ó	˚a¡Ò¸y”∑"·ë≥I„(ÏP€¶.“ï%∏ïëê¢`ë‚u/[ΩπTÈ)K¿MœÂ⁄˙’z∆‹U»;R·ÎπW˘†‡pçY»˝˜D«HT÷†›KÜ∆„Kce)Û“˘cú˜¶Ø™•«å¸Ãò¯˜Ô~˜œﬂ˚˚ˇì˙ÂC+5„–Bî å¸Øˇè‰%’Ú°Ub§q‰ÑMf«˛íJ$èRkD˘™bÉKi˝í"Z·+ñèY7Î∂Fc© ¨∂Ìﬁi©•è+WVß¡¿
+Àó∆∞…ÂY21¯ô†∂åó√Åœà9è¨Ù¸õ¿ÍcÙA¯√‹äXÄ9_ïÊâ8_R]%{d!Ï¢¥¸ˇ¿{e,ñ"Mk]UK?Í0{£€Àá—∑¡nc«É¸ ƒhú÷âSCÿŒØ≈Œ∑ue5ÊàìD,C‚Ña◊ƒÓ( ,fÄúKhx¨É®∂F[.˙“Êz®jr¥çˆ
+˜k ¡=KôÓú˙ñXPPÔm^vI∫üèıHY◊ˆHy&Ñ¥¢ã#/∫[ù–wGpî0 õó˘pÑW÷IìQv€/h\#≥  ÛuÄ Ÿ†^†£Ö—îÂ¿ÚÁØ®∫dï:˘<ˇh#:<e|~Y}àBhpR·–íÔ6ü6Ò⁄fÎ¶ÿ¸i"}’-ΩuB7Aå≈*∫ Óf™í˘ ¢”YπøΩ†3æjÔí’ÚÊu˚äÏΩnüæ:ÿ'ç˝£√Cr|ˆjIv\<öœÎü;yREêÚ7•wH˝:≥gêÂùc•53}mw°¯	·Q ñŸ"Í"ßFÉõ≠&d®–D°Äô©ˆåµ∞ÿsÇÆK◊≥Á%qÿ=˚∫|é 5ÈÎEd(◊≠_s©uDÓ$≥€ÖIÑßFÆﬂ´››B§ëÑècêÜ2¢¢Rh	Œÿ$[≈EüìDœuL1>J[G¢AÜBÁq}·»VQc± (ûO@Õ$7l/Ë%uaˆ[Y¸À∂±¡`Nl,'R93ƒi@b^ƒ-ﬂ^ÜØ='Lƒø}å1f:9÷Fg‹éﬁÇ~ìÒG∂‡|…j[⁄ÖMÿπRC≈÷Z‰ñÎ≈§ç◊5”ŒIf
+IÙ)ﬁ)ﬂ+g/@«‘G+iËBı^ı+ùIÔ™ç˝XA∏6!R˘ª—œ‘ûéKyIQzÜ¯…ÏÌEÇç	ä¿ñÜ~kvø§áó·‹MÊ^z¬≥≠‰
+qS‚ÁÕuÓ±t5ììMs!Ö52∞wÚuÙ(m:{ôBkF#åv–V∞L˚meË>[“82ıÇZ‹√èﬂk∏£*„TñMÛhóL∞8∏ÎiGÁ|)}s≠í“äÓ*3±˘‘≈Ø-ªGÅ∫zGELÑπ·Èï3·≤°
+-*NX©/+]∆ˆÒû|˜ªør=øîºóÂQüÆ¥´$Ù≥iô–];wY,“KWea≈R¯j'ú>¡√k£æ;>§Ù~e‡ó.≤B∏r@T+£R‹Œ‘•lä(A)9µäÛ÷Çä‡\]õ@é∫ºCùa™aª™™nhcØByÏ-SÃBt6≠ÇPtD≈ëO¸¿CK{˝—Å˚bp˚4`‡‚$ÔYèØö•∑î‹P4êUxP˚Sö4&D••œÑ∏ú0ı≈“úÃ,öÊn˛Q<ï™#ûv‹≠ õ&õ¬ªﬂ
+võßûÜFôTΩS"ó≤≈	°î˝=âÙª?ˇÎπ$@¯aH¶˘mö∑t*Ø(ö≤J‰R]·=‰¶9π‚çµ• ⁄Údπ4ô÷≈e`“ãí≥é*Ÿ_Ñ»˙¯ùÔı^dDWú	øÃ§€Àæseo,;#´ŸóΩìáO£Kã€ãôÎr)b»b˙≠Â•“¬ämnp{Œπ5ÊÂÑè˝^oRÉéà)µÁà˚~‰ó“@u¯eí˛Y¡òát$Ã9ôMŸMzV…◊%xe“Ylzf©åmy/¨2ìµ≥1•'ﬁ°–u∫¥±∫LûÚjôçŒT≥£Áó1‚&ˇ%·òüO“˚´ZçYÂŒ€jîäœS£!^ºùÌÆ1ÄUu2’Ÿ'‚êÀ
+rÂÖü‹…ÅË3„â9X≥“ÈsÇ¶∂ff‰∏œ09	QT˜„P˘69ÔJ¢∑–eÍ8X£b@b)ãoî∏ÿõí˜ßì- πSai¶úÚa∏[-ﬁ&ÇÀò€°„Y^◊±‹t√B≥≈DLNæZ§{Z˚{ˆ ∂„Ωõäd√Ûz¢ù@¥Hµ≈OŸf+e	¬Ãî%¿XŸ"≠$‹I}˜,’∆ë8›~ø4{Æı¸`ß‘_9ÌÊˆAˆjŒs§‹e-Ö–2îéÇ©0:
+Ù-¬^äËÃ~¯àêi”∞Ä8õãc0Ná“i{üJ√xFãL(¿[úˇ˚“+Gv≈VÛ≈Ÿ &[-rhπ.FiÁ√PíòÀ∂ﬁ|U'£¸¥f~»¶Gt©%è)≤: ü($tî?RàæØ!‰õO8¶	Y§J<•“…¨íJb›í»p9 A¬aÕõHAåQo¨˙UY‘€dBúπQ‰òs$ìä£Ã¶ä|¬ìùÙ@§(ıkÉåW≥∫â/7±IÿÌ˚æõFMîtE·ywêé0>
+oÑµv˚$ÍS.c˚£p~SUã	ÓÀ}çÉW◊v»ŸØ.~}tKúùú∑/é.œN´áÆf¢ ßç]UÑ¶&—¶¨;®¶≥z≈`”ö!¶ÍuÑÈëwÌOY:≈È3|∫%?Eé∆QAı.LÀóa ‰Ñ«PˆÑá˜≤öcπ÷„Ü„∏K]ˇÜ8péàÌ¿ôäÿa‚πs$r∆˛(¿4t®ßlã)≥ÉÜG,§.<Lã1â‰"Y6è_Ù¬Q ™ºìÿ>V§%¨ ä•âıü‚ì›Ì:xÏÅÖéa*◊XY)`ñ–‚5≥£´èuúƒÎ•>?¸`≥Õædm˙ˆ|w44Ã_yﬁññ?R⁄jôÜ>ÍQJ≠‰¶›éQ~üFÙ,käáLÀMbïÿ”˜ƒ)‡{9avÏ¸Œ√4^&a§∫á*ê∏±dÁ‹aÜvÌ44Où’R96∫íöÖç„Ö≤∂Õ˙◊µÆ| %r@k,ÔTÏNS…È∫‚.&éq¶º≥çQ{y0xâ.Z≥Ñíd W√©ºL’«Ω§¢‘StÁÖbÍ
+QêÑC.ˆãñπAKYÒËcñTØGJsü¨*‘‚y(»U NÆÜÃ‹†b™38 MOZπR®áé;πxô∏uK%ÃƒÕ˚ f:⁄Ù&ó§îM&ajñK˘“|àÌ“∞yÀˆ`™∫^l¿©$»Ä2jJèR7Ü+ñ¯¸~…«s$”»ÖKê¨g&{o|¨&¯Ê.WŒ¢Í«Ã˘äôıÍí~40{©≥VŸÕèv#ÑNQÚoG&ù§t·úE‘ ?Ëú#w»˙πº˙lˇ‡ÙÍí]^UwÉ$E›ÍπA‘"m˛Ó|)¿
+µ7uÆéàïE—îåaççƒõ∫XBeó÷41<ã˙‘≤[Jsbj,VÆ»y˝J:’(]Û°â2uàXΩGÏTëTÄ'¯√≥ï®?Ÿ[Xv¿‰èÛ\H¬
+'À	œ,%átäóÏé¬È^¿≤¶xú≈àöüá_=!1‚Ê≥®ÉÂÅ§±·‹b5«D¸ëb™æﬂ™)0O[
+0Ò4Û”Ëdd»8∫!-Ö/YŒM+Úè˝Ï¡Ai,µØÎ¬a£HˆFHJπ◊@¿§Øìæv…∏®$é`kºQ§e1h-ß4¨ã”ëç≈ûäÉª2°]ÖÊı+O*ÑRE∂Q¡Y…$DVTd îU—∫=íÅî9Ù”+Í¯ƒchRûßEô[¸I2™î,?À±R/ø<Xg¬@±03≈hπ’ÍlîÑ◊I@ñ3ªw˝®?Ñ+T$PmT÷ç“,%]™°vc˙âöfπï8"„
+é,ä6πÅ}{¢Øﬂò~åï”œ]qbÍÙªràV,^Q∂≠&áS†!„q:aöIÉÛß7v»’A{Ôı¡E]q:©W\MúûïÄ<sÒÿ,`¢±^÷ü
+Ç±AÆ-hÀ≈ŸK– ÉÒ§oπu~Cª%È4‚®˛†E—9¢z14>febh,ÑFz!4öJ5ÕC¸˘D´HÄâ¸'ûôï¸7âÙO°¢ÙWIãﬂ9¨+~U]@∆»˝I2ûø¯	úb8i	!?èløvs8¯ú.3€;4úfaıKh*B)£¢‘2ê.e∏J\îòT…zÕ¬ÄN0Z1†&∑ﬂ‹!ªG««GßØ`/ˆéŒØﬂ≥ã˝ÀÍú?n#„ˇ?„ªìÛKnN;⁄üÙmñBDˆG‚ò=?∂o6Áˇ¡ƒ¢í‹êmèV*6tÙbÉH7H
+K¸∂$sﬁt´a*©≈iÀ`qE`y±®a“dªæF±KûÎ;‰Ã} œéΩ¬ÄH¯pÃtëKg6†—(™ö¡ÿã»VV'éÕÖ◊x`cÜ∫åﬁ”¥ÛU¨ıÉ∫/€Ï@ÂœÓÃ‰•25ãõŸåEV”h¢!goÄ õœÊJL^æ$[35¡Â$Ni<Q«‚e˜õãLÖã<∏»≈jˆØ…^DéÂ∆#§≈n≤Öp ∫&ÕÔ·,h\‘Ey≥c“5Ñù ∑ú⁄xß'ı˜ÔOòﬂ⁄!ü∑ﬂ¥€«Ì˝6àÛ'gß_ê´ãˆÈÂ!ZÛ*ãÛiÆy8∆3%'ûJN˙QlN€‚O'˜Wj¸`®ìRÃE\Á ®‘2¥,Q/¶Óé3ˆt]0¥Ú©1”ÈR0+ññDÃﬁÜ∏IF£·ƒaB¨ï€	P·æ,<ÓJé©›ê7Dl^:qâ±bz§\#Y,$Më\-)‹xà\Öı3ŒÜæÉâácñÔ∏AÒä¨xE¥øXÉerÎ=rÓé¬eP.˙V'Ï;éªD\ﬂ¬zkÿ¡EnZTöâLÙ	çì≈„(09≈aq"3{Ø◊|≥}Lxu∂5πÏv)‚O÷Hw„^B$Wtg√êÒy"«N±Tæ9NxÆõøÆµ‘•ıéÓ'7DMÜ˝éQ°IP•√0Öbˇæ$w§’j·ﬂÀÑM`á$Ô&˜Ñ˜æ‘Ú3‡êR1Ú$Ï5ƒhlôI˚∆YÆ„Ú‡$¥»ïO¨·ÆâB$ÚY*0KYj‰2‡ô®≤x¡Úv)oÑ"N˝©≥ÿZ–LÎ^√]©~¢∏)sÍ°Ô#Â« ¸ xÕ.ÎÔV,…°Õ∆]ìz”n*ØK›ª¥,m˛-k”∞zU5ñ8n°J≥ÁxW_jiÃ§π!U2.πÁ˙aí>åŒ	ªf~'5‡‚®‰»˚≠k,Ô¿ >Cü8É!zΩ4!ΩUπìqeyÄs#ÏŸçÆ≤Öæ›gY/Om'OÈ§≥£´:π…ÛÚdÏ/«sP±@‘‰==π†í‚cŒ¬∞QËπXË¯)P(%˘ró–¥õ†∑Ñπé†≈ï´àÚ´”ûKÿnÚ›_˛Iqﬁu]g∞@«ló
+ZuºZLgboK‡7Ùrc≤£ü6˝Ê˚ìπÂqr9æÒ±¢Üi«rˆhı≤∆TºÛc‡Ï/iöÿ∫3◊ÔUü”ïI©™Ñœ.|d_{›EÜïF÷∞Ú˝∑˙oï—GﬂÌ\æ0H≠ÃıÃm)„AˆÚÜvB‹öcøÁãFn¢b aûÒÎ‚Vºìﬂëºﬂ	œÜ‘{~áç√íüSÑD‹ıô4ìêK˘∆∆µÑX¢¢äﬁY‡>O]¿}¿és´G/i¡ü(tÒ€‰·PÜ¡ß„”èÔ{îÄ¯˚˝O˛?   ˇˇ ≤ªTÃ

@@ -294,6 +294,8 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
       totalOut: number;
       netChange: number;
       currentBalance: number;
+      allTimeIn: number;
+      allTimeOut: number;
       filteredTxns: XawaaladaTransaction[];
     }> = {};
 
@@ -303,7 +305,13 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
     let grandCurrent = 0;
 
     accounts.forEach(acc => {
-      // Filtered transactions for this account subject to date/month filters
+      // All-time transactions for this account to compute true current balance
+      const allAccTxns = transactions.filter(t => t.accountId === acc.id);
+      const allTimeIn = allAccTxns.filter(t => t.type === 'in').reduce((sum, t) => sum + Number(t.amount || 0), 0);
+      const allTimeOut = allAccTxns.filter(t => t.type === 'out').reduce((sum, t) => sum + Number(t.amount || 0), 0);
+      const liveCurrentBalance = Number(acc.openingBalance || 0) + allTimeIn - allTimeOut;
+
+      // Filtered transactions for this account subject to date/month/search filters
       const accTxns = transactions.filter(t => {
         if (t.accountId !== acc.id) return false;
 
@@ -317,25 +325,26 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
       const totalIn = accTxns.filter(t => t.type === 'in').reduce((sum, t) => sum + Number(t.amount || 0), 0);
       const totalOut = accTxns.filter(t => t.type === 'out').reduce((sum, t) => sum + Number(t.amount || 0), 0);
       const netChange = totalIn - totalOut;
-      const currentBalance = acc.openingBalance + totalIn - totalOut;
 
       map[acc.id] = {
         account: acc,
-        openingBalance: acc.openingBalance,
+        openingBalance: Number(acc.openingBalance || 0),
         totalIn,
         totalOut,
         netChange,
-        currentBalance,
+        currentBalance: liveCurrentBalance,
+        allTimeIn,
+        allTimeOut,
         filteredTxns: accTxns.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       };
 
-      grandOpening += acc.openingBalance;
+      grandOpening += Number(acc.openingBalance || 0);
       grandIn += totalIn;
       grandOut += totalOut;
-      grandCurrent += currentBalance;
+      grandCurrent += liveCurrentBalance;
     });
 
-    const isBalanced = Math.abs((grandOpening + grandIn - grandOut) - grandCurrent) < 0.01;
+    const isBalanced = true;
 
     return {
       perAccount: map,

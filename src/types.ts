@@ -303,22 +303,34 @@ export interface DatabaseState {
 export interface ExamScore {
   studentId: string;
   studentName: string;
-  scores: Record<string, number>; // subject -> score (e.g., { "Quran": 95, "Tajweed": 88 })
+  registrationDate?: string; // Student registration date
+  currentLevel?: string; // What level the student is in this exact week (e.g., Higgaad, Jiz'u Camma, Surah & Page)
+  scores: Record<string, number>; // subject / heading -> numeric score (0-100)
+  headingContents?: Record<string, string>; // heading -> content/notes
   averageScore: number;
   grade: 'A' | 'B' | 'C' | 'D' | 'F';
   comment?: string; // Optional weekly feedback/remarks in Somali
 }
 
+export interface ExamHeading {
+  id: string;
+  name: string;
+  type?: 'score' | 'text' | 'both';
+  maxScore?: number;
+}
+
 export interface Exam {
   id: string; // Unique exam identifier (e.g. EX-timestamp)
   heading: string; // Title / Heading of the exam
-  date: string; // YYYY-MM-DD
+  date: string; // YYYY-MM-DD (e.g. Thursday's date)
   className: string;
   teacherId: string;
   teacherName: string;
-  subjects: string[]; // List of subjects for this exam
+  subjects: string[]; // List of subjects / headings for this exam
+  headingConfigs?: ExamHeading[]; // Enhanced headings configuration
   scores: ExamScore[]; // Scores per student
   assessmentType?: 'weekly' | 'monthly' | 'custom';
   weekNumber?: number;
   month?: string; // YYYY-MM format
+  notes?: string;
 }
