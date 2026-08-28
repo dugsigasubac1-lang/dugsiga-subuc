@@ -29,7 +29,16 @@ import jsPDF from 'jspdf';
 
 interface WeeklyAssessmentTabProps {
   database: DatabaseState;
-  onSaveDatabase: (updatedDb: DatabaseState) => void;
+  onSaveDatabase: (
+    updatedDb: DatabaseState,
+    options?: {
+      userRole?: 'admin' | 'teacher' | null;
+      explicitDeletedStudentIds?: string[];
+      explicitDeletedTeacherIds?: string[];
+      explicitDeletedExamIds?: string[];
+      explicitDeletedInvoiceIds?: string[];
+    }
+  ) => void;
   currentTeacher?: Teacher; // When opened from TeacherDashboard
 }
 
@@ -131,20 +140,21 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
   const examsList = useMemo(() => {
     const all = database.exams || [];
     return all.filter(ex => {
+      if (!ex) return false;
       // Show weekly exams
-      const matchClass = filterClass === 'All' ? true : ex.className === filterClass;
+      const matchClass = filterClass === 'All' ? true : (ex.className || '').trim().toLowerCase() === filterClass.trim().toLowerCase();
       const matchTeacher = filterTeacher === 'All' ? true : ex.teacherId === filterTeacher;
-      const matchStart = filterStartDate ? ex.date >= filterStartDate : true;
-      const matchEnd = filterEndDate ? ex.date <= filterEndDate : true;
+      const matchStart = filterStartDate ? (ex.date || '') >= filterStartDate : true;
+      const matchEnd = filterEndDate ? (ex.date || '') <= filterEndDate : true;
       const search = filterSearch.toLowerCase().trim();
       const matchSearch = !search || 
-        ex.heading.toLowerCase().includes(search) || 
-        ex.className.toLowerCase().includes(search) ||
-        ex.teacherName.toLowerCase().includes(search) ||
-        ex.scores.some(sc => sc.studentName.toLowerCase().includes(search));
+        (ex.heading || '').toLowerCase().includes(search) || 
+        (ex.className || '').toLowerCase().includes(search) ||
+        (ex.teacherName || '').toLowerCase().includes(search) ||
+        (ex.scores || []).some(sc => (sc.studentName || '').toLowerCase().includes(search));
 
       return matchClass && matchTeacher && matchStart && matchEnd && matchSearch;
-    }).sort((a, b) => b.date.localeCompare(a.date));
+    }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   }, [database.exams, filterClass, filterTeacher, filterStartDate, filterEndDate, filterSearch]);
 
   // Initialize/Populate Student Scores when Class or Teacher is chosen for a new exam
@@ -481,6 +491,8 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
       exams: updatedExams,
       submissions: updatedSubmissions,
       notifications: updatedNotifications
+    }, {
+      userRole: currentTeacher ? 'teacher' : 'admin'
     });
 
     triggerFeedback(`Natiijada Imtixaanka Toddobaadka ee (${examDate}) si guul leh ayaa loo kaydiyay!`);
@@ -500,6 +512,9 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
         onSaveDatabase({
           ...database,
           exams: updatedExams
+        }, {
+          userRole: currentTeacher ? 'teacher' : 'admin',
+          explicitDeletedExamIds: [examId]
         });
         setConfirmModal(null);
         triggerFeedback('Diiwaanka imtixaanka waa la tirtiray.');
