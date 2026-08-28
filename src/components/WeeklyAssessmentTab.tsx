@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { DatabaseState, Student, Teacher, Exam, ExamScore } from '../types';
+import { DatabaseState, Student, Teacher, Exam, ExamScore, AppNotification, TeacherSubmission } from '../types';
 import { 
   Award, 
   Calendar, 
@@ -57,7 +57,7 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
   const [selectedExamForPrint, setSelectedExamForPrint] = useState<Exam | null>(null);
 
   // Filter States for Exam History
-  const [filterClass, setFilterClass] = useState<string>('All');
+  const [filterClass, setFilterClass] = useState<string>(currentTeacher?.classAssigned || 'All');
   const [filterTeacher, setFilterTeacher] = useState<string>(currentTeacher?.id || 'All');
   const [filterSearch, setFilterSearch] = useState<string>('');
   const [filterStartDate, setFilterStartDate] = useState<string>('');
@@ -67,7 +67,7 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
   const [editingExamId, setEditingExamId] = useState<string | null>(null);
   const [examHeading, setExamHeading] = useState<string>('Imtixaanka Toddobaadka (End of Week Exam)');
   const [examDate, setExamDate] = useState<string>(getDefaultThursdayDate());
-  const [selectedClass, setSelectedClass] = useState<string>('All');
+  const [selectedClass, setSelectedClass] = useState<string>(currentTeacher?.classAssigned || 'All');
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>(currentTeacher?.id || (database.teachers[0]?.id || ''));
   const [weekNumber, setWeekNumber] = useState<number>(() => {
     const currentDay = new Date().getDate();
@@ -196,8 +196,10 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
     setEditingExamId(null);
     setExamHeading('Imtixaanka Toddobaadka (End of Week Exam)');
     setExamDate(getDefaultThursdayDate());
-    setSelectedClass('All');
-    setSelectedTeacherId(currentTeacher?.id || (database.teachers[0]?.id || 'All'));
+    const initialClass = currentTeacher?.classAssigned || 'All';
+    const initialTeacherId = currentTeacher?.id || (database.teachers[0]?.id || 'All');
+    setSelectedClass(initialClass);
+    setSelectedTeacherId(initialTeacherId);
     setExamNotes('');
     
     const defaultHeadings = [
@@ -209,7 +211,7 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
     setHeadings(defaultHeadings);
     
     // Populate students
-    handleInitializeStudentsForExam('All', currentTeacher?.id || (database.teachers[0]?.id || 'All'));
+    handleInitializeStudentsForExam(initialClass, initialTeacherId);
     setViewMode('create');
   };
 
@@ -410,8 +412,8 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
       return;
     }
 
-    const teacherObj = teachersMap.get(selectedTeacherId);
-    const teacherName = teacherObj?.name || 'Maamulka Dugsiga';
+    const teacherObj = teachersMap.get(selectedTeacherId) || currentTeacher;
+    const teacherName = teacherObj?.name || currentTeacher?.name || 'Maamulka Dugsiga';
     const month = examDate.substring(0, 7);
 
     const examId = editingExamId || `EX-WEEKLY-${Date.now()}`;
@@ -420,7 +422,7 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
       heading: examHeading.trim() || 'Imtixaanka Toddobaadka (End of Week Exam)',
       date: examDate,
       className: selectedClass,
-      teacherId: selectedTeacherId,
+      teacherId: selectedTeacherId || currentTeacher?.id || '',
       teacherName: teacherName,
       subjects: headings,
       scores: examScores,
@@ -437,9 +439,48 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
       updatedExams = [newExam, ...(database.exams || [])];
     }
 
+    // Generate Submission Log
+    const examSubmission: TeacherSubmission = {
+      id: `sub-exam-${Date.now()}`,
+      teacherId: selectedTeacherId || currentTeacher?.id || '',
+      teacherName: teacherName,
+      className: selectedClass,
+      type: 'exam',
+      timestamp: new Date().toISOString(),
+      title: `Imtixaanka Toddobaadka: ${newExam.heading}`,
+      studentCount: examScores.length,
+      summary: `Fasalka ${selectedClass} - Taariikhda: ${examDate} (Wadarta Ardayda: ${examScores.length})`,
+      studentsDetail: examScores.map(sc => ({
+        studentId: sc.studentId,
+        studentName: sc.studentName,
+        scoresSent: sc.scores,
+        averageScoreSent: sc.averageScore,
+        gradeSent: sc.grade,
+        notesSent: sc.comment || ''
+      }))
+    };
+
+    // Generate Notification for Admin & Dashboard
+    const newNotif: AppNotification = {
+      id: `notif-exam-${Date.now()}`,
+      type: 'exam',
+      senderId: selectedTeacherId || currentTeacher?.id || 'admin',
+      senderName: teacherName,
+      senderRole: currentTeacher ? 'teacher' : 'admin',
+      message: `Macalin ${teacherName} wuxuu diiwaangeliyay imtixaanka "${newExam.heading}" ee fasalka "${selectedClass}" (${examScores.length} arday).`,
+      timestamp: new Date().toISOString(),
+      readBy: currentTeacher ? [currentTeacher.id] : ['admin'],
+      targetClass: selectedClass
+    };
+
+    const updatedSubmissions = [examSubmission, ...(database.submissions || [])];
+    const updatedNotifications = [newNotif, ...(database.notifications || [])];
+
     onSaveDatabase({
       ...database,
-      exams: updatedExams
+      exams: updatedExams,
+      submissions: updatedSubmissions,
+      notifications: updatedNotifications
     });
 
     triggerFeedback(`Natiijada Imtixaanka Toddobaadka ee (${examDate}) si guul leh ayaa loo kaydiyay!`);
