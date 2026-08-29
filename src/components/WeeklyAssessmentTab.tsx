@@ -384,10 +384,6 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
 
   // Remove a heading
   const handleRemoveHeading = (headingName: string) => {
-    if (headings.length <= 1) {
-      triggerFeedback('Ugu yaraan hal cinwaan waa inuu ku jiraa imtixaanka.');
-      return;
-    }
     setHeadings(prev => prev.filter(h => h !== headingName));
     setExamScores(prev => prev.map(sc => {
       const updatedScores = { ...sc.scores };
@@ -939,23 +935,29 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
 
             {/* List of active headings pills */}
             <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-indigo-200/60">
-              {headings.map((h, i) => (
-                <span
-                  key={h}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-indigo-200 text-indigo-950 font-black text-xs shadow-2xs"
-                >
-                  <span className="text-indigo-600 font-mono text-[10px]">{i + 1}.</span>
-                  <span>{h}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveHeading(h)}
-                    className="text-slate-400 hover:text-rose-600 ml-1 p-0.5 rounded-full hover:bg-rose-50 cursor-pointer"
-                    title="Ka saar cinwaankan"
+              {headings.length === 0 ? (
+                <p className="text-xs text-indigo-700 font-medium italic py-1">
+                  Hadda ma jiraan maaddooyin gaar ah oo lagu daray. Miisku wuxuu noqonayaa mid toos ah oo muujinaya Magaca Ardayga, Diiwaangelinta, Heerka Todobaadkan, iyo Faallada.
+                </p>
+              ) : (
+                headings.map((h, i) => (
+                  <span
+                    key={h}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-indigo-200 text-indigo-950 font-black text-xs shadow-2xs"
                   >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              ))}
+                    <span className="text-indigo-600 font-mono text-[10px]">{i + 1}.</span>
+                    <span>{h}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveHeading(h)}
+                      className="text-slate-400 hover:text-rose-600 ml-1 p-0.5 rounded-full hover:bg-rose-50 cursor-pointer"
+                      title="Ka saar cinwaankan"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))
+              )}
             </div>
           </div>
 
