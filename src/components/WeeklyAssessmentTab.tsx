@@ -84,13 +84,8 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
   });
   const [examNotes, setExamNotes] = useState<string>('');
 
-  // Dynamic Headings / Subjects for this Weekly Assessment
-  const [headings, setHeadings] = useState<string[]>([
-    "Qur'aan (Akhris & Xifdi)",
-    "Tajweed & Qawaacid",
-    "Fahamka & Luuqadda",
-    "Anshaxa & Nadaafadda"
-  ]);
+  // Dynamic Headings / Subjects for this Weekly Assessment (Starts empty so user has full control)
+  const [headings, setHeadings] = useState<string[]>([]);
   const [newHeadingInput, setNewHeadingInput] = useState<string>('');
 
   // Student list in current exam: mapping of studentId -> ExamScore
@@ -211,13 +206,7 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
     setSelectedTeacherId(initialTeacherId);
     setExamNotes('');
     
-    const defaultHeadings = [
-      "Qur'aan (Akhris & Xifdi)",
-      "Tajweed & Qawaacid",
-      "Fahamka & Luuqadda",
-      "Anshaxa & Nadaafadda"
-    ];
-    setHeadings(defaultHeadings);
+    setHeadings([]);
     
     // Populate students
     handleInitializeStudentsForExam(initialClass, initialTeacherId);
@@ -233,10 +222,7 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
     setSelectedTeacherId(exam.teacherId);
     setWeekNumber(exam.weekNumber || 1);
     setExamNotes(exam.notes || '');
-    setHeadings(exam.subjects && exam.subjects.length > 0 ? exam.subjects : [
-      "Qur'aan (Akhris & Xifdi)",
-      "Tajweed & Qawaacid"
-    ]);
+    setHeadings(exam.subjects && exam.subjects.length > 0 ? exam.subjects : []);
 
     // Ensure all scores have registrationDate and currentLevel mapped if missing
     const enrichedScores = (exam.scores || []).map(sc => {
@@ -575,11 +561,9 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
 
       doc.text('#', 16, y + 5.5);
       doc.text('Magaca Ardayga (Name)', 23, y + 5.5);
-      doc.text('Diiwaangelinta', 72, y + 5.5);
-      doc.text('Heerka Todobaadkan (Level)', 96, y + 5.5);
-      doc.text('Celcelis', 148, y + 5.5);
-      doc.text('Darajo', 164, y + 5.5);
-      doc.text('Faallo (Remark)', 178, y + 5.5);
+      doc.text('Diiwaangelinta', 80, y + 5.5);
+      doc.text('Heerka Todobaadkan (Level)', 112, y + 5.5);
+      doc.text('Faallo (Remark)', 158, y + 5.5);
 
       // Table Rows
       y += 8;
@@ -599,33 +583,26 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
         }
 
         doc.text(`${idx + 1}`, 16, y + 4.5);
-        doc.text(sc.studentName.substring(0, 26), 23, y + 4.5);
-        doc.text(sc.registrationDate || 'N/A', 72, y + 4.5);
-        doc.text((sc.currentLevel || 'N/A').substring(0, 24), 96, y + 4.5);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`${sc.averageScore}%`, 148, y + 4.5);
-        doc.text(sc.grade, 164, y + 4.5);
-        doc.setFont('helvetica', 'normal');
-        doc.text((sc.comment || '').substring(0, 18), 178, y + 4.5);
+        doc.text(sc.studentName.substring(0, 30), 23, y + 4.5);
+        doc.text(sc.registrationDate || 'N/A', 80, y + 4.5);
+        doc.text((sc.currentLevel || 'N/A').substring(0, 24), 112, y + 4.5);
+        doc.text((sc.comment || '').substring(0, 25), 158, y + 4.5);
 
         y += 7;
       });
 
-      // Overall Class Average Summary
+      // Overall Summary Box
       y += 6;
       if (y > 260) {
         doc.addPage();
         y = 20;
       }
-      const totalAvg = exam.scores.length > 0
-        ? (exam.scores.reduce((sum, s) => sum + s.averageScore, 0) / exam.scores.length).toFixed(1)
-        : '0';
 
       doc.setFillColor(241, 245, 249);
       doc.roundedRect(14, y, pageWidth - 28, 12, 2, 2, 'F');
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8.5);
-      doc.text(`CELCELISKA GUUD EE FASALKA (CLASS AVERAGE): ${totalAvg}%`, 18, y + 7.5);
+      doc.text(`WADARTA ARDAYDA IMTIXAANKAN: ${exam.scores.length} Arday`, 18, y + 7.5);
 
       // Signatures
       y += 24;
@@ -655,8 +632,6 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
       "Macalinka (Teacher)",
       "Heerka Todobaadkan (Current Level)",
       ...exam.subjects.map(sub => `Imtixaan: ${sub}`),
-      "Celcelis (Average %)",
-      "Darajo (Grade)",
       "Faallada (Remarks)"
     ];
 
@@ -668,8 +643,6 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
       `"${exam.teacherName}"`,
       `"${(sc.currentLevel || '').replace(/"/g, '""')}"`,
       ...exam.subjects.map(sub => sc.scores[sub] ?? ''),
-      sc.averageScore,
-      sc.grade,
       `"${(sc.comment || '').replace(/"/g, '""')}"`
     ]);
 
@@ -1031,9 +1004,7 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
                           {h}
                         </th>
                       ))}
-                      <th className="py-3 px-3 min-w-[100px] text-center">Celcelis (Avg)</th>
-                      <th className="py-3 px-3 min-w-[100px] text-center">Darajo</th>
-                      <th className="py-3 px-3 min-w-[180px]">Faallo / Remarks</th>
+                      <th className="py-3 px-3 min-w-[220px]">Faallo / Remarks</th>
                       <th className="py-3 px-3 w-16 text-center">Tirtir</th>
                     </tr>
                   </thead>
@@ -1076,7 +1047,7 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
                             />
                           </td>
 
-                          {/* Subject Scores / Headings */}
+                          {/* Subject Scores / Headings (if any added) */}
                           {headings.map(h => (
                             <td key={h} className="py-3 px-3 text-center">
                               <input
@@ -1090,31 +1061,6 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
                               />
                             </td>
                           ))}
-
-                          {/* Average Score */}
-                          <td className="py-3 px-3 text-center">
-                            <span className="font-mono font-black text-xs px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-950 border border-indigo-200 inline-block">
-                              {sc.averageScore !== undefined && sc.averageScore > 0 ? `${sc.averageScore}%` : '—'}
-                            </span>
-                          </td>
-
-                          {/* Somali Grade Badge */}
-                          <td className="py-3 px-3 text-center">
-                            {sc.grade ? (
-                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider inline-block ${
-                                sc.grade === 'A' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
-                                sc.grade === 'B' ? 'bg-blue-100 text-blue-800 border border-blue-300' :
-                                sc.grade === 'C' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
-                                sc.grade === 'D' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
-                                sc.grade === 'F' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
-                                'bg-slate-100 text-slate-600 border border-slate-200'
-                              }`}>
-                                {sc.grade}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 text-xs font-bold">—</span>
-                            )}
-                          </td>
 
                           {/* Remarks / Comment */}
                           <td className="py-3 px-3">
@@ -1276,10 +1222,12 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
                           <span className="text-slate-400 font-semibold">Ardayda:</span>
                           <span className="font-mono font-bold text-slate-800">{exam.scores.length} arday</span>
                         </div>
-                        <div className="flex justify-between pt-1 border-t border-slate-100">
-                          <span className="text-indigo-900 font-bold">Celceliska Guud:</span>
-                          <span className="font-mono font-black text-indigo-600 text-sm">{avgScore}%</span>
-                        </div>
+                        {Number(avgScore) > 0 && (
+                          <div className="flex justify-between pt-1 border-t border-slate-100">
+                            <span className="text-indigo-900 font-bold">Celceliska Guud:</span>
+                            <span className="font-mono font-black text-indigo-600 text-sm">{avgScore}%</span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Subjects tags */}
@@ -1491,8 +1439,6 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
                   {selectedExamForPrint.subjects.map(sub => (
                     <th key={sub} style={{ textAlign: 'center' }}>{sub}</th>
                   ))}
-                  <th style={{ textAlign: 'center' }}>Celcelis</th>
-                  <th style={{ textAlign: 'center' }}>Darajo</th>
                   <th>Faallo</th>
                 </tr>
               </thead>
@@ -1508,12 +1454,6 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
                         {sc.scores[sub] ?? '-'}{sc.headingContents?.[sub] ? ` (${sc.headingContents[sub]})` : ''}
                       </td>
                     ))}
-                    <td style={{ textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace' }}>
-                      {sc.averageScore}%
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <span className={`badge badge-${sc.grade}`}>{sc.grade}</span>
-                    </td>
                     <td>{sc.comment || ''}</td>
                   </tr>
                 ))}
@@ -1521,13 +1461,8 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
             </table>
 
             <div className="summary-box">
-              <span>WADARTA ARDAYDA: {selectedExamForPrint.scores.length}</span>
-              <span>
-                CELCELISKA GUUD EE FASALKA:{' '}
-                {selectedExamForPrint.scores.length > 0
-                  ? (selectedExamForPrint.scores.reduce((s, sc) => s + sc.averageScore, 0) / selectedExamForPrint.scores.length).toFixed(1)
-                  : '0'}%
-              </span>
+              <span>WADARTA ARDAYDA IMTIXAANKAN: {selectedExamForPrint.scores.length} ARDAY</span>
+              <span>FASALKA: {selectedExamForPrint.className}</span>
             </div>
 
             <div className="signatures">
