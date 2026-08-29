@@ -58,7 +58,16 @@ import { WeeklyAssessmentTab } from './WeeklyAssessmentTab';
 interface TeacherDashboardProps {
   teacher: Teacher;
   database: DatabaseState;
-  onSaveDatabase: (updatedDb: DatabaseState) => void;
+  onSaveDatabase: (
+    updatedDb: DatabaseState,
+    options?: {
+      userRole?: 'admin' | 'teacher';
+      explicitDeletedStudentIds?: string[];
+      explicitDeletedTeacherIds?: string[];
+      explicitDeletedExamIds?: string[];
+      explicitDeletedInvoiceIds?: string[];
+    }
+  ) => void;
   onLogout: () => void;
   onSwitchToAdmin?: () => void;
 }
