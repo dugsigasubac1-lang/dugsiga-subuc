@@ -309,7 +309,7 @@ export interface ExamScore {
   scores: Record<string, number>; // subject / heading -> numeric score (0-100)
   headingContents?: Record<string, string>; // heading -> content/notes
   averageScore: number;
-  grade: 'A' | 'B' | 'C' | 'D' | 'F';
+  grade: 'A' | 'B' | 'C' | 'D' | 'F' | '-' | '';
   comment?: string; // Optional weekly feedback/remarks in Somali
 }
 

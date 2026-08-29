@@ -1,6 +1,6 @@
 {
-  "name": "Banuu Jalaal",
-  "description": "An elegant, comprehensive Management System designed for tracking students, teachers, classes, daily progress (surad, subac, manners, hygiene), reports, and billing.",
+  "name": "Dugsiga Subuc",
+  "description": "Dugsiga Subuc waa dugsi bixiya xifdinta Qur'aanka Kariimka ah, higaadda Carabiga, iyo maamulka diiwaanka ardayda iyo macallimiinta.",
   "requestFramePermissions": ["camera", "microphone", "geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

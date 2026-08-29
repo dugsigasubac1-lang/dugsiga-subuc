@@ -181,7 +181,6 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
       const defaultSubjectScores: Record<string, number> = {};
       const defaultHeadingContents: Record<string, string> = {};
       headings.forEach(h => {
-        defaultSubjectScores[h] = 85; // Default score
         defaultHeadingContents[h] = '';
       });
 
@@ -192,9 +191,9 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
         currentLevel: levelGuess,
         scores: defaultSubjectScores,
         headingContents: defaultHeadingContents,
-        averageScore: 85,
-        grade: 'B',
-        comment: 'Dadaal wanaagsan'
+        averageScore: 0,
+        grade: '',
+        comment: ''
       };
     });
 
@@ -259,7 +258,8 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
   };
 
   // Grade calculation helper
-  const calculateGrade = (avg: number): 'A' | 'B' | 'C' | 'D' | 'F' => {
+  const calculateGrade = (avg: number): 'A' | 'B' | 'C' | 'D' | 'F' | '' => {
+    if (avg === 0) return '';
     if (avg >= 90) return 'A';
     if (avg >= 80) return 'B';
     if (avg >= 70) return 'C';
@@ -273,19 +273,27 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
       case 'B': return 'B (Aad u Fiican / 80-89)';
       case 'C': return 'C (Fiican / 70-79)';
       case 'D': return 'D (Dhexdhexaad / 60-69)';
-      default: return 'F (Liita / <60)';
+      case 'F': return 'F (Liita / <60)';
+      default: return '—';
     }
   };
 
   // Update specific student score
-  const handleUpdateScore = (studentId: string, heading: string, value: number) => {
+  const handleUpdateScore = (studentId: string, heading: string, rawVal: string | number) => {
     setExamScores(prev => prev.map(sc => {
       if (sc.studentId !== studentId) return sc;
 
-      const newScores = { ...sc.scores, [heading]: Math.min(Math.max(Number(value) || 0, 0), 100) };
-      const values: number[] = Object.values(newScores);
-      const avg = values.length > 0 ? Math.round(values.reduce((a: number, b: number) => a + b, 0) / values.length) : 0;
-      const grade = calculateGrade(avg);
+      const newScores = { ...sc.scores };
+      if (rawVal === '' || rawVal === undefined || rawVal === null) {
+        delete newScores[heading];
+      } else {
+        const num = Math.min(Math.max(Number(rawVal) || 0, 0), 100);
+        newScores[heading] = num;
+      }
+
+      const validValues: number[] = Object.values(newScores).filter((v): v is number => typeof v === 'number' && !isNaN(v) && v !== null);
+      const avg = validValues.length > 0 ? Math.round(validValues.reduce((a, b) => a + b, 0) / validValues.length) : 0;
+      const grade = validValues.length > 0 ? calculateGrade(avg) : '';
 
       return {
         ...sc,
@@ -348,7 +356,6 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
     const defaultSubjectScores: Record<string, number> = {};
     const defaultHeadingContents: Record<string, string> = {};
     headings.forEach(h => {
-      defaultSubjectScores[h] = 85;
       defaultHeadingContents[h] = '';
     });
 
@@ -359,9 +366,9 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
       currentLevel: student.className || 'Qur\'aan',
       scores: defaultSubjectScores,
       headingContents: defaultHeadingContents,
-      averageScore: 85,
-      grade: 'B',
-      comment: 'Dadaal wanaagsan'
+      averageScore: 0,
+      grade: '',
+      comment: ''
     };
 
     setExamScores(prev => [...prev, newScore]);
@@ -380,10 +387,9 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
     }
 
     setHeadings(prev => [...prev, clean]);
-    // Initialize this new heading in all current student scores
+    // Initialize this new heading in all current student scores without default 85
     setExamScores(prev => prev.map(sc => ({
       ...sc,
-      scores: { ...sc.scores, [clean]: 85 },
       headingContents: { ...(sc.headingContents || {}), [clean]: '' }
     })));
     setNewHeadingInput('');
@@ -1073,44 +1079,41 @@ export function WeeklyAssessmentTab({ database, onSaveDatabase, currentTeacher }
                           {/* Subject Scores / Headings */}
                           {headings.map(h => (
                             <td key={h} className="py-3 px-3 text-center">
-                              <div className="space-y-1">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  value={sc.scores[h] ?? ''}
-                                  onChange={e => handleUpdateScore(sc.studentId, h, Number(e.target.value))}
-                                  className="w-20 px-2 py-1 bg-slate-50 border border-slate-300 rounded-lg text-center text-xs font-mono font-black text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500"
-                                />
-                                <input
-                                  type="text"
-                                  value={sc.headingContents?.[h] || ''}
-                                  onChange={e => handleUpdateHeadingContent(sc.studentId, h, e.target.value)}
-                                  placeholder="Qoraal/Xusuus..."
-                                  className="w-24 px-1.5 py-0.5 bg-transparent border-b border-dashed border-slate-200 text-[10px] text-slate-600 placeholder:text-slate-300 focus:outline-hidden focus:border-indigo-500"
-                                />
-                              </div>
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={sc.scores[h] !== undefined && sc.scores[h] !== null ? sc.scores[h] : ''}
+                                onChange={e => handleUpdateScore(sc.studentId, h, e.target.value)}
+                                placeholder="—"
+                                className="w-20 px-2 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-center text-xs font-mono font-black text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500"
+                              />
                             </td>
                           ))}
 
                           {/* Average Score */}
                           <td className="py-3 px-3 text-center">
                             <span className="font-mono font-black text-xs px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-950 border border-indigo-200 inline-block">
-                              {sc.averageScore}%
+                              {sc.averageScore !== undefined && sc.averageScore > 0 ? `${sc.averageScore}%` : '—'}
                             </span>
                           </td>
 
                           {/* Somali Grade Badge */}
                           <td className="py-3 px-3 text-center">
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider inline-block ${
-                              sc.grade === 'A' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
-                              sc.grade === 'B' ? 'bg-blue-100 text-blue-800 border border-blue-300' :
-                              sc.grade === 'C' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
-                              sc.grade === 'D' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
-                              'bg-rose-100 text-rose-800 border border-rose-300'
-                            }`}>
-                              {sc.grade}
-                            </span>
+                            {sc.grade ? (
+                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider inline-block ${
+                                sc.grade === 'A' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
+                                sc.grade === 'B' ? 'bg-blue-100 text-blue-800 border border-blue-300' :
+                                sc.grade === 'C' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                                sc.grade === 'D' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
+                                sc.grade === 'F' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
+                                'bg-slate-100 text-slate-600 border border-slate-200'
+                              }`}>
+                                {sc.grade}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-xs font-bold">—</span>
+                            )}
                           </td>
 
                           {/* Remarks / Comment */}
