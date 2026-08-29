@@ -1403,77 +1403,477 @@ async function startServer() {
     res.json({ status: 'ok', time: new Date().toISOString() });
   });
 
-  // API Route: Diagnostics & Verification Test
+  // API Route: Deep Diagnostics & Verification Test
   app.get('/api/diagnostics', async (req, res) => {
+    const startTime = Date.now();
+    const primaryState = currentDatabaseState || {};
+    
+    const countRecords = (st: any) => ({
+      students: Array.isArray(st?.students) ? st.students.length : 0,
+      teachers: Array.isArray(st?.teachers) ? st.teachers.length : 0,
+      classes: Array.isArray(st?.classes) ? st.classes.length : 0,
+      progress: Array.isArray(st?.progress) ? st.progress.length : 0,
+      billing: Array.isArray(st?.billing) ? st.billing.length : 0,
+      invoices: Array.isArray(st?.invoices) ? st.invoices.length : 0,
+      moneyTransfers: Array.isArray(st?.moneyTransfers) ? st.moneyTransfers.length : 0,
+      xawaaladaAccounts: Array.isArray(st?.xawaaladaAccounts) ? st.xawaaladaAccounts.length : 0,
+      xawaaladaTransactions: Array.isArray(st?.xawaaladaTransactions) ? st.xawaaladaTransactions.length : 0,
+      exams: Array.isArray(st?.exams) ? st.exams.length : 0,
+      teacherAttendance: Array.isArray(st?.teacherAttendance) ? st.teacherAttendance.length : 0,
+      submissions: Array.isArray(st?.submissions) ? st.submissions.length : 0,
+      contactMessages: Array.isArray(st?.contactMessages) ? st.contactMessages.length : 0,
+      notifications: Array.isArray(st?.notifications) ? st.notifications.length : 0
+    });
+
+    const primaryCounts = countRecords(primaryState);
+    const primaryLastUpdatedTime = Number(primaryState.lastUpdatedTime || 0);
+
     const diagnosticReport: any = {
       status: 'active',
       timestamp: new Date().toISOString(),
+      serverDurationMs: 0,
       environment: {
         nodeEnv: process.env.NODE_ENV || 'development',
         port: PORT,
         firebaseConfigExists: fs.existsSync(CONFIG_FILE),
         localDbFileExists: fs.existsSync(DB_FILE)
       },
-      firestoreStatus: {
+      primaryBackend: {
+        source: 'Node.js Express Server Memory & Disk Cache',
+        lastUpdatedTime: primaryLastUpdatedTime,
+        lastUpdatedIso: primaryLastUpdatedTime ? new Date(primaryLastUpdatedTime).toISOString() : null,
+        recordCounts: primaryCounts,
+        totalRecords: Object.values(primaryCounts).reduce((a, b) => a + b, 0),
+        memoryStatus: currentDatabaseState ? 'POPULATED' : 'EMPTY'
+      },
+      firebaseFirestore: {
         initialized: !!db,
         connected: false,
-        hasStateDoc: false,
+        lastUpdatedTime: 0,
+        lastUpdatedIso: null,
+        latencyMs: 0,
+        recordCounts: countRecords(null),
+        totalRecords: 0,
+        partitions: {
+          core: { exists: false, lastUpdatedTime: 0, sizeBytes: 0 },
+          progress: { exists: false, sizeBytes: 0 },
+          finance: { exists: false, sizeBytes: 0 },
+          logs: { exists: false, sizeBytes: 0 },
+          legacyState: { exists: false, lastUpdatedTime: 0, sizeBytes: 0 }
+        },
+        writeTest: {
+          success: false,
+          latencyMs: 0,
+          error: null
+        },
         error: null
       },
-      databaseState: {
-        teachersCount: 0,
-        teachersList: [],
-        studentsCount: 0,
-        moneyTransfersCount: 0
+      comparison: {
+        lastUpdatedDiffMs: 0,
+        lastUpdatedStatus: 'MATCH', // 'MATCH' | 'BACKEND_AHEAD' | 'FIRESTORE_AHEAD'
+        syncStatus: 'UNKNOWN', // 'SYNCHRONIZED' | 'DESYNCHRONIZED' | 'FIRESTORE_OFFLINE'
+        collectionsComparison: [] as any[],
+        mismatchesCount: 0,
+        diagnosedIssues: [] as any[],
+        recommendations: [] as string[]
       }
     };
 
-    let activeState = currentDatabaseState;
-
-    if (stateDocRef) {
+    // 1. Fetch direct from Firestore partitioned docs without cache
+    if (db) {
+      const fsStartTime = Date.now();
       try {
-        const docSnap = await getDoc(stateDocRef);
-        diagnosticReport.firestoreStatus.connected = true;
-        if (docSnap.exists()) {
-          diagnosticReport.firestoreStatus.hasStateDoc = true;
-          const remoteState = (docSnap.data() as any)?.state;
-          if (remoteState && typeof remoteState === 'object') {
-            activeState = remoteState;
+        const [coreSnap, progSnap, finSnap, logsSnap, stateSnap] = await Promise.all([
+          coreDocRef ? getDoc(coreDocRef).catch((e: any) => ({ error: e?.message })) : null,
+          progressDocRef ? getDoc(progressDocRef).catch((e: any) => ({ error: e?.message })) : null,
+          financeDocRef ? getDoc(financeDocRef).catch((e: any) => ({ error: e?.message })) : null,
+          logsDocRef ? getDoc(logsDocRef).catch((e: any) => ({ error: e?.message })) : null,
+          stateDocRef ? getDoc(stateDocRef).catch((e: any) => ({ error: e?.message })) : null
+        ]);
+
+        diagnosticReport.firebaseFirestore.latencyMs = Date.now() - fsStartTime;
+        diagnosticReport.firebaseFirestore.connected = true;
+
+        let fsAssembledState: any = {};
+
+        if (coreSnap && 'exists' in coreSnap && coreSnap.exists()) {
+          const coreData = coreSnap.data() as any;
+          diagnosticReport.firebaseFirestore.partitions.core.exists = true;
+          diagnosticReport.firebaseFirestore.partitions.core.lastUpdatedTime = coreData.lastUpdatedTime || 0;
+          try {
+            diagnosticReport.firebaseFirestore.partitions.core.sizeBytes = JSON.stringify(coreData).length;
+          } catch {}
+          fsAssembledState.teachers = coreData.teachers || [];
+          fsAssembledState.students = coreData.students || [];
+          fsAssembledState.classes = coreData.classes || [];
+          fsAssembledState.contactMessages = coreData.contactMessages || [];
+          fsAssembledState.lastUpdatedTime = coreData.lastUpdatedTime || 0;
+        }
+
+        if (progSnap && 'exists' in progSnap && progSnap.exists()) {
+          const progData = progSnap.data() as any;
+          diagnosticReport.firebaseFirestore.partitions.progress.exists = true;
+          try {
+            diagnosticReport.firebaseFirestore.partitions.progress.sizeBytes = JSON.stringify(progData).length;
+          } catch {}
+          fsAssembledState.progress = progData.progress || [];
+        }
+
+        if (finSnap && 'exists' in finSnap && finSnap.exists()) {
+          const finData = finSnap.data() as any;
+          diagnosticReport.firebaseFirestore.partitions.finance.exists = true;
+          try {
+            diagnosticReport.firebaseFirestore.partitions.finance.sizeBytes = JSON.stringify(finData).length;
+          } catch {}
+          fsAssembledState.billing = finData.billing || [];
+          fsAssembledState.invoices = finData.invoices || [];
+          fsAssembledState.moneyTransfers = finData.moneyTransfers || [];
+          fsAssembledState.xawaaladaAccounts = finData.xawaaladaAccounts || [];
+          fsAssembledState.xawaaladaTransactions = finData.xawaaladaTransactions || [];
+        }
+
+        if (logsSnap && 'exists' in logsSnap && logsSnap.exists()) {
+          const logsData = logsSnap.data() as any;
+          diagnosticReport.firebaseFirestore.partitions.logs.exists = true;
+          try {
+            diagnosticReport.firebaseFirestore.partitions.logs.sizeBytes = JSON.stringify(logsData).length;
+          } catch {}
+          fsAssembledState.exams = logsData.exams || [];
+          fsAssembledState.teacherAttendance = logsData.teacherAttendance || [];
+          fsAssembledState.submissions = logsData.submissions || [];
+          fsAssembledState.notifications = logsData.notifications || [];
+        }
+
+        if (stateSnap && 'exists' in stateSnap && stateSnap.exists()) {
+          const stateData = stateSnap.data() as any;
+          diagnosticReport.firebaseFirestore.partitions.legacyState.exists = true;
+          const legacyState = stateData?.state || {};
+          diagnosticReport.firebaseFirestore.partitions.legacyState.lastUpdatedTime = legacyState.lastUpdatedTime || 0;
+          try {
+            diagnosticReport.firebaseFirestore.partitions.legacyState.sizeBytes = JSON.stringify(stateData).length;
+          } catch {}
+
+          // If partitioned docs didn't exist, fallback to legacy
+          if (!diagnosticReport.firebaseFirestore.partitions.core.exists && legacyState) {
+            fsAssembledState = legacyState;
           }
         }
-        
-        // Dry-run test write to a diagnostic test document to check write permissions
+
+        const fsCounts = countRecords(fsAssembledState);
+        const fsLastUpdatedTime = Number(fsAssembledState.lastUpdatedTime || 0);
+
+        diagnosticReport.firebaseFirestore.recordCounts = fsCounts;
+        diagnosticReport.firebaseFirestore.totalRecords = Object.values(fsCounts).reduce((a, b) => a + b, 0);
+        diagnosticReport.firebaseFirestore.lastUpdatedTime = fsLastUpdatedTime;
+        diagnosticReport.firebaseFirestore.lastUpdatedIso = fsLastUpdatedTime ? new Date(fsLastUpdatedTime).toISOString() : null;
+
+        // 2. Perform write test to Firestore
+        const writeStartTime = Date.now();
         try {
-          const testDocRef = doc(db, 'system', 'write_test');
-          await setDoc(testDocRef, { testedAt: new Date().toISOString() });
-          diagnosticReport.firestoreStatus.writeSuccess = true;
+          const testDocRef = doc(db, 'system', 'sync_diagnostic_test');
+          await setDoc(testDocRef, {
+            diagnosticRunAt: new Date().toISOString(),
+            triggeredBy: 'admin_diagnostic_tool',
+            status: 'operational'
+          });
+          diagnosticReport.firebaseFirestore.writeTest.success = true;
+          diagnosticReport.firebaseFirestore.writeTest.latencyMs = Date.now() - writeStartTime;
         } catch (writeErr: any) {
-          diagnosticReport.firestoreStatus.writeSuccess = false;
-          diagnosticReport.firestoreStatus.writeError = writeErr instanceof Error ? writeErr.message : String(writeErr);
+          diagnosticReport.firebaseFirestore.writeTest.success = false;
+          diagnosticReport.firebaseFirestore.writeTest.error = writeErr instanceof Error ? writeErr.message : String(writeErr);
         }
-      } catch (fbError: any) {
-        diagnosticReport.firestoreStatus.error = fbError instanceof Error ? fbError.message : String(fbError);
+
+        // 3. Side-by-side comparison calculation
+        const diffMs = primaryLastUpdatedTime - fsLastUpdatedTime;
+        diagnosticReport.comparison.lastUpdatedDiffMs = diffMs;
+        if (Math.abs(diffMs) < 1000) {
+          diagnosticReport.comparison.lastUpdatedStatus = 'MATCH';
+        } else if (diffMs > 0) {
+          diagnosticReport.comparison.lastUpdatedStatus = 'BACKEND_AHEAD';
+        } else {
+          diagnosticReport.comparison.lastUpdatedStatus = 'FIRESTORE_AHEAD';
+        }
+
+        const collectionDefinitions: Array<{ key: string; label: string; somali: string }> = [
+          { key: 'students', label: 'Students', somali: 'Ardayda' },
+          { key: 'teachers', label: 'Teachers', somali: 'Macallimiinta' },
+          { key: 'classes', label: 'Classes', somali: 'Fasallada' },
+          { key: 'invoices', label: 'Invoices', somali: 'Biilasha' },
+          { key: 'billing', label: 'Tuition Billing', somali: 'Lacag-bixinta' },
+          { key: 'moneyTransfers', label: 'Money Transfers', somali: 'Xawaaladaha' },
+          { key: 'xawaaladaAccounts', label: 'Xawaalada Accounts', somali: 'Akoonnada Xawaaladda' },
+          { key: 'xawaaladaTransactions', label: 'Xawaalada Transactions', somali: 'Dhaqdhaqaaqa Xawaaladda' },
+          { key: 'exams', label: 'Weekly Exams', somali: 'Imtixaanaadka' },
+          { key: 'teacherAttendance', label: 'Teacher Attendance', somali: 'Xaadirinta Macallimiinta' },
+          { key: 'submissions', label: 'Teacher Submissions', somali: 'Xogta Macallimiinta' },
+          { key: 'contactMessages', label: 'Contact Messages', somali: 'Farriimaha Waalidiinta' },
+          { key: 'notifications', label: 'Notifications', somali: 'Ogeysiisyada' },
+          { key: 'progress', label: 'Daily Progress', somali: 'Diiwaanka Casharrada' }
+        ];
+
+        let mismatches = 0;
+        diagnosticReport.comparison.collectionsComparison = collectionDefinitions.map(col => {
+          const bCount = (primaryCounts as any)[col.key] || 0;
+          const fsCount = (fsCounts as any)[col.key] || 0;
+          const diff = bCount - fsCount;
+          const isMatch = bCount === fsCount;
+          if (!isMatch) mismatches++;
+          return {
+            key: col.key,
+            label: col.label,
+            somali: col.somali,
+            backendCount: bCount,
+            firestoreCount: fsCount,
+            diff,
+            isMatch
+          };
+        });
+
+        diagnosticReport.comparison.mismatchesCount = mismatches;
+
+        // Determine sync status and root cause analysis
+        if (mismatches === 0 && Math.abs(diffMs) < 3000) {
+          diagnosticReport.comparison.syncStatus = 'SYNCHRONIZED';
+        } else {
+          diagnosticReport.comparison.syncStatus = 'DESYNCHRONIZED';
+        }
+
+        // Root cause pinpointer
+        if (!diagnosticReport.firebaseFirestore.writeTest.success) {
+          diagnosticReport.comparison.diagnosedIssues.push({
+            severity: 'critical',
+            code: 'FIRESTORE_WRITE_BLOCKED',
+            title: 'Firestore Write Permission Denied ama Cilad Qoris',
+            description: `Server-ku ma awoodo inuu xogta toos ugu qoro Firestore: ${diagnosticReport.firebaseFirestore.writeTest.error}`,
+            fix: 'Hubi shuruucda firestore.rules iyo aqoonsiga Firebase Service Account.'
+          });
+        }
+
+        if (diffMs > 5000 && mismatches > 0) {
+          diagnosticReport.comparison.diagnosedIssues.push({
+            severity: 'warning',
+            code: 'BACKEND_NOT_FLUSHED_TO_FIRESTORE',
+            title: 'Xog Cusub oo ku Xanniban Server-ka (Unsaved Backend Changes)',
+            description: `Server-ka primary backend wuxuu ka horreeyaa Firestore ${(diffMs / 1000).toFixed(1)} ilbiriqsi, waxaana jira ${mismatches} qaybood oo tiradoodu kala duwantahay.`,
+            fix: 'Guji badhanka "Force Sync (Qasab ku Dhex-geli Firestore)" si xogta server-ka loogu qoro cloud-ka.'
+          });
+        } else if (diffMs < -5000 && mismatches > 0) {
+          diagnosticReport.comparison.diagnosedIssues.push({
+            severity: 'warning',
+            code: 'FIRESTORE_AHEAD_OF_BACKEND',
+            title: 'Firestore Cloud ayaa ka Cusub Server Memory-ga',
+            description: `Cloud Firestore wuxuu ka dambeeyay/horeeyaa server-ka ${(Math.abs(diffMs) / 1000).toFixed(1)} ilbiriqsi.`,
+            fix: 'Guji "Pull Firestore (Ka Soo Jiid Firestore)" si server-ku u soo qaato nuqulkii ugu dambeeyay.'
+          });
+        }
+
+        if (!diagnosticReport.firebaseFirestore.partitions.core.exists) {
+          diagnosticReport.comparison.diagnosedIssues.push({
+            severity: 'critical',
+            code: 'CORE_PARTITION_MISSING',
+            title: 'Document-ka Muhiimka ah ee system/core Lama Helin',
+            description: 'Document-ka system/core kama jiro Firestore, taas oo sababi karta in xogta ardayda iyo macallimiinta aysan soo bixin.',
+            fix: 'Samee Full Database Sync si dhammaan partitioned documents-ka loo abuuro.'
+          });
+        }
+
+        if (mismatches === 0 && diagnosticReport.firebaseFirestore.writeTest.success) {
+          diagnosticReport.comparison.recommendations.push('Xogta server-ka iyo Cloud Firestore 100% way iswaafaqsan yihiin (All synchronized).');
+        } else {
+          diagnosticReport.comparison.recommendations.push('Isticmaal badhanka "Force Sync" si aad xogta u waafajiso.');
+        }
+
+      } catch (fbErr: any) {
+        diagnosticReport.firebaseFirestore.connected = false;
+        diagnosticReport.firebaseFirestore.error = fbErr instanceof Error ? fbErr.message : String(fbErr);
+        diagnosticReport.comparison.syncStatus = 'FIRESTORE_OFFLINE';
+        diagnosticReport.comparison.diagnosedIssues.push({
+          severity: 'critical',
+          code: 'FIRESTORE_CONNECTION_FAILED',
+          title: 'Xiriirka Firestore Waa Fashilmay',
+          description: diagnosticReport.firebaseFirestore.error,
+          fix: 'Hubi internet-ka server-ka iyo aqoonsiga Firebase config.'
+        });
       }
+    } else {
+      diagnosticReport.comparison.syncStatus = 'FIRESTORE_NOT_INITIALIZED';
+      diagnosticReport.comparison.diagnosedIssues.push({
+        severity: 'critical',
+        code: 'FIRESTORE_UNCONFIGURED',
+        title: 'Firestore Laguma Xirin Server-ka',
+        description: 'Server-ka ma haysto xiriir Firestore oo firfircoon.',
+        fix: 'Hubi firebase-applet-config.json.'
+      });
     }
 
-    if (activeState) {
-      diagnosticReport.databaseState.teachersCount = Array.isArray(activeState.teachers) ? activeState.teachers.length : 0;
-      diagnosticReport.databaseState.studentsCount = Array.isArray(activeState.students) ? activeState.students.length : 0;
-      diagnosticReport.databaseState.moneyTransfersCount = Array.isArray(activeState.moneyTransfers) ? activeState.moneyTransfers.length : 0;
-      
-      if (Array.isArray(activeState.teachers)) {
-        diagnosticReport.databaseState.teachersList = activeState.teachers.map((t: any) => ({
-          id: t.id,
-          name: t.name,
-          username: t.username,
-          password: t.passwordHash || 'N/A',
-          classAssigned: t.classAssigned || t.className || 'None'
-        }));
-      }
-    }
+    // Keep backwards compatibility fields
+    diagnosticReport.firestoreStatus = {
+      initialized: diagnosticReport.firebaseFirestore.initialized,
+      connected: diagnosticReport.firebaseFirestore.connected,
+      hasStateDoc: diagnosticReport.firebaseFirestore.partitions.core.exists || diagnosticReport.firebaseFirestore.partitions.legacyState.exists,
+      error: diagnosticReport.firebaseFirestore.error,
+      writeSuccess: diagnosticReport.firebaseFirestore.writeTest.success,
+      writeError: diagnosticReport.firebaseFirestore.writeTest.error
+    };
+    diagnosticReport.databaseState = {
+      teachersCount: primaryCounts.teachers,
+      studentsCount: primaryCounts.students,
+      moneyTransfersCount: primaryCounts.moneyTransfers,
+      teachersList: Array.isArray(primaryState.teachers) ? primaryState.teachers.map((t: any) => ({
+        id: t.id,
+        name: t.name,
+        username: t.username,
+        password: t.passwordHash || 'N/A',
+        classAssigned: t.classAssigned || t.className || 'None'
+      })) : []
+    };
 
+    diagnosticReport.serverDurationMs = Date.now() - startTime;
     res.setHeader('Content-Type', 'application/json');
     return res.json(diagnosticReport);
+  });
+
+  // API Route: Force Sync Backend to Firestore or Pull from Firestore
+  app.post('/api/diagnostics/force-sync', async (req, res) => {
+    const action = req.body?.action || 'push_backend_to_firestore';
+    console.log(`[Diagnostics API] Force sync triggered with action: ${action}`);
+
+    if (!db || !coreDocRef) {
+      return res.status(503).json({ success: false, error: 'Firestore connection not initialized.' });
+    }
+
+    try {
+      if (action === 'push_backend_to_firestore') {
+        if (!currentDatabaseState) {
+          return res.status(400).json({ success: false, error: 'No backend database state in memory to push.' });
+        }
+
+        const now = Date.now();
+        currentDatabaseState.lastUpdatedTime = now;
+
+        const coreData = {
+          teachers: currentDatabaseState.teachers || [],
+          students: currentDatabaseState.students || [],
+          classes: currentDatabaseState.classes || [],
+          schoolLocation: currentDatabaseState.schoolLocation || null,
+          landingPageSettings: currentDatabaseState.landingPageSettings || null,
+          contactMessages: currentDatabaseState.contactMessages || [],
+          adminSessionId: currentDatabaseState.adminSessionId || null,
+          adminAllowedSessionId: currentDatabaseState.adminAllowedSessionId || null,
+          adminRevokeTime: currentDatabaseState.adminRevokeTime || 0,
+          lastUpdatedTime: now,
+          lastBackupDownloadDate: currentDatabaseState.lastBackupDownloadDate || null
+        };
+
+        const progData = {
+          progress: currentDatabaseState.progress || [],
+          lastUpdatedTime: now
+        };
+
+        const finData = {
+          billing: currentDatabaseState.billing || [],
+          invoices: currentDatabaseState.invoices || [],
+          moneyTransfers: currentDatabaseState.moneyTransfers || [],
+          xawaaladaAccounts: currentDatabaseState.xawaaladaAccounts || [],
+          xawaaladaTransactions: currentDatabaseState.xawaaladaTransactions || [],
+          lastUpdatedTime: now
+        };
+
+        const logsData = {
+          submissions: currentDatabaseState.submissions || [],
+          teacherAttendance: currentDatabaseState.teacherAttendance || [],
+          notifications: currentDatabaseState.notifications || [],
+          exams: currentDatabaseState.exams || [],
+          lastUpdatedTime: now
+        };
+
+        const writePromises: Promise<any>[] = [
+          setDoc(coreDocRef, removeUndefined(coreData)),
+          setDoc(progressDocRef, removeUndefined(progData)),
+          setDoc(financeDocRef, removeUndefined(finData)),
+          setDoc(logsDocRef, removeUndefined(logsData))
+        ];
+
+        if (stateDocRef) {
+          writePromises.push(setDoc(stateDocRef, {
+            state: removeUndefined(currentDatabaseState),
+            lastUpdated: new Date().toISOString()
+          }).catch(() => null));
+        }
+
+        await Promise.all(writePromises);
+        fs.writeFileSync(DB_FILE, JSON.stringify(currentDatabaseState, null, 2), 'utf-8');
+
+        return res.json({
+          success: true,
+          message: 'Xogta Server-ka si toos ah ayaa loogu qasbay laguna qoray Cloud Firestore!',
+          lastUpdatedTime: now
+        });
+
+      } else if (action === 'pull_firestore_to_backend') {
+        const [coreSnap, progSnap, finSnap, logsSnap, stateSnap] = await Promise.all([
+          getDoc(coreDocRef).catch(() => null),
+          getDoc(progressDocRef).catch(() => null),
+          getDoc(financeDocRef).catch(() => null),
+          getDoc(logsDocRef).catch(() => null),
+          getDoc(stateDocRef).catch(() => null)
+        ]);
+
+        let pulledState: any = null;
+
+        if (coreSnap && coreSnap.exists()) {
+          const coreData = coreSnap.data() as any;
+          const progData = (progSnap && progSnap.exists()) ? (progSnap.data() as any) : {};
+          const finData = (finSnap && finSnap.exists()) ? (finSnap.data() as any) : {};
+          const logsData = (logsSnap && logsSnap.exists()) ? (logsSnap.data() as any) : {};
+
+          pulledState = {
+            teachers: coreData.teachers || [],
+            students: coreData.students || [],
+            classes: coreData.classes || [],
+            schoolLocation: coreData.schoolLocation || null,
+            landingPageSettings: coreData.landingPageSettings || null,
+            contactMessages: coreData.contactMessages || [],
+            adminSessionId: coreData.adminSessionId || null,
+            adminAllowedSessionId: coreData.adminAllowedSessionId || null,
+            adminRevokeTime: coreData.adminRevokeTime || 0,
+            lastUpdatedTime: coreData.lastUpdatedTime || Date.now(),
+            lastBackupDownloadDate: coreData.lastBackupDownloadDate || null,
+            progress: progData.progress || [],
+            billing: finData.billing || [],
+            invoices: finData.invoices || [],
+            moneyTransfers: finData.moneyTransfers || [],
+            xawaaladaAccounts: finData.xawaaladaAccounts || [],
+            xawaaladaTransactions: finData.xawaaladaTransactions || [],
+            submissions: logsData.submissions || [],
+            teacherAttendance: logsData.teacherAttendance || [],
+            notifications: logsData.notifications || [],
+            exams: logsData.exams || []
+          };
+        } else if (stateSnap && stateSnap.exists()) {
+          pulledState = (stateSnap.data() as any)?.state;
+        }
+
+        if (!pulledState) {
+          return res.status(404).json({ success: false, error: 'No data documents found in Firestore to pull.' });
+        }
+
+        pulledState = sanitizeDatabaseState(pulledState);
+        currentDatabaseState = pulledState;
+        fs.writeFileSync(DB_FILE, JSON.stringify(pulledState, null, 2), 'utf-8');
+
+        return res.json({
+          success: true,
+          message: 'Xogtii ugu dambaysay ee Cloud Firestore ayaa lagu soo shubay Server-ka!',
+          lastUpdatedTime: pulledState.lastUpdatedTime
+        });
+      } else {
+        return res.status(400).json({ success: false, error: `Invalid action: ${action}` });
+      }
+    } catch (err: any) {
+      console.error('[Diagnostics API] Force sync error:', err);
+      return res.status(500).json({ success: false, error: err?.message || 'Force sync failed' });
+    }
   });
 
   // API Route: Get Database State
