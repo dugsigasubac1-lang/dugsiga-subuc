@@ -217,7 +217,7 @@ export const SyncDiagnosticTool: React.FC<SyncDiagnosticToolProps> = ({
         lastUpdatedTime: fsLastUpdated,
         lastUpdatedIso: fsLastUpdated ? new Date(fsLastUpdated).toISOString() : null,
         counts: fsCounts,
-        totalRecords: Object.values(fsCounts).reduce((a, b) => a + b, 0),
+        totalRecords: Object.values(fsCounts).reduce((a: number, b: number) => a + b, 0),
         partitions,
         writeTestSuccess,
         writeTestError,
