@@ -93,6 +93,17 @@ import StudentMediaModal from './StudentMediaModal';
 import { DugsigaSubucLogo } from './Logo';
 import { ChangeWebsiteLogoModal } from './ChangeWebsiteLogoModal';
 import { SyncDiagnosticTool } from './SyncDiagnosticTool';
+import {
+  ActiveStudentsModal,
+  ParentsModal,
+  TuitionInvoicedModal,
+  CollectedFeesModal,
+  PendingFeesModal,
+  BusInvoicedModal,
+  ActiveRidersModal,
+  BusCollectedModal,
+  PendingBusModal
+} from './DashboardModals';
 import { 
   generateDailyTextReport, 
   generateAttendanceSummaryReport,
@@ -6741,122 +6752,195 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
             </div>
 
             {/* Core Stats Counter Deck */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-4">
               
+              {/* 1. Active Students Card */}
               <div 
+                role="button"
+                tabIndex={0}
                 onClick={() => setShowActiveStudentsModal(true)}
-                className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-emerald-200 transition-all active:scale-[0.99] group"
-                title="Guji si aad u aragto faahfaahinta fasallada (Click to view class breakdown)"
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setShowActiveStudentsModal(true); }}
+                className="bg-white p-5 rounded-3xl border border-slate-200 hover:border-emerald-500 shadow-xs hover:shadow-lg transition-all duration-200 cursor-pointer active:scale-[0.98] group flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                title="Guji si aad u aragto liiska ardayda firfircoon (Click to view active enrolled students)"
+                id="overview-active-students-card"
               >
                 <div>
-                  <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                  <p className="text-slate-500 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                     Active Students
-                    <span className="text-[10px] text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-emerald-50 px-1.5 py-0.5 rounded-md">View ğŸ”</span>
+                    <span className="text-[10px] text-emerald-700 font-extrabold bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md group-hover:bg-emerald-600 group-hover:text-white transition-colors">Kormeer ğŸ”</span>
                   </p>
-                  <p className="text-2xl lg:text-3xl font-extrabold text-slate-900 mt-2">{activeStudents.length}</p>
-                  <p className="text-[10px] text-slate-400 mt-1">Enrolled students</p>
+                  <p className="text-2xl lg:text-3xl font-black text-slate-900 mt-2 group-hover:text-emerald-700 transition-colors">{activeStudents.length}</p>
+                  <p className="text-[11px] text-slate-400 mt-1 font-medium">Ardayda diiwaangashan</p>
                 </div>
-                <div className="p-3.5 bg-emerald-50 text-emerald-600 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-colors shrink-0">
+                <div className="p-3.5 bg-emerald-50 text-emerald-600 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-colors shrink-0 shadow-xs">
                   <UserCheck className="w-6 h-6" />
                 </div>
               </div>
 
+              {/* 2. Parents Card */}
               <div 
+                role="button"
+                tabIndex={0}
                 onClick={() => {
                   setParentsModalStatusFilter('all');
                   setParentsModalSessionFilter('all');
                   setParentsModalSearchQuery('');
                   setShowParentsModal(true);
                 }}
-                className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-indigo-300 transition-all active:scale-[0.99] group"
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setShowParentsModal(true); }}
+                className="bg-white p-5 rounded-3xl border border-slate-200 hover:border-indigo-500 shadow-xs hover:shadow-lg transition-all duration-200 cursor-pointer active:scale-[0.98] group flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                 title="Guji si aad u aragto dhammaan waalidiinta iyo xaaladdooda (Click to view all parents & status)"
                 id="overview-parents-card"
               >
                 <div>
-                  <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                  <p className="text-slate-500 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                     Parents (Waalidiinta)
-                    <span className="text-[10px] text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-indigo-50 px-1.5 py-0.5 rounded-md">View ğŸ”</span>
+                    <span className="text-[10px] text-indigo-700 font-extrabold bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-md group-hover:bg-indigo-600 group-hover:text-white transition-colors">Xogta ğŸ”</span>
                   </p>
-                  <p className="text-2xl lg:text-3xl font-extrabold text-indigo-700 mt-2">{allParentsWithStatus.length}</p>
-                  <p className="text-[10px] text-slate-400 mt-1">
+                  <p className="text-2xl lg:text-3xl font-black text-indigo-700 mt-2 group-hover:text-indigo-900 transition-colors">{allParentsWithStatus.length}</p>
+                  <p className="text-[11px] text-slate-400 mt-1 font-medium">
                     <strong className="text-emerald-600 font-bold">{allParentsWithStatus.filter(p => p.status === 'Active').length} Active</strong> â€¢ {allParentsWithStatus.filter(p => p.status === 'Suspended').length} Suspended
                   </p>
                 </div>
-                <div className="p-3.5 bg-indigo-50 text-indigo-600 rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-colors shrink-0">
+                <div className="p-3.5 bg-indigo-50 text-indigo-600 rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-colors shrink-0 shadow-xs">
                   <Users className="w-6 h-6" />
                 </div>
               </div>
 
+              {/* 3. Teachers Card */}
               <div 
-                onClick={() => setShowTuitionInvoicedModal(true)}
-                className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-emerald-300 transition-all active:scale-[0.99] group"
-                title="Guji si aad u aragto kashifida lacagta waxbarashada ee ardayda (Click to view expected student tuition dues)"
+                role="button"
+                tabIndex={0}
+                onClick={() => setActiveTab('teachers')}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setActiveTab('teachers'); }}
+                className="bg-white p-5 rounded-3xl border border-slate-200 hover:border-violet-500 shadow-xs hover:shadow-lg transition-all duration-200 cursor-pointer active:scale-[0.98] group flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+                title="Guji si aad u aado qaybta macallimiinta (Click to go to Teachers)"
+                id="overview-teachers-card"
               >
                 <div>
-                  <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
-                    Tuition Invoiced
-                    <span className="text-[10px] text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-emerald-50 px-1.5 py-0.5 rounded-md">Details ğŸ”</span>
+                  <p className="text-slate-500 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    Teachers (Macallimiinta)
+                    <span className="text-[10px] text-violet-700 font-extrabold bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded-md group-hover:bg-violet-600 group-hover:text-white transition-colors">Aad â¡ï¸</span>
                   </p>
-                  <p className="text-2xl lg:text-3xl font-extrabold text-emerald-700 mt-2">${Number(currentMonthTuitionInvoiced).toFixed(2)}</p>
-                  <p className="text-[10px] text-slate-400 mt-1">Expected student fees ({currentMonthName})</p>
+                  <p className="text-2xl lg:text-3xl font-black text-violet-700 mt-2 group-hover:text-violet-900 transition-colors">{(database.teachers || []).length}</p>
+                  <p className="text-[11px] text-slate-400 mt-1 font-medium">Macallimiinta dugsiga</p>
                 </div>
-                <div className="p-3.5 bg-emerald-50 text-emerald-600 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-colors shrink-0">
+                <div className="p-3.5 bg-violet-50 text-violet-600 rounded-2xl group-hover:bg-violet-600 group-hover:text-white transition-colors shrink-0 shadow-xs">
+                  <GraduationCap className="w-6 h-6" />
+                </div>
+              </div>
+
+              {/* 4. Classes Card */}
+              <div 
+                role="button"
+                tabIndex={0}
+                onClick={() => setActiveTab('classes')}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setActiveTab('classes'); }}
+                className="bg-white p-5 rounded-3xl border border-slate-200 hover:border-amber-500 shadow-xs hover:shadow-lg transition-all duration-200 cursor-pointer active:scale-[0.98] group flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                title="Guji si aad u aado fasallada (Click to go to Classes)"
+                id="overview-classes-card"
+              >
+                <div>
+                  <p className="text-slate-500 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    Classes (Fasallada)
+                    <span className="text-[10px] text-amber-700 font-extrabold bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md group-hover:bg-amber-600 group-hover:text-white transition-colors">Aad â¡ï¸</span>
+                  </p>
+                  <p className="text-2xl lg:text-3xl font-black text-amber-700 mt-2 group-hover:text-amber-900 transition-colors">{(database.classes || []).length}</p>
+                  <p className="text-[11px] text-slate-400 mt-1 font-medium">Fasallada shaqaynaya</p>
+                </div>
+                <div className="p-3.5 bg-amber-50 text-amber-600 rounded-2xl group-hover:bg-amber-600 group-hover:text-white transition-colors shrink-0 shadow-xs">
+                  <Building2 className="w-6 h-6" />
+                </div>
+              </div>
+
+              {/* 5. Tuition Invoiced Card */}
+              <div 
+                role="button"
+                tabIndex={0}
+                onClick={() => setShowTuitionInvoicedModal(true)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setShowTuitionInvoicedModal(true); }}
+                className="bg-white p-5 rounded-3xl border border-slate-200 hover:border-emerald-500 shadow-xs hover:shadow-lg transition-all duration-200 cursor-pointer active:scale-[0.98] group flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                title="Guji si aad u aragto kashifida lacagta waxbarashada ee ardayda (Click to view expected student tuition dues)"
+                id="overview-tuition-invoiced-card"
+              >
+                <div>
+                  <p className="text-slate-500 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    Tuition Invoiced
+                    <span className="text-[10px] text-emerald-700 font-extrabold bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md group-hover:bg-emerald-600 group-hover:text-white transition-colors">Details ğŸ”</span>
+                  </p>
+                  <p className="text-2xl lg:text-3xl font-black text-emerald-700 mt-2 font-mono">${Number(currentMonthTuitionInvoiced).toFixed(2)}</p>
+                  <p className="text-[11px] text-slate-400 mt-1 font-medium">Lacagta waxbarashada ({currentMonthName})</p>
+                </div>
+                <div className="p-3.5 bg-emerald-50 text-emerald-600 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-colors shrink-0 shadow-xs">
                   <BookOpen className="w-6 h-6" />
                 </div>
               </div>
 
+              {/* 6. Bus Invoiced Card */}
               <div 
+                role="button"
+                tabIndex={0}
                 onClick={() => setShowBusInvoicedModal(true)}
-                className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-sky-300 transition-all active:scale-[0.99] group"
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setShowBusInvoicedModal(true); }}
+                className="bg-white p-5 rounded-3xl border border-slate-200 hover:border-sky-500 shadow-xs hover:shadow-lg transition-all duration-200 cursor-pointer active:scale-[0.98] group flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-sky-500/30"
                 title="Guji si aad u aragto faahfaahinta kashifida baska (Click to view expected bus dues)"
+                id="overview-bus-invoiced-card"
               >
                 <div>
-                  <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                  <p className="text-slate-500 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                     Bus Invoiced
-                    <span className="text-[10px] text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-sky-50 px-1.5 py-0.5 rounded-md">Details ğŸ”</span>
+                    <span className="text-[10px] text-sky-700 font-extrabold bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-md group-hover:bg-sky-600 group-hover:text-white transition-colors">Details ğŸ”</span>
                   </p>
-                  <p className="text-2xl lg:text-3xl font-extrabold text-sky-700 mt-2">${Number(currentMonthBusInvoiced).toFixed(2)}</p>
-                  <p className="text-[10px] text-slate-400 mt-1">Expected bus fare ({currentMonthName})</p>
+                  <p className="text-2xl lg:text-3xl font-black text-sky-700 mt-2 font-mono">${Number(currentMonthBusInvoiced).toFixed(2)}</p>
+                  <p className="text-[11px] text-slate-400 mt-1 font-medium">Fiiga baska ({currentMonthName})</p>
                 </div>
-                <div className="p-3.5 bg-sky-50 text-sky-600 rounded-2xl group-hover:bg-sky-600 group-hover:text-white transition-colors shrink-0">
+                <div className="p-3.5 bg-sky-50 text-sky-600 rounded-2xl group-hover:bg-sky-600 group-hover:text-white transition-colors shrink-0 shadow-xs">
                   <Bus className="w-6 h-6" />
                 </div>
               </div>
 
+              {/* 7. Collected Fees Card */}
               <div 
+                role="button"
+                tabIndex={0}
                 onClick={() => setShowCollectedFeesBreakdownMonth(currentMonthFilter)}
-                className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-teal-200 transition-all active:scale-[0.99] group" 
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setShowCollectedFeesBreakdownMonth(currentMonthFilter); }}
+                className="bg-white p-5 rounded-3xl border border-slate-200 hover:border-teal-500 shadow-xs hover:shadow-lg transition-all duration-200 cursor-pointer active:scale-[0.98] group flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-teal-500/30" 
                 id="overview-revenue-paid"
                 title="Guji si aad u aragto halka ay lacagtu ka timid (Click to view breakdown)"
               >
                 <div>
-                  <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                  <p className="text-slate-500 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                     Collected Fees
-                    <span className="text-[10px] text-teal-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-teal-50 px-1.5 py-0.5 rounded-md">Details ğŸ”</span>
+                    <span className="text-[10px] text-teal-700 font-extrabold bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded-md group-hover:bg-teal-600 group-hover:text-white transition-colors">Details ğŸ”</span>
                   </p>
-                  <p className="text-2xl lg:text-3xl font-extrabold text-teal-700 mt-2">${Number(currentMonthPaidAmount).toFixed(2)}</p>
-                  <p className="text-[10px] text-slate-400 mt-1">Total deposited ({currentMonthName})</p>
+                  <p className="text-2xl lg:text-3xl font-black text-teal-700 mt-2 font-mono">${Number(currentMonthPaidAmount).toFixed(2)}</p>
+                  <p className="text-[11px] text-slate-400 mt-1 font-medium">Wadarta la qabtay ({currentMonthName})</p>
                 </div>
-                <div className="p-3.5 bg-teal-50 text-teal-600 rounded-2xl group-hover:bg-teal-600 group-hover:text-white transition-colors shrink-0">
+                <div className="p-3.5 bg-teal-50 text-teal-600 rounded-2xl group-hover:bg-teal-600 group-hover:text-white transition-colors shrink-0 shadow-xs">
                   <CircleDollarSign className="w-6 h-6" />
                 </div>
               </div>
 
+              {/* 8. Pending Balance Card */}
               <div 
+                role="button"
+                tabIndex={0}
                 onClick={() => setShowPendingFeesBreakdownMonth(currentMonthFilter)}
-                className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-rose-200 transition-all active:scale-[0.99] group" 
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setShowPendingFeesBreakdownMonth(currentMonthFilter); }}
+                className="bg-white p-5 rounded-3xl border border-slate-200 hover:border-rose-500 shadow-xs hover:shadow-lg transition-all duration-200 cursor-pointer active:scale-[0.98] group flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-rose-500/30" 
                 id="overview-revenue-unpaid"
                 title="Guji si aad u aragto ardayda aan bixin lacagta (Click to see students who haven't paid fees)"
               >
                 <div>
-                  <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                  <p className="text-slate-500 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                     Pending Balance
-                    <span className="text-[10px] text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-rose-50 px-1.5 py-0.5 rounded-md">Unpaid ğŸ”</span>
+                    <span className="text-[10px] text-rose-700 font-extrabold bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-md group-hover:bg-rose-600 group-hover:text-white transition-colors">Unpaid ğŸ”</span>
                   </p>
-                  <p className="text-2xl lg:text-3xl font-extrabold text-rose-600 mt-2">${Number(currentMonthUnpaidAmount).toFixed(2)}</p>
-                  <p className="text-[10px] text-slate-400 mt-1">Outstanding dues ({currentMonthName})</p>
+                  <p className="text-2xl lg:text-3xl font-black text-rose-600 mt-2 font-mono">${Number(currentMonthUnpaidAmount).toFixed(2)}</p>
+                  <p className="text-[11px] text-slate-400 mt-1 font-medium">Lacagaha dhiman ({currentMonthName})</p>
                 </div>
-                <div className="p-3.5 bg-rose-50 text-rose-600 rounded-2xl group-hover:bg-rose-600 group-hover:text-white transition-colors shrink-0">
+                <div className="p-3.5 bg-rose-50 text-rose-600 rounded-2xl group-hover:bg-rose-600 group-hover:text-white transition-colors shrink-0 shadow-xs">
                   <AlertCircle className="w-6 h-6" />
                 </div>
               </div>
@@ -10586,150 +10670,66 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                       {/* Floating Autocomplete Suggestions */}
                       {showPayReportStudentSuggestions && (
                         <div className="absolute left-0 right-0 mt-1.5 max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1.5 scrollbar-thin">
-                          {filteredPayReportStudents.length === 0 ? (
-                            <div className="px-3.5 py-2 text-xs text-slate-400 font-semibold italic text-center">No matching students found</div>
-                          ) : (
-                            filteredPayReportStudents.slice(0, 8).map(s => {
-                              const isChosen = s.id === payReportStudentId;
-                              return (
-                                <button
-                                  key={s.id}
-                                  type="button"
-                                  onMouseDown={() => {
-                                    setPayReportStudentId(s.id);
-                                    setPayReportStudentSearchQuery(s.name);
-                                    setShowPayReportStudentSuggestions(false);
-                                  }}
-                                  className={`w-full text-left px-3.5 py-2 text-xs hover:bg-slate-100 flex items-center justify-between transition-colors ${
-                                    isChosen ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-700 font-medium'
-                                  }`}
-                                >
-                                  <div className="flex flex-col">
-                                    <span className="font-extrabold text-[11.5px]">{s.name}</span>
-                                    <span className="text-[10px] text-slate-400 font-mono">{s.id} | Class: {s.className}</span>
-                                  </div>
-                                  {isChosen && <Check className="w-3.5 h-3.5 text-indigo-600" />}
-                                </button>
-                              );
-                            })
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                          {filteredPayReportStudents.length === 0 xœì}ksÛ8²è÷ó+0¾©XŞdÇ‰3Û)?ï8N6r6Ùš3µDXâ˜">bk½®:¿åş´ûK. I@P?2QíN,Šx5ºıB÷+Ôú/døl9î7Ô÷pâÙ^_µŸu6ĞxÒ^G1¹ŠÛWÿ7òpLÚÏ×ÖĞyàÓ¯däöÏAnŒ=·Ïßé?&áÒÎi€F8î]€¢8qèãˆ6K|gk•·c˜Ñ
+Ú¬™ñ¹ëÑAˆóO>qÆ]1B'¢!­µ'èåJg„Ç­mï kcgõ?Š‘íƒˆøhE×AÛÛÛh\àØùïš¾B'¡_3ølõ’8üÚ÷º “ík˜ÒÅËñdL·÷½dñ~à¿’ˆ—şöukÅ\ü‘¸şc§Ó\©ƒ‘¶ƒ.Áaø÷„„Ú“O±Ñ¾¯î0¸¬ô—$Š]º¿­sìEvİİØÀ9§—ë/—íóÄó8ş{ä<F*
+ßH¸Ù*z
+Tä‘+J<d	²A$t¶ç“vÄ—„¢bb?raí~àa„ÙíN†Ì¯Ğ2Óõw´7ÖøtÄ×ŸSJ*^¦T·,‘yöãˆ8n2Z¶Ü—zÈ™?ı”ƒü€°dÓí#c¿Ğ	¬…./ÄŒg±•şöôigc|õûÒÎ5G·›­Uh7å¢Ï5Ú£’a?`CQRFÿAûĞrÑïYÆ¯e£éç:Ã…ÇÑÖşô/äI_2T²ÿÊÈñbmm	­îÔïèÖ*ç6us©¡½›Ó‘ Ÿ†švÚ6Š÷Å»•ç×«AûÁDî7‚Æ!=“Úí­¢×aŒÑQ M÷pˆş²ªèØ„å(m²¿ÃàÒÌ"xÜ~Æq{õ‚Ğ!a;NÿÈ9Í(n¯/!×Ù^
+ŒÚ˜Í´M'§$¨­qÄîy˜"U2“°#l«AOşö¥Kç¡às0éu4öÚkAW¨+$tP 6ënHÛ_ÒEév¾Òûî&=‰÷¢ÀKb‚\ßs}Ò]26.¸y²
+qøÊBÉˆ„ØsØ¢ƒ1î»ñ¤ı3¼™bõ«G.Œ%V&¹AiÑ8ñ7öÓ‚	İ­a{“ØícºFˆ\Á¿úN¶VÇ
 
-                {/* Cohesive premium Action Group Footer bar */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-5 border-t border-slate-100 mt-2" id="reports-action-bar">
-                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider flex items-center gap-2 pl-0.5">
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                    </span>
-                    <span>Ready for analytical reports export</span>
-                  </p>
+h‚ÂlÃ)‡À¥?]¶qj¤dü$Òìí5û.¹|8„ÉiË—ÃÀ#Ëô´Ó	^[zöT/‰Ù
+U¿OåÏ‹íë!ö	U^€O0¹İ8&¾ƒı>1±TYŸ0ˆQYbp!&Ø¦œì	ÓŒ$/‡”Â2Lºò2Á#;áQ4ÄNpÙe¥}®>]+à£’áH¤ûÎŠ\4ÁtGûIa{¸ì­ò>‹YGëå$µ§¿#Øío$}¶Öùå—ßMÀİØ£`9ØüŸƒd¹ÜMzIŸË{Ñÿè[šÎ¥­t‹Š'âsJ„Ïáô34=d4ƒÎ(”gSz4Ş&òq)>‰Cº!H”Z°×2Ë#JQ›)9=1¾Å8Œ(Kİ|¤›>0·£T ·:ä_Ím²İI[1Ù©K<Â8†¡íAt0‘?á~‘é?z9Áİsê2ÒC!:jca0j
+Ñı®şlªs@˜îü$pÜ÷<âl_ÿ$ˆƒá*q2UÙ„–šsD´½'Iº¼ÍTz¾ö O—Å’
+]÷ã˜˜fÎáIiõ^3Ë»W;3°lfeHŞ×sÉL¾™Vg<«ÄÎ-ä¸º/çQÕ¦İ€à‹Ò{<Ñ>`@Î®âVµë'²	{ğã¡ô’%{4%5ü8Ê*Ÿ«;÷EÛ™BÏt‚9şGÿ
+ì2MØfÂYĞV…é³ìeG®Ou{ˆïäü5Õ®kLëÊÇŠ‡•G¥tÌìo°À·ÛmÔ=ûxpxz†vÏÎOvO÷ÑÙîûI¶»_ó9Ã½‚ª˜kSËà ‘Oé²y3¢FÚ“ö”“Ï±CÚ®Ï­˜ dzLˆ~Û8ë¸dÈ,wKÑãù˜öœâú3ŠìÜŒ_µæôF(ÑóŠ­ÔŞ4Kÿ¶p0ˆIôª³÷Ãó	(mÉÃgun¹œ/p—ê`içoA0pcŒıŒvCOŒZ‚7¡|)ªÜ('+[«Ãg–Ü™‘r—QÌŸñW×ıÃEH£c>úä`<tøË@°ÃWJntg†˜ş)×ñÂÃ3W&¡!ÕUı&j‡ád­?SK‡¢îğãñUŒ¶Ñ€ø$¤€ËßMF#Šs£d@cJR}a&< cŒ{Øàšçƒö¼€Ò-òÉ%Ú£¶~£³øı	ºf‹ëÕ±‡]ÿ¿ûCÒc};‰ÏÛ/—éédî9	=ÚñÇ'~Hèßõş ZıŞ‚1kcÚÔ	ú	ˆ¢ı¡Gà[k/kãÎ0$ç´-\ÿ“JkÛèKÎMşq8ÿëÑµÖ›È}_}Øß–fBšˆ‡ÒÉçöó9IİÚs9=ˆsg<’Uè¬qƒM#û
+©W`¶ò¸Ó¦¯†WB×AğàÕQû)°èüësÎ‘›°\÷ˆW8r¼ ‘Æ@¬±is$®¸A÷Tã×¥Ø?êÁ^-íœaºîÅ˜2 #å¾lHåd\œ¨…Î§(C j.õ{	Ù.`½›A §ìŒdB~Ş¨E:Tì¸Ã:Ô¯ê€¸$¸n¬)Oèu
+2#îKàA7HbF~à!aª–¯ÀPÃ1r'hp„#ìÑ#²ÅX»	"f*³ØeÖUãmf­îÿ>OÏÌ‚14á°Z¢ªİÒÎÁS.…}Ä¶ÁÃ@Œôºüe7½_ğ¤Pé‰Nö=:©5Z‰	°ØDúîMºmğ÷û¯yÜöÀãşãúg*ãa‡K¡8Næ„í¼¯#ŞÚéåÆ%ÜG8¢:Ëä{'úÄ¡@"3ú•Z¿IDå®gĞ=ßkh§ÔÉ	\;T-ÀÔ:áç`ƒö»=>‡·ø+¥âÿjìâáËŒ—knl"•’(”†Ké‚ÄxÄ°B¤+Ç©e_ Û~†â`Ü~¦•ûBJ*¦@ÿ:ÃÕCúdHEÂí¥·x€ûToat|ĞéttJœ€-LgW3qÖĞîì+’¾×şÃyÑv;`:qG)ğÌË¼dgifŠUèÜ£ƒQ€øµ™ìı+§XT†Í"n—ÍÅ|¨^àáq¤¦’­xH°£Áó8,-=Ûï4@:'|äiGù¡Ş^¤ØŒtÌTœÿ³µ›4&³­4í@È°M›eâ€d¨jÚÇ!¬$ŠŠ©ãá9¥|´Š>'Q’D®¯ï„şªIL‹0[q/p&òÀ©év·'Hü‘S†`º ÎÔìÓI/iÚáw}ê.ò¸ç¨%kè'0ñ‚ËŒºR„=ûA~s%½²Ã.ˆècÔ¥8‹]1^”áæ¡¯(Œ7êÄÁIpIÂ}ºt5&ï'~+¡Ø¨ãú}Â,j}]Åı÷	ô¯Ø®OïÂíã0Ñ6×ï3]¢=A®sUs¹ˆCl*|E`WKQ$}FqÁwZcèfÜÉœUÌšÏnlQ`Œ;`>àrß h>jÄ„F:f:Ô«NnpCÿùZşè{Á`@œe;‘Dñ*ò‘$,”ßÍ6Ë§|ş¿õ~T‹[fÀÚó›c2Í–œmk«/×ª7jîÙlÅN‰åw\Ôw¨,°´sMñ ı=¥Úa¬9“ô#Ô^ı©ĞMÎùÒÅUeßùj•·#ÒË>,åÛT½[çâİST¸ŠVºø•Š>Ş ,ô§Ê€Å5¬ÂÅ¦º™ZÜ{º]Ñš¦eà™ ÄD&‹{z)Óö Îeq_/¿øÁ;M¿Ó½YF›z=4ízTK;åß¦è’k¦i§aå#ûbÙå²)åÔ]7¼ùrcƒ€—´|›ÉªaZPöw#Á±¨ó³»˜' 1EÆå»¢yS^ïƒÖÖu~”zLİFcÄÄaçi»fQ³N”q/}„¯Ú—ì{˜ø}f¤±Ÿûy.TÓiçÏ{dˆ¿¹AøŒpx1—%érşÑÊ0êèÚÈê*U™©•ŠÅøtxøëÉ?Ñn·{Øí¾…¨ŒUtøy÷m×*$ƒ\áQ4§0ŒKB.¼I›¶¢û5b†µâê>±v³ßa©È¹é'7(ğ»ø9È~)~¿)Ú),@tv¸»ÿæğê~Ü{{Üí¿;í¢İÇgè1::<<°^Iz#7Šàfû¼ÂVòÄ«ÈÏ§ŠWùbL7ô{î•ëûày‹ûØóÜ‘ëúôÇÖÁı!]@7‡ü|ÂV2Oãº—ô_6¸Ã+_]Š˜=ÀFÒÌ$NÏPx6ˆ`™‡wûÙıónw‡jÎt™mg&oO¶ãé•|>º.ş¬^ÏqYx>3ûBÌ!1cElíöŒ™b-¶”}Ù¡ÿ0µ„qÑGØô q>qnj¦õĞ£§AĞÇˆó¿ÖÙdl™ŠVh§3
+mÿg¥Ø‰eh@©#9UÇlå€Í:ioiçx»Wé!µŠşK­C¿+ÿgKXÿ\P¾ö¯Aˆ±ÇÜ TŸò¼ÀÂ*‘n–ª‘KTÕÁ×¨µkTI:ETÉe£S7ª2Üu+÷úH½Rİù·ß«„Ìó“ôtfq×	B%»{ÒKÏùc‡›ßuë=&šq)Y(MŸª4,CdJr=©šÙ¸ x,_
+Ím„§F¯TmŸÜE·ÍÖ%¹æÀˆ²¼2C¿"N7íYJOÙ/sÀ@ Î6işÙW1lıVªXÑ»¦ğ«	ZÒÓºÓÒt†‡Wcü‡‚ƒˆ?sbNıfL®2©!ï¼iİ8Û}wD5<£W,ŸEÓ~àP†»O´=[ìæ+°ˆ@ãş9¶#Jÿ–Ñ³ÅXwj±yß(ÍÍL`ÄĞ³¬ÂÈó3O,v—@m˜¥> CáÓ5*<ÍÏ¤u
+œÚ[qegTçÖÈ3Raéj•Ù¯ñ‚y©
+_˜]µî€kÓÌ¶ö)¾Ò¯!»È\”¥ 5ŞˆItz[G®GX½uÍK&p­P'œß˜ö‚P¡Ÿáó†6­hv€c~Ül­ŸOå†AjM¤JN ’ 5rnH['dåˆI•¡¹¸UTDyyuK°rZRUÁôÁË
+Ye¯ˆï/çæj3Í1SÙl„Š7'¯V=Ñ41^‹ïı¿ÿı¿|UBŠ¸QÚA­g¢K#™ı>Ò¶I)lŸ¸zQşP!E´$9ã[¡[ÌOgã­ğòí²§ü^ø³"?(…ª¬ë#¦¸eÖüfYú©A8†¶×À,ÿ‡.Ê#ôbÌHá(	‹­À»†”®ßÂÀÿ8.JYZ×ôôïÁ=8Ã›æ#¬>ÕëB‘P¤!àGÎ±°ÕßºI±±“dß^”°lZ¤É2¹aì†è€;g.°5¨vâh¸®0ÿÔ¤¨ßI#?3s3?…œFy»úi‡
+aƒxˆvĞZÙ¥Y½œ°>Î~Šä·õ‘ÖR×õ1×æÀÖ¼#}ÔµüVX9œ„\ ¹~nŒ¹–Bú6ôÖ…IÉb½&äÚÜ4»Ş1m–ÁÓæNDõôäÙ¦sÔ†x£„V×‡¯(h‹[œ'(:‘¸%
+²RG
+·¥"4ôQRj…Š um)S[Gš»WX_¡ûl™Bµ™v)sÔ+5Te
+0yË: Typ¤Pæ.¤ËX@À¡q(»DC,¡ÕğVj
+ÿ\W&jSñÁVäoNŸE˜c% cOÏytÀb±lvÃÔó>?»Ğ‡:P­ğŠ*dM~a5 TfØ’ËcŠÈ¸½ã““ãÓ×è1:>ıÇ»ãıC»¸'ƒ9y‰ŞJü	¦xŒÁÕÓöñ7zx27m£gæ­©ãÈì¢Ç¬´g½ºR§¤Tõã=]
+Fº}­åsB¢e%öX~–YE«Êr!Ğ˜™Lsôäq„b³ÒJñ,xQÌçRIŠ(½·º®åÒ›ú8ïJ_Õ‘ª²ŒŠvOpÚ,â.–E%p”öö’QTı*†L.‹C‘>%Œ`ô/×ÿ¸ıûˆ-å	~¯ˆs,(âºàCŒ~bAÆ¯¡5²¨õâkÀª5Ş9 7™¼Ÿ¥§+5#Z1ßÓ\ò4..ã“2â½G)İÚ,Ò¥ï	Ğ~B(ë=WËÅVÇ‡iêá,®°+tBœ:B5_&hhÇ­h1ÎÒæN,ˆ<YÚÉìnêÓBïĞÒ…fÒ‚şl(I´ X­šh-›x-eÄÖÈ2qE¯•b¹1u…:RkOnj¡eŒÑºÛ-MŒ–Aí0‡oÙó|³V¨†²³§ÎÁ’ZgC½OÙ+Ä|›e°Ğ5j”ÅB×‰E&]SÆ)KÜs)¦ÔZAU=ìä4MÃ4‘Fó¶Âhä†ñÒÎ|é°‡Z¼"_ MvŒëí|ì¶Öé0àc™>ÃVàÊæ¤ğÉ£íW¤ãŞfò
+ø˜ÍLI,X'¦*”’YÀGdË(-‹Ìµ,^®x¼•yCŠ,Å;¿ûòèšuÕ¡çâå£ÿ¤ÛÒZ¹i?º‘vÙ¯¬Õ8ÿŠ®tÆP6‡qkı	Z^£
+¦6G¬<¼Øú¤OùKö›Ğ<[E
+Öà(MÖjnôC‘åâPÂmú‚:H0ÿX–[^p2>„uBŒFi0Ô}Û9W˜CÛ¿eJ_CñPçı*°=Ÿˆ}Y¶Æb!x§	4àÓ$‰‡bZ°¡$²˜â£ë"ÍãV|X¬oêYÏÈ >tz”ëBö/e_o¾€™ªîâÿ,3Ÿ
+Mo1‰	|/·ñ$€ƒY{ù®óI}Â É^¹ÈÔ¥üğœï‰ïP„\±ØÈ[ 1Y†kÃºé*-#„EÏ±\ùÇ>ª+ÿ(ã»ÀXùOx!¨Æ˜ô…²a:;ğ%Ä´6bÎü•~lÔ¯‰çr•İVYVaçŸ”:ŒaV¥áÂtØ`ÀzVwAÆ85Z…3ÄGn%ìtXÂ (
+cªöÑ¹®3´mn‹ftch1¡¶(Ò­ölB`}°‚QqÑ¹2F0bf¼°©ª)¸úp^ÄÁ(whığTG™Òs r`tà†xòÃmº„Kù	vÌ}0Âı˜A´Æ‡p,7ıáC¨<şáCPş~ÿ}©_z*_Â[N{\ã&s¦3Ìç5~¦iı	;8„¤¦òeüI½y¾„4ND—,!ÿ¤ŞÚÂÎ?Pà¸Mü…†Søhût]§A› ŞIß»":ûaùèô-bî3+5ƒÌBìÔF+µ!4¾°WVVë©LYM-Ö´°¶—2¬£d¦êÂÓÃ\klJ"1îÇ–&ìé€©¶hÒ]ó…{¬SîS‰÷ bìí2Óíñá.›°ÊŠ?j^÷%ª‡±‹½ÅŞ“°´^ç“³1l[]’ŸÉm-¡‹²ƒ6±|5·z©o¸ŠZ•Bò{pÄ;+—ê¢ë´¶­Ù-YÂŠÕä?\D×bÓĞÒ@­.êÙÔxÕÄpuØ öÏCÇMÜ‡
+Ÿğ¢êHPmQ«úÊK\ ­×ˆÀ/¾Kh@¥Ä'¨ ›Í€·{>|)~Ø º¿8t˜“¤Wg£Ö_¦»+#´<‹[p÷ßŸuÑ›ãîÙ»ÿ´ºrEôÆâ œÌé.\Úk{È»ı‘õ\~>UÖs©´pW±T³ÂÁ!±sÎr¦C¹.ò
+!ı„Ğ¨'|ÿ±˜ÂĞ»y^sÅ#;Œy …MfÔ?cÁ¦ÍX¤tÓFi˜õIŸÒ´‰àö8Î7ë¡ `qGó]¬-(şšµ¥fO–+¶WÕÛÍêèYGõÏ¤:úşt‹	!mnàaËk’	Ãvâ/²ŞG+<¯©KÆ°NAÿ<¦v~šAŠ<JLyŒ'P&æ Í_j‘%a‹†zÑD±°­¡Ë­Õ#êâh}]tÕ£VNò{ÒS+œ•Öˆú¹ÔŒøeRtU$î¤(ÔÛw§‡TÒÿ°{Ú=:üĞE­Ï»ŸvwOvvW¬ Ê-Èä6üœ„ó*xÄ:mÇi¯eñÿ­<æmÕ†ÚÛİÿõã{ôíŸ¼ûx ÚÒ»R-é1êşótï¾>}×=;Ş·LB%ªd<¯Ü!¬3}êºft:MöËÉ:PÕbµúK11cİX˜±ús&U+[{53TEB•4ŸƒãâPÍ¬¯Ìå 92ÔÙ“ºâû'w§$ôWh™]ÒgÁ*Mbìu½œ/¢6·C4RÏoóvæ§LQRR³³ˆM¼:İòn)˜$D|sãIñ\ĞçØÃØãFİ‰ßo_@A0Q ƒl{)"'IùúÉ%]ûP%Óâ¤İyQ`‚†Ç‰Å¼òƒçVH‚cõ\È!íêI!OIş§¥„}/H[28M¾R4KktĞâpLxÊ®ÇÑ0ˆ+‰yÔb’:É†‘*RmlæD4XÅQ~·ñ zø+(.G’cğ½WdÅëÈyH¢!«—Àšn_ãCK{»g€ƒstNX%
 
-                  <div className="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto" id="reports-action-buttons">
-                    {reportViewMode === 'whole' ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={handleDownloadWholeAttendance}
-                          className="py-2.5 px-5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-md shadow-teal-600/10 inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer w-full sm:w-auto hover:scale-[1.01] active:scale-[0.99]"
-                          title="D:\DugsigaSubucReports\"
-                        >
-                          <Download className="w-4 h-4" />
-                          Export Text
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setShowPrintReportModal({
-                            mode: 'whole',
-                            startDate: reportStartDate,
-                            endDate: reportEndDate,
-                            className: reportClassSelection
-                          })}
-                          className="py-2.5 px-5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-md inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer w-full sm:w-auto hover:scale-[1.01] active:scale-[0.99]"
-                        >
-                          <Printer className="w-4 h-4" />
-                          Print View
-                        </button>
-                      </>
-                    ) : reportViewMode === 'student' ? (
-                      <>
-                        <button
-                          type="button"
-                          disabled={!reportSelectedStudentId}
-                          onClick={handleDownloadStudentAttendance}
-                          className="py-2.5 px-5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold disabled:opacity-40 shadow-md shadow-teal-600/10 inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer w-full sm:w-auto hover:scale-[1.01] active:scale-[0.99]"
-                        >
-                          <Download className="w-4 h-4" />
-                          Export Journal
-                        </button>
-
-                        <button
-                          type="button"
-                          disabled={!reportSelectedStudentId}
-                          onClick={() => setShowPrintReportModal({
-                            mode: 'student',
-                            startDate: reportStartDate,
-                            endDate: reportEndDate,
-                            className: 'All',
-                            studentId: reportSelectedStudentId
-                          })}
-                          className="py-2.5 px-5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold disabled:opacity-40 shadow-md inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer w-full sm:w-auto hover:scale-[1.01] active:scale-[0.99]"
-                        >
-                          <Printer className="w-4 h-4" />
-                          Print Student
-                        </button>
-                      </>
-    xœì}ërIÒèÿ}ŠZË³H633,˜ğğ‡1,2KI]–zÜêİ-l­×ß³œG;Or2«ªïUÕÕºø£Øe¬V×-+3+o•IHñ³F’Ö_ˆòól[óüÔ›Äqàk'$ÙóñÚŠá=ÇhÏcÎóË¿éôaÜ'óãCçÊĞ0ğ÷<·öü²µFo“!õíç¾Pç= ‡Ô°“‹¸UíúÉ=£aü6ğãaîáïğGk¦9ô=EÇt+OÛ›-2¾ho‘Ş 3êµŸllağ…O“'?Ã“˜]Äíó¡3ßaNûÂO/"r
-ƒ¶{ç¤yŒiß§íÇ$R'8oœä¯dœõ‡Äõ=×gíS]è}µû°T’?&QìN“¯:n?„¹Æ!õ#7v¿M=ô'a„íqàò·ÎÛ§x·é$äJ¢>õXû·‡‡¿Úİo,y¶Ñùõ×ßõ{­Ç&À§dãò =o?&Ãöã²njzpÛE`—õØº.ğpû/w¡#w‡Áùû¶Côò6p¨×º4tAÈ(pØS²:øı;D
-X}`l!şïÓªhÂØ–ùN©eB8ævé6Ãdw<¯v†~…Êg†–W3RoäÁšÚ¿æÉW<úeaô{—‰•ã$ŒÚ˜VyCòÒõ©ßw©GÄNZĞ­îwõ/Ê]¶î¸ßªï++V•À˜éß—ë?‘v»Mº'÷OÈÎÉÉÁñşÎñŞ9ÙÙå?ı´ÍñRìÌ	í‘çÏŸ“U‰í;qÔb«äşıÂ)ı†ÎC?cíiû	¡¾;BD=¥k»ş
-qÀn 2²ß6M;^)­±Ô- ½Àó1ôœàú#@ö^:°ÿâ?’4n¤èH2£Ç+Ø–á€ÿ´ûÇ`şwœãßJÊè±øœ1Ÿ“Æãd½êlÆ=Åğb*¼y6|T˜2uH95súÎøÿêV¶ÿ'nL©FÉNèĞ©CIKò&’m! úÀâpºöl}øH9ü8?zn¸ÇÉpÀ]Fq{£³µ²ı™~uİ?\òGnt*F@J‡®ƒ¹Ó€ŒèW 7Ø™!…¿)p:ì<[[RƒfÏ
-{ƒ{±© ¶ùd­?SK‡¢îğë~“ø"&ÏÉ€ù,ÀeÀïNF#Ês£…d ¿á±õ€¨¾ìáBŒ1íÑˆ­ıİ8hÏ€n‰ÏÎÉ.üÙúfñûrÉ§nİúØ£®ÿ÷ş†p¬?ŸÄ§í_Vát2÷<	=èøã‡£N?d0Áw½?X?†ï-³¦1…¦NĞŸ  Ûx¿µVéª¶1íCv
-mapı;N"­='_2nòïHÀùß÷.s`½ê @¾èûêãş¶4ºRŸß¥“ÏíÇ’ºµçrrg<Îx$«ĞY}ZÍ$ûJ©Wb¶ò¸Ó¦¯†WB×!øòê¨ıYtöõ±àÈMX®G{Ì+9^Ğ?ÛòÛC`uã‹ßs›“ãŠ[°§“ñ˜…} QÜŠş™ëÃyå:°ÔÃ½ZÙ>¡4tİ³!2eDFà¾|Håd\<Q#‚OC`j.õzö¼€õ:n6DØK…ü¬Q‹u@ì°¸Ã;Ô¯yä¿h?B±UH¯©”ºµ¡<¡7dFÜÏİ`sZğŸI	Sµ|†‘Aƒ—4¢‘-ÎÚH1˜¬Å.ó®o3ouû÷yvfŒ‘!JX­€j·²½?¤À¥¨Oø6x‰~€m/«{ºäëïòí€—@zêŒè¸Õ÷"©Öh%'pÆ¦Ï¡‹è*Ù6ü{›ÿkwM£=Ä¸ı¸şd<ê)”Æ“a»èë¥ë64Fú|ãîÎ2ıŞI ş!
-,2£_©õûE =öT~¯¡R'GxpmïƒZ@§¤u$ÎÁíwzboéW â–øjìâîËJWhnj"•’(2´v¥Î¯wûC…HGJªíE7±Ôc§qû‰ƒqû‘Vî3)‰˜‚ıë; ‡ôÙ ÅÂç+oé€öAoQr¸ßéttJœ€/LgW3qŞĞîì+’¾×ş•ŒÃEÑÄFîâRàY”yÉÎÓÌƒªĞ©£Q€ùµ™ôınJT‰ó16‹¸ÍY¦°Š 'ó½À£ãHM%Ïâ!£Ïã°´ôt¿%é?ÌúÌ’òC½½HCÉ|tDçÿ<[‡MH“Ú†Öšv eØ¦ÍRq g¨jÚÇ>#ç~Ä¢(ğg˜:¢QÊ'ëäó$šL"××w¿„jÓ"Ì³¸8ÓüÀ€Ô°İí)‘d”!™f»/³OGšK#ÍB;§B‰Lv)BÜSÒÊkä¯hâE—u£N:eşCşÍ5²xúä”zÓP
-#»f˜NbúJÒÁD£Nç,Üƒ¥ë¬1Ùx:>Ì¹Ø¨ãú}`µ¾®áâà%×Ñ¿b»>½G¶Ã‰¶ùÕšnûP—hEˆë\M‹	ÄÆa0 á+B»Z‚"É3Àßi±›q'uVqk>Â 1î ù@<Ê4~ Å¨aÌd¨ÌàFşû_²úÑ÷‚Á€9«v’ÅK¨(FÊaaşİt³|àó×ûQå[:í?ÈÚ¹v† ¹ÊÓlÉÙ¶µ±şËFŞÊ§Iê7ëŞ)1 qJŒ?(Ë^©Ü¸²}	x@şF‚vkÎ$ı5SRĞMÎ˜Œ ¯+PaÑw¶Z’ñ¤,®œĞ·`9ğˆÆ IÕ»M!Ş=Ì„»”[‹¯?ç„:oPúe vlàñ9¶kr‹åãToˆ.¿hMÓyà™ ÄE¦{æ ü$LÙƒT8WÉ²
-ÃF,¤“ÊaÉwØ›Uò´QÏ¨‡&İÒQD±¤Sñm†.…fštQ&0ò/–]®ê0(gµ¦õÕ—+Ô@¸¤åÛLVÓ‚²ß¸›‹:?ô„ƒ€Æ8`€Œ«7E=ùMy’0òsÜÉ¨–°.³£Ôãòì^0{,f?OÛ5‹šwº¨œ€î¹}2¢ísÔKA‚ñûÜHc?÷ÓL¨†igÏ{lH¿¹Aøhx¶%érñÑÊ0êèèeu•ªÌÕÊ%Åb|:8xsô/²Óít»o1*c|ŞyÛµ
-É`t-(ãœ±3oÚ†V°_#nX+®îa'ıg‘ˆœÏSıäŠ~—~cûé/ÅïWE;…ˆNvö^| İ»o»İÃwÇ]²óqÿğ„Ü'/öí‚W&½‘E ®-
-^¹ÿŒWÉ?Ÿ)^ås0ˆ)lè'öÜ×÷Ñó–ö©ç¹#×õáÇÖ	£ı!, ›A~1a+©'Èqİsø/<Ã‚+_]À…)N°QnfLœ;x6ˆ`Y„wûÑíónw‡ 5gÈX²Ü¶3—·'İqáxcÄ…>]?ª×³D\ÏÔ¾ÈEÜX[»=c®XË-å_¶á?\£$-iG|Jà64îÀgÎUÍ´îºcô8ú”ş×:™ÍÁ 3Ñ
-t:¡@û•Jpw¦–¡¥òñ¬ùpÌVØ¬C”öV¶G±{‘Rëäé±Ô:@iğ»ò¶¤åøÇr€ŠµBJ=î}ÊóWhtq•ÿ˜°pÚÈ%ªêàO×¨µkU–œtJ0:¨ –ğ†u£*Ã]¶2¯O®WĞû½ê@H=?“ÎqÀ-î:A¨dwŸô’sşĞæw]Ãz‰f\ Å ÉSuƒæƒ¥ˆ¬s@å\Oªf6.(ÑèŠıaÍçy½Rµ}
-İs¾®œk(«ksô+ãt“e ôŒır\èlËÍ?ı*‡­ßJ«1z×~5éQ›ô´î47:¸Sä? &ÿÌˆ9ñ›˜\G5WÑzÓºqºûî5:“<ŸGÓ~PÆ»OĞ
-ÎÁ¿ùŠ$,#Ğ„ïˆÒ¿eôlqV#œZ|ŞWJ³D3“1ô,«0òâÌ¤İ%GFf©Ë/ç°h
-fgÒ& §öV\YàÕ¹5R†ÇT4wµÊì×xÂ=ü×wÜA¾!¿>1»jİ—¦™=Û|…¯!¿È\”¥¶ l[(&Áô½t=¶7dı³MÍK&p­P'œß˜õ‚P¡Ÿáã†6­h„v„cv\=[>É‰‚ÔF^*9ä¨‘£pCÚ:!+GL¢-Ä­¢ò æ—W·+G¡%U¥LüR!«ôùı—…¹ÚLsLÕE>©â-È«UO4ML§—òÀ»"ÿïÿ¯X•”"®”vPë™¨m£¹ß@Úõ·ëíï×«.Ê(¤ˆVNÎxÁÃV`‹Åél¼^¾]öPÜTä¥P•M}¤Â·Ìšß,K>5ÇÑö² ˜ÕĞĞ%Y„^L9)¼œ„Å‡W6H_ìúœHßÂÀÿ8.J¨¬ñßäô’ïá=8Ã›æ#Ì|Sœ¿³L$”éGú‘3,l5Æ7n¹Ø…Ïøƒ”IòoOJX6+ÒÀ²İØƒÑOÜ0vC²/œ3gÔ‚T;	i4ÜT˜jRÔï¤‘Ÿ™¹Y?¥œDyî³˜ºúi„°A<$Ûd£ìÒ,^â•ã8søÅUY¿>Ò:×u}Ìµ9°5ëHu+¬NR.PÇ\?6Æ\çBú¶ôÖ…IÉb³&äÚÜ4½Ş1k–ÁÓæNdõìdÙ¦sÔ†|£„V×‡¯(hKXœ$:”‘¸¦àÑdNI©“·û¨	)µÂ?EÏ¦6Œƒ)­£GÍİ+¬¯Ø}ºL©ÚÌ:ˆÕÒ-5Re
-8yµA|`Q™4ŞÅtK84ehˆ%´ŞJMŸËÊDëTñ±ÓÅ›3ãgQX)èøDÓs'ğƒ˜E|Çd ›İ0õ¼OçÏ.ô¡T+¼¢
-YË¿`U4ãkÛ(ÌÁå»Y"ãv_‘ûäğøŸï÷ìBâz.œä%{+ñ'œâI0FWOÛ§ßàğänÚ:GÏÜ!Z3Ç‘ÙEYiÏzu¥NI©êÇ»º FØ¾Öê)cÑªû
-,?Í¬¢Ue…hÌL¦9zù	„â³ÒJñ,xRÌçRIŠ˜{o}SË¥Ÿêã¼Ÿ(5|UGÀÜ+OU´{DûtĞæwq.QÔÉ„how‘— ª_ÅÉey(ÒÂFÿvıoÛ¿ØRà÷Š8‡rˆ"® RòfHi„¿†ÖÈ¢Ö‹/- «Öx€zÂdònÌü=J®ÔŒhÅ|OÉÓ¸¼ŒOÊ`ˆ÷PºµY¤ï°	ÈŞ(ë=WËÅVÇ‡pÊ›gq…]‘#æ V?­×|© 	 ]z·j å8K›;±0òde;µ»©O½CKšUHú³^ù[V¬VM´–M¼–2bkd™¸"×J°Ü˜ºB©µ›oj¡eŒÑºÙ-MŒ–Aí0‡oÙób³V¨†²³§.À’ZgC½MÙ+ä|›e°Ğ5j”ÅB×‰E&]SÎ%îº€)µVPU»(9ÍÒ0I¤Ñ¼­4¹ƒa¼²ıš{ê‘ÖOkV@“£Æz»»­u:üX¦ÄÀÆ°¸²9i~²èÁBCûÄÉ¸×™¼?f3“EŞ‰.‘~$³ÀÌ– -ËÌµ<^®x¢È¼! Oñ.âï¾Ü»ä]uà\|	|ô_°-­µ«ö½Ki—şÊÆù7òp­3¦O2ßÚ|@V7@ÁÔæˆÍ/·şëÿãÉ~ÓZd«BÉš¥ÉZ-ĞŞS×É°LÕ)ÜØ†ÔA‚ÙÇ"~–œCa£QußvÎ•%¦ÃĞöo™CÆ× ~"ê¼¢@…¶çã€ğ/«¶ÓX.o4~š$Ñà°óQÌ
-6RƒDS¼wY¤y:`Åû‹õÍ<ë9àv¡\1PØ¿Ü»—~½ú‚fªº‹ÿóÌ|&4½Æ$&ø‘¼ÜÆ“htZfíå»Ì&õ‰¢${áN1S>Ìå×Àçp|¼g¾¹f±‘×@byAv6¬ë†UZFË-b¹²}TWöQÆw¡±ò=ŠB<Qÿ0ûè
-ó†éôÀÏ!¦µsà¯äcë¤~Å<WX¨ì¶Ê"4/û$Ôa³*ĞfÃ>ÀYÁÜqü3®à©Ñ*œ!Ö8r-a§ÀA.¸OA3ì“4r]ghÛÜÍ`c%h1¡¶(Ò­ölB`}°‚QqÑ¹2F0bæ¼°©ª)¸ş:/â`”9´şôTG™Ñs rQ²ï†tú§Û qH—&ñ'(Øq÷ÁˆöG 0‚l=‹á0ßôOBåñŸ>åï·ß‡ø¥gò%¼´w†É5>aa2g6Ã|Vãg–ÖŸ¨CCLêqo&_ÆêÈò%$q"ºd	Ù'ñ@;ÿ@ã6ñÎà€öÉºƒ7¾²¾;vetöİòÀô-bîS+5‡ÌRìÔF+µ!4¾°WVVë™LYM-Ö´°¶—2¬£¤¦êÂÓƒ^k’l ‘˜öcKölÀT[4aå|ñëŒûTgâ½Çˆƒ˜z;Üt»D|¸IÃ&®²âZÔ}‰jçaìRo¹÷$,­§—ÙälÛV—äç@r[Kè²ì M,_Í­^ê®²V¥”üŞï¿äGˆ•KuÑuVÛÖü–,iÅêqØ.µØ4´4P«‹z65^51\İ 6 ıóÀq÷®£Â'zA@é1Ğµªoşc‰¢ÍïÄÅ÷€”ø€d³9ãz/Ã§ É_Š_ 6¨nÆ/$éÕÙ¨õ—énÊŸÅ-¸{‡ïOºäõa÷äİ‡Yİ…ƒ"zíFqNt.éµ=İş™õ<ÿ|¦¬ç¹:ĞÒ]ÅSÍJSDä.8Ëy˜åºÄ+„ô3HOúşc9;B1¡wó¼æŠGvs
-	šÌ¨?bÁ¦Íx¤tÓFI˜õQŸÒ´‡Áí
-œoÖCAÁæ›*X[(P:ü5kKÌ<Wl¯ª·›ÔÁYEõÏ$:x	ºå„67ğğå5É„a;ñ'iï#Œ^ÔÔsÆ´Naÿ"¦w~–AŠ<JNyL§X&f?É_j‘%a‹†zÑD±°­åÖêuq4Ë¾.:‡êQ+§¿Å=é™•ÁJkD}‹\jFü2)º*7Rêí»ãô?ìw_|è’ÖçO;;G;ûû;kV
- p6=Á?eá¢
-ñNÛqÒkYü›óºjCíîì½ùøÜ'{Gï>î£¶ôîŸ %İ'İï‘ıÃWÇïº'‡{–ÉC@¢šŒ•;„w¦Ok&Ç³d9éX‘¬ƒT-Vë¿ƒëÆºÀŒõŸS©Z!ØêØ«™¡*:p¨$ù—ü 4³¾2—CÎ‘¡ Î^®+±ùî”„ş‚¬òKú<X¥IL¢‘½n–óEÔævˆFêù=½ù)SC””Ôô,â¯N·¼[
-&‰QßÜxZ<ôyv)uĞ¸@Iwê÷ÛgXLÆÁd?İ^ ¡ÀSä$)_?9‡µs äZ\nwa˜¤áñÄ‹˜b^ÙÁs-$!°z!ätuÃ¤¥$ÿa)aÏ&-O¾š¢%ˆ7C:h‰¦`<e×§ãhÄ•Ä<j1IdÃÈ?©6!fDˆ4XÅQq·q¿zø+(/G²cô½WdÅëØiÈ¢!¯—À›>¿¤2†–öv)Î =§ä”ñJ ÇŒ"¯ÈÄçÁM«ºPzNáĞ¬´VíT§}U~TÚqUXò³ªĞğšQ<´ï“L€{EöhèÔJ°Än}ß–XEe“»[EÎ¼¤A¹ƒVóyC§?Şv©ÓÃ(`´¾¦G]ÉÑºiOe”YˆmX9É}N&!RòÒº‹ƒñJ˜gŒO>‘íIš/è©ë$rÉ.„:2¢!9§^’	O|¥AG¹[Óòr±ÚFk°ÔÛJÉ¢NBw0`a;¨¡Öè<¿t#ÙÆõ¦¥SÂhğx¡W´•g*]İÓ ˜H}í­EøšåŸâ7²Ê D‘SM}:¥´Óéğè‘ªJ¾Á3U‘×«¼ºh22,eÄ|.PWlºõ9y*İyùì&6¾Á&«£OÌ0ûó?İwÇXäA¦f„†½«Ô+,Áôv¥lÓ€ïã×H–L ¸‡·#G:ÖÜpH~êzLg.¤ı>ÇÏW:Dzójv%O
-bVµ¥—Où¢¦ÎŸ¦xdƒšÌ¼°Ÿp‘¼ôøæ²sò
-ë2—e¯êù4Oùæ²1<ï.ÌÛut_Ô^"ûÀ?)£é²¬n64.ÿ	x_U}Lá’*uŸ7s…„Ê*ÿVEåßÖ¡¿9T!R›y)Udf9R	?^iLéÿÎ¦~N	‘% ŒUPÔ£ ã*É„…Q¢_¢dwÒªğ¶6„“¥·HÔ^0J^×6»P“	Å`Ôà††ÑºÌsxí4­‘õuiu›_‚DÁ%˜‰û©òßè€qµóûñ€3¨3×%À…Q13a(p¡7H¶JáägCˆGYü¶ñ{¾eé§šš”"ıÇNMÎÅ EƒB»;“8@.î¢qŒİí²¾•WåØF-Ò6Ò¼ál#¹Ë×¶‘#×E»šH(ÚNòv†Ì&ÑÒíÿNØ“ÒØJ”—Îç·•¼L¾b•n]¸ùƒ8“–ÕÁIG.7–à<Å“ã´C>Ñ
-ÚĞY‚
-üÆ”> ‘ŒşrÏş·G&ü×>Šò·¥˜T®×R1¯Ö[P´›Œï—>r1_Tÿ‚/æ´š|Ğ¾×?/ÜùÊÅ^{HÁ°’ÀÑÖOÉÊÊÕ—+Aîs¤Û›D½ ğé4rİFÚwC5KN–«[L¡_U×sÿ>QÈÄÜº¿¡ğb¨ä_ÄÆÊK8»ãU@.÷ ş¤ÌåHÒd$CN5Šj•ÕHé¨ÙÛqè”O°Í³„m:	§ìt„îâQ¿`>²í§—=õV(›¤psnèå­½ö6Â³áVõl$±·”üá†”3nÜ
-¹rÿs`Úpmi†²Ù8…®l¿šüá¢E}Èó²ápá§&p< 4
-ˆŸÈªU‡ArYU&U÷NšÊoÀPnfôY1yŒâõAuÂŞø‡…­{~~­òRê£ÔÕÖ‹–G,\Ğ†(bA£ÛğÀbÑÆ×[Q½{ÜŞ*T~ü¹"è“×`Œru•¶¼(è{ƒLĞ‡¿-Ò/)× N× _ØÚÉÈõÛçmSÂŒÅøÒÒŞÊ
-l)¦¹Tq§¨mdŠ˜ú^º.›>b­ø©Ç¾„ÚËÙ:ÃÂC“Y¡nn©N.'iPÅ<ûReySeô¢E5Ÿ "]vÍ:_M&Y—F¤9ÖQW<Ùë>÷3p±ø$©Q^—ÏÑN1â¼?ZçœqFdN:Ás¬ğ<«B¿şdC„oÖ…Á«ƒî2… ?Ã-N@€Xgm½>ö,Êt«!iQ‡»æÊg>¼×jŒ±°yªœ1—q…V
-,ªTu«u54QfYIç)‡?H,ï”ìÉ¤!ò×År€¥­ê-¾å¹#ƒ[ªk‹íA¼“kKÒV—%/–ßÒeåÓŞX—‘ûF¶ÉÃÍÇä'şc3Âó}_¶ò­×I+×|´—îsZ›kWäíî—šŸb‡oi<ìğ–ºæ]^‘7»Šºu9Ú(Æ-¥°zÖ”2\Ã|jï2ÙŞcRŞaz2ô`ç”°V*Œ¼V&;‘¶S+•.“÷J²w*yäl(Ê3Ñ”Jrútii¢K·F$hx#ŒºÒ,tqn@Uœğ€?´Üø™5Wß©‘;LYSQ|’¶äVêÓ²Õß½Z2Æ&CÍQv6äËl¿M³˜.õ,Ğ,ÍtJ§˜´c|fD¤ùr%qZ·‰>§öâpè–™–¬ğe¿àAÜÉÏbygDI¼	î`„ÚíÅ‘Ih!¨³)Tíªf¨«|üñìÌgqHô–Fô"=ÓfÄ™ÙÕaƒAœÓW±Wl£ÚjQ¾ÓÊ£vCğ~8lğô:ã–5gÉñëà/9¼>rP¹Û»°¦–!6ã>á¦´tS”Vñ†[¶o(éQr§pÚÁÄÁ †˜ ^ñâÔä(2å ~»‚N9˜·==pÇœ›Ÿá­©!Êø´š;(`Q¥´»}êËàûĞ¼’öfÕKÿ¨(©ı²\‰Ì²†öŒ§à.ââÁnŠŠ2VQ/>èGzŸ9ı•ÓËŞ[î^T9oN¼¼'k×0ÀÆ©éÆ0¦ì;MI¡ŸÀÆ£PŸ˜tQ&3•Îg¥ZµÙá¯Y>w`õ{Vypp<‘©Ú¹¸2[”Ë,7ï•Bæ›CsnR—ã?™’…½×àÎÉ(/gÿ¿ì÷:°Ps°Ê®…1–:ÓíÖ†½õ
-}½Nº×•S+şP0«ŠÂŠğ4uº˜3¹Ìmè/Ş*×Ëõ$¼IŒEêÒÏ‘ífqVm¶êEæ¶‘F’”°I{yMû•h¹…ıâù½LE]ÄG¿k³¨º×²?µª#~ìr©Öø³.Í¨^Û˜KÙ(7,>©I1šü™¤Ğ9Ú9Ş?<~EŞï¼: {ïO>¼;²J–ãQ^rAÙrdom¬^9»Ğ‘øyOüº¤ôBÊ_­¨›%ÿHÀ¶stD^½Ûİ9"oßíïuSxå^|Ø!ŸX/B¢8
-ás@½‰ı? ùLÜ’“íÓ—rp#LFö¼ØI~ó‘?‡4ÕH7ÿj‹ü( ‹ÌŞ€¯|½´¹=ïé€uYÃŸÑ‹'^+‰Çö©ø/¿go¥»°V Öf‡ğ<b Ÿ!N¨Åß/¨`V>XÑÏ²?¬¼½Aşƒ"”^àJê".„
-_=Úzœ0ƒr:	Q~-ar–ƒtZÍ)j•æÕ}›ôÑ‹öyû±H×Ä	ã2ZMáUQ »¶ûuãÛğ÷bPRMÒ^qÔ¨ûë[¥´iâm@½P¤N?gŸA$Ÿ£üz×'&Ép[lÔøHTÙ•¨«À÷–aL´’†?dúU%­M)-¹Jk¢+öä³b7ŒÉ•ŠOë³Ë ·å‘Ùî•Óo‰sô6÷æVpOÉ’:£Àaâˆ<"aĞ2`>ˆN1Û‰cæ;Ôï³®ˆ£ı´”ı‚òtšˆòwèÉğk
-ºéÑYuø=MgÖ:R6A™‹Ú<AŞæĞáù>W5±^F:Íz‹kóR&È8ÎÒÎÄ*Ãª“İ0y§‰ßcÉ¤q…­lN‚ÿì†<KU«´V«ùàXt¾ßÙvö‰4Œ³Mû0r’¿²×7çgµM³j¤5 \MØ±öAákQ¨{Ô!"G.y/ÒkÄ:Y½ü»ç`ïg•æ–,²)½E
-,k(¿­lgÙÓú­".hêXİÆÌEq¦—*u|ÌÄMZÅ‡®sµ¦0«ëE2z9?å·²YÀ+)|
-æâ/öG1õIgÕxi_T^ÕeÑ¥É¨!*9«ìZ²hó˜Nw²„ëŠ÷TåšßçµùåªÍJ;T1Ü_¤ÔìîÀÌåTòXÕiV ò"hh{“è%cä¯ RãtNaO
-ÕKÛdCïéRzí®¯(†Ø˜ĞÊ€Xõ¨•G®]riÑ+kÖ½n‚)“@él«·ƒñ|D“IbGë8 •ÓÀv°k2Õ}¾lóy'˜
-ß¦ü{¡vıKJ‡§ğ˜v¡†¦f=zkŸ_n^{’rÁ"”âÑ’5Ğå*ä‘Û©p¾¡ä8ø\§²‰¦l)ºî³˜º‚Ìô€kâB3®¢Næz^€>ù™~u]Ğï“7lê”k×së©¨UCùã÷­‚&ugÔÃ%òD˜5ãYRD¯¨v^³É>°ª{Ù2Ÿ4µËg­Uó|mŒk>	à±.hUY¤y,´S¯lï|Õ=|µCºw?î©cIë#IE¦é)éÒPF1íög÷ÔqIw2 ¾µCÅês{ªï¸çn³Ë¢Ou±PêĞ1…L/m6y’)RSp­k=Ü_ê2Û°HnóXÎ:“Êu]£FjF¦Bõ£,w¹pŸz¥Š:“ö ©fÓ¼W…I¡Ú%`¾¥£éÉx;Ïn9ğš<\x]\S:š;¹«•Üj/×VÓãÅÁˆÈZód/d4B²NÿPê6òíï[·Ù\X$“in·PóQœ/—°Áõ	š¼ «ŸèÚ2v™ã0/ÁŸ\åŠ£°tE%÷îÒ”U-$ÉÆóX+cU¥àíƒÂjË¯¾Z©ô#êGö·÷Ì6nÄò–@ Â|0#×õ0¥ÿìşÜèıpıo/ƒp§¥;v5ÂÚ	r¨hmc¿m>’±^îÀ9¥‹·×É×àôLg«·u Ü J0ÍÈô~`Ÿ›xóï 6<¼Ÿ91Híü½óï„ÒĞuÏ†Î\Ø‰Um°ƒ%ã$Ï6x1ñğ¦·ÇÁ4ğ»IĞÓş„ñìs9ş­±aÂfCÑî{Æ	=·¹§Î~Ÿ$ óxşåş7òşæÚØìüñâ—¬¾@2?_[#ı|ïîÿÛ£ÖİNãŞEHP6‡X}ÅÂ¥BE5cÅBílâƒÖ¶Ÿ;I9ÏC?³>š×î“.=eÉ-­ªµm,~íğBèu˜Û¶nÂÜ¶µsÛfİÅÁ\Iêº”FK¼Sh•GA•Œ¾Ü2+QğKçR6WÒÔâƒ1Ï§¶„´Ò–İTÄ+¿Ds3§Ì‘p–”°–Õ­[
-*M®QêªV+<jY¢l™¤<KŠ]Ø]Šò‡v)Ê«,¢“°Ïô¤YêFÎ]iJ1Ï4s	fßÍ”Ï§äée‘ùäZš5%İ^Oz2C "mi©Õ|é¦–zÿâ}?nT¯c;é‘cúœĞ^dÇ¼éŒÌÛíXš¹|ıŠøıùó‘•1b'IhÑZ•C¯Ö\ ¸ü’*75š¬1×¢Ş‹zO% ƒ6Sš°¸^œLZÃÑ^Õâ%ÇœT˜¦Ô5~ÊÛŠåĞ»ª£+EVn%W¬)Z Iœvõ¸×ŒWİkí»§§X°T ¥z·Y'ÄW¶|Á|'‡e¬­B³›F25Š¥3V¢É¶ üªb—‚…Ñi0‰y­î¸õj2qF4$­¤Ú÷5]j6àŒS²¨Û‰;éŒï*î|ŒXØ¨ş–Ì2GZ*a3p%Q˜<GdOüïÉÆÕÍc—¬Æq‡°+ñ]Å®W!u&a´GÇM°¬PXÅ€k	„n®õ\˜½?¸;¨–Lø®bÚö1¥°ëü&È–TºÉJÚù"ÊIëú­C¹Š± &Ş¤Ë¦|WÑn'ƒó#vpÃ¸	Ò}NÖ>4ñ·Qà³é	îÄéŒ\N§"óñnàL­dEªìêÊ8”¥‡íßmlğ«eUóÅ¿Ş9~uĞå™EÍ
- jÌMÕiëø3ÕÛÒÖ](h§«\—7©jM+f1EµHÙç¯zk¸²ËàVÔÓ’¨RC$2åÖš.é»ÒZ§¨ñ‡%y9µ[‘ÖÄüXéìâa¹øINW¯šVçEÜ—Qh8|â¹Q\5í1I19ŸË¬_‘¡ò/&D§M» Â\ú/lXDä·Í"îpK}¦nUÁf.å[jùµ©D*Õú¼<İî²bòáJƒïÅdçGt0!û4„g­¿Ùí–Ü„
-ÓKçª-9İ<Øjää¾>ªMTm¹ K=ŠŸêOyBõ§Ddº¨I¬N©Õs¥46sõñ*÷+5OkkÉ6º‹DDKOˆ#¹Lg§İ, 4§6qôL•V²¥àtuìXSéåYÙ“¬ÆSåM•<gL|„¹¸Òg-KJê
-Yğ£×²öÂ–\èRÁÚöÛt7yRy7É—øfıÉ”t?ß,S‚Ã+U‡ëd¥äÅY™QÏ›¨™ÿa©Ìˆ033R¦sÈ±#Ş{;JÁ,$¤:™¨ìká?ó	AéŒ9³qıo7Âmø^ä¸Q^»Îc@?ª-0ÓŒg`€=çoõØp¯yù*ZÇ¿¬«ş¢]¶2¶æŸBÄÔÙÿ„}ãö³OËœk¨¿¾ûçÁ‡|jfüH]“Ë0p”H~³Hòµeª¾Ê)ÉiÈëM%
-ì±ˆIl0™Nh8qhÓÄ‰eÆ0õ$€«hkø)í"&§˜i&½›Ğ/8u®öj'Ñû—4¢ÜHxpçİ”%?Ø3Zx™¼k¿ÚQ5üõ?¨·…¢DWİñ¸,Íçän^7Á|ğìx,Œ…·O›CMŒó$Wá ‰7ÕIá&IÎÒr/åÍ¾;ğÉ‘74+ô"ØS¬Iı1­ä%…cµ	îÇš,> ÁNo´Ô‹±SC½Ç(/42^0}<0!ÅRÙ8-QókN’szA§°=—Ğ!¥~’³	}——f)•Á³C^ZæOW|âºø.ÿ>M«(wÈKêxĞó£n]+¼Ù4¢q ªa:Ãà<)ÿŠa{”@wË¢ö#4Çãr\÷äãşÁñIC'V&ÔLSAùmÜeMG1]FÃşP«¡fÌ05ğ& Gyì4æîË8 x}“´¹3˜¿8Åz:Òßñ¬¿‘eø@?aáH'Ç+Óı–Ûİ÷,]§û ¸	hÏí„-‘[à9Ü@øAzF×4×ÂñS€4Ó{xïb&÷¯îıIô´èŠÄDgÊI)·Ëš«§ßáùµ;l“›6¶”a9TL{eNİl@DLW/‡ëcŒÇ8Ò¡;v9dÅJ à÷Ï¦›7Š7ñ´Ká9	à?ĞĞdŠC£Ê‹çå#L¿÷l=6m%^È<…³ô Qy–¦Ÿ’4÷É	óš÷ mõ4ópİ¬I`î	~Õ[Â¶ë‘¢‡¡¹Y ƒ¤Öù‡şVjö¹lÕéw(dıö»Î"‡ŸÎ©ëÅ,LmîÈ·Œ¦”¿VØ!bl!mß/:qpœcMòˆµÖ@ ì{0Ë¨Ué°øâšEÿ®³´Ş[y#:¯û>ë ¦1îVŞ=Rk£ää/Œ”Ò+C¸RÒ–	Ñ’Îœ2İdYb•:ÉÏ‰ïƒ§]ŒµäP7‚2•dÎ§2SÏE–*úË{KÖé˜†Ò€Ê£PÚ«¼FNòœ§¨I~X›gXÎ¿LºÙ=•gõ¦X¹Cj`u#šø~L†MÎçtb1?l—#Ÿìì½>øĞP0N#œ›	ÆjO„;'ÃHî,ˆº–¦3C…–Ç¢dtóCQÓÕ\®óƒš=–Fwa6°ôÎç[È¹Füxj©ˆÉ¤o¸7ûP“YOÁğé…'x4Nú«³YHT$Ù€zv°Bu#âIb¶—K;‰©@;‰ÏŠz¸ƒé»£ŸæÎºEºéMá3Ìš4Q©²ÊKÉ|^Ha«´„Îèä+tù%±Ìí²¢{ÄØIÄ©cSO¯¤˜®š»âŸÊ‡©påêËÕv®‡Ùá¹,ñyçÓÎÎÑÎşN3‘EØ/—IãÔ¬bÔàœ}-,ªÏ3'³ğØŒÆuÇîÂ(w ÃßsóŠºuçÉH†yà»Ì†àB<Šw
-Ï²Ë/ƒ ^Hr—›.³<Sö‡Û™œê†j,_{#	LKà=¹¾ô›KÏ?ÿ!@f¾×?W84—˜D-ÌCÏ=I‰ƒKdÉña+ÿÔGp8dg<ö¦D‚ºÑí%íƒJ"-¤î'"‡ÎµJ¦¬¾ø5ÍIŸÿŞq£wc é[‘ª~ùU™UqKí³µÎA%ƒÑ‹!ÜsåŸÒ;ŠŸÀ(SÌ¨ô4ÎUÀ®NìÆ¹åTPªœ‹º¼IOr!‹×nq¸‹":`Õ+Vw%y#PÔ^nAw÷ »Ö,‹€§âk°¥4—B?™«fcÒç¦â
-å—˜Ûn^Sú€œ¸aì†Šê‹8W
-ÏÖşş—«¿ü   ÿÿ «Ù9
+ÇŒ<¯Hâ³à¦e](¾ÄôĞ¬´VíT§}S~TÚqUXòVUhxC0ÚÑßÊ=ÈBû8tj%‡9Xb7¾oK¬¢²ƒÉİ­"gVÒ \‚A«ùüŠ';Şö°Óƒ(`°¾fG]D'"Ñ:hOe”™‹mX9É&Iˆ‡¹”îâ $¬æa“ƒ€g{fã+|î:Š\tÁN‚F8D—Øëa”Ğã‰­4è(×`kZB.VÛhÖ‚zA)YÔYè$”¸ƒÚà¸hÎöµ‰6®?0µ(e˜âFƒçs½¢5¯<SÙê6Ê4¨Ô×ŞXkP„¯Yş)v#«Bi 1ÕÄÇŒ;‹şá©ªÄ,Sz¡±Ê«‹&#Ã\Q†Ïçğ
+tÅ¦[/ÉSÙÎ‹gw±ñ6Y}bŞh„9€@˜¿ußB‘C ™šö®R¯°Óû•²M¾c ^#Y2…à>Üä<é XsÃ…#ù¹ë¹÷ûdo/uşˆôæÕü*ŠL
+|Vµ…—Où¢¦ÎŸ¦xdƒšÌ¬°w‘¼£èñÍ%—è5Ôe.Ë^Õói–òÍec¸ì.”í::‹ÎKµ—È>ğOÈh:„,«Û…„ËR¼¯ª>¦pI•ºÏŒÎëR!¡²Ê¿QQùwôcèo•@H©uYŠ˜YTÂUSú¹³©/)!¢„±
+ŠzÊ¸J2a!ÇC”ê— Ù]Pi•{[ÂÉR„›'jÏ%«k›_¨É…b0jpÃFÃè]â9¬všVÏD@}]Zİæ— Qp	æâ~¦|Ğox@˜Úùü‰ñ€1¨×E	Å…Q3a(p¡7H·JáägCˆGYü¶ö»\‡²ôSMMJşcˆ'&çÇ|¢A¡İİ$€‹;¨hcEw»¤oåUy ¶‘gó´4¯c8ÛˆtùÚÂ6râº`W 	;Ã™lgÈm-İşï†ı!eR[‰òÒùì¶’·IòªtƒèÂÌÈIPV&¹ÌXKğ¨,§ô	_aª]!ÕQ©F@
+cŒŸ HDÿGÒ3 ?Çí¡„ıÚñBü¶“ÊíR*æÕzÊI v³ñı’ÂÇB.f‹êŸsàÅŒV“˜Á÷û—…;_RìzT=–R8ƒÓz--İ|¹ÑäCºı$ê'‘ë6Ò¾ªYb²Lİ"
+ıªºÇ‘B&fÖı5…C%w¼ä+v.åìŒWr¹â/Ê\ÉF#rªQT«\¨FJÍ²O0ò8Û¼HÙ¦“rÊN§Aè.õ‹æ3KÑÎÁÑòô² §Ş
+Åa“n–à^ŞĞko#l7ªgÃÈ ‰½Åè7ÄŒqÃVˆ€û_R¦MÏ ÍP6ûOO¡§K;¯“?\°¨Y^ö!=\Ø)‡	=ÀÈOeÕ„ÊªÃ ™¬ªF“ªû Måw`(73ú¼Ï,Fñú :nïNıÃÜÖ=;¿Vy)õQêjëEË‹#æ.hC1Œ ÑmX`1ï b‹ë-‡ ^R{ÜŞ(T~ü¹"è“×@Œ²ÌºJ[^ô½A.èÓ¿-Ò/)× N× ŸÛÚOÑÈõÛ—mSÂŒùøÒ²ŞÊ
+l)¦¹Tq§¨mäŠ˜ú^º.›>b­ø©Ç¶„ÚËÙ:ÃÂS“Y¡nn™N.&iPÅç<ûReySeô¢EUN ‘-»f¯“ÄC«Âˆ4Ã:êjƒ§{İg~& Ÿ¤5Êëò9Ú)FŒ÷Ë§µäŒË1"wÒqc…çyúÕk<|³.^t—+ò7QÄºhëõñ¬g^¦[I‹:Ü5W>åğ^«}0ÆÂÊT9e.ã
+­XT©ê(Tëjh¢Ì?¢’Î&2YÜ)ÙICÄ¯óå [Õ[Lù–ç\n©®-&¸?¤’àƒ\[šÎ°º,q±ü.KN{cu\Fî¿	ÚAO×ÖŸ£¿°ŒÍË÷}İ’[¯¢–Ô|´#÷Š8­õ•ôvïKM‡›Ğá[;l…¥®Y—7è×=Eİ:	‚vŠñGK)¬5e×0ŸÚ»L¶÷˜”w˜Ş‡<Ø’ÖÊ¤#£€!ke¢a‹1µRáry¯${g’‡dCQ‰¦T’sÔ×h—–&ºlkx‚†_¹QWXƒ¹.ÎŒ Š#ğ–?·æê;5r‡Ã	iª#òO:Ã–ØJ}Z¶ú»WÆØ4p¨9ÊN‡|¹í·iÓ¹¢šey‚Îñ’VBŒÏ”ˆ4[n 4Nëş"ÑîÔİ3Ó’¾<Hœ;ùy,ï”¨£1‰7ÁˆP»¿¸Ã3	ÍuÖ¹ª]b@ÕuÕ“=ùÌ‰Şâ_egÚ”83}Â¡:l0ˆsú*öŠmT[B-Ê×BZyĞnÜ§<¹Íx„EgÍYp<BÅ:øRòÁë#•»½G×ÑeğÍxŒ˜)-Û¥U¼a€À†m€À¯õ0™SˆrÚAâ@CO®x1jò	
+‚rĞ »]'”9·<=wÇŒ›_À­©!Èú?Újæ €y•Òîö±/6‚íCóJÚëU/ı³¢¤ör±™eí)OÁ=ÀÀƒ½%;e¬¢^|H¡è}âôWL/{o™{Qå¼9ğ²¬]Ãl §¦cŠ1eßiF
+ı6Põ‰x”rÊÑd¦Òù¬T«6;ü5Ëg¬~Ï*ŒÇ3U;W7f‹r™åÊ^)`¾šët“ºÿé”,ì½wNNy’ıÿºßëĞ…Z˜ƒUv-ˆ±Ô™n7Öì­Wàkìu‚Ğ¸>¯œ˜™Xá‡‚Y•V¤O3§‹9“ËÌ†îÙâ­¤^n'áMj,ÊQŸ"ıÙnægõÑf«gna$©A	›´—·´_©–[Ø/–ßËTÔ…ô»6ª{+ûS«:ÂÇ.w‘j?ëÒŒêµ™”rÃâ“š£éŸi
+“İÓƒãÓ×èıîëC´ÿîôìÃ»«d9f5 ç”-GôÖ†Z aà•³ğŸ÷ù¯J/¤üeku„İ<ùG
+¶İ“ôúäİŞî	zûî`÷¤›ÁKzñi}"½ˆâ$ˆUh”€zM%öKø…ÿP ä¿%'Úg/Ip#HF¶]ìDŞ|àÀ!K5Ò•_m±‚tÙà•¡—ƒ¶#¶ç=.‰cúgôªãñ×ŠCÄ¡}&ş‹ïù[Ù.¬€µŞA,ÕÏ 'ÔÀboğT0+¬àg¢²?]y{ıD(½À•ÖE(\å¾z°õ8a0¦Êi‚üZÂä<é¤šSÔ*Í)¨û,6é%á«öeû9O×Ä
+qârZMè«:£ t1lÿöËÚ·áïÅ ¤š¤½â¨Q÷×;·Ji²ÄÚ€ {¡H~Î>!O>‡Ùõ®O8L“á¶
+Ø¨ñ‘¨²/Ì+/PWï-Ÿb„15ĞRşëW•´6¥´ä*i¬‰>¬Ø“ÏŠİ0&W*>­Ï,‚ÜJ”‡¦»CVN¿IIœÑ(§·qH˜7·‚{J–ÔáGäå0ğ	ƒ^¡ñ©è“İ8&¾ƒı>éò8ŞOKÙ/•áB–Nó	RşN{2üšîIvtV~›ÙÌº\GÊ'(rQ›'ÈÚ;,ßç²f"ÖËÈ¦Yoqm^ÊäÇyÚ™XeXÕq²;&ï,qAã{,¹4®°•ÍHğŸİe©ªb•Öj5‹aÃ÷GM`gŸHÃ9Û´#'ı+xu}vVÛ4«F–Qƒ‚«	;Ö>(|-
+uÏ:ˆçÈEïy:`X'ª—·âİûi¥¹‹lJo‘ËÊoK;yAö¬¾@«ˆšºV·1¥(ÎÌñR@¥™¸Q«øĞunVæbµb=OF/&ğC~+›¬°’Â§`.òb£Q˜t^]€•&ğyåU]æ]š¼’³Ê®%Š6ñd7O¸®xOU®ù½Ü¨uÊÆ(WmVÚ¡Šáş<¥f§pfº(§’ÀªN³”ADÛK¢#BĞOT¤†éœÓQ8)T/í 5½§Kéµ»5¼ÂbcB+bÕ£–Œ\{:äÒ¢WŞ¬	zİ/S&ÒÙVïãùœDIQ±£uP•ÓÀv kÕ}¾|óY'˜
+{ß¦ü{¡vıÆÃsú:íB!MÍzğÖn_¯ß{rÁ<”âÑ‚5ĞÅ*ä‘û©pşŠÑiğ5¸MeLÙBt= 1v=™é×Ä…f\E”zƒ>ùu]ª>F¿’‰Sv¬Í]C|Î4D¨§¢VÅß·zH5©£.ĞŸ"Â´ÏÒ"zEµó–Mö2ÂşP÷òe¾hj—Ï#Z«æùÚW9	Åc]Ğª:³Hó<Y`§^Ú9øøº{üzu?î}ÜWÇ’ÖG’ò 	H9âsÔÅWT…´ÛŸİsÇEİd€}k†ŠÔçöTßq—n³‹¢›ºX(uè˜B¦6™dJ…ÔTÜêZºÌcç>,’Ù<³Î´rİ\×¨‘šiP¡úY»Î\¸O½REI{ĞT³i>ªÂ¤PmÏ0ßÒÑôd¼ŸŠÇg·xK.¼†.®¹)Í\óÕJîµ—k£éñâ`„D­y´!ZE‡(uñö÷­Û¬Ï-’É4·{¨ù(Î—kB±Áõ)š¼BËŸğØ2öˆã/Å©rE†QPº¢’{waÊŒª’`ã2ÖŠBU)$úöaaµœåW_­THú3êGö·÷ÌÖîÄò¨@ù`F®ëAJÿéı0¸Ñûáúß‚pDOKwì¦j„µäXÑÚÆ4~ß| %c½ØKŒ=n®¢¯Áù…ÎVoë@¹C”:#9ÿ–‘éı‚}zlbÍ¿tZ{ñôŠfÄ µó÷Á3¼3ŒC×½:3a'TE´ÁN–lŒ“,ÛàÄÄÀ›Ş&ià÷Ò §ƒ„°ì39ş­±!!Ó!o÷=ã„ÛÜÓ_òŸ?FiÀ,±ÿ¼ÿÇR›0^üÒ•Â—R£ÈÏ×ÖH?ß»ûÿş¨u÷Ó¸wGQ”Í!V_±p¡Ğ‚ ÔBQÍX1W;ÿ€µíçNZÎóØÆ¤æµÇ¨‹ÏIzK«jmóx;¸zæ¶»0·mÌÃÜ¶^wqP*I]—Òhw
+­ò(¨’Ñ—[æe#
+~i)es%=A->ó|jKH+mÙMEÜ™òK47sŠ	i	kQİº¥ Òô¥®jµÂ£–'ÊIÊó¤Ø…MÑ¥(j—¢¼Ê":Q„}¢· MS7ræJSŠyf™K ûn®|n¢G¦—yæ“/`iÖ”t{“ôD†@EÚÒR)ªÙÒM-ôşÅû2ş¼Q9¬mÒC§ø:Ã½ÈyÓ™·!Û±5¥|ıŠøıÙó‘•1b7MhÑZC/×\ ¸ş’)75š¬1×¢Ş‹úH% Sm¦4a~½8´†£½BËÅK’T˜¥Ô5ŞdmÅrÚ»ª£EVn%W¬)Z Iœvõ˜×ŒUİk¸ççP°”¥z·Y'ÄW¶|Î|GÂ²@ÔV¡Ù]#™Å²+Ñd›~U±KÁBOğ$HbV«»n½Ng„CÔJ«}ßÒ¥fîˆx1%‹ºŸ¸“Íø¡âÎÇˆ„êo‰,s¨¥&!WõÉsxöÄÿü­İÜ=v‰j»²?Tìzb'Á £}<n‚e…Â*\K!tßp­çÒÙûƒ‡ƒjé„*¦í»a	© vİßÙÒJ7T²v¾È€rÂº~ïPî
+CìÒåS~¨h·†Áå	9?¸ƒaÜé>§kšøÛ(ğÉävâ|J.§S‘¹ùx/p&V
+²"U~ueŠRŒÃöoÏÖÖØÕ²*ùâßì¾>ì²Ì‹Š¢Çf4æ¦ê´uü™êmaë.´ÓU®“MªZ“ãóŠYLQ-Rôù‹ŞÁ.íHÜŠúaVUhˆH¤ÜZÑ%}WZë5ş $o!²v+²ºƒ+›]€<(Ÿôğdù¦iu^À~•P‡ƒ<7Š«¦"&)&ç“K‘õ+2"”übJtÚ´*ì‘BĞ7XaÃ"ê¤¿­q‡9Xê3u«
+6+pI.l©å×¦] Tëó²xt»ËŠé‡)<¼’ŸàA‚pHŸµşj·[b*L/›«¶ätó`«‘#}}V›¨Úr,—zo"ìOXBõMÄ3]Ô$VG†ÔêR)u©>^å¾a¥æim-ÙF÷¡bˆhá	Ña$×éÌéßY7s(Í©M=U¥•†l)$#zº:v¬©ôò´ìITã©ò¦J	¹3&6ÂL\é³–%¥u…,øÑQ{áJ.t1çGmûmz˜<©¼ˆ»äKl³~0%İÏwË”èá•©Ãu²Rúâ´Ì¨ç%jfÄ~X(3b#LÍŒ”é$vÄz¯cG˜¹„T'•€}+üg6!(›1c6®ÿíN¸Û‰Û åµkêøQm™f<‹†²gùV÷š•Á¨Â¨uØñËºê/Úe+ck±)ÄAŒ=ıÛ7î?û´Ì¹úë»~øÇñá§fÆÌ5¹G‰ä×‹$ÿ\X¦ê«œ’Ü†¼ŞT¢À‹˜ôç“	b†‡1NXfSO‚rm?¥]Ää3MÀ„£ú§Î-Â^í$úsÁşG˜	oî¬›²£äÏö\€æ^&ïÁ¯vTMıêmÁ ÑU·…?.Kó’ÜÍê&˜]„1÷öis¨ñq^HÒxSn’ä,-÷|P&Ğ¸Ÿ29ôkf…^D÷jRÌ*y‰DáPm‚yÇ¡&‹O‘Ç`§7ZêùØ™¡Ş#˜š
+‰‡¯ˆ>¡b©l˜¯ù5'Ñ%¾Âº=á!Æ~£‹q‹¾ËJ³Æ‹àÙ!+-ó‡§+<q]x—}ŸdU”;è;íyQ·®^‡dá8àÕ0ap™–…Š°=Œ‡N Š»e Qûšãq9®{öñàğô¬¡+j&Ç©‰ ü6ì2Œ¦£˜.Áa¨ÕPsfF15ğªGyä<fîË8 
+ğê:j3g0{qôt¤¿ãY#=ÏğËÈ'~FÂ‘NW¦û-7¶»ïYºN÷â&E{f'lñÜOĞñÁÄÒ¼¢¹Ÿ¤Y˜şØƒ{ã0u¼Oye°p/ğ<è'ÑfÑ	‰Î”“Rn—5WÏ<¿WÜókwØ¦7mm(=Âb¨÷Êœ<¿Ù ˆ˜­^×‡q¤CwèrHŠ9”¨‚ß¿˜0l^+ŞÄÓfL,…HÀ¿iC“E(*k<,—Ï ıŞÖj<lÚJ$¼y
+§éA ò4M?¥i6£3â5ïAØê!h‚ÎÃu¢&¹'ú«¸Ğ’n»)zê Í‚â8•ÔÚ$şĞßJÍ?×­:ı„¬ß~×YäàÓ9w½˜„™Íø–Ñ”òS…ÒAŒ-„íûU'N‚K¨I‘Ö
+ûeÔªtX|qÅ¢×YXï-ÙˆÎj Hß§Ô´#Æİ’İ#µ6JFşÜH)¼Â•b6Lˆ–væ”é&Ï«ÔI~N},íb¬%‡º”©$%ŸÊT=Y*ïOö–Ì­Ó1…•E¡´—Yœô9KQ“ş°2Ë°Œ™t³G0*ËêM r‡ĞÀêF4ñ9ø˜›ŒÏéÄbvØ.F0>;Üİsø¡¡`œE87ŒÕ=wN‡Ü™u-Mç‡
+-yÉè&æ‡¢¦«¹&\ç5{,îÜl`éÍ· ¹F)ù±ÔR5“Ißpoö©ş&³:Ÿ‚7`Óóaœô—§³¨H²õìŸœ@…êFÄ“Æl/–vR3RvRõ0ÓwG?ÍuótÓqš‚g5i&¢Re•’ù¬‚0Va	ÒÉWèúKj™-Úey÷€±IÄ¨c	RO/¡W¨˜®š¹â7ÅÃÌN¸tóåfGêazx.ŠA|Şı´»{²{°ÛŒEäö‹eÅ8õ«58gGßãAKÕg™“Ixl‚ÆŒu§ìÂH:€éß3óŠºuËdFIÉóÀw‰ÁÏ…xïå—‚ Kr—».³<Uö‡û™œêj,s_9
+ƒ‘ ¦%ğ^Ü^úõ…çŸÿ 3ßï_*œšKL¼ä¡g¤ÔÁÅ³äøt+ÿÜGôpĞîxìM u£ÛKÚ•DZ@İ/:HËk•LY}şk–“^şŞq£wcJÓ÷"Uıâ«2Ï«â–ÚgkƒJ£C¸gÊ?¥w¿ 3x¡L1£JĞÓ8ST»:±{pä–SA©r.êò&½B+®İâp#Ex@ªW¬JòFJQûÒ‚îAv«Y8@Ÿò¯MÀ–Ñ\5öd¦šiŸs8šŠ+_ÎèÀÌvóã'èÌc7TT˜s!”Ÿ;ˆ+Y(»®£,|Â_JßQÕ?Q¼!ÍˆÊêJ®m_§ÉKüSüÍPL¦º%úÆ%=ú¯"	*¥ªü¦8¼RLeê£o3Œ3û“'—W 9—-»IzãÈÜ'Ç$¸Ri$ÅrEÖ¼íªæ/;è=³İk`-~TYşé{†®¼N[°şÒAg	#Êô
+‚£†¯x+}IgÕ+Öğ¦ì fÿ<%”›Iß˜³¨\~ZÎWø ÷K/Û}{ºÖA{IT³iôÓ†•ş±YúÍ*ÃÊz£‚*ây¤Ó]:"$B{!ÁôtT¨%°iÙÛğrö.ƒciÿ
+oÎ²ƒ5Ã>ğ­3¬¬,\ê6q>T*¦b·ÕŠwk7PzoÖíÓùÀ7O».Û­{–	k ,Û(ªñ7ô‚šôû÷,HTkÍìóS)gx5„B_ÎŞ5RŠüâ¬¤¢ôï›~a¶Ä²‘ó9ØG;6Gß´árôµ91¹Ê€|ßtË2íƒlª¢Òoşëÿ  ÿÿ qZñ
