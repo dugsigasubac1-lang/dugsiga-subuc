@@ -13,7 +13,9 @@ export default defineConfig(() => {
     },
     build: {
       outDir: "dist",
-      emptyOutDir: false,
+      emptyOutDir: true,
+      target: "es2022",
+      chunkSizeWarningLimit: 4000,
     },
     server: {
       hmr: process.env.DISABLE_HMR !== "true",
