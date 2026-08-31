@@ -2660,6 +2660,9 @@ async function startServer() {
             html = await vite.transformIndexHtml(req.originalUrl, html);
             html = renderHtmlWithDynamicBranding(html);
             res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
             return res.send(html);
           }
         } catch (e) {
@@ -2680,11 +2683,16 @@ async function startServer() {
           let html = fs.readFileSync(indexPath, 'utf-8');
           html = renderHtmlWithDynamicBranding(html);
           res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
           return res.send(html);
         } catch (e) {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
           return res.sendFile(indexPath);
         }
       }
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       return res.sendFile(indexPath);
     });
   }
