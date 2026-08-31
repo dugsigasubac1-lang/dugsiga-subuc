@@ -40,7 +40,7 @@ export function ActiveStudentsModal({
   const [sessionFilter, setSessionFilter] = useState('all');
 
   const students = useMemo(() => {
-    return (database.students || []).filter(s => s.status === 'Active');
+    return (database.students || []).filter(s => s.active !== false && (s.status === undefined || s.status === 'Active' || s.status === 'active'));
   }, [database.students]);
 
   const classes = useMemo(() => {
@@ -254,17 +254,18 @@ export function ParentsModal({
       const phoneKey = (s.parentPhone || '').trim() || (s.parentName || '').trim() || s.id;
       if (!phoneKey) return;
 
+      const isStudentActive = s.active !== false && s.status !== 'suspended' && s.status !== 'inactive';
       const existing = map.get(phoneKey);
       if (!existing) {
         map.set(phoneKey, {
           parentName: s.parentName || 'Waalid',
           parentPhone: s.parentPhone || '',
           children: [s],
-          status: s.status === 'Active' ? 'Active' : 'Suspended'
+          status: isStudentActive ? 'Active' : 'Suspended'
         });
       } else {
         existing.children.push(s);
-        if (s.status === 'Active') {
+        if (isStudentActive) {
           existing.status = 'Active';
         }
       }
@@ -447,7 +448,7 @@ export function TuitionInvoicedModal({
   const [search, setSearch] = useState('');
 
   const activeStudents = useMemo(() => {
-    return (database.students || []).filter(s => s.status === 'Active');
+    return (database.students || []).filter(s => s.active !== false && (s.status === undefined || s.status === 'Active' || s.status === 'active'));
   }, [database.students]);
 
   const totalTuition = useMemo(() => {
@@ -605,14 +606,15 @@ export function CollectedFeesModal({
   const paidInvoices = useMemo(() => {
     return (database.invoices || []).filter(inv => {
       const matchMonth = !currentMonth || currentMonth === 'All' || inv.date.startsWith(currentMonth);
-      const isPaid = inv.status === 'Paid' || (Number(inv.paidAmount) || 0) > 0;
+      const paid = Number(inv.amountPaid ?? inv.paidAmount ?? 0);
+      const isPaid = inv.status === 'Paid' || paid > 0;
       return matchMonth && isPaid;
     });
   }, [database.invoices, currentMonth]);
 
   const totalCollected = useMemo(() => {
     return paidInvoices.reduce((sum, inv) => {
-      const paid = Number(inv.paidAmount) || (inv.status === 'Paid' ? Number(inv.totalAmount) || 0 : 0);
+      const paid = Number(inv.amountPaid ?? inv.paidAmount ?? (inv.status === 'Paid' ? Number(inv.totalAmount) || 0 : 0));
       return sum + paid;
     }, 0);
   }, [paidInvoices]);
@@ -760,7 +762,7 @@ export function PendingFeesModal({
 
   const unpaidList = useMemo(() => {
     // Find students whose invoices for currentMonth are unpaid or missing
-    const activeStudents = (database.students || []).filter(s => s.status === 'Active');
+    const activeStudents = (database.students || []).filter(s => s.active !== false && (s.status === undefined || s.status === 'Active' || s.status === 'active'));
     const invoices = database.invoices || [];
 
     return activeStudents.map(s => {
@@ -770,11 +772,12 @@ export function PendingFeesModal({
       );
 
       const fee = Number(s.monthlyFee) || 0;
-      const bus = s.hasBusService ? Number(s.busFee) || 0 : 0;
+      const isBusRider = Boolean(s.hasBusService || (s.busFee && s.busFee > 0));
+      const bus = isBusRider ? Number(s.busFee) || 0 : 0;
       const totalDue = fee + bus;
 
       const paid = studentInvoices.reduce((sum, inv) => {
-        return sum + (Number(inv.paidAmount) || (inv.status === 'Paid' ? Number(inv.totalAmount) || 0 : 0));
+        return sum + (Number(inv.amountPaid ?? inv.paidAmount ?? (inv.status === 'Paid' ? Number(inv.totalAmount) || 0 : 0)));
       }, 0);
 
       const pending = Math.max(0, totalDue - paid);
@@ -965,7 +968,7 @@ export function BusInvoicedModal({
   const [search, setSearch] = useState('');
 
   const busRiders = useMemo(() => {
-    return (database.students || []).filter(s => s.status === 'Active' && s.hasBusService);
+    return (database.students || []).filter(s => s.active !== false && (s.status === undefined || s.status === 'Active' || s.status === 'active') && Boolean(s.hasBusService || (s.busFee && s.busFee > 0)));
   }, [database.students]);
 
   const totalBusInvoiced = useMemo(() => {

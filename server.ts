@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import * as XLSX from 'xlsx';
 import { createServer as createViteServer } from 'vite';
 import { initializeApp } from 'firebase/app';
 import { initializeFirestore, doc, getDoc, setDoc, onSnapshot, collection, getDocs, deleteDoc, query, orderBy, limit } from 'firebase/firestore';
@@ -2366,6 +2367,183 @@ async function startServer() {
     } catch (err: any) {
       console.error(`[API DELETE backup] Fail for ${backupId}:`, err);
       return res.status(500).json({ error: 'Failed to delete backup: ' + err.message });
+    }
+  });
+
+  // API Route: Download Monthly Financial Excel Report (.XLSX)
+  app.get('/api/reports/financial-excel', async (req, res) => {
+    try {
+      const month = (req.query.month as string) || '2026-08';
+      const db = currentDatabaseState || readLocalDatabaseState();
+
+      const accounts = db.xawaaladaAccounts || [];
+      const allTxns = db.xawaaladaTransactions || [];
+      
+      const monthTxns = month === 'all' ? allTxns : allTxns.filter((t: any) => t.date && t.date.startsWith(month));
+      const incomes = monthTxns.filter((t: any) => t.type === 'in');
+      const expenses = monthTxns.filter((t: any) => t.type === 'out');
+
+      const totalIncome = incomes.reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+      const totalExpense = expenses.reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+      const netBalance = totalIncome - totalExpense;
+
+      const getAccountName = (accId: string) => {
+        const a = accounts.find((acc: any) => acc.id === accId);
+        return a ? `${a.name} (${a.accountNumber || ''})` : accId;
+      };
+
+      const categorizeExpense = (desc: string, client: string) => {
+        const text = `${desc} ${client}`.toLowerCase();
+        if (text.includes('mushahar') || text.includes('musharka') || text.includes('nadaafad') || text.includes('macalin')) {
+          return 'Mushaharaadka & Shaqaalaha (Salaries)';
+        }
+        if (text.includes('kira') || text.includes('kirada') || text.includes('kiray')) {
+          return 'Kirada Dhismaha (Building Rent)';
+        }
+        if (text.includes('baska') || text.includes('gaadiid') || text.includes('dareewal')) {
+          return 'Baska & Gaadiidka (Bus Transport)';
+        }
+        if (text.includes('koronto') || text.includes('nec')) {
+          return 'Korontada (Electricity - NEC)';
+        }
+        if (text.includes('biyo') || text.includes('nuwaco') || text.includes('naciim')) {
+          return 'Biyaha (Water - Nuwaco/Naciim)';
+        }
+        if (text.includes('sabuurad') || text.includes('fayl') || text.includes('qalin') || text.includes('qashin') || text.includes('beder') || text.includes('seed')) {
+          return 'Qalabka & Xafiiska (Stationery & Supplies)';
+        }
+        if (text.includes('ranji') || text.includes('dayactir') || text.includes('rinji')) {
+          return 'Dayactirka Dhismaha (Painting & Maintenance)';
+        }
+        if (text.includes('dhaweeye') || text.includes('xanuun') || text.includes('caafimaad')) {
+          return 'Caafimaadka & Gurmadka (Student Health/Emergency)';
+        }
+        if (text.includes('wicitaan') || text.includes('prepaid') || text.includes('hadal')) {
+          return 'Wicitaanka & Isgaarsiinta (Communication/Airtime)';
+        }
+        if (text.includes('edahab') || text.includes('e-dahab') || text.includes('bakad') || text.includes('merchent') || text.includes('merchant')) {
+          return 'Xawaalad / Akoon Weyn (Account Transfer/Routing)';
+        }
+        return 'Kharash Guud (General Expense)';
+      };
+
+      const summaryData: any[][] = [
+        ['DUGSIGA SUBUC - WARBIXINTA GUUD EE MAALIYADDA (FINANCIAL STATEMENT)'],
+        ['Muddada Warbixinta (Report Period):', month === 'all' ? 'All Time' : month],
+        ['Taariikhda La Soo Saaray (Export Date):', new Date().toLocaleString()],
+        [''],
+        ['KOBOCA MAALIYADDA (FINANCIAL OVERVIEW)', 'CADADKA (USD)', 'FAAHFAAHIN (DESCRIPTION)'],
+        ['Wadarta Lacagta Soo Gashay (Total Income)', totalIncome, 'Dhammaan lacagaha ardayda, fiiga, baska & diiwaangelinta'],
+        ['Wadarta Lacagta Baxday / Kharashka (Total Expenses/Outcome)', totalExpense, 'Mushaharaadka, kirada, korontada, biyaha, baska & qalabka'],
+        ['Haraaga Saafiga Ah ee Bishaan (Net Profit/Balance Remaining)', netBalance, netBalance >= 0 ? "Faa'iido / Surplus bishan u haray dugsiga" : "Deficit / Kharashku wuu ka batay"],
+        [''],
+        ['KHARASHYADA OO QAYBSAN (EXPENSE BREAKDOWN BY CATEGORY)', 'CADADKA (USD)', 'BOQOLKIBA (%)'],
+      ];
+
+      const expenseByCategory: Record<string, number> = {};
+      expenses.forEach((tx: any) => {
+        const cat = categorizeExpense(tx.description || '', tx.clientName || '');
+        expenseByCategory[cat] = (expenseByCategory[cat] || 0) + (Number(tx.amount) || 0);
+      });
+
+      Object.entries(expenseByCategory).sort((a, b) => b[1] - a[1]).forEach(([cat, amt]) => {
+        const pct = totalExpense > 0 ? ((amt / totalExpense) * 100).toFixed(1) + '%' : '0%';
+        summaryData.push([cat, amt, pct]);
+      });
+
+      summaryData.push(['']);
+      summaryData.push(['AKAWNNADA & HARAAGAYADA (ACCOUNT BALANCES SUMMARY)', 'OPENING BAL ($)', 'TOTAL IN (+)', 'TOTAL OUT (-)', 'CLOSING BAL ($)']);
+      
+      accounts.forEach((acc: any) => {
+        const accTxns = monthTxns.filter((t: any) => t.accountId === acc.id);
+        const accIn = accTxns.filter((t: any) => t.type === 'in').reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
+        const accOut = accTxns.filter((t: any) => t.type === 'out').reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
+        const closing = acc.openingBalance + accIn - accOut;
+        summaryData.push([
+          `${acc.name} (${acc.accountNumber || 'N/A'})`,
+          acc.openingBalance,
+          accIn,
+          accOut,
+          closing
+        ]);
+      });
+
+      const incomeHeaders = [
+        'No',
+        'Taariikhda (Date)',
+        'Wakhtiga (Time)',
+        'Reference No',
+        'Magaca Bixiyaha / Ardayga (Paid By / Student)',
+        'Telefoonka (Phone)',
+        'Akoonka Lagu Shubay (Account)',
+        'Cadadka ($ USD)',
+        'Haraaga Kadib ($ Balance After)',
+        'Sababta / Faahfaahinta (Description / Notes)'
+      ];
+
+      const incomeRows = incomes.map((tx: any, idx: number) => [
+        idx + 1,
+        tx.date,
+        tx.time || '',
+        tx.referenceNo || `TX-${tx.id.slice(-6)}`,
+        tx.clientName || 'N/A',
+        tx.clientPhone || 'N/A',
+        getAccountName(tx.accountId),
+        Number(tx.amount) || 0,
+        tx.balanceAfter !== undefined ? Number(tx.balanceAfter) : '',
+        tx.description || 'Lacag soo gashay'
+      ]);
+
+      const expenseHeaders = [
+        'No',
+        'Taariikhda (Date)',
+        'Wakhtiga (Time)',
+        'Reference No',
+        'Cidda Lacagta La Siiyay (Paid To / Recipient)',
+        'Telefoonka / Akoonka (Phone / Account)',
+        'Qaybta Kharashka (Expense Category)',
+        'Cadadka ($ USD)',
+        'Akoonka Laga Bixiyay (Drawn From Account)',
+        'Haraaga Kadib ($ Balance After)',
+        'Sababta / Ujeedada Lacag-bixinta (Detailed Purpose / Description)'
+      ];
+
+      const expenseRows = expenses.map((tx: any, idx: number) => [
+        idx + 1,
+        tx.date,
+        tx.time || '',
+        tx.referenceNo || `TX-${tx.id.slice(-6)}`,
+        tx.clientName || 'N/A',
+        tx.clientPhone || 'N/A',
+        categorizeExpense(tx.description || '', tx.clientName || ''),
+        Number(tx.amount) || 0,
+        getAccountName(tx.accountId),
+        tx.balanceAfter !== undefined ? Number(tx.balanceAfter) : '',
+        tx.description || 'Kharash baxay'
+      ]);
+
+      const wb = XLSX.utils.book_new();
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+      const wsIncome = XLSX.utils.aoa_to_sheet([incomeHeaders, ...incomeRows]);
+      const wsExpense = XLSX.utils.aoa_to_sheet([expenseHeaders, ...expenseRows]);
+
+      wsSummary['!cols'] = [{ wch: 45 }, { wch: 22 }, { wch: 45 }, { wch: 15 }, { wch: 18 }];
+      wsIncome['!cols'] = [{ wch: 6 }, { wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 30 }, { wch: 16 }, { wch: 25 }, { wch: 14 }, { wch: 16 }, { wch: 45 }];
+      wsExpense['!cols'] = [{ wch: 6 }, { wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 32 }, { wch: 20 }, { wch: 35 }, { wch: 14 }, { wch: 25 }, { wch: 16 }, { wch: 55 }];
+
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Warbixinta Guud (Summary)');
+      XLSX.utils.book_append_sheet(wb, wsIncome, 'Lacagaha Soo Galay (Income)');
+      XLSX.utils.book_append_sheet(wb, wsExpense, 'Lacagaha Baxay (Expenses)');
+
+      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      const filename = `Dugsiga_Subuc_Monthly_Financial_Report_${month}.xlsx`;
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(buffer);
+    } catch (err: any) {
+      console.error('[API financial-excel] Fail:', err);
+      return res.status(500).json({ error: 'Failed to generate financial excel report: ' + err.message });
     }
   });
 

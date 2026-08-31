@@ -123,36 +123,130 @@ export default function App() {
     };
   }, []);
 
-  // Auto-sync when connection is restored
+  // Auto-sync when connection is restored (Bi-directional reconciliation)
   useEffect(() => {
     if (!isOffline && database) {
-      console.info('[Dugsiga Subuc] Connection restored. Auto-synchronizing with Firestore...');
-      setGlobalSaveStatus({ type: 'loading', message: 'Khadka internet-ka ayaa ku laabtay. Waxaa la dhexgelinayaa xogtii ugu dambaysay...' });
+      console.info('[Dugsiga Subuc] Connection restored. Auto-synchronizing with Server and Firestore...');
+      setGlobalSaveStatus({ 
+        type: 'loading', 
+        message: 'Khadka internet-ka ayaa ku laabtay. Waxaa la dhexgelinayaa xogtii offline-ka ahayd iyo server-ka...' 
+      });
       
-      fetchRemoteDatabaseState()
-        .then(directData => {
-          if (directData) {
-            const { updated } = mergeSeedRemittances(directData);
-            setDatabase(currentDb => {
-              const remoteTime = updated.lastUpdatedTime || 0;
-              const localTime = currentDb?.lastUpdatedTime || 0;
-              if (remoteTime > localTime) {
-                console.info('[Dugsiga Subuc] Synced newer remote state on reconnect.', remoteTime, localTime);
-                saveDatabase(updated);
-                return updated;
-              }
-              return currentDb;
-            });
-            setGlobalSaveStatus({ type: 'success', message: 'Waa la isku dhex-galiyay xogtii ugu dambaysay ee server-ka!' });
-            setTimeout(() => {
-              setGlobalSaveStatus(prev => prev.type === 'success' ? { type: null, message: null } : prev);
-            }, 3000);
+      const reconcileOfflineAndRemote = async () => {
+        try {
+          const localDb = getDatabase() || database;
+          const hasPendingOffline = localStorage.getItem('dugsi_pending_offline_sync') === 'true';
+          const activeRole = localStorage.getItem('dugsi_user_role') || 'admin';
+          const currentDeviceSessionId = localStorage.getItem('dugsi_session_id') || '';
+
+          // 1. Parallel fetch of remote Firestore state and Backend API state
+          let remoteFirestoreData: DatabaseState | null = null;
+          let remoteServerData: DatabaseState | null = null;
+
+          try {
+            remoteFirestoreData = await fetchRemoteDatabaseState();
+          } catch (fbErr) {
+            console.warn('[Dugsiga Subuc] Firestore fetch on reconnect notice:', fbErr);
           }
-        })
-        .catch(err => {
+
+          try {
+            const res = await fetch(`${API_BASE}/api/database?_t=${Date.now()}`);
+            if (res.ok) {
+              const resJson = await res.json();
+              if (resJson && resJson.data) {
+                remoteServerData = resJson.data;
+              }
+            }
+          } catch (srvErr) {
+            console.warn('[Dugsiga Subuc] Backend API fetch on reconnect notice:', srvErr);
+          }
+
+          // 2. Multi-source safe merge: combine local state with remote states without losing offline additions
+          let merged: DatabaseState = localDb;
+          if (remoteFirestoreData) {
+            merged = safeMergeDatabaseStates(merged, remoteFirestoreData, { 
+              preferIncomingMeta: !hasPendingOffline 
+            });
+          }
+          if (remoteServerData) {
+            merged = safeMergeDatabaseStates(merged, remoteServerData, { 
+              preferIncomingMeta: !hasPendingOffline 
+            });
+          }
+
+          // 3. Normalize seed remittances & timestamp
+          const { updated } = mergeSeedRemittances(merged);
+          const finalDb = updated;
+          if (!finalDb.lastUpdatedTime || hasPendingOffline) {
+            finalDb.lastUpdatedTime = Date.now();
+          }
+
+          // 4. Update local persistence and React state immediately
+          lastSaveTimeRef.current = finalDb.lastUpdatedTime;
+          saveDatabase(finalDb);
+          setDatabase(finalDb);
+
+          // 5. Push synchronized state back to BOTH main backend server AND Firestore
+          const pushPromises: Promise<any>[] = [];
+
+          // Push to backend API
+          pushPromises.push(
+            fetch(`${API_BASE}/api/database`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-User-Role': activeRole,
+                'X-Session-Id': currentDeviceSessionId
+              },
+              body: JSON.stringify(finalDb)
+            }).catch(err => {
+              console.warn('[Dugsiga Subuc] Push to backend API on reconnect notice:', err);
+            })
+          );
+
+          // Push to direct Firestore
+          if (isDirectFirebasePreferred()) {
+            pushPromises.push(
+              saveRemoteDatabaseState(finalDb, { userRole: activeRole as any }).catch(err => {
+                console.warn('[Dugsiga Subuc] Push to Firestore on reconnect notice:', err);
+              })
+            );
+          }
+
+          await Promise.allSettled(pushPromises);
+
+          // Clear pending offline flag
+          localStorage.removeItem('dugsi_pending_offline_sync');
+
+          // Broadcast to other browser tabs
+          try {
+            if (typeof BroadcastChannel !== 'undefined') {
+              const channel = new BroadcastChannel('dugsiga_subuc_tab_sync');
+              channel.postMessage({ type: 'DB_UPDATED', state: finalDb });
+              channel.close();
+            }
+          } catch (bcErr) {
+            // Ignored
+          }
+
+          setGlobalSaveStatus({ 
+            type: 'success', 
+            message: 'Waa la isku dhex-galiyay xogtii offline-ka iyo server-ka & Firestore!' 
+          });
+          setTimeout(() => {
+            setGlobalSaveStatus(prev => prev.type === 'success' ? { type: null, message: null } : prev);
+          }, 3500);
+
+        } catch (err) {
           console.warn('[Dugsiga Subuc] Automatic reconnect sync failed:', err);
-          setGlobalSaveStatus({ type: 'error', message: 'Waa lagu guuldarraystay dhex-gelinta xogta cusub ee server-ka.' });
-        });
+          setGlobalSaveStatus({ 
+            type: 'error', 
+            message: 'Waa lagu guuldarraystay dhex-gelinta xogta cusub ee server-ka.' 
+          });
+        }
+      };
+
+      reconcileOfflineAndRemote();
     }
   }, [isOffline]);
 
@@ -676,6 +770,7 @@ export default function App() {
     }
 
     if (isOffline) {
+      localStorage.setItem('dugsi_pending_offline_sync', 'true');
       setGlobalSaveStatus({ 
         type: 'warning', 
         message: 'Aaladdaadu hadda khadka kama jirto (Offline). Xogta waxaa lagu kaydiyay gudaha aaladda waxaana loo gudbin doonaa cloud-ka marka khadku soo laabto.' 
@@ -691,6 +786,8 @@ export default function App() {
       }
       return;
     }
+
+    localStorage.removeItem('dugsi_pending_offline_sync');
 
     // Show brief quick confirmation
     setGlobalSaveStatus({ type: 'success', message: 'Si guul leh ayaa loo kaydiyay xogta!' });

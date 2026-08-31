@@ -31,8 +31,10 @@ export interface Student {
   className: string; // Stored here for easier filtering
   monthlyFee: number; // e.g. $50
   busFee?: number; // monthly bus fare (optional, e.g. $15, $20)
+  hasBusService?: boolean; // Convenience flag indicating active bus rider
   registrationDate: string; // YYYY-MM-DD
   active: boolean; // Is active student
+  status?: string; // Optional status flag ('active', 'inactive', 'suspended')
   session?: 'Morning' | 'Afternoon' | 'Both';
   age?: number; // Student age (optional)
   voiceUrl?: string; // URL/Base64 of recorded recitation voice
@@ -264,6 +266,7 @@ export interface Invoice {
   items: InvoiceItem[];
   totalAmount: number;
   amountPaid: number;
+  paidAmount?: number; // Alias for backwards/forwards compatibility
   status: 'Paid' | 'Unpaid' | 'Partial';
   notes?: string;
   createdBy: string;

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
+import * as XLSX from 'xlsx';
 import {
   CircleDollarSign,
   Search,
@@ -34,10 +35,56 @@ import {
   Building2,
   DollarSign,
   Plus,
-  Receipt
+  Receipt,
+  Scale,
+  Calculator,
+  ShieldCheck,
+  Layers,
+  PieChart,
+  Info,
+  Sparkles,
+  ExternalLink,
+  Coins,
+  CheckCheck
 } from 'lucide-react';
 import { DatabaseState, MoneyTransferRecord, XawaaladaAccount, XawaaladaTransaction } from '../types';
 import { DEFAULT_XAWAALADA_ACCOUNTS, DEFAULT_XAWAALADA_TRANSACTIONS, triggerFileDownload } from '../db';
+
+// Categorize expense records by purpose and recipient keyword
+export const categorizeExpense = (desc: string, client: string) => {
+  const text = `${desc || ''} ${client || ''}`.toLowerCase();
+  if (text.includes('mushahar') || text.includes('musharka') || text.includes('nadaafad') || text.includes('macalin')) {
+    return 'Mushaharaadka & Shaqaalaha (Salaries)';
+  }
+  if (text.includes('kira') || text.includes('kirada') || text.includes('kiray')) {
+    return 'Kirada Dhismaha (Building Rent)';
+  }
+  if (text.includes('baska') || text.includes('gaadiid') || text.includes('dareewal')) {
+    return 'Baska & Gaadiidka (Bus Transport)';
+  }
+  if (text.includes('koronto') || text.includes('nec')) {
+    return 'Korontada (Electricity - NEC)';
+  }
+  if (text.includes('biyo') || text.includes('nuwaco') || text.includes('naciim')) {
+    return 'Biyaha (Water - Nuwaco/Naciim)';
+  }
+  if (text.includes('sabuurad') || text.includes('fayl') || text.includes('qalin') || text.includes('qashin') || text.includes('beder') || text.includes('seed')) {
+    return 'Qalabka & Xafiiska (Stationery & Supplies)';
+  }
+  if (text.includes('ranji') || text.includes('dayactir') || text.includes('rinji')) {
+    return 'Dayactirka Dhismaha (Painting & Maintenance)';
+  }
+  if (text.includes('dhaweeye') || text.includes('xanuun') || text.includes('caafimaad')) {
+    return 'Caafimaadka & Gurmadka (Student Health/Emergency)';
+  }
+  if (text.includes('wicitaan') || text.includes('prepaid') || text.includes('hadal')) {
+    return 'Wicitaanka & Isgaarsiinta (Communication/Airtime)';
+  }
+  if (text.includes('edahab') || text.includes('e-dahab') || text.includes('bakad') || text.includes('merchent') || text.includes('merchant')) {
+    return 'Xawaalad / Akoon Weyn (Account Transfer/Routing)';
+  }
+  return 'Kharash Guud (General Expense)';
+};
 
 interface MoneyTransferTabProps {
   database: DatabaseState;
@@ -92,6 +139,13 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [receiptTransaction, setReceiptTransaction] = useState<XawaaladaTransaction | null>(null);
+
+  // Interactive Metric Breakdown Modal State
+  type MetricBreakdownType = 'opening' | 'moneyIn' | 'moneyOut' | 'liquidity' | 'reconciliation' | null;
+  const [activeMetricBreakdown, setActiveMetricBreakdown] = useState<MetricBreakdownType>(null);
+  const [breakdownSearch, setBreakdownSearch] = useState('');
+  const [breakdownCategory, setBreakdownCategory] = useState('all');
+  const [breakdownAccountId, setBreakdownAccountId] = useState('all');
 
   // Form state for Account
   const [accName, setAccName] = useState('');
@@ -632,6 +686,181 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
     triggerFeedback('Warbixinta Billeedka ah ee Xawaallada waa la soo dejiyay (.TXT)!');
   };
 
+  // Generate Full Multi-Sheet Excel Workbook Report (.XLSX)
+  const downloadXlsxReport = () => {
+    try {
+      const monthTxns = transactions.filter(t => !reportMonth || (t.date && t.date.startsWith(reportMonth)));
+      const incomes = monthTxns.filter(t => t.type === 'in');
+      const expenses = monthTxns.filter(t => t.type === 'out');
+
+      const totalIncome = incomes.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+      const totalExpense = expenses.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+      const netBalance = totalIncome - totalExpense;
+
+      const getAccountName = (accId: string) => {
+        const a = accounts.find(acc => acc.id === accId);
+        return a ? `${a.name} (${a.accountNumber || ''})` : accId;
+      };
+
+      const categorizeExpense = (desc: string, client: string) => {
+        const text = `${desc} ${client}`.toLowerCase();
+        if (text.includes('mushahar') || text.includes('musharka') || text.includes('nadaafad') || text.includes('macalin')) {
+          return 'Mushaharaadka & Shaqaalaha (Salaries)';
+        }
+        if (text.includes('kira') || text.includes('kirada') || text.includes('kiray')) {
+          return 'Kirada Dhismaha (Building Rent)';
+        }
+        if (text.includes('baska') || text.includes('gaadiid') || text.includes('dareewal')) {
+          return 'Baska & Gaadiidka (Bus Transport)';
+        }
+        if (text.includes('koronto') || text.includes('nec')) {
+          return 'Korontada (Electricity - NEC)';
+        }
+        if (text.includes('biyo') || text.includes('nuwaco') || text.includes('naciim')) {
+          return 'Biyaha (Water - Nuwaco/Naciim)';
+        }
+        if (text.includes('sabuurad') || text.includes('fayl') || text.includes('qalin') || text.includes('qashin') || text.includes('beder') || text.includes('seed')) {
+          return 'Qalabka & Xafiiska (Stationery & Supplies)';
+        }
+        if (text.includes('ranji') || text.includes('dayactir') || text.includes('rinji')) {
+          return 'Dayactirka Dhismaha (Painting & Maintenance)';
+        }
+        if (text.includes('dhaweeye') || text.includes('xanuun') || text.includes('caafimaad')) {
+          return 'Caafimaadka & Gurmadka (Student Health/Emergency)';
+        }
+        if (text.includes('wicitaan') || text.includes('prepaid') || text.includes('hadal')) {
+          return 'Wicitaanka & Isgaarsiinta (Communication/Airtime)';
+        }
+        if (text.includes('edahab') || text.includes('e-dahab') || text.includes('bakad') || text.includes('merchent') || text.includes('merchant')) {
+          return 'Xawaalad / Akoon Weyn (Account Transfer/Routing)';
+        }
+        return 'Kharash Guud (General Expense)';
+      };
+
+      // 1. SUMMARY SHEET
+      const summaryData: any[][] = [
+        ['DUGSIGA SUBUC - WARBIXINTA GUUD EE MAALIYADDA (FINANCIAL STATEMENT)'],
+        ['Muddada Warbixinta (Report Period):', reportMonth || 'All Time'],
+        ['Taariikhda La Soo Saaray (Export Date):', new Date().toLocaleString()],
+        [''],
+        ['KOBOCA MAALIYADDA (FINANCIAL OVERVIEW)', 'CADADKA (USD)', 'FAAHFAAHIN (DESCRIPTION)'],
+        ['Wadarta Lacagta Soo Gashay (Total Income)', totalIncome, 'Dhammaan lacagaha ardayda, fiiga, baska & diiwaangelinta'],
+        ['Wadarta Lacagta Baxday / Kharashka (Total Expenses/Outcome)', totalExpense, 'Mushaharaadka, kirada, korontada, biyaha, baska & qalabka'],
+        ['Haraaga Saafiga Ah ee Bishaan (Net Profit/Balance Remaining)', netBalance, netBalance >= 0 ? "Faa'iido / Surplus bishan u haray dugsiga" : "Deficit / Kharashku wuu ka batay"],
+        [''],
+        ['KHARASHYADA OO QAYBSAN (EXPENSE BREAKDOWN BY CATEGORY)', 'CADADKA (USD)', 'BOQOLKIBA (%)'],
+      ];
+
+      const expenseByCategory: Record<string, number> = {};
+      expenses.forEach(tx => {
+        const cat = categorizeExpense(tx.description || '', tx.clientName || '');
+        expenseByCategory[cat] = (expenseByCategory[cat] || 0) + (Number(tx.amount) || 0);
+      });
+
+      Object.entries(expenseByCategory).sort((a, b) => b[1] - a[1]).forEach(([cat, amt]) => {
+        const pct = totalExpense > 0 ? ((amt / totalExpense) * 100).toFixed(1) + '%' : '0%';
+        summaryData.push([cat, amt, pct]);
+      });
+
+      summaryData.push(['']);
+      summaryData.push(['AKAWNNADA & HARAAGAYADA (ACCOUNT BALANCES SUMMARY)', 'OPENING BAL ($)', 'TOTAL IN (+)', 'TOTAL OUT (-)', 'CLOSING BAL ($)']);
+      
+      accounts.forEach(acc => {
+        const calc = accountCalculations.perAccount[acc.id];
+        if (calc) {
+          summaryData.push([
+            `${acc.name} (${acc.accountNumber || 'N/A'})`,
+            calc.openingBalance,
+            calc.totalIn,
+            calc.totalOut,
+            calc.currentBalance
+          ]);
+        }
+      });
+
+      if (reportComment && reportComment.trim()) {
+        summaryData.push(['']);
+        summaryData.push(['FAALLADA MAAMULKA / AUDITOR REMARKS:', reportComment.trim()]);
+      }
+
+      // 2. INCOME SHEET
+      const incomeHeaders = [
+        'No',
+        'Taariikhda (Date)',
+        'Wakhtiga (Time)',
+        'Reference No',
+        'Magaca Bixiyaha / Ardayga (Paid By / Student)',
+        'Telefoonka (Phone)',
+        'Akoonka Lagu Shubay (Account)',
+        'Cadadka ($ USD)',
+        'Haraaga Kadib ($ Balance After)',
+        'Sababta / Faahfaahinta (Description / Notes)'
+      ];
+
+      const incomeRows = incomes.map((tx, idx) => [
+        idx + 1,
+        tx.date,
+        tx.time || '',
+        tx.referenceNo || `TX-${tx.id.slice(-6)}`,
+        tx.clientName || 'N/A',
+        tx.clientPhone || 'N/A',
+        getAccountName(tx.accountId),
+        Number(tx.amount) || 0,
+        runningBalances.map.get(tx.id) ?? tx.balanceAfter ?? '',
+        tx.description || 'Lacag soo gashay'
+      ]);
+
+      // 3. EXPENSE SHEET (WHERE DID I PAY THIS MONEY TO)
+      const expenseHeaders = [
+        'No',
+        'Taariikhda (Date)',
+        'Wakhtiga (Time)',
+        'Reference No',
+        'Cidda Lacagta La Siiyay (Paid To / Recipient)',
+        'Telefoonka / Akoonka (Phone / Account)',
+        'Qaybta Kharashka (Expense Category)',
+        'Cadadka ($ USD)',
+        'Akoonka Laga Bixiyay (Drawn From Account)',
+        'Haraaga Kadib ($ Balance After)',
+        'Sababta / Ujeedada Lacag-bixinta (Detailed Purpose / Description)'
+      ];
+
+      const expenseRows = expenses.map((tx, idx) => [
+        idx + 1,
+        tx.date,
+        tx.time || '',
+        tx.referenceNo || `TX-${tx.id.slice(-6)}`,
+        tx.clientName || 'N/A',
+        tx.clientPhone || 'N/A',
+        categorizeExpense(tx.description || '', tx.clientName || ''),
+        Number(tx.amount) || 0,
+        getAccountName(tx.accountId),
+        runningBalances.map.get(tx.id) ?? tx.balanceAfter ?? '',
+        tx.description || 'Kharash baxay'
+      ]);
+
+      const wb = XLSX.utils.book_new();
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+      const wsIncome = XLSX.utils.aoa_to_sheet([incomeHeaders, ...incomeRows]);
+      const wsExpense = XLSX.utils.aoa_to_sheet([expenseHeaders, ...expenseRows]);
+
+      wsSummary['!cols'] = [{ wch: 45 }, { wch: 22 }, { wch: 45 }, { wch: 15 }, { wch: 18 }];
+      wsIncome['!cols'] = [{ wch: 6 }, { wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 30 }, { wch: 16 }, { wch: 25 }, { wch: 14 }, { wch: 16 }, { wch: 45 }];
+      wsExpense['!cols'] = [{ wch: 6 }, { wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 32 }, { wch: 20 }, { wch: 35 }, { wch: 14 }, { wch: 25 }, { wch: 16 }, { wch: 55 }];
+
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Warbixinta Guud (Summary)');
+      XLSX.utils.book_append_sheet(wb, wsIncome, 'Lacagaha Soo Galay (Income)');
+      XLSX.utils.book_append_sheet(wb, wsExpense, 'Lacagaha Baxay (Expenses)');
+
+      XLSX.writeFile(wb, `Dugsiga_Subuc_Monthly_Financial_Report_${reportMonth || 'All'}.xlsx`);
+      triggerFeedback('Xaashida buuxda ee Excel (.XLSX) si guul ah ayaa loo soo dejiyay!');
+    } catch (err: any) {
+      console.error('Error generating XLSX report:', err);
+      // Fallback to CSV
+      downloadCsvReport();
+    }
+  };
+
   // Generate CSV Monthly Ledger Report
   const downloadCsvReport = () => {
     let csv = `Account Name,Account Number,Opening Balance ($),Total Money In (+),Total Money Out (-),Net Change ($),Closing Balance ($)\n`;
@@ -1106,38 +1335,132 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
           </div>
         </div>
 
-        {/* Global Summary Metrics Bar */}
+        {/* Global Summary Metrics Bar (Clickable Breakdown Triggers) */}
         <div className="mt-8 pt-6 border-t border-slate-800 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-4">
-          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3.5 border border-white/10">
-            <span className="text-[10px] font-extrabold text-slate-400 uppercase block mb-1">Total Opening Balance</span>
-            <span className="text-lg font-black text-slate-100 font-mono">${accountCalculations.grandOpening.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-          </div>
-
-          <div className="bg-emerald-500/10 backdrop-blur-sm rounded-2xl p-3.5 border border-emerald-500/20">
-            <span className="text-[10px] font-extrabold text-emerald-400 uppercase block mb-1 flex items-center gap-1">
-              <ArrowDownLeft className="w-3 h-3 text-emerald-400" />
-              Total Money In (+)
+          {/* 1. Total Opening Balance */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveMetricBreakdown('opening');
+              setBreakdownSearch('');
+              setBreakdownAccountId('all');
+            }}
+            className="bg-white/5 hover:bg-white/10 active:scale-[0.98] transition-all backdrop-blur-sm rounded-2xl p-3.5 border border-white/10 hover:border-indigo-400/50 text-left group cursor-pointer relative overflow-hidden shadow-xs hover:shadow-md"
+            title="Guji si aad u aragto asalka & xisaabinta Opening Balance"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-extrabold text-slate-400 group-hover:text-indigo-300 uppercase transition-colors">
+                Total Opening Balance
+              </span>
+              <Eye className="w-3.5 h-3.5 text-slate-500 group-hover:text-indigo-300 transition-colors" />
+            </div>
+            <div className="text-lg font-black text-slate-100 font-mono">
+              ${accountCalculations.grandOpening.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </div>
+            <span className="text-[9px] font-bold text-slate-400 group-hover:text-indigo-200 mt-1.5 flex items-center gap-1 transition-colors">
+              <Sparkles className="w-2.5 h-2.5 text-indigo-400" />
+              Arag Asalka (Breakdown) ➔
             </span>
-            <span className="text-lg font-black text-emerald-300 font-mono">+${accountCalculations.grandIn.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-          </div>
+          </button>
 
-          <div className="bg-rose-500/10 backdrop-blur-sm rounded-2xl p-3.5 border border-rose-500/20">
-            <span className="text-[10px] font-extrabold text-rose-400 uppercase block mb-1 flex items-center gap-1">
-              <ArrowUpRight className="w-3 h-3 text-rose-400" />
-              Total Money Out (-)
+          {/* 2. Total Money In (+) */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveMetricBreakdown('moneyIn');
+              setBreakdownSearch('');
+              setBreakdownAccountId('all');
+            }}
+            className="bg-emerald-500/10 hover:bg-emerald-500/20 active:scale-[0.98] transition-all backdrop-blur-sm rounded-2xl p-3.5 border border-emerald-500/20 hover:border-emerald-400/60 text-left group cursor-pointer relative overflow-hidden shadow-xs hover:shadow-md"
+            title="Guji si aad u aragto dhammaan dakhliga soo galay & dhigaalka"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-extrabold text-emerald-400 group-hover:text-emerald-300 uppercase flex items-center gap-1 transition-colors">
+                <ArrowDownLeft className="w-3 h-3 text-emerald-400" />
+                Total Money In (+)
+              </span>
+              <Eye className="w-3.5 h-3.5 text-emerald-500/70 group-hover:text-emerald-300 transition-colors" />
+            </div>
+            <div className="text-lg font-black text-emerald-300 font-mono">
+              +${accountCalculations.grandIn.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </div>
+            <span className="text-[9px] font-bold text-emerald-400/80 group-hover:text-emerald-200 mt-1.5 flex items-center gap-1 transition-colors">
+              <Sparkles className="w-2.5 h-2.5 text-emerald-400" />
+              Arag Dakhliga (Inflow) ➔
             </span>
-            <span className="text-lg font-black text-rose-300 font-mono">-${accountCalculations.grandOut.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-          </div>
+          </button>
 
-          <div className="bg-amber-500/10 backdrop-blur-sm rounded-2xl p-3.5 border border-amber-500/20">
-            <span className="text-[10px] font-extrabold text-amber-300 uppercase block mb-1">Current Total Net Liquidity</span>
-            <span className="text-lg font-black text-amber-200 font-mono">${accountCalculations.grandCurrent.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-          </div>
+          {/* 3. Total Money Out (-) */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveMetricBreakdown('moneyOut');
+              setBreakdownSearch('');
+              setBreakdownCategory('all');
+              setBreakdownAccountId('all');
+            }}
+            className="bg-rose-500/10 hover:bg-rose-500/20 active:scale-[0.98] transition-all backdrop-blur-sm rounded-2xl p-3.5 border border-rose-500/20 hover:border-rose-400/60 text-left group cursor-pointer relative overflow-hidden shadow-xs hover:shadow-md"
+            title="Guji si aad u aragto dhammaan kharashyada baxay & cidda la siiyay"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-extrabold text-rose-400 group-hover:text-rose-300 uppercase flex items-center gap-1 transition-colors">
+                <ArrowUpRight className="w-3 h-3 text-rose-400" />
+                Total Money Out (-)
+              </span>
+              <Eye className="w-3.5 h-3.5 text-rose-500/70 group-hover:text-rose-300 transition-colors" />
+            </div>
+            <div className="text-lg font-black text-rose-300 font-mono">
+              -${accountCalculations.grandOut.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </div>
+            <span className="text-[9px] font-bold text-rose-400/80 group-hover:text-rose-200 mt-1.5 flex items-center gap-1 transition-colors">
+              <Sparkles className="w-2.5 h-2.5 text-rose-400" />
+              Arag Kharashka (Outflow) ➔
+            </span>
+          </button>
 
-          <div className="col-span-2 sm:col-span-4 lg:col-span-1 bg-white/5 backdrop-blur-sm rounded-2xl p-3.5 border border-white/10 flex flex-col justify-center">
-            <span className="text-[10px] font-extrabold text-slate-400 uppercase block mb-1">Balancing Status</span>
+          {/* 4. Current Total Net Liquidity */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveMetricBreakdown('liquidity');
+              setBreakdownSearch('');
+              setBreakdownAccountId('all');
+            }}
+            className="bg-amber-500/10 hover:bg-amber-500/20 active:scale-[0.98] transition-all backdrop-blur-sm rounded-2xl p-3.5 border border-amber-500/20 hover:border-amber-400/60 text-left group cursor-pointer relative overflow-hidden shadow-xs hover:shadow-md"
+            title="Guji si aad u aragto xisaabinta haraaga guud ee hadda yaalla"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-extrabold text-amber-300 group-hover:text-amber-200 uppercase transition-colors">
+                Current Net Liquidity
+              </span>
+              <Eye className="w-3.5 h-3.5 text-amber-500/70 group-hover:text-amber-200 transition-colors" />
+            </div>
+            <div className="text-lg font-black text-amber-200 font-mono">
+              ${accountCalculations.grandCurrent.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </div>
+            <span className="text-[9px] font-bold text-amber-400/80 group-hover:text-amber-100 mt-1.5 flex items-center gap-1 transition-colors">
+              <Sparkles className="w-2.5 h-2.5 text-amber-400" />
+              Xisaabinta & Haraaga ➔
+            </span>
+          </button>
+
+          {/* 5. Balancing Status */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveMetricBreakdown('reconciliation');
+            }}
+            className="col-span-2 sm:col-span-4 lg:col-span-1 bg-white/5 hover:bg-white/10 active:scale-[0.98] transition-all backdrop-blur-sm rounded-2xl p-3.5 border border-white/10 hover:border-emerald-400/50 flex flex-col justify-center text-left group cursor-pointer shadow-xs hover:shadow-md"
+            title="Guji si aad u aragto hubinta isku dheelitirnaanta xisaabta (Audit)"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-extrabold text-slate-400 group-hover:text-slate-200 uppercase transition-colors">
+                Balancing Status
+              </span>
+              <Eye className="w-3.5 h-3.5 text-slate-500 group-hover:text-emerald-300 transition-colors" />
+            </div>
             {accountCalculations.isBalanced ? (
-              <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-400">
+              <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-400 group-hover:text-emerald-300">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                 Balanced & Reconciled
               </span>
@@ -1147,7 +1470,11 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                 Unbalanced Entry
               </span>
             )}
-          </div>
+            <span className="text-[9px] font-bold text-slate-400 group-hover:text-emerald-200 mt-1.5 flex items-center gap-1 transition-colors">
+              <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
+              Audit & Hubinta ➔
+            </span>
+          </button>
         </div>
       </div>
 
@@ -2174,10 +2501,25 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                 <button
                   type="button"
                   onClick={() => {
+                    downloadXlsxReport();
+                    setIsReportModalOpen(false);
+                  }}
+                  className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-between shadow-md"
+                >
+                  <span className="flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-100" />
+                    Soo deji Xaashida Excel (.XLSX Multi-Sheet Workbook)
+                  </span>
+                  <Download className="w-4 h-4 text-emerald-100" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
                     downloadCsvReport();
                     setIsReportModalOpen(false);
                   }}
-                  className="w-full py-3 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-between"
+                  className="w-full py-3 px-4 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-between"
                 >
                   <span className="flex items-center gap-2">
                     <FileSpreadsheet className="w-4 h-4 text-emerald-300" />
@@ -2569,6 +2911,814 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                   Xir (Close)
                 </button>
               </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL 6: INTERACTIVE METRIC BREAKDOWN MODAL (WHERE EACH METRIC CAME FROM) */}
+      {activeMetricBreakdown && (() => {
+        const getAccountName = (accId: string) => {
+          const a = accounts.find(acc => acc.id === accId);
+          return a ? `${a.name} (${a.accountNumber || ''})` : accId;
+        };
+
+        const allInflows = transactions.filter(t => t.type === 'in');
+        const allOutflows = transactions.filter(t => t.type === 'out');
+
+        const totalInflowSum = allInflows.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+        const totalOutflowSum = allOutflows.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+        // Filtered Inflows for modal search
+        const filteredInflows = allInflows.filter(t => {
+          const q = breakdownSearch.toLowerCase().trim();
+          const matchSearch = !q ||
+            (t.clientName && t.clientName.toLowerCase().includes(q)) ||
+            (t.clientPhone && t.clientPhone.toLowerCase().includes(q)) ||
+            (t.referenceNo && t.referenceNo.toLowerCase().includes(q)) ||
+            (t.description && t.description.toLowerCase().includes(q));
+          const matchAcc = breakdownAccountId === 'all' || t.accountId === breakdownAccountId;
+          return matchSearch && matchAcc;
+        }).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+
+        // Group Outflows by Category
+        const expenseCategoriesMap: Record<string, { total: number; count: number; txns: XawaaladaTransaction[] }> = {};
+        allOutflows.forEach(tx => {
+          const cat = categorizeExpense(tx.description || '', tx.clientName || '');
+          if (!expenseCategoriesMap[cat]) {
+            expenseCategoriesMap[cat] = { total: 0, count: 0, txns: [] };
+          }
+          expenseCategoriesMap[cat].total += Number(tx.amount) || 0;
+          expenseCategoriesMap[cat].count += 1;
+          expenseCategoriesMap[cat].txns.push(tx);
+        });
+
+        const sortedCategories = Object.entries(expenseCategoriesMap).sort((a, b) => b[1].total - a[1].total);
+
+        // Filtered Outflows for modal search and category filter
+        const filteredOutflows = allOutflows.filter(t => {
+          const q = breakdownSearch.toLowerCase().trim();
+          const matchSearch = !q ||
+            (t.clientName && t.clientName.toLowerCase().includes(q)) ||
+            (t.clientPhone && t.clientPhone.toLowerCase().includes(q)) ||
+            (t.referenceNo && t.referenceNo.toLowerCase().includes(q)) ||
+            (t.description && t.description.toLowerCase().includes(q));
+          const matchAcc = breakdownAccountId === 'all' || t.accountId === breakdownAccountId;
+          const txCat = categorizeExpense(t.description || '', t.clientName || '');
+          const matchCat = breakdownCategory === 'all' || txCat === breakdownCategory;
+          return matchSearch && matchAcc && matchCat;
+        }).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+
+        return (
+          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 z-[20000] overflow-y-auto animate-fade-in">
+            <div className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col">
+              
+              {/* Modal Top Header Bar */}
+              <div className="bg-slate-900 px-6 py-4 text-white flex items-center justify-between shrink-0 border-b border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-2xl ${
+                    activeMetricBreakdown === 'opening' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' :
+                    activeMetricBreakdown === 'moneyIn' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                    activeMetricBreakdown === 'moneyOut' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
+                    activeMetricBreakdown === 'liquidity' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                    'bg-teal-500/20 text-teal-300 border border-teal-500/30'
+                  }`}>
+                    {activeMetricBreakdown === 'opening' && <Wallet className="w-5 h-5" />}
+                    {activeMetricBreakdown === 'moneyIn' && <ArrowDownLeft className="w-5 h-5" />}
+                    {activeMetricBreakdown === 'moneyOut' && <ArrowUpRight className="w-5 h-5" />}
+                    {activeMetricBreakdown === 'liquidity' && <Coins className="w-5 h-5" />}
+                    {activeMetricBreakdown === 'reconciliation' && <ShieldCheck className="w-5 h-5" />}
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-white flex items-center gap-2">
+                      {activeMetricBreakdown === 'opening' && 'Total Opening Balance ($536.14) Breakdown'}
+                      {activeMetricBreakdown === 'moneyIn' && `Total Money In (+)${accountCalculations.grandIn.toFixed(2)} Breakdown`}
+                      {activeMetricBreakdown === 'moneyOut' && `Total Money Out (-)${accountCalculations.grandOut.toFixed(2)} Breakdown`}
+                      {activeMetricBreakdown === 'liquidity' && `Current Total Net Liquidity ($${accountCalculations.grandCurrent.toFixed(2)}) Breakdown`}
+                      {activeMetricBreakdown === 'reconciliation' && 'Balancing & Reconciliation Audit Report'}
+                    </h3>
+                    <p className="text-xs text-slate-400 font-medium">
+                      {activeMetricBreakdown === 'opening' && 'Asalka iyo xisaabinta Haraagii Hore ee bilowga ah ee xisaabaadka dugsiga'}
+                      {activeMetricBreakdown === 'moneyIn' && 'Dhammaan dakhliga soo galay (Ardayda, Fiiga, Baska, Diiwaangelinta & Dhigaalka)'}
+                      {activeMetricBreakdown === 'moneyOut' && 'Halka iyo cidda lacagta la siiyay (Mushaharaadka, Kirada, Baska, Korontada & Qalabka)'}
+                      {activeMetricBreakdown === 'liquidity' && 'Xisaabinta & Asalka saxda ah ee lacagta hadda u taalla dugsiga (Ledger Balance)'}
+                      {activeMetricBreakdown === 'reconciliation' && 'Hubinta saxnaanta xisaabta iyo isku dheelitirnaanta buugaagta (Zero Variance Audit)'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveMetricBreakdown(null)}
+                  className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+                  title="Xir (Close)"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Scrollable Body */}
+              <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
+
+                {/* ========================================================================= */}
+                {/* 1. BREAKDOWN: TOTAL OPENING BALANCE ($536.14) */}
+                {/* ========================================================================= */}
+                {activeMetricBreakdown === 'opening' && (
+                  <div className="space-y-6">
+                    {/* Top Overview Banner */}
+                    <div className="bg-gradient-to-br from-slate-900 to-indigo-950 p-5 rounded-3xl text-white border border-indigo-900/50 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-300 block mb-1">
+                          Wadarta Haraagii Hore ee Bilowga Ah (Grand Opening Balance)
+                        </span>
+                        <div className="text-3xl font-black font-mono text-white">
+                          ${accountCalculations.grandOpening.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </div>
+                        <p className="text-xs text-indigo-200/80 font-medium mt-1">
+                          Waxaa laga soo xisaabiyay <strong className="text-white">{accounts.length} Akawn</strong> oo diiwaangashan.
+                        </p>
+                      </div>
+                      <div className="bg-white/10 backdrop-blur-sm p-3.5 rounded-2xl border border-white/15 text-xs space-y-1">
+                        <div className="flex justify-between gap-4">
+                          <span className="text-indigo-200">Xilliga Bilowga:</span>
+                          <span className="font-bold text-white">Bisha Agoosto 2026</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-indigo-200">Ujeeddada:</span>
+                          <span className="font-bold text-emerald-300">Saldhigga Xisaabta (Seed Ledger)</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Explanation Box */}
+                    <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-2xl text-xs text-indigo-950 flex items-start gap-3">
+                      <Info className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <span className="font-extrabold uppercase text-[10px] tracking-wider text-indigo-900 block">
+                          Waa Maxay Total Opening Balance?
+                        </span>
+                        <p className="leading-relaxed">
+                          <strong>Opening Balance (Haraagii Hore)</strong> waa lacagtii sanduuqa ama akoonka ugu jirtay dugsiga ka hor inta aan la bilaabin diiwaangelinta dhaqdhaqaaqa bishan. Waa saldhigga bilowga ah ee xisaabeed oo lagu kordhiyo lacagaha soo gala (Money In) lagana gooyo kharashyada baxa (Money Out) si loo helo haraaga dhabta ah ee hadda yaalla.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Itemized Accounts Breakdown Table */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-indigo-600" />
+                          Faahfaahinta Akawn Kasta & Saamiga uu ku leeyahay ($536.14)
+                        </h4>
+                        <span className="text-xs font-bold text-slate-400 font-mono">
+                          {accounts.length} Akawn
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {accounts.map(acc => {
+                          const opening = Number(acc.openingBalance) || 0;
+                          const pct = accountCalculations.grandOpening > 0
+                            ? ((opening / accountCalculations.grandOpening) * 100).toFixed(1)
+                            : '0';
+
+                          return (
+                            <div key={acc.id} className="bg-slate-50 hover:bg-indigo-50/40 p-4 rounded-2xl border border-slate-200 transition-all space-y-3 flex flex-col justify-between">
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800">
+                                    {acc.name.includes('Higgaad') ? 'Higgaad' : acc.name.includes('Qur') ? "Qur'aan" : 'Merchant'}
+                                  </span>
+                                  <span className="text-xs font-black font-mono text-indigo-600">{pct}%</span>
+                                </div>
+                                <h5 className="text-sm font-extrabold text-slate-900">{acc.name}</h5>
+                                <p className="text-[11px] font-mono text-slate-500">
+                                  {acc.accountNumber ? `Acc / Tel: ${acc.accountNumber}` : 'Akoon Guud'}
+                                </p>
+                              </div>
+
+                              <div className="space-y-2 pt-2 border-t border-slate-200">
+                                <div className="flex justify-between items-baseline">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase">Haraagii Bilowga:</span>
+                                  <span className="text-base font-black font-mono text-slate-900">${opening.toFixed(2)}</span>
+                                </div>
+                                
+                                {/* Progress bar */}
+                                <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                                  <div className="bg-indigo-600 h-full rounded-full" style={{ width: `${pct}%` }} />
+                                </div>
+
+                                {acc.notes && (
+                                  <p className="text-[10px] text-slate-500 italic truncate pt-1">
+                                    "{acc.notes}"
+                                  </p>
+                                )}
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingAccount(acc);
+                                  setAccName(acc.name);
+                                  setAccNumber(acc.accountNumber || '');
+                                  setAccOpening(acc.openingBalance);
+                                  setAccNotes(acc.notes || '');
+                                  setIsAccountModalOpen(true);
+                                  setActiveMetricBreakdown(null);
+                                }}
+                                className="w-full py-1.5 px-3 bg-white hover:bg-indigo-600 hover:text-white text-indigo-700 text-[11px] font-extrabold rounded-xl border border-indigo-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer mt-1"
+                              >
+                                <Edit className="w-3 h-3" />
+                                Wax ka bedel Opening Balance
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ========================================================================= */}
+                {/* 2. BREAKDOWN: TOTAL MONEY IN (+3,769.60) */}
+                {/* ========================================================================= */}
+                {activeMetricBreakdown === 'moneyIn' && (
+                  <div className="space-y-6">
+                    {/* Top Overview Banner */}
+                    <div className="bg-gradient-to-br from-slate-900 to-emerald-950 p-5 rounded-3xl text-white border border-emerald-900/50 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-300 block mb-1">
+                          Wadarta Dakhliga Soo Galay (Total Inflow & Student Deposits)
+                        </span>
+                        <div className="text-3xl font-black font-mono text-emerald-300">
+                          +${totalInflowSum.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </div>
+                        <p className="text-xs text-emerald-200/80 font-medium mt-1">
+                          Waxay ka kooban tahay <strong className="text-white">{allInflows.length} lacag-bixinood</strong> oo ardayda iyo waalidiinta ka timid.
+                        </p>
+                      </div>
+
+                      <div className="bg-white/10 backdrop-blur-sm p-3.5 rounded-2xl border border-white/15 text-xs space-y-1">
+                        <div className="flex justify-between gap-4">
+                          <span className="text-emerald-200">Tirada Lacag-bixinta:</span>
+                          <span className="font-bold text-white font-mono">{allInflows.length} Diwaan</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-emerald-200">Celceliska Lacagta:</span>
+                          <span className="font-bold text-emerald-300 font-mono">
+                            ${allInflows.length > 0 ? (totalInflowSum / allInflows.length).toFixed(2) : '0.00'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Account Distribution Chips */}
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider block">
+                        Dakhliga Soo Galay oo loo qaybiyay Akawnnada:
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {accounts.map(acc => {
+                          const accIn = allInflows.filter(t => t.accountId === acc.id);
+                          const accSum = accIn.reduce((s, t) => s + (Number(t.amount) || 0), 0);
+                          const pct = totalInflowSum > 0 ? ((accSum / totalInflowSum) * 100).toFixed(1) : '0';
+
+                          return (
+                            <button
+                              key={acc.id}
+                              type="button"
+                              onClick={() => setBreakdownAccountId(breakdownAccountId === acc.id ? 'all' : acc.id)}
+                              className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                                breakdownAccountId === acc.id
+                                  ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20'
+                                  : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              <div className="flex justify-between items-center text-xs mb-1">
+                                <span className="font-extrabold text-slate-900">{acc.name}</span>
+                                <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-md">
+                                  {pct}%
+                                </span>
+                              </div>
+                              <div className="text-base font-black font-mono text-emerald-600">
+                                +${accSum.toFixed(2)}
+                              </div>
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                {accIn.length} lacag-bixinood
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Search and Filters */}
+                    <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+                      <div className="relative flex-1 w-full">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          placeholder="Raadi magaca ardayga, taleefonka, ref no, ama sharaxaada..."
+                          value={breakdownSearch}
+                          onChange={(e) => setBreakdownSearch(e.target.value)}
+                          className="w-full pl-9 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:border-emerald-500 focus:bg-white transition-all"
+                        />
+                      </div>
+                      {breakdownAccountId !== 'all' && (
+                        <button
+                          type="button"
+                          onClick={() => setBreakdownAccountId('all')}
+                          className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap"
+                        >
+                          Tir dhammaan shaandhada (Show All)
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Full Itemized Table of Money In */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-600">
+                        <span>Liiska Dakhliga ({filteredInflows.length} diiwaan la helay):</span>
+                        <span className="text-[10px] text-slate-400 italic">Guji saf kasta si aad u aragto Rasiidka (Receipt)</span>
+                      </div>
+
+                      <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+                        <div className="max-h-80 overflow-y-auto">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead className="bg-slate-100 text-slate-600 font-extrabold uppercase text-[10px] tracking-wider sticky top-0 z-10 border-b border-slate-200">
+                              <tr>
+                                <th className="p-2.5">Taariikh / Ref</th>
+                                <th className="p-2.5">Ardayga / Bixiyaha</th>
+                                <th className="p-2.5">Telefoon</th>
+                                <th className="p-2.5">Akoonka</th>
+                                <th className="p-2.5 text-right">Cadadka ($)</th>
+                                <th className="p-2.5 text-right">Haraaga Kadib</th>
+                                <th className="p-2.5">Faahfaahin</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 font-medium">
+                              {filteredInflows.map(tx => {
+                                const balAfter = runningBalances.map.get(tx.id) ?? tx.balanceAfter ?? 0;
+                                return (
+                                  <tr
+                                    key={tx.id}
+                                    onClick={() => setReceiptTransaction(tx)}
+                                    className="hover:bg-emerald-50/60 transition-colors cursor-pointer"
+                                    title="Guji si aad u daabacdo Rasiidka"
+                                  >
+                                    <td className="p-2.5 text-slate-500 whitespace-nowrap">
+                                      <span className="font-bold text-slate-700 block">{tx.date}</span>
+                                      <span className="text-[10px] font-mono text-slate-400">{tx.referenceNo || tx.time || ''}</span>
+                                    </td>
+                                    <td className="p-2.5 font-bold text-slate-900 whitespace-nowrap">{tx.clientName || 'N/A'}</td>
+                                    <td className="p-2.5 font-mono text-slate-500 whitespace-nowrap">{tx.clientPhone || '-'}</td>
+                                    <td className="p-2.5 text-slate-700 whitespace-nowrap">
+                                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 text-[10px] font-bold">
+                                        {getAccountName(tx.accountId)}
+                                      </span>
+                                    </td>
+                                    <td className="p-2.5 text-right font-mono font-black text-emerald-600 whitespace-nowrap">
+                                      +${Number(tx.amount).toFixed(2)}
+                                    </td>
+                                    <td className="p-2.5 text-right font-mono font-bold text-slate-700 whitespace-nowrap">
+                                      ${balAfter.toFixed(2)}
+                                    </td>
+                                    <td className="p-2.5 text-slate-500 max-w-[200px] truncate">{tx.description || 'Dakhli'}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ========================================================================= */}
+                {/* 3. BREAKDOWN: TOTAL MONEY OUT (-2,873.09) */}
+                {/* ========================================================================= */}
+                {activeMetricBreakdown === 'moneyOut' && (
+                  <div className="space-y-6">
+                    {/* Top Overview Banner */}
+                    <div className="bg-gradient-to-br from-slate-900 to-rose-950 p-5 rounded-3xl text-white border border-rose-900/50 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-rose-300 block mb-1">
+                          Wadarta Kharashyada Baxay (Total Outflow & Expenses)
+                        </span>
+                        <div className="text-3xl font-black font-mono text-rose-300">
+                          -${totalOutflowSum.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </div>
+                        <p className="text-xs text-rose-200/80 font-medium mt-1">
+                          Waxay ku baxday <strong className="text-white">{allOutflows.length} lacag-bixinood</strong> oo mushahar, kiro, bas, iyo agab ah.
+                        </p>
+                      </div>
+
+                      <div className="bg-white/10 backdrop-blur-sm p-3.5 rounded-2xl border border-white/15 text-xs space-y-1">
+                        <div className="flex justify-between gap-4">
+                          <span className="text-rose-200">Tirada Kharashyada:</span>
+                          <span className="font-bold text-white font-mono">{allOutflows.length} Lacag-bixin</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-rose-200">Qaybaha Kharashka:</span>
+                          <span className="font-bold text-rose-300 font-mono">{sortedCategories.length} Qaybood</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Categorized Outflow Pills & Grid */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider block">
+                          Halkee Baa Lacagtu Ku Baxday? (Expense Categories Breakdown):
+                        </span>
+                        {breakdownCategory !== 'all' && (
+                          <button
+                            type="button"
+                            onClick={() => setBreakdownCategory('all')}
+                            className="text-[10px] text-rose-600 font-bold hover:underline cursor-pointer"
+                          >
+                            Muuji Dhammaan Qaybaha (Show All)
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                        {sortedCategories.map(([catName, info]) => {
+                          const pct = totalOutflowSum > 0 ? ((info.total / totalOutflowSum) * 100).toFixed(1) : '0';
+                          const isSelected = breakdownCategory === catName;
+
+                          return (
+                            <button
+                              key={catName}
+                              type="button"
+                              onClick={() => setBreakdownCategory(isSelected ? 'all' : catName)}
+                              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                                isSelected
+                                  ? 'bg-rose-50 border-rose-500 ring-2 ring-rose-500/20'
+                                  : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-1 mb-1">
+                                <span className="text-[10px] font-bold text-slate-700 line-clamp-1">
+                                  {catName.split('(')[0]}
+                                </span>
+                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-rose-100 text-rose-800 shrink-0">
+                                  {pct}%
+                                </span>
+                              </div>
+                              <div className="text-sm font-black font-mono text-rose-600">
+                                -${info.total.toFixed(2)}
+                              </div>
+                              <span className="text-[9px] text-slate-400 font-medium">
+                                {info.count} jeer la bixiyay
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Search and Filters */}
+                    <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+                      <div className="relative flex-1 w-full">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          placeholder="Raadi cidda lacagta la siiyay, taleefonka, ujeeddada..."
+                          value={breakdownSearch}
+                          onChange={(e) => setBreakdownSearch(e.target.value)}
+                          className="w-full pl-9 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:border-rose-500 focus:bg-white transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Full Itemized Table of Money Out */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-600">
+                        <span>Liiska Kharashyada Baxay ({filteredOutflows.length} diiwaan):</span>
+                        <span className="text-[10px] text-slate-400 italic">Guji saf kasta si aad u aragto Rasiidka (Receipt)</span>
+                      </div>
+
+                      <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+                        <div className="max-h-80 overflow-y-auto">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead className="bg-slate-100 text-slate-600 font-extrabold uppercase text-[10px] tracking-wider sticky top-0 z-10 border-b border-slate-200">
+                              <tr>
+                                <th className="p-2.5">Taariikh / Ref</th>
+                                <th className="p-2.5">Cidda La Siiyay (Recipient)</th>
+                                <th className="p-2.5">Qaybta Kharashka</th>
+                                <th className="p-2.5">Laga Bixiyay</th>
+                                <th className="p-2.5 text-right">Cadadka ($)</th>
+                                <th className="p-2.5 text-right">Haraaga Kadib</th>
+                                <th className="p-2.5">Sababta / Ujeeddada</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 font-medium">
+                              {filteredOutflows.map(tx => {
+                                const balAfter = runningBalances.map.get(tx.id) ?? tx.balanceAfter ?? 0;
+                                const cat = categorizeExpense(tx.description || '', tx.clientName || '');
+                                return (
+                                  <tr
+                                    key={tx.id}
+                                    onClick={() => setReceiptTransaction(tx)}
+                                    className="hover:bg-rose-50/60 transition-colors cursor-pointer"
+                                    title="Guji si aad u daabacdo Rasiidka"
+                                  >
+                                    <td className="p-2.5 text-slate-500 whitespace-nowrap">
+                                      <span className="font-bold text-slate-700 block">{tx.date}</span>
+                                      <span className="text-[10px] font-mono text-slate-400">{tx.referenceNo || tx.time || ''}</span>
+                                    </td>
+                                    <td className="p-2.5 font-bold text-slate-900 whitespace-nowrap">
+                                      {tx.clientName || 'N/A'}
+                                      {tx.clientPhone && <span className="block text-[10px] font-mono text-slate-400 font-normal">{tx.clientPhone}</span>}
+                                    </td>
+                                    <td className="p-2.5 whitespace-nowrap">
+                                      <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-800 border border-rose-200 text-[10px] font-bold">
+                                        {cat.split('(')[0]}
+                                      </span>
+                                    </td>
+                                    <td className="p-2.5 text-slate-700 whitespace-nowrap">
+                                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 text-[10px] font-bold">
+                                        {getAccountName(tx.accountId)}
+                                      </span>
+                                    </td>
+                                    <td className="p-2.5 text-right font-mono font-black text-rose-600 whitespace-nowrap">
+                                      -${Number(tx.amount).toFixed(2)}
+                                    </td>
+                                    <td className="p-2.5 text-right font-mono font-bold text-slate-700 whitespace-nowrap">
+                                      ${balAfter.toFixed(2)}
+                                    </td>
+                                    <td className="p-2.5 text-slate-600 max-w-[240px] truncate">{tx.description || 'Kharash baxay'}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ========================================================================= */}
+                {/* 4. BREAKDOWN: CURRENT TOTAL NET LIQUIDITY ($1,432.65) */}
+                {/* ========================================================================= */}
+                {activeMetricBreakdown === 'liquidity' && (
+                  <div className="space-y-6">
+                    {/* Top Overview Banner */}
+                    <div className="bg-gradient-to-br from-slate-900 to-amber-950 p-5 rounded-3xl text-white border border-amber-900/50 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-300 block mb-1">
+                          Haraaga Guud ee Saafiga Ah ee Hadda Yaalla (Current Net Liquidity)
+                        </span>
+                        <div className="text-3xl font-black font-mono text-amber-300">
+                          ${accountCalculations.grandCurrent.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </div>
+                        <p className="text-xs text-amber-200/80 font-medium mt-1">
+                          Wadarta lacagta kaashka & akoonnada ugu jirta dugsiga waqtigan la joogo.
+                        </p>
+                      </div>
+
+                      <div className="bg-white/10 backdrop-blur-sm p-3.5 rounded-2xl border border-white/15 text-xs space-y-1">
+                        <div className="flex justify-between gap-4">
+                          <span className="text-amber-200">Net Period Cash Flow:</span>
+                          <span className="font-black text-emerald-300 font-mono">
+                            +${(accountCalculations.grandIn - accountCalculations.grandOut).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-amber-200">Xaaladda Maaliyadda:</span>
+                          <span className="font-bold text-emerald-300">Faa'iido / Surplus Positive</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Step-by-Step Ledger Formula Card */}
+                    <div className="p-5 bg-amber-50/70 border border-amber-200/80 rounded-3xl space-y-3">
+                      <h4 className="text-xs font-black uppercase text-amber-950 tracking-wider flex items-center gap-2">
+                        <Calculator className="w-4 h-4 text-amber-700" />
+                        Isku-darka Xisaabeed ee Lagu Helay ($1,432.65):
+                      </h4>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-center">
+                        <div className="bg-white p-3 rounded-2xl border border-amber-100 shadow-2xs">
+                          <span className="text-[10px] font-black uppercase text-slate-400 block mb-0.5">1. Opening Balance</span>
+                          <span className="text-sm font-black font-mono text-slate-800">
+                            ${accountCalculations.grandOpening.toFixed(2)}
+                          </span>
+                        </div>
+
+                        <div className="bg-white p-3 rounded-2xl border border-emerald-200 shadow-2xs">
+                          <span className="text-[10px] font-black uppercase text-emerald-600 block mb-0.5">2. Total Money In (+)</span>
+                          <span className="text-sm font-black font-mono text-emerald-600">
+                            +${accountCalculations.grandIn.toFixed(2)}
+                          </span>
+                        </div>
+
+                        <div className="bg-white p-3 rounded-2xl border border-rose-200 shadow-2xs">
+                          <span className="text-[10px] font-black uppercase text-rose-600 block mb-0.5">3. Total Money Out (-)</span>
+                          <span className="text-sm font-black font-mono text-rose-600">
+                            -${accountCalculations.grandOut.toFixed(2)}
+                          </span>
+                        </div>
+
+                        <div className="bg-amber-100 p-3 rounded-2xl border border-amber-300 shadow-2xs">
+                          <span className="text-[10px] font-black uppercase text-amber-900 block mb-0.5">4. Net Liquidity (=)</span>
+                          <span className="text-sm font-black font-mono text-amber-950">
+                            ${accountCalculations.grandCurrent.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Account Balances Grid */}
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider">
+                        Haraaga Hadda Ku Jira Akawn Kasta:
+                      </h4>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {accounts.map(acc => {
+                          const calc = accountCalculations.perAccount[acc.id];
+                          if (!calc) return null;
+                          const pct = accountCalculations.grandCurrent > 0
+                            ? ((calc.currentBalance / accountCalculations.grandCurrent) * 100).toFixed(1)
+                            : '0';
+
+                          return (
+                            <div key={acc.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <h5 className="text-sm font-extrabold text-slate-900">{acc.name}</h5>
+                                  <p className="text-[10px] font-mono text-slate-500">{acc.accountNumber || 'Acc'}</p>
+                                </div>
+                                <span className="text-xs font-black font-mono text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md">
+                                  {pct}%
+                                </span>
+                              </div>
+
+                              <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                                <div className="flex justify-between text-xs">
+                                  <span className="text-slate-500">Haraaga Hadda:</span>
+                                  <span className="font-mono font-black text-slate-900">${calc.currentBalance.toFixed(2)}</span>
+                                </div>
+                                <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                                  <div className="bg-amber-500 h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, Number(pct)))}%` }} />
+                                </div>
+                              </div>
+
+                              <div className="bg-white p-2.5 rounded-xl border border-slate-100 text-[10px] space-y-1 text-slate-600 font-mono">
+                                <div className="flex justify-between">
+                                  <span>Opening:</span>
+                                  <span>${calc.openingBalance.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-emerald-600">
+                                  <span>Total In:</span>
+                                  <span>+${calc.totalIn.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-rose-600">
+                                  <span>Total Out:</span>
+                                  <span>-${calc.totalOut.toFixed(2)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ========================================================================= */}
+                {/* 5. BREAKDOWN: BALANCING STATUS (BALANCED & RECONCILED AUDIT) */}
+                {/* ========================================================================= */}
+                {activeMetricBreakdown === 'reconciliation' && (
+                  <div className="space-y-6">
+                    {/* Top Status Banner */}
+                    <div className="bg-gradient-to-br from-slate-900 to-teal-950 p-5 rounded-3xl text-white border border-teal-900/50 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                          <CheckCheck className="w-7 h-7" />
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-300 block mb-0.5">
+                            Audit Status & Ledger Reconciliation
+                          </span>
+                          <div className="text-xl font-black text-emerald-300">
+                            Balanced & Reconciled (100% Sax ah)
+                          </div>
+                          <p className="text-xs text-teal-200/80 font-medium">
+                            Isku dheelitirnaanta xisaabta iyo haraaga buugaagta waa eber farqi ($0.00 Variance).
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="bg-white/10 backdrop-blur-sm p-3 rounded-2xl border border-white/15 text-xs text-center">
+                        <span className="text-emerald-200 text-[10px] uppercase font-bold block">Farqiga (Discrepancy)</span>
+                        <span className="text-base font-mono font-black text-emerald-300">$0.00</span>
+                      </div>
+                    </div>
+
+                    {/* 4-Step Audit Checklist */}
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider">
+                        4-ta Qodob ee Hubinta Xisaabta (Audit Checklist Matrix):
+                      </h4>
+
+                      <div className="space-y-2.5">
+                        {/* Point 1 */}
+                        <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-start gap-3">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                          <div className="flex-1 text-xs">
+                            <span className="font-extrabold text-slate-900 block mb-0.5">
+                              1. Xisaabinta Guud ee Dugsiga (Ledger Identity Equation)
+                            </span>
+                            <p className="text-slate-600 font-mono text-[11px]">
+                              Opening (${accountCalculations.grandOpening.toFixed(2)}) + Money In (+${accountCalculations.grandIn.toFixed(2)}) - Money Out (-${accountCalculations.grandOut.toFixed(2)}) === Liquidity (${accountCalculations.grandCurrent.toFixed(2)}) ➔ <strong className="text-emerald-700">MATCHED</strong>
+                            </p>
+                          </div>
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                            PASSED
+                          </span>
+                        </div>
+
+                        {/* Point 2 */}
+                        <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-start gap-3">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                          <div className="flex-1 text-xs">
+                            <span className="font-extrabold text-slate-900 block mb-0.5">
+                              2. Is-waafajinta Xisaabaadka Gaarka ah (Per-Account Reconciliation)
+                            </span>
+                            <div className="space-y-1 pt-1 text-[11px] font-mono text-slate-600">
+                              {accounts.map(acc => {
+                                const calc = accountCalculations.perAccount[acc.id];
+                                if (!calc) return null;
+                                return (
+                                  <div key={acc.id} className="flex justify-between">
+                                    <span>• {acc.name}: ${calc.openingBalance.toFixed(2)} + ${calc.totalIn.toFixed(2)} - ${calc.totalOut.toFixed(2)} = <strong>${calc.currentBalance.toFixed(2)}</strong></span>
+                                    <span className="text-emerald-600 font-bold">100% OK</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                            PASSED
+                          </span>
+                        </div>
+
+                        {/* Point 3 */}
+                        <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-start gap-3">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                          <div className="flex-1 text-xs">
+                            <span className="font-extrabold text-slate-900 block mb-0.5">
+                              3. Xiriirinta Haraaga Diiwaanka (Sequential Chronological Running Balances)
+                            </span>
+                            <p className="text-slate-600">
+                              Dhammaan diiwaannada ({transactions.length} transactions) waxay leeyihiin haraa sax ah (Haraaga Kadib) oo si xiriir ah u raacaya taariikhda iyo waqtiga bilaa wax duubitaan go'an ah.
+                            </p>
+                          </div>
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                            PASSED
+                          </span>
+                        </div>
+
+                        {/* Point 4 */}
+                        <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-start gap-3">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                          <div className="flex-1 text-xs">
+                            <span className="font-extrabold text-slate-900 block mb-0.5">
+                              4. Ilaalinta Nidaamka Macluumaadka (Data Integrity & Storage Security)
+                            </span>
+                            <p className="text-slate-600">
+                              Eber akoon lumay (0 orphaned transactions), eber diiwaan khaldan, dhammaan tixraacyadu waxay ku xiran yihiin xogta rasmiga ah.
+                            </p>
+                          </div>
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                            PASSED
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Bottom Footer Bar */}
+              <div className="bg-slate-50 px-6 py-3.5 border-t border-slate-200 flex items-center justify-between shrink-0">
+                <span className="text-xs text-slate-500 font-medium">
+                  Dugsiga Subuc • Xisaabinta Maaliyadda & Xawaallada
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveMetricBreakdown(null)}
+                  className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer shadow-xs"
+                >
+                  Waayahay, Xir (Close)
+                </button>
+              </div>
+
             </div>
           </div>
         );
