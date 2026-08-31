@@ -5405,7 +5405,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       s.registrationDate || '2026-05-15'
     ]);
 
-    const csvContent = "ï»¿" + [
+    const csvContent = "" + [
       headers.join(","),
       ...rows.map(row => row.map(val => {
         const cell = val === null || val === undefined ? '' : String(val);
@@ -5529,7 +5529,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
   </body>
   </html>`;
 
-    const blob = new Blob(['ï»¿' + html], { type: 'application/msword;charset=utf-8;' });
+    const blob = new Blob(['' + html], { type: 'application/msword;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
@@ -9708,7 +9708,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                               (l.longitude || 0).toFixed(5)
                             ].join(',');
                           });
-                          const csvContent = "data:text/csv;charset=utf-8,ï»¿" + [headers.join(','), ...rows].join('\n');
+                          const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join('\n');
                           const encodedUri = encodeURI(csvContent);
                           const link = document.createElement("a");
                           link.setAttribute("href", encodedUri);
@@ -9781,7 +9781,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                             </body>
                             </html>`;
 
-                          const blob = new Blob(['ï»¿' + htmlContent], { type: 'application/msword' });
+                          const blob = new Blob(['' + htmlContent], { type: 'application/msword' });
                           const url = URL.createObjectURL(blob);
                           const a = document.createElement('a');
                           a.href = url;
@@ -10672,9 +10672,9 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                       {showPayReportStudentSuggestions && (
                         <div className="absolute left-0 right-0 mt-1.5 max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1.5 scrollbar-thin">
                           {filteredPayReportStudents.length === 0 ? (
-                            <div className="px-3.5 py-2 text-xs text-slate-400 font-semibold italixœì=isÛ8²ßß¯Àø¥by7’Ä™Œ×ö”ÏŒw'9›lÍ›Ú@",qL‘
-ØZ¯ÿûC 	’ êğ‘‰j7cQÄÕènô…î>ŠÉuÜî?&áÒîY€F8î]€¢8qèã]‰ïl¯:î×İÿAÚÏ
-ÚB-Ãï]¸„8ïğä=aÜ#t"Ïí“ÖÚ3ôj¥3ÂãV„vvÑ±3„úÅÈ†AD|´ƒ¢ë 4.pâü­¦¯ÄIè×Ì>Û½$¿ö=„.Édç¦tkñr<“%Ş÷’Åûÿ&H"r\ù;7­pñODâ2øOœLs¥FÚº‡ıá?NhO>û¾ºÃàªÒ_2(véş¶.°Ùuwkç¾‡£èŒÎpçæóUû"ñ<ÿ¹ˆÑøºı¼³‰Æ“öz¡ağ•„[½A;òpLÚëkkèÂ#×ÈÉ(dƒşHèl/&í‰¯EÅ8Ä~äÂÚıÀÂ=±Û™FËtL×wÜAĞŞ\ãÓ_„9~Üî³L©n™ıÊ'˜ı8"›Œ–m ÷¹r&ÂO?Û”AH ^bp‚ K6=Ğ>¢1öÀZèòB«åpøm}½³9¾ş}i÷†£Ûíö*´›rÑçíI|‘A2ğ6%eô_t -·ıõÑ`üZ6š~n2\xúmIÿRôCÕ!ûWF—kkKhu·~G·W9·©›Kíİ®˜ı4ŒpĞ´Ó¶Q¼/Ş­<¿Yı:†$r¿4Éˆ	Úë­¢×aŒÑq M÷pˆş²ªèØ„å(m±¿ÃàÊÌ"xÜ~Æq{õ‚Ğ!a;NÿÈ9Í(no,!×ÙY
+                            <div className="px-3.5 py-2 text-xs text-slate-400 font-semibold italic text-centexœì=isÛ8²ßß¯Àø¥by7’Ä™Œ×ö”ÏŒw'9›lÍ›Ú@",qL‘
+ØZ¯ÿûC 	’ êğ‘‰j7cQÄÕènô…îpi÷,@#÷‡®?@Qœ8Ä#t$¾³½ê¸_wÿi?+hµ¿#táz1	‰óOŞ“qÆ]1B'òÜ>i­=C¯V:#<nEhgİ;C¨øQŒÜè`DÄG;(ê¸ÚÙÙAãÒ 'Îßjú
+Iœ„~Íüá³İKâ8ğkßCè’Lvn`J·/Ç“1ÙYâ}/Y¼øo‚$"‡Á•¿sÓZ±ÿD$.ƒÿÄiÁ4Wê`¤í KpØş#!á„öäã±ï«;®*ı%ƒ‰b—îoë{‘]w·6pî{8ŠÎèwn>_µ/ÏC1¹Û¹ˆÑøºı¼³‰Æ“öz¡ağ•„[½A;òpLÚëkkèÂ#×ÈÉ(j÷élIˆşHèl/&í‰¯EÅ8Ä~äÂÚıÀÂ=±Û™FËtL×wÜAĞŞ\ãÓ_„9~Üî³L©n™ıÊ'˜ı8"›Œ–m ÷¹r&ÂO?Û”AH ^bp‚ K6=Ğ>¢1öÀZèòB«åpøm}½³9¾ş}i÷†£Ûíö*´›rÑçíI|‘A2ğ6%eô_t -·ıõÑ`üZ6š~n2\xúmIÿRôCÕ!ûWF—kkKhu·~G·W9·©›Kíİ®˜ı4ŒpĞ´Ó¶Q¼/Ş­<¿Yı:†$r¿4Éˆ	Úë­¢×aŒÑq M÷pˆş²ªèØ„å(m±¿ÃàÊÌ"xÜ~Æq{õ‚Ğ!a;NÿÈ9Í(no,!×ÙY
 ŒÚ˜Í´M'§$¨íqÄîy˜"U2“°#l«IOşö•Kç¡às0é4öÚkMAW¨+$tP 6ënHÛ_ÑEév¾Òûî&=‰÷¢ÀKb‚\ßs}Ò]26.¸y²
 qøÊBÉˆ„ØsØ¢ƒ1î»ñ¤ı#¼™bõ«G.Œ%V&¹IiÑ8ñ7öÓ{‚	İ­a{“ØícºFˆ\Ãõl¯Ğ…Ù†S#€Kºjã$ÔHÉøI¤ÙÛşö?]rõ&p“Ó–¯†G–éi§¼¶õì©^³ªÿ€ÊŸ—;7Cì;ª¼ ;ar{qL|û}bb©0Az !â({Ğ	ö€)ç‚{Ç4#É«!¥°“®½LğÈNx±\µGÙ_iŸ«ëk|T2‰t×á¬ÈELw´Ÿ„Q¶ÇËŞ*ï³˜uD±PNÒY[ÿÁn%é³µÎO?ınnìÆËáÖÿ&ƒÈànÒKú\Ş‹şOßÒt.m§[T<_P"|§Ÿ¡é£tN¡l8›Ò£ñ.‘Kñ©HÒá@¢Ô‚½–Y~QŠÚJÉé™ñÕ(Æa|HYê–à#İô¹¥¹Õÿjn“íNÚŠÉN]âÆ1mo¢ƒ‰Üø	÷“LoüÑ«©îS—‘F
 ÑQ“kˆ€Q[Pˆîwõ/`#PÂÔpï'ãF¸çgçæAW‰“©Ê&´Ôœ#¢í8IÒåm¥’Ğ‹µG}º,öŒø{„TèzÇÄœ0s‡LJ«ò˜YŞó¼Ú™	€e3+Cò¡Kfò}Ì´:ãY%vn!ÇÕC9ª6í_<ŞáÉˆöğûr~·ª]?“MèØƒ¥‡”,Ù£)©áûQVù,Xİy(ÚÎ¼z¦lÌñ?úw`©hÂî0«Î‚´*L¿Ÿeì,;v}ª#¸ØC|'ç¨©v]cZW>V<¬<*= cfƒ¾İn£îù‡Ã£³s´w~~tv¸wvp„Î÷öÙO²İı†ïÌ9îTÅ\›Z‰|J—Í›Å0Ò´_¢Ô˜|Òv}nÅ ÓcBôÛÆYÇ%Cf¹[ŠöÏÇ´ç×ŸSdçfüª5_ w4BéŒ^Tl¥ö¦Yú·…ƒAL¢WÍ¸§O@iK>¯sËå|»TK»‚cì_b´:xâ`Ô¼	å[HQ}àFq8YÙ^>·tläÎŒ”»Œbî˜ø„¿¸î.úCóÑŸ!ã¡ëÀ_î‚¾Pr£;3ÄôoL¹Gv˜é¼2	‘¨ö¬ê7Q;l'kı™Z:u‡”ˆ¯c´ƒÄ'!\ün2áPœ- úSºê3ácÜÃ×<´ç”n‘O®Ğ>ı³õÅïÏĞ[œğ\¯=ìúëqHõ$¾h¿Z¦§“¹ç$ôhÇŞŸvú!¡|Ûûƒjqô{Æ¬iŒiS'è' ˆöGo­e¼¬mŒ;Ã\Ğ¶tpı;N*­í Ï97ùwÄáüï'7Xo; Ÿõ}õa[š	i"J'7œÛ/æ$ukÏåô ÎyœñHV¡³Æ6ì+¤^ÙÊãNwvšN¼^=]Á?À«£ö:°èüëÎ‘›°\÷ˆW8r¼ ™Æ@¬±is$®¸I÷Tã×¥Ø?êÁ^-ícºîå˜2 #å¾lHåd\œ¨…Î§(C j.õ{	Ù)`½›A §ìŒdB~Ş¨E:Tì¸Ã:Ô¯2òçá<Ipİ\SĞdFÜ—À‚nÄŒüÀ'BÂT-_¡†cä^ĞàGØ£Gd‹±v#DÌTf±Ë¬«ÆÛÌZ=ü}™chÂaµDU»¥İÃ!¦\
@@ -10720,4 +10720,5 @@ O\Şeß'Yíä:ÆG{BÄ­ëC]×!™D8xLg\¥E_¡lã¡¨bn@Ô>„æxÜ@ë8<:;oèÀÊB„šÉqj"(¿»
 „}Î2jU:,¾¸bÑ¿ë,¬÷–lDgÕ¤ïÓjÚãnÉÎ‘Z%#n¤>	áJñG›&DK;sÊt“ç‡Uê$?¦–p1Ö’CİÊ$’’Geª‹,•÷'{KæÖé‡Â€Ê"PÚË¬:Núœ%§IX™eXÆ¿LºÙ•åõ&P³Ch`u#šø|L†MÆçtb1;l#Ÿíürô¾¡`œE77ŒÕ=wN‡Ü™u-Mç‡
 -y±è&æ‡¢¦«¹ \ç5{,îÜl`éÍ·9F)ñ±”R5ö“Aßp_v]ƒYGÁ°É…Ç90MúËÓÙGTÙ€vöONO¡2u#ÒI£µK9©©@9©ÏŠv˜{é›£æ®ºy:é€¢à	äJš‰¤T¹ä…T>+œ |UXA§tğ•ºùœZe‹6YŞ=àk1ÚX‚„ÓKègTLRÍÜğ[âaf#\ºı|»+õ0=<Å>í}ÜÛ;İ;ÜkÆ òÈúÅ²ˆb|zQŒœ±£oñ¥‹ê³|É$¼&AGc†º³ va”¾ô¯™9Eİªe"£O‡ä¹ß»Ä†ÜçB:Šw
 Ïò+ÇAÏ%¡Ë}—V*çÃÃLHuOu•¹†‡ÁH Óx/ï.ëüÆÂsÎ¿€•ô¯nÍÕ%^;rÏ3RêÚâ™q|º•á†#Êÿ´7{$@İèÎ’öA%yP÷ËÃr·Z%;VŸÿšå¡—¿wÜèí˜ÒôƒHO¿øJÌóª²¥öÖZçAèÅĞí™rNé]Ä/é^*Ë¨Òò4ÎUÀ®NìÆ¹åôOª<‹º\I/¥`ÅŠS·8ÜˆDêÅªÇ’°‘RÔ´ Ç{İifÅĞ§ük°e4—A=™©NcÚç¦â
-Å—s:0³Ûü‚ñ3tî†±**FÌ¹øÉÄU,”]ÓQ;á/¥ï¨j(ŞfDeueÖvnÒ¿ä¥şşê(&SM}ãŠ’ı¯"ñ)¥ªü~8¼RL_ê^ o3Œ3Û“'—W 9—-»IzãÈÜ'Ç$¸R9$ÅrEŞÕ¼íªæ¯:è³Úk`-~TYşé[†®¼N[°şÔAç	#Êôò£†¯x+}IgÕ+Öğ¦ì fÿ|$”›Iß™›¨\~ZÎQø÷K/Û}[_ë ı$ªÙ4ú†iÃÊ?ß,ıf•ae½Që ŠxéÇt—	‰Ğ~Hğ%=j	lZö6¼œ½ËàXÚ¿Â›³ì`Í°|ë++—ºMÜ §•Š©Ømµ…âİÚ”Ş›uû´C>òÍÓ®ËvëgÂÚ{È6Šjü½ &ış-•ÅZ3»üTÊ^¡Ğ—³w”"¿8+©è}äû¦_˜-±læ|öÑÍÑ7m¸}mNL®2à#ß7İ²L»Æ ›ª¨tÀÛÿù   ÿÿ –ÍÚ6
+Å—s:0³Ûü‚ñ3tî†±**FÌ¹øÉÄU,”]ÓQ;á/¥ï¨j(ŞfDeueÖvnÒ¿ä¥şşê(&SM}ãŠ’ı¯"ñ)¥ªü~8¼RL_ê^ o3Œ3Û“'—W 9—-»IzãÈÜ'Ç$¸R9$ÅrEŞÕ¼íªæ¯:è³Úk`-~TYşé[†®¼N[°şÔAç	#Êôò£†¯x+}IgÕ+Öğ¦ì fÿ|$”›Iß™›¨\~ZÎQø÷K/Û}[_ë ı$ªÙ4ú†iÃÊ?ß,ıf•ae½Që ŠxéÇt—	‰Ğ~Hğ%=j	lZö6¼œ½ËàXÚ¿Â›³ì`Í°|ë++—ºMÜ §•Š©Ømµ…âİÚ”Ş›uû´C>òÍÓ®ËvëgÂÚ{È6Šjü½ &ış-•ÅZ3»üTÊ^¡Ğ—³w”"¿8+©è}äû¦_˜-±læ|öÑÍÑ7m¸}mNL®2à#ß7İ²L»Æ ›ª¨tÀÛÿù   ÿÿ 
+ÊÕ²
