@@ -1932,8 +1932,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
 
     setFeedbackMsg(
       makeAdmin
-        ? `ğŸ‘‘ ${teacherName} si guul ah ayaa looga dhigay Maamule (Admin)! Hadda wuxuu geli karaa nidaamka Maamulka.`
-        : `ğŸ›¡ï¸ Doorkii Maamulaha (Admin) waa laga qaaday ${teacherName}. Wuxuu hadda yahay Macallin caadi ah.`
+        ? ` ${teacherName} si guul ah ayaa looga dhigay Maamule (Admin)! Hadda wuxuu geli karaa nidaamka Maamulka.`
+        : `\u1f6e1\ufe0f Doorkii Maamulaha (Admin) waa laga qaaday ${teacherName}. Wuxuu hadda yahay Macallin caadi ah.`
     );
     setTimeout(() => setFeedbackMsg(''), 5000);
   };
@@ -2273,7 +2273,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     });
 
     if (studentScoresList.length < 2) {
-      return { trend: 'No Data', icon: 'â–', diff: 0 };
+      return { trend: 'No Data', icon: '\u2796', diff: 0 };
     }
 
     const latest = studentScoresList[studentScoresList.length - 1];
@@ -2281,11 +2281,11 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     const diff = latest - previous;
 
     if (diff > 1) {
-      return { trend: 'Improving', icon: 'ğŸ“ˆ', diff };
+      return { trend: 'Improving', icon: '\u1f4c8', diff };
     } else if (diff < -1) {
-      return { trend: 'Declining', icon: 'ğŸ“‰', diff };
+      return { trend: 'Declining', icon: '\u1f4c9', diff };
     } else {
-      return { trend: 'Stable', icon: 'â–', diff };
+      return { trend: 'Stable', icon: '\u2796', diff };
     }
   };
 
@@ -4392,7 +4392,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       doc.setTextColor(51, 65, 85);
       let scoreX = 85;
       maxSub.forEach(sub => {
-        const val = sc.scores[sub] !== undefined ? `${sc.scores[sub]}%` : "â€”";
+        const val = sc.scores[sub] !== undefined ? `${sc.scores[sub]}%` : "-";
         doc.text(val, scoreX, currentY + 5);
         scoreX += 18;
       });
@@ -5817,7 +5817,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       title: "Waafaqidda dib u soo celinta Backup-ka",
       message: `Ma hubtaa inaad rabto inaad dib u soo celiso backup-kan (${previewBackupData.sourceName})? Tani waxay gabi ahaanba beddeli doontaa xogta hadda ee live-ka ah ku dhowaad ${previewBackupData.state.students?.length || 0} arday. (Are you sure you want to restore this backup snapshot to your live database?)`,
       accentColor: 'teal',
-      confirmText: 'Haa, Dib U Soo Celi Now ğŸ”„',
+      confirmText: 'Haa, Dib U Soo Celi Now \u1f504',
       onConfirm: async () => {
         setConfirmModal(null);
         setFeedbackMsg("Xogta dib ayaa loo soo celinayaa, fadlan sug... (Restoring backup state...)");
@@ -6257,7 +6257,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
             />
             <div className="flex flex-col">
               <span className="font-extrabold text-white text-base tracking-tight leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Dugsiga Subuc</span>
-              <span className="text-[10px] font-medium text-emerald-400 mt-1.5 leading-none font-mono">Ù…Ø¯Ø±Ø³Ø© Ø§Ù„Ø³Ø¨Ø¹</span>
+              <span className="text-[10px] font-medium text-emerald-400 mt-1.5 leading-none font-mono">\u0645\u062f\u0631\u0633\u0629 \u0627\u0644\u0633\u0628\u0639</span>
             </div>
           </div>
           
@@ -6611,7 +6611,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                     <span className="text-[9px] font-bold text-slate-400">
                                       by {n.senderName} ({n.senderRole})
                                     </span>
-                                    <span className="text-[9px] font-mono text-slate-400">â€¢</span>
+                                    <span className="text-[9px] font-mono text-slate-400">*</span>
                                     <span className="text-[9px] font-medium text-slate-400">
                                       {timeAgo(n.timestamp)}
                                     </span>
@@ -6701,9 +6701,9 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   </div>
                   <div>
                     <h4 className="text-sm font-black uppercase tracking-wider flex items-center gap-2 text-emerald-900">
-                      Cloud Backup System Active â­â­â­â­â­
+                      Cloud Backup System Active *****
                       <span className="text-[10px] bg-emerald-200 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
-                        âœ“ Protected (Toos u Shaqaynaya)
+                        [v] Protected (Toos u Shaqaynaya)
                       </span>
                     </h4>
                     <p className="text-xs text-emerald-700/85 mt-0.5 leading-relaxed">
@@ -6716,7 +6716,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   onClick={() => setActiveTab('backup')}
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all self-start sm:self-center cursor-pointer"
                 >
-                  Manage Backups ğŸ“
+                  Manage Backups \u1f4c1
                 </button>
               </div>
             </div>
@@ -6767,7 +6767,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 <div>
                   <p className="text-slate-500 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                     Active Students
-                    <span className="text-[10px] text-emerald-700 font-extrabold bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md group-hover:bg-emerald-600 group-hover:text-white transition-colors">Kormeer ğŸ”</span>
+                    <span className="text-[10px] text-emerald-700 font-extrabold bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md group-hover:bg-emerald-600 group-hover:text-white transition-colors">Kormeer </span>
                   </p>
                   <p className="text-2xl lg:text-3xl font-black text-slate-900 mt-2 group-hover:text-emerald-700 transition-colors">{activeStudents.length}</p>
                   <p className="text-[11px] text-slate-400 mt-1 font-medium">Ardayda diiwaangashan</p>
@@ -6795,11 +6795,11 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 <div>
                   <p className="text-slate-500 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                     Parents (Waalidiinta)
-                    <span className="text-[10px] text-indigo-700 font-extrabold bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-md group-hover:bg-indigo-600 group-hover:text-white transition-colors">Xogta ğŸ”</span>
+                    <span className="text-[10px] text-indigo-700 font-extrabold bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-md group-hover:bg-indigo-600 group-hover:text-white transition-colors">Xogta </span>
                   </p>
                   <p className="text-2xl lg:text-3xl font-black text-indigo-700 mt-2 group-hover:text-indigo-900 transition-colors">{allParentsWithStatus.length}</p>
                   <p className="text-[11px] text-slate-400 mt-1 font-medium">
-                    <strong className="text-emerald-600 font-bold">{allParentsWithStatus.filter(p => p.status === 'Active').length} Active</strong> â€¢ {allParentsWithStatus.filter(p => p.status === 'Suspended').length} Suspended
+                    <strong className="text-emerald-600 font-bold">{allParentsWithStatus.filter(p => p.status === 'Active').length} Active</strong> * {allParentsWithStatus.filter(p => p.status === 'Suspended').length} Suspended
                   </p>
                 </div>
                 <div className="p-3.5 bg-indigo-50 text-indigo-600 rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-colors shrink-0 shadow-xs">
@@ -6820,7 +6820,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 <div>
                   <p className="text-slate-500 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                     Teachers (Macallimiinta)
-                    <span className="text-[10px] text-violet-700 font-extrabold bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded-md group-hover:bg-violet-600 group-hover:text-white transition-colors">Aad â¡ï¸</span>
+                    <span className="text-[10px] text-violet-700 font-extrabold bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded-md group-hover:bg-violet-600 group-hover:text-white transition-colors">Aad &rarr;</span>
                   </p>
                   <p className="text-2xl lg:text-3xl font-black text-violet-700 mt-2 group-hover:text-violet-900 transition-colors">{(database.teachers || []).length}</p>
                   <p className="text-[11px] text-slate-400 mt-1 font-medium">Macallimiinta dugsiga</p>
@@ -6843,7 +6843,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 <div>
                   <p className="text-slate-500 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                     Classes (Fasallada)
-                    <span className="text-[10px] text-amber-700 font-extrabold bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md group-hover:bg-amber-600 group-hover:text-white transition-colors">Aad â¡ï¸</span>
+                    <span className="text-[10px] text-amber-700 font-extrabold bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md group-hover:bg-amber-600 group-hover:text-white transition-colors">Aad &rarr;</span>
                   </p>
                   <p className="text-2xl lg:text-3xl font-black text-amber-700 mt-2 group-hover:text-amber-900 transition-colors">{(database.classes || []).length}</p>
                   <p className="text-[11px] text-slate-400 mt-1 font-medium">Fasallada shaqaynaya</p>
@@ -6866,7 +6866,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 <div>
                   <p className="text-slate-500 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                     Tuition Invoiced
-                    <span className="text-[10px] text-emerald-700 font-extrabold bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md group-hover:bg-emerald-600 group-hover:text-white transition-colors">Details ğŸ”</span>
+                    <span className="text-[10px] text-emerald-700 font-extrabold bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md group-hover:bg-emerald-600 group-hover:text-white transition-colors">Details </span>
                   </p>
                   <p className="text-2xl lg:text-3xl font-black text-emerald-700 mt-2 font-mono">${Number(currentMonthTuitionInvoiced).toFixed(2)}</p>
                   <p className="text-[11px] text-slate-400 mt-1 font-medium">Lacagta waxbarashada ({currentMonthName})</p>
@@ -6889,7 +6889,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 <div>
                   <p className="text-slate-500 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                     Bus Invoiced
-                    <span className="text-[10px] text-sky-700 font-extrabold bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-md group-hover:bg-sky-600 group-hover:text-white transition-colors">Details ğŸ”</span>
+                    <span className="text-[10px] text-sky-700 font-extrabold bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-md group-hover:bg-sky-600 group-hover:text-white transition-colors">Details </span>
                   </p>
                   <p className="text-2xl lg:text-3xl font-black text-sky-700 mt-2 font-mono">${Number(currentMonthBusInvoiced).toFixed(2)}</p>
                   <p className="text-[11px] text-slate-400 mt-1 font-medium">Fiiga baska ({currentMonthName})</p>
@@ -6912,7 +6912,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 <div>
                   <p className="text-slate-500 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                     Collected Fees
-                    <span className="text-[10px] text-teal-700 font-extrabold bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded-md group-hover:bg-teal-600 group-hover:text-white transition-colors">Details ğŸ”</span>
+                    <span className="text-[10px] text-teal-700 font-extrabold bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded-md group-hover:bg-teal-600 group-hover:text-white transition-colors">Details </span>
                   </p>
                   <p className="text-2xl lg:text-3xl font-black text-teal-700 mt-2 font-mono">${Number(currentMonthPaidAmount).toFixed(2)}</p>
                   <p className="text-[11px] text-slate-400 mt-1 font-medium">Wadarta la qabtay ({currentMonthName})</p>
@@ -6935,7 +6935,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                 <div>
                   <p className="text-slate-500 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                     Pending Balance
-                    <span className="text-[10px] text-rose-700 font-extrabold bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-md group-hover:bg-rose-600 group-hover:text-white transition-colors">Unpaid ğŸ”</span>
+                    <span className="text-[10px] text-rose-700 font-extrabold bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-md group-hover:bg-rose-600 group-hover:text-white transition-colors">Unpaid </span>
                   </p>
                   <p className="text-2xl lg:text-3xl font-black text-rose-600 mt-2 font-mono">${Number(currentMonthUnpaidAmount).toFixed(2)}</p>
                   <p className="text-[11px] text-slate-400 mt-1 font-medium">Lacagaha dhiman ({currentMonthName})</p>
@@ -6991,7 +6991,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                     <p className="text-2xl font-black text-slate-900 mt-1">${Number(currentMonthTuitionInvoiced).toFixed(2)}</p>
                     <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
                       Total expected student dues
-                      <span className="text-[9px] text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-emerald-50 px-1 rounded-sm">View details ğŸ”</span>
+                      <span className="text-[9px] text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-emerald-50 px-1 rounded-sm">View details </span>
                     </p>
                   </div>
                   <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl group-hover:bg-emerald-600 group-hover:text-white transition-all">
@@ -7007,7 +7007,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   <div>
                     <p className="text-teal-605 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
                       Tuition Collected ({currentMonthName})
-                      <span className="text-[9px] text-teal-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-teal-50 px-1 rounded-sm">View details ğŸ”</span>
+                      <span className="text-[9px] text-teal-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-teal-50 px-1 rounded-sm">View details </span>
                     </p>
                     <p className="text-2xl font-black text-teal-700 mt-1">${Number(currentMonthTuitionCollected).toFixed(2)}</p>
                     <p className="text-[10px] text-slate-400 mt-1">Click to see detail transaction breakdown</p>
@@ -7025,7 +7025,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   <div>
                     <p className="text-rose-605 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
                       Pending Tuition Balance
-                      <span className="text-[9px] text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-rose-50 px-1 rounded-sm">View unpaid ğŸ”</span>
+                      <span className="text-[9px] text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-rose-50 px-1 rounded-sm">View unpaid </span>
                     </p>
                     <p className="text-2xl font-black text-rose-600 mt-1">${Number(currentMonthTuitionPending).toFixed(2)}</p>
                     <p className="text-[10px] text-slate-400 mt-1">Click to see who still didn't pay</p>
@@ -7099,7 +7099,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                     <p className="text-2xl font-black text-slate-900 mt-1">${Number(currentMonthBusInvoiced).toFixed(2)}</p>
                     <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
                       Total expected baska dues
-                      <span className="text-[9px] text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-sky-50 px-1 rounded-sm">View details ğŸ”</span>
+                      <span className="text-[9px] text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-sky-50 px-1 rounded-sm">View details </span>
                     </p>
                   </div>
                   <div className="p-3 bg-sky-50 text-sky-600 rounded-xl group-hover:bg-sky-600 group-hover:text-white transition-all">
@@ -7115,7 +7115,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   <div>
                     <p className="text-teal-605 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
                       Bus Collected ({currentMonthName})
-                      <span className="text-[9px] text-teal-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-teal-50 px-1 rounded-sm">View details ğŸ”</span>
+                      <span className="text-[9px] text-teal-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-teal-50 px-1 rounded-sm">View details </span>
                     </p>
                     <p className="text-2xl font-black text-teal-700 mt-1">${Number(currentMonthBusCollected).toFixed(2)}</p>
                     <p className="text-[10px] text-slate-400 mt-1">Click to see detail transaction breakdown</p>
@@ -7133,7 +7133,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   <div>
                     <p className="text-rose-605 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
                       Pending Bus Balance
-                      <span className="text-[9px] text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-rose-50 px-1 rounded-sm">View unpaid ğŸ”</span>
+                      <span className="text-[9px] text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity font-bold bg-rose-50 px-1 rounded-sm">View unpaid </span>
                     </p>
                     <p className="text-2xl font-black text-rose-600 mt-1">${Number(currentMonthBusPending).toFixed(2)}</p>
                     <p className="text-[10px] text-slate-400 mt-1">Click to see who still didn't pay bus</p>
@@ -7531,8 +7531,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                       className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white outline-none cursor-pointer"
                     >
                       <option value="Both">Both (Morning & Afternoon)</option>
-                      <option value="Morning">Morning Session Only ğŸŒ…</option>
-                      <option value="Afternoon">Afternoon Session Only ğŸŒ™</option>
+                      <option value="Morning">Morning Session Only </option>
+                      <option value="Afternoon">Afternoon Session Only </option>
                     </select>
                   </div>
 
@@ -7663,9 +7663,9 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                         title="Filter students and parents by shift/session"
                       >
                         <option value="All">All Shifts / Waqtiyada</option>
-                        <option value="Morning">Morning Shift (Subax ğŸŒ…)</option>
-                        <option value="Afternoon">Afternoon Shift (Galab ğŸŒ™)</option>
-                        <option value="Both">Both Shifts (Labada Galin â˜€ï¸ğŸŒ™)</option>
+                        <option value="Morning">Morning Shift (Subax )</option>
+                        <option value="Afternoon">Afternoon Shift (Galab )</option>
+                        <option value="Both">Both Shifts (Labada Galin )</option>
                       </select>
 
                       {/* --- DOWNLOAD DIRECTORY MULTI-FORMAT TRIGGER --- */}
@@ -7693,7 +7693,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                 onClick={() => setShowExportDropdown(false)}
                                 className="text-slate-400 hover:text-slate-600 font-bold text-xs p-1"
                               >
-                                âœ•
+                                x
                               </button>
                             </div>
 
@@ -7713,7 +7713,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                   className="py-2 px-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] rounded-xl border border-rose-200/60 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95"
                                   title="Download all students as PDF"
                                 >
-                                  <span className="text-xs">ğŸ“•</span>
+                                  <span className="text-xs">PDF</span>
                                   PDF
                                 </button>
                                 <button
@@ -7725,7 +7725,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                   className="py-2 px-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] rounded-xl border border-emerald-200/60 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95"
                                   title="Download all students as Excel (CSV)"
                                 >
-                                  <span className="text-xs">ğŸ“—</span>
+                                  <span className="text-xs">Excel</span>
                                   Excel
                                 </button>
                                 <button
@@ -7737,7 +7737,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                   className="py-2 px-1 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-[10px] rounded-xl border border-sky-200/60 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95"
                                   title="Download all students as Word"
                                 >
-                                  <span className="text-xs">ğŸ“˜</span>
+                                  <span className="text-xs">Word</span>
                                   Word
                                 </button>
                               </div>
@@ -7778,7 +7778,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                       }}
                                       className="py-2 px-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] rounded-xl border border-rose-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95"
                                     >
-                                      <span className="text-xs">ğŸ“•</span>
+                                      <span className="text-xs">PDF</span>
                                       PDF
                                     </button>
                                     <button
@@ -7790,7 +7790,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                       }}
                                       className="py-2 px-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] rounded-xl border border-emerald-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95"
                                     >
-                                      <span className="text-xs">ğŸ“—</span>
+                                      <span className="text-xs">Excel</span>
                                       Excel
                                     </button>
                                     <button
@@ -7802,14 +7802,14 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                       }}
                                       className="py-2 px-1 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-[10px] rounded-xl border border-sky-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95"
                                     >
-                                      <span className="text-xs">ğŸ“˜</span>
+                                      <span className="text-xs">Word</span>
                                       Word
                                     </button>
                                   </div>
                                 ) : (
                                   <div className="p-2 bg-teal-50/70 border border-teal-100 rounded-xl flex flex-col gap-1">
                                     <div className="text-[10px] font-extrabold text-teal-800">
-                                      âš¡ Deji Dhamaan Fasalada Mid Mid (Export All Classes Separately):
+                                       Deji Dhamaan Fasalada Mid Mid (Export All Classes Separately):
                                     </div>
                                     <div className="grid grid-cols-3 gap-1">
                                       <button
@@ -7820,7 +7820,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                         }}
                                         className="py-1.5 px-1 bg-white hover:bg-rose-50 text-rose-700 font-extrabold text-[9.5px] rounded-lg border border-rose-200 text-center transition-all cursor-pointer"
                                       >
-                                        ğŸ“• All PDF
+                                        PDF All PDF
                                       </button>
                                       <button
                                         type="button"
@@ -7830,7 +7830,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                         }}
                                         className="py-1.5 px-1 bg-white hover:bg-emerald-50 text-emerald-700 font-extrabold text-[9.5px] rounded-lg border border-emerald-200 text-center transition-all cursor-pointer"
                                       >
-                                        ğŸ“— All Excel
+                                        Excel All Excel
                                       </button>
                                       <button
                                         type="button"
@@ -7840,7 +7840,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                         }}
                                         className="py-1.5 px-1 bg-white hover:bg-sky-50 text-sky-700 font-extrabold text-[9.5px] rounded-lg border border-sky-200 text-center transition-all cursor-pointer"
                                       >
-                                        ğŸ“˜ All Word
+                                        Word All Word
                                       </button>
                                     </div>
                                   </div>
@@ -7887,7 +7887,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                         disabled={tchList.length === 0}
                                         className="py-2 px-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] rounded-xl border border-rose-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95 disabled:opacity-40"
                                       >
-                                        <span className="text-xs">ğŸ“•</span>
+                                        <span className="text-xs">PDF</span>
                                         PDF ({tchList.length})
                                       </button>
                                       <button
@@ -7899,7 +7899,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                         disabled={tchList.length === 0}
                                         className="py-2 px-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] rounded-xl border border-emerald-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95 disabled:opacity-40"
                                       >
-                                        <span className="text-xs">ğŸ“—</span>
+                                        <span className="text-xs">Excel</span>
                                         Excel ({tchList.length})
                                       </button>
                                       <button
@@ -7911,7 +7911,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                         disabled={tchList.length === 0}
                                         className="py-2 px-1 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-[10px] rounded-xl border border-sky-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95 disabled:opacity-40"
                                       >
-                                        <span className="text-xs">ğŸ“˜</span>
+                                        <span className="text-xs">Word</span>
                                         Word ({tchList.length})
                                       </button>
                                     </div>
@@ -7937,7 +7937,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                     className="py-2 px-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] rounded-xl border border-rose-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95"
                                     title="Download filtered list as PDF"
                                   >
-                                    <span className="text-xs">ğŸ“•</span>
+                                    <span className="text-xs">PDF</span>
                                     PDF
                                   </button>
                                   <button
@@ -7949,7 +7949,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                     className="py-2 px-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] rounded-xl border border-emerald-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95"
                                     title="Download filtered list as Excel"
                                   >
-                                    <span className="text-xs">ğŸ“—</span>
+                                    <span className="text-xs">Excel</span>
                                     Excel
                                   </button>
                                   <button
@@ -7961,7 +7961,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                     className="py-2 px-1 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-[10px] rounded-xl border border-sky-200 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer active:scale-95"
                                     title="Download filtered list as Word"
                                   >
-                                    <span className="text-xs">ğŸ“˜</span>
+                                    <span className="text-xs">Word</span>
                                     Word
                                   </button>
                                 </div>
@@ -8011,7 +8011,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                           className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
                           title="La soo deg Excel ahaan kuwa la doortay"
                         >
-                          <span>ğŸ“— Excel</span>
+                          <span>Excel Excel</span>
                         </button>
 
                         <button
@@ -8209,7 +8209,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                 <div>${student.monthlyFee}</div>
                                 {student.busFee ? (
                                   <div className="text-[9px] text-indigo-700 font-bold bg-indigo-50 border border-indigo-150 rounded px-1 mt-0.5 inline-block whitespace-nowrap">
-                                    + ${student.busFee} Bus ğŸšŒ
+                                    + ${student.busFee} Bus 
                                   </div>
                                 ) : null}
                               </td>
@@ -8221,7 +8221,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                     className="px-2 py-1.5 rounded-xl text-[10px] bg-sky-50 border border-sky-150 text-sky-700 hover:bg-sky-100 font-extrabold cursor-pointer transition-all shrink-0 flex items-center gap-1"
                                     title="View Student Full Profile Information"
                                   >
-                                    Info â„¹ï¸
+                                    Info 
                                   </button>
                                   <button
                                     type="button"
@@ -8229,7 +8229,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                     className="px-2 py-1.5 rounded-xl text-[10px] bg-rose-50 border border-rose-150 text-rose-700 hover:bg-rose-100 font-extrabold cursor-pointer transition-all shrink-0 flex items-center gap-1"
                                     title="Student Media Hub: Record voice, video or update picture files"
                                   >
-                                    Media ğŸ¥
+                                    Media 
                                   </button>
                                   <button
                                     type="button"
@@ -8244,7 +8244,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                     className="px-2 py-1.5 rounded-xl text-[10px] bg-teal-50 border border-teal-150 text-teal-700 hover:bg-teal-100 font-extrabold cursor-pointer transition-all shrink-0 flex items-center gap-1"
                                     title="Generate Student ID card badge"
                                   >
-                                    Badge ğŸªª
+                                    Badge 
                                   </button>
                                   <button
                                     type="button"
@@ -8370,7 +8370,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                           required
                           value={editTeacherPassword}
                           onChange={(e) => setEditTeacherPassword(e.target.value)}
-                          placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                          placeholder="********"
                           className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none"
                         />
                       </div>
@@ -8524,7 +8524,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                           required
                           value={newTeacherPassword}
                           onChange={(e) => setNewTeacherPassword(e.target.value)}
-                          placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                          placeholder="********"
                           className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-bold text-slate-800 outline-none"
                         />
                       </div>
@@ -8740,7 +8740,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                   className="px-2 py-1 text-[9px] bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold rounded-lg border border-rose-200 transition-colors cursor-pointer disabled:opacity-40"
                                   title={`Soo deji ardayda ${teacher.name} oo PDF ah`}
                                 >
-                                  ğŸ“• PDF
+                                  PDF PDF
                                 </button>
                                 <button
                                   type="button"
@@ -8749,7 +8749,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                   className="px-2 py-1 text-[9px] bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-extrabold rounded-lg border border-emerald-200 transition-colors cursor-pointer disabled:opacity-40"
                                   title={`Soo deji ardayda ${teacher.name} oo Excel ah`}
                                 >
-                                  ğŸ“— Excel
+                                  Excel Excel
                                 </button>
                                 <button
                                   type="button"
@@ -8758,7 +8758,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                   className="px-2 py-1 text-[9px] bg-sky-50 hover:bg-sky-100 text-sky-700 font-extrabold rounded-lg border border-sky-200 transition-colors cursor-pointer disabled:opacity-40"
                                   title={`Soo deji ardayda ${teacher.name} oo Word ah`}
                                 >
-                                  ğŸ“˜ Word
+                                  Word Word
                                 </button>
                               </div>
                             </div>
@@ -8777,7 +8777,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                             title={teacher.isAdmin ? "Ka qaad awoodda Maamulaha (Make regular teacher)" : "Ka dhig Maamule (Make admin with one click)"}
                           >
                             <Crown className="w-3.5 h-3.5" />
-                            {teacher.isAdmin ? 'Ka Qaad Admin' : 'Ka Dhig Admin ğŸ‘‘'}
+                            {teacher.isAdmin ? 'Ka Qaad Admin' : 'Ka Dhig Admin '}
                           </button>
                           <button
                             type="button"
@@ -8792,7 +8792,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                             className="flex-1 sm:flex-initial px-3 py-2 text-[10px] bg-teal-50 hover:bg-teal-600 text-teal-705 hover:text-white font-extrabold uppercase rounded-xl border border-teal-100 shadow-sm transition-all duration-250 flex items-center justify-center gap-1 cursor-pointer"
                             title="Generate printed ID card for this instructor"
                           >
-                            Badge ğŸªª
+                            Badge 
                           </button>
                           <button
                             type="button"
@@ -9305,7 +9305,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
 
                                 {todayLog && (
                                   <div className="text-[10px] text-slate-450 font-mono pt-1.5 border-t border-slate-100 flex items-center gap-1.5">
-                                    <span>ğŸ“ Coordinates:</span>
+                                    <span> Coordinates:</span>
                                     <span className="font-bold">{todayLog.latitude.toFixed(5)}, {todayLog.longitude.toFixed(5)}</span>
                                   </div>
                                 )}
@@ -9573,7 +9573,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                     {matchedLogs.map(log => (
                                       <div key={log.id} className="p-4 space-y-3" id={`report-mobile-card-${log.id}`}>
                                         <div className="flex justify-between items-center">
-                                          <span className="font-extrabold text-slate-900 text-xs">ğŸ“… {log.date}</span>
+                                          <span className="font-extrabold text-slate-900 text-xs"> {log.date}</span>
                                           <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider ${
                                             log.status === 'Present'
                                               ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
@@ -9597,7 +9597,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                         </div>
 
                                         <div className="text-[10px] text-slate-450 font-mono flex items-center gap-1.5 pt-0.5">
-                                          <span>ğŸ“ Coordinates:</span>
+                                          <span> Coordinates:</span>
                                           <span className="font-bold text-slate-600">{log.latitude.toFixed(5)}, {log.longitude.toFixed(5)}</span>
                                         </div>
                                       </div>
@@ -9719,7 +9719,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                         className="flex-1 py-2 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-extrabold text-[10px] rounded-xl border border-emerald-200 transition-colors flex items-center justify-center gap-1 cursor-pointer"
                         title="Soo deji Excel"
                       >
-                        ğŸ“— Excel
+                        Excel Excel
                       </button>
                       <button
                         type="button"
@@ -9793,7 +9793,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                         className="flex-1 py-2 px-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-extrabold text-[10px] rounded-xl border border-sky-200 transition-colors flex items-center justify-center gap-1 cursor-pointer"
                         title="Soo deji Word"
                       >
-                        ğŸ“˜ Word
+                        Word Word
                       </button>
                     </div>
                   </div>
@@ -9917,7 +9917,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                             onClick={() => setEditingTeacherAtt(null)}
                             className="text-slate-400 hover:text-slate-600 text-sm font-bold cursor-pointer"
                           >
-                            âœ•
+                            x
                           </button>
                         </div>
 
@@ -10003,7 +10003,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                             onClick={() => setShowAddTeacherAttModal(false)}
                             className="text-slate-400 hover:text-slate-600 text-sm font-bold cursor-pointer"
                           >
-                            âœ•
+                            x
                           </button>
                         </div>
 
@@ -10099,7 +10099,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                       </div>
                       <div>
                         <p className="text-[10px] font-bold text-slate-400 uppercase font-sans">Report Scope Timeframe</p>
-                        <h4 className="font-bold text-slate-705 mt-0.5">{teacherReportStartDate} â” {teacherReportEndDate}</h4>
+                        <h4 className="font-bold text-slate-705 mt-0.5">{teacherReportStartDate} &rarr; {teacherReportEndDate}</h4>
                         <p className="text-slate-450 text-[10px] mt-1">Location anchor verification radius: {database.schoolLocation?.radiusMeters || 200} meters</p>
                       </div>
                     </div>
@@ -10294,7 +10294,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                 className="px-2 py-1 text-[9.5px] bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-lg border border-rose-100 transition-colors cursor-pointer"
                                 title="Download Class PDF"
                               >
-                                ğŸ“• PDF
+                                PDF PDF
                               </button>
                               <button
                                 type="button"
@@ -10305,7 +10305,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                 className="px-2 py-1 text-[9.5px] bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-lg border border-emerald-100 transition-colors cursor-pointer"
                                 title="Download Class Excel"
                               >
-                                ğŸ“— Excel
+                                Excel Excel
                               </button>
                               <button
                                 type="button"
@@ -10316,7 +10316,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                                 className="px-2 py-1 text-[9.5px] bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold rounded-lg border border-sky-100 transition-colors cursor-pointer"
                                 title="Download Class Word"
                               >
-                                ğŸ“˜ Word
+                                Word Word
                               </button>
                             </div>
                           </div>
@@ -10670,66 +10670,53 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                       {/* Floating Autocomplete Suggestions */}
                       {showPayReportStudentSuggestions && (
                         <div className="absolute left-0 right-0 mt-1.5 max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1.5 scrollbar-thin">
-                          {filteredPayReportStudents.length === xœì}ksÛ8²è÷ó+0¾©XŞdÇ‰3Û)?ï8N6r6Ùš3µDXâ˜">bk½®:¿åş´ûK. I@P?2QíN,Šx5ºıB÷z…Zÿ…Ÿ-Çı†ú¢S<"ÛKã«ö³ÎOÚë(&Wqû*âÿFIûùÚ:|ú•ŒÜ^à9È±çöù;}âÇ$\Ú9ĞÇı¡ëP'}Ñf‰ïl­Òñv3ZA›53>w=:qŞãÉ2Â¸+FèDt"¤µö½\éŒğ¸¡ítmì¡~àG1r£ıam£¨ã:h{{K;ÿ]ÓWHâ$ôkæŸ­^Ç_ûBd²}Sº±x9Œéò¾—,Şü·A‘ƒàÒß¾n­Ø€‹"—Áì´`š+u0ÒvĞ%8ìÿpB{ò)6Ú÷Õ—•ş’Á€D±K÷·u½È®»8çôrıå²}xÇœÇHEAÃà	7{AEOŠ<rE‰‡Œ"A6è„Îö|Òî‘ø’PTŒCìG., İ¼ ŒĞ#»İÉùZ¦cº¾ã‚öÆŸøúsJÉ@ÅË”ê–%2Ï~ÇMFË6€ûR9á§Ÿ2Cbp‚ÿ –lz }Dcì:µĞå…˜ñ,¶Òß>ílŒ¯~_Ú¹æèv³µ
-í¦Bô¹F{T2ÌQàl(JÊè?hZn"ú=ë£Áøµl4ı\g¸ğø1ÚÚ’ş…<éK†ªCö_9^¬­-¡ÕúİZåÜ¦n.5´w³b:ôÓ0ÂAÓNÛFñ¾x·òüzõ/h?’ÈıFĞ8¤ga2B»} Uô:’1:
- éÑ_V›°E£Möw\šYÄ ÛÏÑ8no ^:$lÇé9§Åíõ%ä:ÛK!ãQ³™¶éä”µ5n‚Ø=S¤JÆcöqD€mõ/èÉß¾té<|&½Æ^{­³¡!è
-u…„
-ÀfİiûKº(İÎWšcßÁ¤Ç ‘à^xILë{®OÚ¢KÆÆ7AV!ÿBY(‘{[t0Æ}7´¦“7S¬~òÈ…±ÄÊä17(-2şÆ~ú@°3¡»"ìco»}L×È‘‘+øWßÉÖêXAMP˜m8å0¸ô§Ë6Nâ@”ŒŸDš½½æoÿÃ%—o‡09mùrxdÙ ênéÙS½$f+Tş>•?/¶¯‡Øw<&Tyv>Áävã˜øöûÄÄRe1|Â Fe‰À…˜`˜r.H°'pL3’¼R
-Ë0éÊËì„GÑ;Áe{”ı•ö¹út­€J†#‘îS8+rÑÓí'a„íqà²·Êû,fQ¬#”“tÖş`·¿‘ôÙZç—_~77vc‚å`ó’Aäp7é%}.ïEÿ£oi:—¶Ò-*ˆÏ)>‡ÓÏĞôÑ:£P6œMéÑx›ÈÇ¥øT$é†p QjÁ^Ë,?(Em¦äôÄøjã0> ,uSğ‘núÀÜRÜê5·Év'mÅd§.ñã†¶7ÑÁDnü„ûE¦7şèåTwÏ©ËH#…è¨I„5DÀ¨-(D÷»ú°¨Îaj¸ó“Àq#Üóˆ³}ı“ †«ÄÉTeZjÎÑöœ$éò6SIèùÚƒ>]{Fü-HB*tİcbN˜9‡C&¥Õ{yÌ,ïz^íÌÀ²™•!y_Ï%3ù>dZñ¬;·ãê¾œGU›v‚/HïñdD{ø€ı9»Š[Õ®ŸÈ&tìÁ‡ÒCJ–ìÑ”Ôğã(«|¬îÜmg^=Ó	6æøı+
-°?ÈT4aw˜UgAZ¦?Î²v–¹>Õ\ì!¾“ó?ÔT»®1­++V•Ğ1³¿Áßn·Q÷ìãÁáéÚ=;;<=Ø=İ?Dg»{ì'Ùî~Íwæ÷
-ªb®M-ƒƒD>¥ËæÍˆbiOÚ/PjL>Çi»>·bé1!úmã¬ã’!³Ü-E{çcÚsŠëÏ(²s3~Õš/Ğ;¡tFÏ+¶R{Ó,ıÛÂÁ &Ñ«ÎfÜSÏ' ´%ŸÕ¹år¾À]ªƒ¥¿ÁÀ1ö/0Ú<q0j	Ş„ò-¤¨>p£8œ¬l­ŸY:6rgFÊ]F1wL|Æ_]÷ı!ùèOƒñĞuà/wÁ_)¹Ñbú7¦\Ç#;Ìt^™„†HT{Võ›¨6†“µşL-ŠºÃJÄW1ÚFâ“.~7p(Îı)]Hõ…™ğ Œ1îaƒkÚóJ·È'—hşÙúÎâ÷'èš-Nx®WÇvıÿîqHõí$>o¿\¦§“¹ç$ôhÇ?œtú!¡|×ûƒjqô{Æ¬iŒiS'è' ˆö‡o­e¼¬mŒ;ÃœÓ¶tpı;N*­m£/97ùWÄáü¯G×Xo: _ô}õa[š	i"J'7œÛÏç$ukÏåô ÎyœñHV¡³Æ6ì+¤^ÙÊãNwvšN¼^=]Á€WGí§À¢ó¯Ï9GnÂr=Ü#^áÈñ‚şE±Æb ¤Í‘¸âİS_—bÿ¨{µ´s†qèºC`Ê€Œ”û²!•“qıq¢F8Ÿ¢¨¹Ô7ì%d»€õ:n6œ²3’	ùy£éP±{@âëP#¼ªâ:’àº±¦<¡×)ÈŒ¸/İ ‰-øO„„©Z¾CÇÈ Á°GÈcíF$ˆ˜©Ìb—YW·™µºÿû<=3Æ,Ğ„Ãj‰ªvK;CL¹öÛ1Òè6ğ—5Şô~Á“vB¥'8Ù÷Xè¤Öh%&Àbé»7é¶Áß;ì¿æqW4ÚGŒûëŸ©Œ‡.…â8™¶ó¾Xxkc¤——páˆê,“ïè‡‰ÌèWjı>$•?¸A÷T|¯¡R''ppíPµ OPë„ŸƒÚïöøŞâ¯”Š[ü«±‹‡C.0v\®¹°‰TJ¢P.¥ãÃ
-‘®§–E|A€nûŠƒqû™Vî3)©˜ıë;Té“!	·—ŞâîS½q„ÑñA§ÓÑ5*q¶0]ÍÄXC»³¯Hú^û4çEÿÙí€éÄ¥À3/ó’9¦™)T¡sşFâ×d²÷¯x œbQ16‹¸]
-4ó¡z‡Ç‘šJ¶â!ÁÏã°´ôl¿Ó éœğY§å‡z{‘>b3.Ğ1SqşÏÖj<lÒ@p˜Ì6´Ò´!Ã6m–‰’¡ªi8„°6zt(
-ü)¦‡ç`”òÑ*úœDI¹¾¾úK¨&1-ÂlÅ½À™ÈS¤¦Ûİ ñGN‚è‚8S³O'½¤Yh‡ßõ©»Èã£–¬1 ŸÀÄ.0êJöìùÍ•ôÊ» ¢Q—Fà,vÅxQ†›‡¾¢l0Ş¨'Á%	÷éÒuÖ˜|¼Ÿø­„b£ë÷=
-³¨õu÷Ü'Ğ¿b»>½G´ÃDÛ\¼Ït‰Vô¹ÎUÍå"±q¨ğ]-E‘ôÅßi¡›q'sV1k>»±E1î€ù€?Ê5~ ù¨é˜éP¯:¹Áıç?hù£ïƒq–í0DÅK¨ÈG’°P~7Û,ŸòùÿÖûQ-n™kÏoÉ4[r¶m¬­¾\«Ş4ª¹g³;%”ßqQß ²ÀÒÎ5ÅôWô”j‡±æLÒP{õ§b@79äK?Wi”}ç«UŞH/ûX°x”oPõn‹wOQá*ZéâW*úxƒ²ĞŸ*×°
-›êfjqïéV@tıEkš–g™,îé¥LØƒP8—Å}½üâï4ıN÷fm6êôĞ´[<êQQ,í”›¢K®™¦†A”Œì‹e—Ë:¤”SwİğæËj \Òòm&«†iAÙoÜÇ¢ÎÏîb€Æ8 —ïŠzäMyQ¼ZKX×ùQê1yv?=‡§íšEÍ:]PNÄ½ô¾j_²Kìaâ÷™‘Æ~îç¹PM§?ï‘!şæá2ÂáÅ\–¤ÈùG+Ã¨£ohg ««Te¦V.(ãÓáá¯'ÿD»İîa·û¢2VÑáçİ·]«r…GÑœÂ0.	¹ğ&mÚŠî×ˆÖŠ«ûÄ^ØÍ~‡Y¤"çv¦ŸÜ Àïâoä û¥øı¦h§° ÑÙáîş›Ã¨ûqïíq·{üî´‹v?Ÿ¡ÇèèğğÀ.x%éÜ(‚›íó
-[É{ü¯"?Ÿ*^ås0ˆ1İĞO8ì¹W®ïƒ;æ-îcÏsG®ëÓ[g÷‡tİòó	[É<Aë^ÒÙàr¬|u).L`"ô I3KPh8=wBáÙ ‚eŞíg÷Ï»İR¨9CBÒd¶™¼=Ù§W.4ğùèºø³z=KÄeáùÌì1‡\ÄŒ±µÛ3fŠµØRöe‡şÃ4JÔvÄMD1`ÓƒÆøÄ¹©™ÖCwŒA#ÎÿZg“±9d*Z¡ÎD(´ıŸ•J`w&–¡¥äxV9³•G 6ë¤½¥ãQì^¥‡Ô*ú{v,µAü®üŸ-a9şs9@ùÚ¿!ÆsƒR}ÊóW¨DºYb¨F.QU?\£Ö®QPY$éAtP%—Nİ¨Êp×­Üë#õJuçß~¯:2ÏOÒÓ9˜Å]'•ìîI/=çn~×5¬÷˜hÆ¥d¡4}ªnĞ|°‘u(Éõ¤jfã‚â]°~)4·e½Rµ}rİ6[—äš#ÊòÊıŠ8İ´g(=e¿ÌW 8Û¤ùg_Å°õ[©b5FïšÂ¯&<jIOëNKÓ^1ğ
-"şÌ‰9õ›Q0¹Ê¤†¼ğ¦uãl÷İ=ÔğhŒ^±H|M[øCî>ÑVôl±›¯@Â"ûçØ(ı[FÏc5Ü©Åæ}£4K43I€CÏ²
-#ÏÏ<a°@Ú]yf´a–ú€…O×¨Pğ4?“Ö)pjoÅ•Q[#cxÌH…¥«Uf¿Ææ10¤*|av	Ôº®M3ÛÚ§øJ¿†ì"sQ–‚Ôx &Ñém¹a	ôÖ5/™ÀµN@pZ|cÚB…~†ÏÚ´¢ØA:ù!p³µ:|>•©5Y*9^HÔÈQ¸!m•#&U†æâVQyååÕ-ÁÊQhIUÓ/+d•½"¾¿œ›«Í4ÇL]d³*Şœ¼ZõDÓÄtz-¼ôÿş÷ÿòU	)âFiµ‰.döûHÛ&¥°}~àêEùC…Ñ’äŒW,l…n1?·ÂË·Ëò{áÏŠü ª²®T˜â–Yó›eé§áÚ^ ³üwº(Ğ‹1#…£$,>´J [ìRº~ÿã¸x(ei]ÓÓK¼÷àoš°úT¯EB‘~„€9ÇÂVc|cè&Å.dxÆdL’}{QÂ²i‘&Ë`xæ†±¢îœ¹ÀFÔ ÚYˆ£áºÂüS“" ~'üÌÌÍdüZpåy@bìzê§*„â!ÚAke—fiôrÂú8wø)’ßÖGZK]×Ç\›[óôQ×ò[aåpr:æú¹1æZ
-éÛĞZ&Y$‹õšksÓìzÇ´XO›;aÔÓw3d›>ÌQâz\hZ]¾¢ -n5p èXDâZ”(ÈBH)Ü–ŠĞĞGMH©ş)‚xÖµa¤Lyl=jî^a}…î³e
-ÕfÚA¦ÌQ¯ÔP•)Àä-ë PåÁ‘B™».c‡Æ¡ì"±„VÃ[©)üs]™¨MÅ[}¿95~U`•<€Mt>=çÑq| ?ˆIÄvL²ÙSÏûtşìBê@µÂ+ª5ù…yÖ P™aK.)"ãöONO_£Çèøôï÷íBâz.œæä%z+ñ'˜âY0WOÛÇßèáÉÜ´u™C´¦#³‹³ÒõêJ’RÕ÷8t)éöµ–Ï	‰–•ØW`ùYf­*Ë…@cf2ÍqĞ“gÄŠÍJC*Å³àE1ŸK%)¢ôŞêº–Koêã¼_(5|UGªÊ2*Ú=Á}<h³ˆ»XJu–0ÀQÚÛK"tD!Põ«2¹,Eú”0‚Ñ¿\ÿ[àöï#¶”'ø½"Î±X  ˆëR€1úuˆq¿†ÖÈ¢Ö‹¯- «Öxç€zÜdònLü}–J¬ÔŒhÅ|OsÉÓ¸¸ŒOÊ`ˆ÷¥tk³H—¾CR$@û	U ¬÷\-XV¤©‡³¸Â®Ğ	qêÕ|™ 	 ]x·j Å8K›;± òdi'³»©O½CKšUHú³¡$Ñ‚bµj¢µlâµ”[#ËÄY¼VŠåÆÔêH­=¹©m„–1Fën#´41ZµÃ¾eOÌóÍZ¡ÊÎ:Kjõ>e¯óm–ÁB×¨Q]'™,tMc¤,qÏ¥˜RkUõ°’Ó4ÓDÍÛ
-£‘;ÆK;oğ¥7ÀjñŠ|5 4Ù1j¬·ó±ÛZ§Ã€eJø@[+›“VÀ',4´O\‘{›É+àc63Y$±`˜ªP6Hf‘-7 ´,2×²x¹àñVTæ)°ï<şîË£kÖU‡‹G”ş“nKkå¦ıèZDÚe¿²FTãü+zºÒCÙ Æ­õ'hy*˜Ú±òğbë?>å,ÙovBólA(X€£4Y«ºÑ{E–‹Cu
-7¶éê ÁücYnyÁÉ0øÖ	1¥ÁP÷mç\Y`:mÿ–)1D|ÅO@÷C¨Àö| öeÙv‹…à&Ğ€O“$v>ŠiÁ†jÈbŠ®‹4GXñAb±¾©g=C"øĞ]èQ®GUØ¿<z”}½ùfªº‹ÿ³Ì|*4½Å$&ğ¼ÜÆ“htZfíå»Î'õ	ƒ${åN S<”òkÀsz|¼'¾CrÅb#oÄdAv6¬ë¦«´Œ=[Äråû¨®ü£Œïcå{<á…x¢ÿaşÑÊ†éìÀ—ÓÚˆ9CğWú±uR¿&Ë-Tv[eY…Rê0†Y•h„ÓaƒèYAÜq|WàÔhÎk¹•°Ó9`	ƒ (xŒ©fØGpäºÎĞ¶¹-šÑ 5Ä„Ú¢H#´Ú³9
-õÁ
-FÅE_äÊÁ`ˆ]˜ñÂ¦ª¦àê_Ày£Ü¡õÃsPeJÏÊIx‚ÑâÉ·Aê6.Mä' Ø1÷Á÷G`6>ÑzÂ±Üô‡¡òø‡Aùûı÷!¤~é©|	o9í]@rOP˜Ì™Î0Ÿ×ø™¦õ'ìà’z<šÊ—ñ'õ
-äùÒ8]²„ü“zh;ÿ@ã6ñNá íÓu5nx7$}wìŠèì‡å3 Ó·ˆ¹Ï¬Ô2±S­Ô†ĞøÂ^YY­§2e5µXWĞÂÚj\Èh°.Œ’™ªOGp­I°)‰Ä¸[š°§¦Ú¢IwQÌî±N¹Ou&ŞGl€8ˆ±·ËL·Ä‡»4lÂ*+ş¨yİ—¨vÆ.ö{OÂÒzzOÎÆ°muI~$·µ„.ÊÚÄòÕÜê¥¾á*jU
-ÉïıÁ;Bì¬\ª‹®ÓÚ¶f·d	+V7Cşp]‹MCKµº¨gSãUÃÕ`Ø?7Up:*|ÂWˆª#=BµE­ê+,q@´ş]#¿ø.¡•Ÿ ‚l6bÜîeø4ò¥ø9bƒêfüâĞaN’^Z™î®ŒĞò|,nÁ}8Ü?<~ÖEo»gï>üÓê\ÈÑ7Šƒp2§»pi¯í!ïöGÖsùùTYÏ¥:ĞÂ]ÅRÍ
-S„ÄÎ9Ëy˜åºÈ+„ôB ğıÇbvCBïæyÍì0æ4™QÿŒ›6c‘ÒM¥aÖ'Y|JÓ$‚Ûã8ß¬‡‚‚ÅÍwU0°¶P pøkÖ–š=Y®Ø^Uo7¨£gAÕkH<“èèû0Ğ-&„´¹‡-¯I&Û‰¿ÈzA¬ğ¼¦._À:ıó˜BØùi)ò(1å1@™˜ƒ4©E–„Y,vêEÅÂ>¶†.·V¨‹£YôuÑTZ9ı}ÈïIO­<pVZ#ê[äR3â—IYĞU‘¸“¢PoßRIÿÃîi÷èğCµ>ï~Úİ=Ù=8Ø]±R (· “3ØğsÎ«àë´§½–Åÿ·ò˜·Ujowÿ×ïÑc´òîãhKïşqHµ¤Ç¨ûÏÓ}tp¼ûúô]÷ìxß2y•¨’ñ¼r‡°Îô©CèšÑé4ÙC.C<V$ë@U‹Õê/ÅÆTŒuc]`ÆêÏ™T­luìÕÌP	TÒ|‹~@5³¾2—ƒäÈPPgOêŠïŸÜ’Ğ_¡evIŸ«4‰I4²×õr¾ˆÚÜÑH=¿ÍÛ™Ÿ25DIIÍÎ"6ñêtË»¥`’5ğÍ'ÅsAŸW`cŒu'~¿}ÁDax€²í¥4xŠœ$åë'—tíC	”L‹“vçD	'^DóÊ[!	Õs!‡´«;&…<%ùŸ–ö½ qlÉà4ùJÑ,A¬ĞA‹wÀ1â)»>GÃ ®$æQ‹Iê$Fş©Hµ±T˜!Ğ`GùİÆƒêá¯ ¸I>Á÷^‘¯ ç!‰†¬^kº}#`-ííRœzÎÑ9a•((S0ò¼"‰Ï‚›–u¡<øÓC³ÒZ´SöMùQiÇUaÉ[U¡áÁph?FO(÷@< íãĞ©•æ`‰İø¾-±ŠÊ&w·ŠœYIƒr	­æó+8ìxÛÃN¢€ÁúšuˆDë|4 =•Qf.¶aå$p˜$!btäRº‹ƒ°J˜„M>íI˜¯ğ¹ë(rÑ,;	á]b¯‡QB'¶Ò £\ƒ­iy
-¹Xm£5Xêm¥dQg¡;Pâjc€ãF 5:Û×n$Ú¸şÀÔ¢”aŠÏõŠÖ¼òLe«Û(Ó R_{c­A¾fù§Ø¬2A¤ÄTO0ît:,ú‡§ªo°LUè„Æ*¯.šŒsE>ŸÃ+Ğ›n½$Oe;/İÅÆ7Øduô‰y£!æ aşÖ}w
-EdjFhØ»J½ÂLïWÊ6ø>xdÉ‚ûp;’Cğx¤ƒ`Íäç®GtæBÜï“q¼½Ôù#Ò›Wó«(2)ğYYÔ^>å‹š:šâ‘j2³Â~ÜEò¢Ç7—\¢×P—¹,{UÏ§YÊ7—á²»P¶ëè,:/Õ^"ûÀ?!£é²¬n64.ÿIñ¾ªú˜Â%Uê>3:¯K…„Ê*ÿFEåßÑ¡¿9T!¤Öe)T`f9R	?ViLéÿåÎ¦¾¤„ˆÆ*(êQ(ã*É„…Qª_‚dwA¥Uîmm'Kn¨=g”D¬®m~¡&ŠÀ¨Á£;t‰ç°ÚiZ=Cõuiu›_‚DÁ%˜‹û™òA¿áajç7ò'ÆÆ .\}$F=BÌ„¡À…FÜ İ*ı…“Ÿ!fñÛÚïrÊÒO55)yú!šœóAŠ…vw“8 .î ¢qŒİí’¾•WåØFÍÓ6Ò¼ál#ÒåkÛÈ‰ë‚]L$ìg²!·I´tû¿ö‡”Iil%ÊKç³ÛJŞ&ÉW¨Ò¢3 '@Y˜tä2c	,Á£²xzœvĞ'|…©6t„TG¥ı)Œ1~‚"ıIÏ€ş·‡ökÄñÛBL*·kH©˜Wë-('ØÍÆ÷K
-¹˜-ªÎ3ZM>`ßï_î|I±èQRôXJàhNëM´´tóåFGéö“¨>D®ÛHûn¨f‰É2u‹(ô«êz?F
-™˜Y÷×^•Üñ’o¬Ø¹”³k0^tÊå^Pˆ¿(s9$CDÈ©FQ­r¡)4{Êv<ÁÈãló"e›NÊ);¡»pÔ/˜Ï,E;GCÊÓË‚z+‡MZ¸Y‚xyk@¯½°5Ü¨#ƒ$ö£?Ü3Æ[!6" îI™6=ƒ64CÙì?=….í¼NşpÁ¢>dyÙ‡ôpa§&ôx h ?•U*«ƒ0d²ªLªîƒ4•ß¡ÜÌèób<³Åëƒê¸½;õs[÷ìüZå¥ÔF©«­-,˜» QÄ0‚F·aÅ¼ˆ-®·‚zIîq{£PùñçŠ O^1Ê2ë*myQĞ÷¹ Oÿ¶H¿¤\ƒ6:]|nkh?E#×o_¶M	3æãKËz++°¥˜æRÅ¢¶‘+bê{éºlBúˆµâ§SØj/gëOMf…º¹e:¹˜¤AŸóìK•åM•Ñ‹U9D¶ìšu¾N­
-#Òë¨«îuŸù˜€X|’Ö(¯Ëçh§1Ş/ŸÖ’3.ÇˆÜIÇyçUèW_¬ñğÍº0xuĞ]®È3Ü`Dë¢­×Ç³y™n5$-êp×\ù”Ã{­öÁ+Så”¹Œ+´R`Q¥ª£P­«¡‰2ÿˆJ:›tÈ8üAdq§d_$¿Î—,lUo1å[;r!¸¥º¶˜àşJ‚rmi:Ãê²ÄÅò{º,9íÕq¹ÿ&h=][şÂş16C,ß÷uKn½ŠZRó8ÒÜ+â´ÖWnĞÛ½/5nB‡oq<ì°–ºf]Ş _÷uë$Ú(Æ-¥°zÖ”1\Ã|jï2ÙŞcRŞazğ`KJX+“Œ†¬•‰N„-ÆÔJe„Ëå½’ìI’Ey&šRIÎQ_£]Zšè²­á	~åF]aæº83
-€*XÀXnüÜš«ïÔÈ'¤©È?é[b+õiÙêï^-cÓÀ¡æ(;òå¶ß¦YLçŠzh–å	:ÇHZ	1>S"Òl¹Ò8­û‹D¸S{~8tÏLKVørPğ qîäç±¼S¢Æ$Şw BíşâÏ$4ÔYçªv‰U3ÔUO>öxzæ3?$z‹#|•iSâÌô	‡ê°Á Îé«Ø+¶Qm	µ(_iåA»Ap?œnğä6ã5gÁñëàKÉ¯Tîö]SD—Á7ã1b¦´lS”Vñ†¶¿bÔÃ8dN!Êi‰A=>A¸âÅ¨É@:$(ÊAìvPvä@Şğô8Ü0n~·¦† èÿh«™ƒæUJ»ÛÇ¾Ø¶Í+i¯W½ôÏŠ’ÚËÅJd–5´§<÷ /h ö2”Pì”±Šzñ!…~ ÷‰#Ğ_Y0½ì½eîE•óæÀËz²v³lœšnŒ)Æ”}§)ôSØxx@Õ'âQ:È)G“™Jç³R­Úìğ×,Ÿ9°ú=«<80ÏTí\İ˜-Êe–+{¥€ùJh®ÓMêrü§S²°÷Ü99åIöÿë~¯CjaVÙµ ÆRgºİX³·^¯±×	Bwàú¼rbfb…
-fU^X‘>Íœ.æL.3ºg‹·’z¹„7©±(G}Šô3d»™ŸÕG›­z¹m„‘¤%lÒ^ŞÒ~¥Zna¿X~/SQşÑïÚ4ªî­ìO­ê»ÜAFª5ş¬K3ª×6fR6Ê‹OjRŒ¦¦)tNvOO_£÷»¯Ñş»Ó³ïN¬’åx˜Õ€œS¶Ñ[j„WÎ.tÂŞç¿.(½ò—­Õvóä)ØvONĞë“w{»'èí»ƒİ“n/éÅ§ô‰ô" Š“` V¡Qê5•Ø/áşC[ü–œhŸ½$-À Ùv±yó? ‡,ÕHW~µÅ
-~ĞEdo€W>†^ÚØ÷x@º$éŸÑ«Ç_+	‡ö™ø/¾çoe»°R Öz±<bT?œP‹½Á_PÁ¬|°‚Ÿ‰Êştåí5ôo¡ôWZ¡p!”ûêÁÖã„Á˜*§Iòk	“ó¤“jNQ«4§ î³Ø¤—h„¯Ú—íç<]+xÆU|ˆ7Êii4¡¯êŒĞÅ°ıÛ/kß†¿ƒ’j’öZˆ£Fİ_ïÜ*¥eÈ/h‚ì…"uú9û„<ùf×»>á0M†Û*`£ÆG¢Ê¾0¯¼@]¾·|ŠÆÔ@KYøC®_UÒÚ”Ò’«¤±&ú°bO>+vÃ˜\©ø´>[°r+QšîY9ı&%qF£œŞÆ!aŞÜ
-î)YRg8„‘—ÃÀS$z…Ä§¢SLvã˜øöû¤Ëãhx?-e¿T†Y:Í'Hù;íÉğkº'ÙÑYuømf3ër)Ÿ ÈEm ksì°|ŸËš‰X/#›f½Åµy)“ghçigb•aUÇÉî˜¼³Äï±äÒ¸ÂV6#ÁvC–¥ªŠUZ«Õlp,:†9ß5}"#älÓ>Œœô¯|àÕõÙYmÓ¬YF
-®&ìXû ğµ(Ô=ë #½çé€5b¨^şİŠstï§•æ,²)½E
-,k(¿-íäÙ³ú­".hêXİÆ”¢83ÇK•:>dâF­âC×¹YQ˜‹ÕŠõ<½˜Àù­l°FÀJ
-Ÿ‚¹xÊ‹ıQŒF=`ÒyuVšÀç•Wu™ctir8jğJÎ*»–(Ú<Æ“İ<áºâ=U¹æ÷r£Ö)£\µYi‡*†ûó”šÂ˜é¢œJ^ «:Í
-R^-m/‰A?Q‘¦sNGqà¤P½´ƒÖô.¥×îÖğ
-Cˆ	­ˆUZ2rí1XèK‹^y³&èu¿L™Jg[½Œçs%IDÅÖi@UNÛ®qHT÷ùòÍg4`*ì}›òï…ÚõGÏéÿé´5„45ëÁ[»}½~KìIÈódPŠGÖ@«x6Gî§Âù+F§Á×à6•M0eÑõ€ÄØõd¦\špuRêyúägüÕu©vøıJ&NÙ±6wñ9Ó¡ŠZ5?~ßê!Õ¤Œz¸@C~ŠÓf<K‹èÕÎ[6ÙËûCİË—ù¢©]>h­šçkc\å$uA«êÌ"Íódziçàãëîñë]Ôı¸÷q_KZIÊƒ$ å`ˆÏQ_QeÒnvÏu“ö­-*fPŸÛS}Ç]ºÍ.Šşmêb¡Ô¡c
-™^Øld’)RSp«k=>Xè2û°HfóXÌ:ÓÊus]£Fj¦A…êgyî:sá>õJu&íASÍ¦ù¨
-“Bµ=KÀ|JGÓ“ñ~*Ÿİr4à-y¸ğº¸æ¦t4wrÍW+¹×^®¤Ç‹ƒµæÑ~Hp„h:.ü¡ÔmÄÛß·n³>·H&ÓÜî¡æ£8_®	Å×¤hò
--ÂW`ËØ#C¼¤ÊFAéŠJîİ…)3ªZH‚ËX+bU¥èÛ‡…Õr–_}µR!éÏ¨ÙßŞ3X7¸È[< äƒ¹®)ı§÷ÀàFï‡ë;
-Â=-İ±›ªÖNcEkÓø}ó”Œõb.1ö\¸}¸Š¾ç:[½­åQêŒxä<ü[F¦÷C
-öé±‰5ÿĞiíÅÓ+ş™ƒÔÎßÏğÎ0]÷bèÌ„PÑ;!X²1N²lƒ oz›8¤ßKƒÂ²;Îäø·Æ†„L‡¼İ÷ŒznsNÉş¥ ³xşÅş7òşKmlvşÁxñKV
-_J"?_[#ı|ïîÿû£ÖİOãŞEP6‡X}ÅÂ…BRE5cÅ\ílüÖ¶Ÿ;i9Ïc?“>˜×£.>'é-­ªµmÌàíàBèm˜Û6îÂÜ¶1sÛzİÅA©$u]J£Ş)´Ê£ JF_n™—(ø¥¥”Í•ôµø`Ìó©-!­´e7qgÊ/ÑÜÌ)r$\¤%¬Euë–‚JÓk”ºªÕ
-Z([$)Ï“b6E—¢ü©]Šò*‹èDAö‰Ş‚4MİÈ™+M)æ™e.ì»¹ò¹‰™^æ™O¾€¥YSÒíMÒiKK¥¨fK7µĞûïË0øóFå°:¶Iâoè÷";æmLgldŞ†lÇ
-Ô”òõ+â÷gÏGVÆˆİ4¡EkY½\sâúK¦ÜÔh²Æ\‹z/ê#•€Nµ™Ò„ùõâtÒö
--/9JRa–6P×x“5¶ËiïªnY¹•\±¦h&qÚqÔc^3Vu¯uàŸCÁR”êİf_Ùò9ó	ËQ;Z…fwdjËf¬D“0løUÅ.=Á“ ‰Y­î¸õ:IœQ+­ö}K—š¸#âÅ”,ê~âN6ã‡Š;#6ª¿%²Ì¡–J˜„\iÔ$ÏáÙÿó´vs÷Ø%ªq< ìÊfüP±ëuˆŒöñ¸	–
-«p-…Ğ}ÃµKgïª¥~¨˜¶ï†}$¤‚RØu~dK+İPÉJØù"Ê	ëú½C¹+±TL|8H—Où¡¢İn—'ä<şà†q¤ûœ®}hâo£À'“3Ø‰ó)¹œNEææã½À™X)ÈŠ4TùÕ•q(J1Û¿=[[cW;Êª0ä‹³{úú°Ë2/*Š›@Ğ˜›ªÓÖñgª·…­»PĞNW¹N6©jMÏ+f1EµHÑç/zk¸´#ep+ê‡YIT¡!"‘rkE—ô]i­SÔøƒ’¼…ÈÚ­ÈêB~¬lvò \|ÒÃ“å›¦ÕywøeTB56òÜ(®švŠ˜¤˜œO.EÖ¯ÈˆPò‹)ÑiÓ.¨°G
-Aß`…‹¨“ş¶^Äæ`©ÏÔ­*Ø¬À%¹°¥–_›JtrP­ÏËâÑí.+¦¦4ğğ^Hv~‚	:À!}Öú«İn‰M¨0½l®Ú’ÓÍƒ­FôõYm¢jË°\êQ¼‰°?a	Õ7ÏtQ“XR«K¥4Ö¥úx•û†•š§µµdİ‡Šy"¢…'D‡‘\G¤3§gİÌ¡4§6qôT•V²¥ŒèéêØ±¦ÒËÓ²'Q§Ê›*%xæÎ˜Ø3q¥ÏZ–”Ö²àGoDí…(¹ĞÅœµí·éaò¤ò"î’/±ÍúÁ”t?ß-S¢‡W¦×ÉJé‹Ó2£—¨™ûa¡Ìˆ053R¦sØë½e`æRLTö­ğŸÙ„ lÆŒÙ¸ş·;á6l/$nƒ”×®e¨ãGµfšñ,
-Êå[=6ÜkVş£
-£Öi`Ç/ëª¿h—­Œ­yÄ¦1öxö?nß¸ÿìÓ2çè¯ïşqøáÇ‡Ÿš?2×ä"%’_/’üsm`™ª¯rJrCòzS‰{,bÒŸL&ˆNÆ8ub™1L=	ÊU´5ü”v“SÌ4>Lèœ:·{µ“èÏû#af$¼E¸³nÊ’?Øsš{™¼[¿ÚQ5üõ?¨·ƒDWİş¸,ÍKr7«›`>xv=ÆÜÛ§Í¡ÆÇy!U8HãMuR¸I’³´ÜóA™@sà|ÊäĞ¯	˜zİS¨Iı1«ä%…Cµ	æ‡š,>EƒŞh©çcg†z`Vh*$¾"úx`„Š¥²aZ¼æ3ÔœD—ø
-Oènô\„‡û=Œ.Ä-ú.+Íc,‚g‡¬´Ì.œ®ğÄuá]ö}’UQî #ìx´ç!Dİº>Tx’I„ã€WÃt†ÁeZş*Âö0:*î–DíGhÇä¸îÙÇƒÃÓ³†N¬,L¨™§&‚òÛ°Ë0šbº‡ı¡VCÍ™ÅÔÀK¨å‘ó˜¹/ã€*À«ë¨ÍœÁìÅ	<ĞÓ‘şgıô<Ã/"Ÿø	G:9^™î·ÜØî¾gé:İŠ›í™°Ås<AÇO;H/ğŠæZ8|
-faúcî]ŒÃÔñ>å•ÁÂ½Àó ŸD›EW$$:SNJ¹]Ö\=óü^qÏ¯İa›Ş´y¶¡ô‹¡bÜ+sòüf b¶z1\b<Æ‘İ¡Ë!)æP¢
-~ÿbÂ°y­xO›1± I ÿ¦M¡84ª¬ñ°x^>ƒô{[«ñ°i+‘ğBä)œ¦ÊÓ4ı”¦ÙxŒÎˆ×¼a«‡ 	:×ˆšæè¯ZàBKºíz¤èA¨ƒ4ŠãTRkOøC+5ÿ\·êô;²~û]g‘ƒOçÜõbf6wà[FSÊOvH1¶¶ïW88	.¡&yDZ+T ì{t–Q«ÒañÅ‹ş]ga½·d#:« }ŸvPÓwKvÔÚ(ùs#¥ğ
-HWŠAÚ0!ZÚ™S¦›<K¬R'ù9õ}°´‹±–êFP¦’”|*Sõ\d©¼?Ù[2·NÇ8T…Ò^f5rÒç,EMúÃÊ,Ã2şeÒÍÁ¨,;¨7ÊB«ÑÄçàc2l2>§‹Ùa»ÁøìpwÿÍá‡†‚qáÜL0V{"ôÜ9FpgNÔµ4{*´<æ%£›˜Šš®æšpÔìq°4ºs³¥t6ß‚ä¥äÇRKÕX@L&}Ã½Ù§ú›Ìê|
-Ş€M/<Î„qÒ_ÎB¢"ÉÔ³w|rªO³½XÚIÍHÚI]xVÔÃLßı4wÖÍÓMÇi
-AÖ¤™ˆJ•U^Hæ³B
-ÂX…%tJ'_y ë/©e¶h—åİÆ&£%H=½„^¡bºjæŠß3;áÒÍ—›©‡éá¹(ñy÷ÓîîÉîÁn3‘GØ/–IãÔ¬bÔàœ}-]TŸeN&á-°	:3Ö°#é ¦ÏÌ+êÖ-“%y:$Ïß%6?âQ¼Sx–_~8
-‚x.É]îºÌòTÙîgrª;ª±Ì}1ä(F˜–À{q{è×şC Ì|¿©ph.1ñ:Z‡y’RÏ’ãÓ­üs7ÑÀA»ã±7AÔn/iTiu¿è 1,w®U2eõù¯YNzù{ÇŞ)Mß‹Tõ‹¯Ê<¯Š[jŸ­u*Œ^á)ÿ”ŞQü‚Îà…2ÅŒ*AOãLQìêÄnìÁ‘[N¥Ê¹¨Ë›ôB
-Y¬¸v‹ÃHá©^±z(É)EíKz¸Ù­fY,à }Ê¿6[FsÔØ“™j6¦}Îáh*®P|9£3ÛÍŒŸ 37ŒİPQ=bÎ…P~î ®d¡ìº²ğ	)}GUÿDñ†4#*«c(¹¶}ş%/-ğOñ7w@1™êz”xèOP”ôè¿Š$¨”ªò›âğJ1•©{Z¼-Ì0ÎìKL\^æ\¶ì&=èAŒ#wrSœ“àJ¥‘Ë9Xó¶«j˜¿ì ÷Ìv¯µøQdù§ïºò:mÁúK%Œ(Ó+¾â­ô%œU¯XÃ›²˜ı[ğ”Pn&};bÎR rùi9_áÜ/¼l÷íéZí%QÍ¦Ñ7LVşùÇfé7«+ëz
-ªˆç‘~Lwéˆí…_ĞÓQ¡–À¦eoÃËÙ»¥ı+¼9ËÖûÀ·Î°²²p©ÛÄuzúP©˜ŠİV[(Ş­İ@é½Y·O;äß<íºl·îY&¬}€°l£¨ÆßĞjÒïß³ QY¬5³{ÎO¥œáÕ
-}9{×H)ò‹³’Š~Ğ¾oú…ÙËFÎç`íØ}Ó†ËÑ×æÄä*>ğ}Ó-Ë´k²©ŠJ¼ù¯ÿ  ÿÿ Êp	A
+                          {filteredPayReportStudents.length === 0 ? (
+                            <div className="px-3.5 py-2 text-xs text-slate-400 font-semibold italixœì=isÛ8²ßß¯Àø¥by7’Ä™Œ×ö”ÏŒw'9›lÍ›Ú@",qL‘
+ØZ¯ÿûC 	’ êğ‘‰j7cQÄÕènô…î>ŠÉuÜî?&áÒîY€F8î]€¢8qèã]‰ïl¯:î×İÿAÚÏ
+ÚB-Ãï]¸„8ïğä=aÜ#t"Ïí“ÖÚ3ôj¥3ÂãV„vvÑ±3„úÅÈ†AD|´ƒ¢ë 4.pâü­¦¯ÄIè×Ì>Û½$¿ö=„.Édç¦tkñr<“%Ş÷’Åûÿ&H"r\ù;7­pñODâ2øOœLs¥FÚº‡ıá?NhO>û¾ºÃàªÒ_2(véş¶.°Ùuwkç¾‡£èŒÎpçæóUû"ñ<ÿ¹ˆÑøºı¼³‰Æ“öz¡ağ•„[½A;òpLÚëkkèÂ#×ÈÉ(dƒşHèl/&í‰¯EÅ8Ä~äÂÚıÀÂ=±Û™FËtL×wÜAĞŞ\ãÓ_„9~Üî³L©n™ıÊ'˜ı8"›Œ–m ÷¹r&ÂO?Û”AH ^bp‚ K6=Ğ>¢1öÀZèòB«åpøm}½³9¾ş}i÷†£Ûíö*´›rÑçíI|‘A2ğ6%eô_t -·ıõÑ`üZ6š~n2\xúmIÿRôCÕ!ûWF—kkKhu·~G·W9·©›Kíİ®˜ı4ŒpĞ´Ó¶Q¼/Ş­<¿Yı:†$r¿4Éˆ	Úë­¢×aŒÑq M÷pˆş²ªèØ„å(m±¿ÃàÊÌ"xÜ~Æq{õ‚Ğ!a;NÿÈ9Í(no,!×ÙY
+ŒÚ˜Í´M'§$¨íqÄîy˜"U2“°#l«IOşö•Kç¡às0é4öÚkMAW¨+$tP 6ënHÛ_ÑEév¾Òûî&=‰÷¢ÀKb‚\ßs}Ò]26.¸y²
+qøÊBÉˆ„ØsØ¢ƒ1î»ñ¤ı#¼™bõ«G.Œ%V&¹IiÑ8ñ7öÓ{‚	İ­a{“ØícºFˆ\Ãõl¯Ğ…Ù†S#€Kºjã$ÔHÉøI¤ÙÛşö?]rõ&p“Ó–¯†G–éi§¼¶õì©^³ªÿ€ÊŸ—;7Cì;ª¼ ;ar{qL|û}bb©0Az !â({Ğ	ö€)ç‚{Ç4#É«!¥°“®½LğÈNx±\µGÙ_iŸ«ëk|T2‰t×á¬ÈELw´Ÿ„Q¶ÇËŞ*ï³˜uD±PNÒY[ÿÁn%é³µÎO?ınnìÆËáÖÿ&ƒÈànÒKú\Ş‹şOßÒt.m§[T<_P"|§Ÿ¡é£tN¡l8›Ò£ñ.‘Kñ©HÒá@¢Ô‚½–Y~QŠÚJÉé™ñÕ(Æa|HYê–à#İô¹¥¹Õÿjn“íNÚŠÉN]âÆ1mo¢ƒ‰Üø	÷“LoüÑ«©îS—‘F
+ÑQ“kˆ€Q[Pˆîwõ/`#PÂÔpï'ãF¸çgçæAW‰“©Ê&´Ôœ#¢í8IÒåm¥’Ğ‹µG}º,öŒø{„TèzÇÄœ0s‡LJ«ò˜YŞó¼Ú™	€e3+Cò¡Kfò}Ì´:ãY%vn!ÇÕC9ª6í_<ŞáÉˆöğûr~·ª]?“MèØƒ¥‡”,Ù£)©áûQVù,Xİy(ÚÎ¼z¦lÌñ?úw`©hÂî0«Î‚´*L¿Ÿeì,;v}ª#¸ØC|'ç¨©v]cZW>V<¬<*= cfƒ¾İn£îù‡Ã£³s´w~~tv¸wvp„Î÷öÙO²İı†ïÌ9îTÅ\›Z‰|J—Í›Å0Ò´_¢Ô˜|Òv}nÅ ÓcBôÛÆYÇ%Cf¹[ŠöÏÇ´ç×ŸSdçfüª5_ w4BéŒ^Tl¥ö¦Yú·…ƒAL¢WÍ¸§O@iK>¯sËå|»TK»‚cì_b´:xâ`Ô¼	å[HQ}àFq8YÙ^>·tläÎŒ”»Œbî˜ø„¿¸î.úCóÑŸ!ã¡ëÀ_î‚¾Pr£;3ÄôoL¹Gv˜é¼2	‘¨ö¬ê7Q;l'kı™Z:u‡”ˆ¯c´ƒÄ'!\ün2áPœ- úSºê3ácÜÃ×<´ç”n‘O®Ğ>ı³õÅïÏĞ[œğ\¯=ìúëqHõ$¾h¿Z¦§“¹ç$ôhÇŞŸvú!¡|Ûûƒjqô{Æ¬iŒiS'è' ˆöGo­e¼¬mŒ;Ã\Ğ¶tpı;N*­í Ï97ùwÄáüï'7Xo; Ÿõ}õa[š	i"J'7œÛ/æ$ukÏåô ÎyœñHV¡³Æ6ì+¤^ÙÊãNwvšN¼^=]Á?À«£ö:°èüëÎ‘›°\÷ˆW8r¼ ™Æ@¬±is$®¸I÷Tã×¥Ø?êÁ^-ícºîå˜2 #å¾lHåd\œ¨…Î§(C j.õ{	Ù)`½›A §ìŒdB~Ş¨E:Tì¸Ã:Ô¯2òçá<Ipİ\SĞdFÜ—À‚nÄŒüÀ'BÂT-_¡†cä^ĞàGØ£Gd‹±v#DÌTf±Ë¬«ÆÛÌZ=ü}™chÂaµDU»¥İÃ!¦\
+ûˆmƒ‡étøËoz¿àI;¥Òœì{,tRk´`±‰ôİÛtÛàï]ö¯yÜöÀãáãú'*ãa‡K¡8Næ„í¼¯cŞÚéåÆ%ÜG8¢:Ëä['úâP ‘ıJ­ß…$¢ò×3èŠï5´Sêä®İCªà	jòs°Aû½ŸÃü…Rq‹5vñxÈå=ÆË5·6‘JIJÃ¥tAb<bX!Ò•ãÔ²ˆ/Ğm?Gq0n?×Ê}!%S a‡ê!}2¤€"áÎÒ<À}ª70:9ìt:ºF%NÀ¦³«™¸ khwöIßkÿ„Æá¼è?"#wqG)ğÌË¼dgifŠUèÂ£ƒQ€øµ™ìık§XT†Í"n—ÍÅ|¨^àáq¤¦’íxH°£Áó8,-=Ûï4@:'|äiGù¡Ş^¤ØŒtÌTœÿİ^‡M“Ù†Všv dØ¦Í2q@2T5íã‡ÖFE?ÅÔñğŒR>ZEŸ’(I"××wB	Õ$¦E˜í¸8y`ŠÔt»Û$şÈ)C0]gjöé¤—ƒ4íğ»>uyÜÔ’5ô˜xÁåF])Âı ¿¹’^ÙaDô1êÒœÅ®/ÊpóĞ”Æuâà4¸"á]ºÎ“÷¿•PlÔqı¾Gaµ¾¬Àâ~€ûúWl×§wáˆöq˜h›kƒ÷™.ÑŠ!×¹®¹\Ä!6ƒ¾"°«¥(’>£¸à;­1t3îdÎ*fÍg7¶(0Æ0ğG¹Æo 45bB#3êçNnpCÿı/Zşà{Á`@œe;‘Dñ*ò‘$,”ßÍ6Ë§|şoz?ªÅ-3`íùÍ1™fKÎ¶ÍµÕWkÕ›F5÷l¶c§Ä€ò;.ê;TXÚ½¡x€şŠÖ©vkÎ$ıµW*t“sA¾ôcq•FÙw¾Zåíˆô²Å ‹GùöUï6¸x·
+WÑJ¿RÑÇ”…şT°¸†U¸ØT7S‹{Ow¢›ÏZÓ´<€˜ÈdqO/e:À„Â¹,îëå?x§éwº7Ëh«QÏ ‡¦İâQŠbi§üÛ]rÍ4í4¢\`d_,»\Öa ¥œºë†·ŸomPá’–o3Y5LÊ~ãn$8u~vó4Æ¡È¸|_Ô#oÊËâ}ĞZÂºÉRÉ³Áhì‘˜8ì<m×,jÖé‚rBåpÏí£¾n_^J%¿ÏŒ4ös¿È…j:íüyñW7ß“/ç²$@Î?ZF}C;Y]¥*3µrA±~=ıÚëvºİ7•±Š>í½éZ…dk<Šæ†qEÈ¥7iÓVt¿FÌ°V\İGöÂ^ö;Ì"9w2ıä~%‡Ù/Åï·E;…ˆÎö~9zºößœt»'oÏºhïÃáÉ9zŠí‚W’ŞÈ"¸Ù>¯°•¼Çïñ*òó©âU>ƒÓıˆÃ{íú>¸cŞà>ö<wäº>ı±uNpHĞÍ!?Ÿ°•Ìä¸îı/\a€•/.Å…	L„`#if	Š‚ §çN(<D°ÌÃ»ıüáy·»C
+5gHHºÌ¶3“·'ÛñôÊ€À…>]V¯g‰¸,<Ÿ™}!æ‹˜±"¶v{ÆL±[Ê¾ìÒÿ0µ„qÑGØô q>qnk¦õØ£gAĞÇˆó¿Öùdl™ŠVh§3
+mÿg¥Ø‰eh@©#9UÇlå€Í:ioi÷d»×é!µŠş‘K­#¿)ÿgKXÿ\P¾ö/Aˆ±ÇÜ TŸò¼ÀÂ*‘n–ª‘KTÕÁw×¨µkTI:ETÉe£S7ª2ÜM+÷úH½Rİù·ß«„Ìó“ôtfq×	B%»{ÒKÏù‡›ßuë=&šq)Y(MŸª4,CdJr=©šÙ¸ x,_
+Í„gF¯TmŸÜE·ÃÖ%¹æÀˆ²¼2C¿"N7íYJOÙ/sÀ@ Î6işÙW1lıVªXÑ»¦ğ«	ZÒÓºÓÒt†G×cü‡‚ƒˆ?sbNıfL®2©!ï¼iİ8Û}wD5<£ŸY$>‹¦-üÀ¡wŸh+z¶ØÍW aÆıslG”ş-£g‹±îÔbó¾Uš%š™$Àˆ¡gY…‘çg0X í.<7Ú0K}@†Âõ5*¬çgÒNí­¸²À3ªskd©°tµÊì×xÉ<†T…/Í.ZwÀifÛ_é×]d.ÊRoÄ$:½íc×#,Ş†æ%“¸Ö	¨N‹oL{A¨ĞÏğEC›V4;HGÀ1?n·W‡/¦rC‚ µ&R%'ĞKI€9
+7¤­²rÄ¤ÊĞ\Ü**¢¼¼º%X9
+-©*ƒ`úàU…¬²WÄ÷Wssµ™æ˜©‹l6BÅ›“W«hš˜NoÄw‹şÂ×$dˆ[¥Ôzº$’Ùïs l›„ÂöÙ«×ä2DK’2~fA+tƒùÙl¼^¾[¶Îo…?/rƒR Ê†>NaŠ;fÍï•¥ŸtcH{S Ìò?pè¢<>/ÆŒ“°øĞ*ık±kHèú5üãâ‘”%uMÏ.ñÜ‚3¼i>Àê½.	Eò^ä[ñ¡›¹á{±Höíe	Ë¦Eš,á¹Ænˆ¹kæAPƒjç!†
+ãOM‚€ú4ò337“ñSèÀiŒç!‰±ë©Ÿv¨6ˆ‡h­•š¥ÑK¼rçî>EêÛú8k©ëúˆksXkŞ‘>æZ~+¬MB*PG\¿0F\K}›ú0ëÂ$‹d±Qpmnš]î˜¶ËĞis'"ˆzúr†lÓ‡9fC¼Q«ëƒW´ÅmÎ3ˆ8\‹Y ©#ÛRú¨	(µÂ?EÏ†6ˆB)O¬cGÍİ+l¯Ğ}¶L¡ØL;È”ê•zª2˜¼e ª:8R s’e, ÜĞ8”]ü¡!’Ğjx+%…n*µ©÷`«ò7§ÆÏ¢Ì±’‡Ï±‰Î§ç<6à1‰Ø‰06»aêyŸÎ›]èC¦VxE°&¿0Ï
+ *#lÉá1E\ÜşÉééÉÙkôœıóíÉÁ‘]@\Ï…p“ÁœB¼Do%şS<Æàèiûø+=<™“¶ÎÍ3s€ÖÔQdv±cVÚ³^]©SRªúñ>‡.#İ¾Öò!Ñ²û
+,?Ë«¢Ue¹hÌK¦9zòŒ8B±YiH¥x¼,fs©¤D”Ş[İĞré-}”÷K¥†¯êHUWFE»§¸moKi¢Î8J{ûI„)ª^C—Å¡HŸF0ú·ëÜşCÄ–ò¿UÄ9q]
+ğ!F¿1 ß×ĞYÔzñ`ÕïP›LŞ‰À’S‰•š­˜íi.Y—ïI
+ñÎ£”nméÒwHŠè ¡
+”õ«eƒâ«ãÃŠ$õpWØ:%Î€@¡šƒ/4á³âV´WisÄ,ífv7õi¡wgé³
+IA4$ZP¤VM¬–M´–2^kd™¶"‹ÖJ±Ü˜¸B§µ/7µÏ2Fhİo|–&BË v˜ƒ·ì‰y¾9+TCÙÙSç`I­³¡>¤Üb¾ÍòWè5Êa¡ëÄ"…®)cŒ”%î»Sj­ ªöArš¦ašF£y[a4rÃxi÷|å°‡Z¼_ MvŒëí|ì¶ÖÉ0àc™>ÁVàÊæ”ğÉcíÓV¤ãŞeê
+ø˜ÍL),X'¦”RYÀGäÊ(-‹¼µ,Z®x¼•yCŠ,Á;¾ûüä†uÕ¡çâ1å£ÿ¢ÛÒZ¹m?¹qvÙ¯¬Õ8ÿŠÖW:c(„Ã¸µñ-¯QS›!V^lı{Ò§ü¥úÍNh«"kp”&kµ@7z‡¡Ärq¨Ná¾6}A"˜,‹-/8Â:F£$ê¾íœ+L†¡íß2!‹®¡Ø	ˆónâXÏÄ¾,ÛNb±ğ»×äği’@ƒƒÃÎC1-ØP
+YLñÉM‘âñˆ+>L,Ö7õ¬gHb º=Êó¡êúç'O²¯·ŸÁHUwé–™O…¦w˜À>‚“Ûø.@‹Á¬}|7ù¤>bc¯İ	dé€‡RnxNwÄw(B®Xlä˜,ÆNÃ„µ!İt•–ÑÁ¢g‹H®ücÓ•”Ñ]`ª|‡'¼OTã=Ì?úpBÙ,÷bZ›0gıJ?¶.ê×Äs¹}Ên«,+°óOJÆ «Ò pa:l0à=+ˆ;!Û
+œ­Âb#wt:,aÅ1Õûè=\×Ú6·E3º±´†ˆP[i„ƒV{6G!°>TÁ¨¶è\ã‘3^ÖTÕ\ı¸.â`”»³¾ûª£Lé7P¹O1:tC<ùî4HÂ¡‰ü;æ<áşˆÌÆƒ ZOãA8‘›~÷ T÷ (ø„Ô+=•'á§½KH¬ñŠ’9Ó™åóú>Ó´şˆBB'Sy2ş¤><WB%¢K”Rß maç(pÜ&ŞBÃ)¼´}º®³ ÆI ï†¤ï]›ı¸<tú÷™šAf!Vj£Ú_Ø++›õT¦¬¦öê
+ZX[KÍÕ…Q2SuáéÑ.5	6%‘÷cKötÀT[4é.ŠùÂÖ)÷©ÎÄû„1öö˜évøpŸ†MXeÅ5¯ÛÕÎÃØÅŞboIXZOoòÉÙ¶­.ÈÏ€ä¶–ĞEÙA›X¾š[½Ô÷[EJ!ù½;<fGˆ•KuÍuZÛÖì–,aÅêrÈ.¢k±ihi Vôlj¼jb¸ºl ûç‘ã¦
+îcG…øQu¤G¨¶¨U}å%. ˆ6¾iDà×Ş%4 Râ3TÍf@Œ»½
+ŸF¾?GlPİ‹_:ÌIÒ«³Që¯Òİ—ZÅ¸÷GG'ïÎ»è—“îùÛ÷ÿ²ºrEô‹ÅA8™ÓM¸´×öwû=ã¹ü|ªŒçRhá®bif…ƒ)Bbçœá<L‡r]äú	¡POøşc1;„!™wóœæŠGvóŠšÌ¨ÆâM›±8é¦Ò ëÓ,>¥iÁísœoÖCAÁâæû*X[$P8ü5kKÍ,Ol¯ª·›‹ÓÑ³ é5¤Itôıè@ÚÜÀÃ–×$†íÄ_f½ Rx^S—Œ/`‚şyL!ìü4ƒy”˜òO DÌaš»Ô"GÂ,;õ¢‰ba[C—[«GÔÅÑ,ú²èªG­œş.ä·¤§V8+­õ-2©ñË¤,è*HÜKA¨7oÏ¨¤ÿ~ï¬{|ô¾‹ZŸö>îíîî­X) ”[É9lø	çUìˆuÚÓ^ËâÿyÌ»ªµ¿wğë‡wè):8}ûá´¥·ÿ<¢ZÒSÔı×Ù:<Ù{}ö¶{~r`™:„JTÉx^™CXgúÄ!tÍèlšÜ!W!+Ru ªÅjõ§bòb*Æº±.0cõÇLªV¶:öjf¨Št*i6ÇÅ? šY_™ÉArd(¨³'uÅ÷OîNIè?£evEŸ«4‰I4²×r¶ˆÚÌÑH=¿­»™Ÿ21DIIÍÎ"6ñêtË»¥`’5ğÕ'ÅsAŸU`cŒu'~¿}	ÅÀDQx€³í¥4xŠŒ$åë'WtíC	”L‹“vç9D	'^DóÊ;!	Õs!‡´«{&…<ùŸ–¼ qlÉà,ùBÑ,A¬ĞA‹wÀ1â)»>GÃ ®¤åQ‹IêFş©H´±T˜!Ğ`GùÍÆÃêá¯ ¸I>ŒÁ÷^‘¯¿'!‰†¬Vkºsƒ#`-íİRœz.ĞaU((S0ò¬"‰Ï‚›–u¡<ø
+ÓC³ÒZ´SömùQiÇUaÉÛU¡á‚áĞ~Šş‘Pîx@:À¡S+9ÌÁ»ùm[bULîn9³råòZÍçW<qØñ¶Dƒõ5;ê":‰Öùh@{*£Ì\lÃÊIâ0IB<ÄèØ¥t!aU0/	›|<×“0_ã×	Pä¢kXv4Â!ºÂ^£„Ol¥AG¹[Óòr±ÚFk°ÔÛJ©¢ÎCw0 ¡ÄÔÆ Ç@ktvnÜH´qı©E)¿7¼˜ë­ye™ÊV·P¦A¥¾öæZƒ|Í²O±Ye‚Hi©&>`ÜétXôOT%Ş`yªĞ/«¼ºh22Ìeø|®AWlºõ’<•í¼xvß`“ÕÑ'æ†@˜C„ù{÷í8©¡aï*µ
+K0}X	Û4àû0à5’%SÀíHÁ“‘‚57\8’_¸Ñ™q¿OÆñÎRçHo^Í¯¢È¤ÀgeQWPxù”/jjüi
+G6¨ÇÌŠúqÉ[Š_]r…^CMæ²ìU=Ÿf)İ\6†ËîBÙ®£³è¼R{‰ìÿ„Œ¦CÈ²º]HØĞ¸ô'Åûªêc
+—T©ûÌè¼!*«ü›•W?†şæP	„TÚ¥HPa€˜åH%üX•1¥ÿ—;›ú’"
+@k ¨G¡Œ«$r<D©~	’İ%•V¹·µ!œ,E¸y¢öœQ±š¶ù…š\(6 £7l4ŒîĞ%Ãê¦iõIÔ×¤Õm~	—`.îgÊı†„©_ÉŸƒºt]ôaP\õ1†qƒt«ôN~4„x˜Åok¿Ë5(K?ÕÔ£äé?†xhr~Ì)ÙİKâ ¸¸ƒŠÆ1Vp·KúV^•G`y>OÛHó†s°H—¯-l#§®v0‘`°3œËv†Ü&ÑÒíÿ^ØR&¥±•(/Ïn+y“$_ B7ˆ.Ìüœd Eu`Ò‘ËŒ%°ÊâéqÚAñ5¦ÚĞeR•jô§0ÆøŠDô$=úsÜJØ¯}/Äo1©Ü­!¥b^­· œ`7ß/)|,äb¶¨ş9^Ìh5y€ü U¸ó%Å^ 'HÑ3`)€£18­·ĞÒÒíç[A2¤;H¢^øx¹n#í»¡š%&ËÔ-¢Ğ¯ªëyú)dbfİ_Sx1TrÇ+¾±bçRÎ®ÁxĞ)—{I!ş²Ìåi4!§EµÊ…j¤tĞì)Ûqğ#³ÍË”m:)§ìt„îÂQ¿`>·í)O/zê­P6iÑf	nàå­½ö6Âöp³z6Œ’ØŒşpCÌ7l…Øˆ ¸ÿeÚôÚÔe³ÿôZ_Ú}üá‚E}È²²éáÂN8Lèñ 6Ğ(@~*«&TVaÈdU52˜TİGi*¿C¹™Ñç¥xf1Š×Õq{wêæ¶îÙùµÊK©ŒRWZ/Z.X1wA¢ˆanÃ‹y[\o9õ’
+Üãöf¡îã@Ÿ¼b”eÖUÚò¢ ïrAŸşm‘~I¹mtºøÜÖĞ^G#×o_µM	3æãKËz++°¥˜æR½¢¶‘+bê{éºlBúˆµâ§SØj/gëë&³BİÜ2\LÒ ŠÏyö¥ªò¦ªèE‹ªœ "[vÍ:_'‰‡V…i†uÔUO÷ºÏüL@,>I+”×ås´SŒï—OkÉ—cDî¤ã<Ç
+Ïó
+ô«/×xøf]¼:è.Wän2¢ˆuÙÖëãYÏ¼H·’U¸k®|Êá½Vû`Œ…•©rÊ\ÆZ)°¨RÍQ¨ÕÕĞD™D-:dş ²¸Sr ’†ˆ_çË¶ª7˜ò-Ï¹ÜR][LpH%ÁG¹¶4auYâbù]–œöÆê¸ŒÜÿ´‹Ö×6^ ¿°ÿ›!–ïû¦%·^E-©ù
+iÇî5qZ+·èÍşçš· Ã78vØ
+K]³.oÑ¯ûŠªuíã–RX=kÊ®a>µw™lï1)ï0½	x°%%¬•IGFCÖÊD'Âcj¥2Âåò^IöÎ$É†¢<M©$ç¨¯Ñ.-MtÙÖğ¿r£®°s]œ@G,à,7~nÍÕwjäGÒTGäŸt†-±•ú´lõw¯Œ±iàPs”ùrÛoÓ,¦sE=4Ëò]à	$­„Ÿ)i¶Ü@iœÖÃE¢÷Ü©=?z`¦%+|9,x8wòóXŞ)QGco‚;¡öpq‡gšêlpU»Ä€ªêª'{<=ó™½Á¾ÎÎ´)qfú„CuØ`çô5ìÛ¨¶„Z¯…´ò İ ¸N7xr—ñ‹Îš³àx„Šuğ•äƒ×G*w{Ÿ®)¢Ëà›ñ1SZ¶)J«xÃ MÛ _1êa2§å´ƒÄ †Ÿ \ñbÔä å v»O(;r oxzî7¿„[SCô´ÕÌAó*¤İíc_lÛ‡æu´7ª^úçEIíÕb%2Ë
+ÚS‚û€4€ûJ(vÊXC½øB?ĞûÄè¯,—^öŞ2÷¢Êysàe=Y»†Ù 6NM7ÆcÊ¾ÓŒú)l<< êñ(ä”£ÉL¥óY©Vmvøk–ÏXıUgªv®oÍå2Ë•½RÀ|%4×é&u9şÓ)YØ{îœœò$ûÿM¿×¡µ0«ìZc©3İn®Ù[¯À×Øë¡;p}¨›˜XáqÁ¨
+Eé³ÌábÎâ2³‘{¶X+©—»Iv“Šr´§?C¦›ùY|´™ªç™×FHjPÂ&ååíWªáö‹åö2táı®M£æŞÉşÔªğ±Ëd¤ZãÏº£zMc&E£Ü°ø¤&½húgš>çtïìğäì5z·÷ú¼=;ÿöÔ*Q‡YıÇ9eÊ½µ¡@xåÌB§üçşë‚R)Ù^a7Oü‘‚mïô½>}»¿wŠŞ¼=Ü;ífğ’^\ï ¤Qœƒ ±êŒPo¨´~¿ğ
+€Üæ7äDûì%in‰ÈvŠÈ›ü! 8diFºò«-Vì£€."s¼ò!ôrĞvÄö¼ÃÒ%qLÿŒ~îxüµâ qhŸ‰şâ{şV¶+`mtË!Fu3À	5°ØüÌÊ+ø˜¨ÜOWŞ^CÿñI/l¥5
+—A¹Ÿì<NŒ©bš„ »–09Ï?:©æµJq
+ª>‹Kz…Føº}Õ~ÁS5±bg\½‡X£œ–FúªÎ  ]Û¿ı´öuø{1 ©&a¯…(jÔûõ­RJ†,é‚6È^(R§³OÆÀÏavµë#ÓD¸­6jü#ªÌóÊ	ÔUà{Ë§aL´”…>äºU%¥M)%¹Jk¢+öä“b7Œ‰•ŠOë3‹ ·å¡éî•SoRg4ÊémæÉ­à’%uFCøy5<E² ŸÑ€øTtŠÉ^ßÁ~Ÿtyï§¥ì—Êp!K¥ù)§=~Í@÷,;:«Î¾­lf]®!åy¨ÍdmN–ësY3ëedÓ¬·¶6/còã<åL¬2ªê8Ù=“w–´ ñ–\WØÉf$øOnÈ2TU±Jk±šE§0‡á»Ãã&°³O¢a„œmÊ‡‘“ş•¼º1;«mšQ#Ë¦AÁÕ„k¾…ºçÄóã¢w<°F¬•Ë¿Yqîı´ÒÜ‚E6¥§Heå·¥İ¼{V[ UÄMM«›˜Rgæt) RÇ‡,Ü¨U|è:·+
+S±Z±'£ø.¿•ÍÖXIßS0Oy©?ŠÑ¨L:¯,ÀÊø¼êª.kŒ.EG^ÅYe×›Çx²—'[W¼§*ÕüNnÔ:cc”+6+íPÅPN³S¸ÿ2]„SÉ`U£Y@ÊK ¢í%Ñ1!è*RÃt.è(œª—vÑšŞË¥ôØİ^a¯1¡•±êQKF®}riÑ+oÖ½‚)@él«ƒñ|J¢$‰¨ØÑ:¨Êi`;Ğ5‰ê._¾ù¬“L…½oSú½P·şãáı?v¡~¦^=xjwn6îˆ=	¹`JñhÁèbÏòÈÃT8Åè,øÜ¥²	¦l!º’»‚Ìô€kâB3®¢NJ=ÏAŸü„¿¸.ÕŸ¢_ÉÄ);Öæ®!¾`"ÔRQ«†âÇo[=¤šÔ£QhÈOaÚlgi½¢ÚyÇ&{a¿«{ù2_6µËçÑ¬Uó|m|«œ~„â±.`UU¤y,°S/í~xİ=y½‡ºö?¨ãHë£Hy¤ñêâkªŒBÊíOî…ã¢n2À¾µCÅêózªï·K7ÙEÁ¿-],”:lL!Ó›L2¥"jªît­'‡]æ‰óÉl‹YgZµn®kÔHÍÀ4¨Pı<Ï[g.Ú§^©¢Æ¤=hª™4ŸTaR¨´g	˜o@éhz2>LÅã“[¼#^C×Ü”æN®ùj%ÚËµÙÔxq0B¢Î<:	ƒ­¢#Ç…?”ºxûÛÖm6æÉdšÛÔ|çË¡ØàúƒM~FËñ5Ø2ö‰ã/Å©jE†QP¶¢’wwaÊŒª’`ã2ÖŠBU$úöQaµœåW_­TGú3êGö7÷ÌÅ6ŒÅîÅò¨@¹`F®ëA:ÿéı0¸Ñûáú_ƒpDOKwì¦j„µäDÑÚÆ4şĞ| %c½Ø+Œ=n®¢/ÁÅ¥ÎVoë@¹G”:'¹ÿ‘éİ‚}zlbÍ¿tZ{¹~Í?3bÚùûèŞ9Æ¡ë^™°*"Ú`'K6ÆI–iğbâ#àMoÇğûiĞÓaBXfÇ™ÿÖØé‚·û–qBÏmîÁé/ùÏŸ¢4`Ï¿ØÿFŞÿ©ÍÎ?/~éÀJáK©Qäækk¤ŸoİıÿpÔº‡iÜ»§¨Êæ«¯V¸PhA€@j¡¨f«˜«ÀÚöc'-åyâGcÒóÚSÔÅ$½¥Uµ¶ù¼\½sÛæ}˜Û6çanÛ¨»8(•£®Kg´À;…VyT‰èË-ó’¿´”®¹’ Œ9>µå£•¶ì¦"îLù%š›9E„Ë´|µ¨lİRPizRW±ZáQË“d‹åyBìÂ¦èÒ“¯Û¥'¯²ˆN$aŸè-HÓÔŒœ¹Ê”bYæÈ¼›+Ÿ[è‰éeÈ{òìÌšbn¿$=‘P‘°´T„j¶DS½}ñ®?oL«`›ôĞşŠÎq/²cİÆDÆFÖmÈs¬@L)S¿"zöLdeŒØKÓY´–ÅĞË5×'n>gªMkÌ²¨÷¡>Q‰çT—)M˜_.N'­ág?£åâGI&Ìêo±Æ¶B9í]ÕÑ­"·’'Ö”+Ğ¤L;‰zÌgÆêíµİ‹(UÊR½Ù¬á+[>g¾#aY ªF«Ğì¾‘LbÙŒ•h2†Í¿ªØ¥`¡§x$1«Òİ ·^'‰3Â!j¥u¾ïèJ³wD´˜’E=LÜÉfüXqçCDÂF•·D†9ÔR‰’+ùƒÔ9<oâÿ‹Önï»DG„]ÙŒ+v½±“`€Ñ7Á²BI®¥zh¸ÖséìıÁãAµtÂÓÜ°a„TP
+»îÀo‚li*Y	+_d@9a[p(w!òŠ‰éò)?V´ÛÃàê”\ÄïİÁ0n‚tŸÒµMümødr;q1%—Ó©ÈÜx¼8+Y‘„*¿¸2EÆaû·çkkìbGY†Lñ¿ì½>ê²¼‹ŠrÇf4æ¦ê´uô™êmaé.”²ÓÕ¬“ªZƒã‹ŠQLQ'Rôù“Ş½.íJùÛŠúaVUhˆH$ÜZÑ¥{WÚêÕı o!û±v+²Šƒ+›]€<(Ÿôğdù¶i]^À~•P‡ƒ<7Š«¦"&)&ç“+‘ó+2"”übJtÚ¤*ì‘Ğ7YIÃ"ê¤¿mq‡¹Wêst«J5+pI.i©å×¦â\ T+ó²ht»«Šé‡)<¸ÒœŸâA‚qHŸµşj·[b*L/›«¶ØtóP«‘#}}^›¦Úr,‹zo!ìOX*õ-Äó\Ô¤TG†¤êR©2^å¶a¥ÚimÙF·¡b†há©Ğa$×a©Ìé_Y's(É©M=U…•†L)$#z¶:vŒ©ôò´ÌITá©r¦Jé¹³%6ÂL<é“–!¥õ„,¸Ñ/¢æÂ)”ZèbÎÚöÛô89Ry÷É•Øf}gIêÏı²$zpeªpœ”¾8-+êy‰š±ÊŠØS³"e"‰±Şë˜Qf.ÕÉC%`ß	÷™M ÊfÌXë½^ÃöBâ5HyáZÆ€:nT[V¦Ç¢€¡ÌY¾ÏcÃ»få^0ª0hvÜ²®î‹vÙÊ¨š'l
+qcçıã¶‡Ï>-³­îúöŸGïÿyrô±™á#sK.Â¸Q"ù"É¿Ğ†”©ú*'#7$ ¯7“(°Ç"ı…Á\‚A€ÑÄÁaŒS–ÃÔ“ \E[¹Oi19ÄL0áèã„~Á¡s‡°W;ˆş\°?ÆfÂ;„;ë¦ì$ùs= ¹‡É»Cğ«TSÁ_ÿƒz[0HtÕmáËÒ¼$w³Š	æƒgÏ#aÌ=}Úìi|œ—Rmƒ4ÒT'…›$9K«=”	4‡îÀ§Lıš€Q¡Ñ=…JÔ²^"E8Ô™`q¨ÆâSä1ØèVz>vf¤÷f%¦Bâák¢F¨X ¦Å+=C¥It…¯ñ„îFÏExˆ±ßÃè2AÜšï²‚¬1Æ"pvÈŠÊüáÂé
+O\Şeß'Yíä:ÆG{BÄ­ëC]×!™D8xLg\¥E_¡lã¡¨bn@Ô>„æxÜ@ë8<:;oèÀÊB„šÉqj"(¿»£é(¦KpØj5Ôœ™QL¼„êQ¹ˆ™ë2¨¼ºÚÌÌ^œÀ=éowÖßEÏsûr ò‰Ÿ“p¤“ã•‰~Ëínz–.Ò½§¸IÑY	[<«À3trø±ƒô¯h.„Ã§ i ?öàÆÅ8LîS^,Ü¼úI´UtCBŠ3å¤”ÛeÍÕ3¯ï5÷úÚ¶é›ç›Jo°*Æ½2'Ïï4 "f«Ãõ!¾céĞº’bö$ªà÷/'›×Šwğ´¹K¡’ğÚĞdŠC£Ê‹çåsH¼·½›¶©.D†Âiz¨<MÓi‚§èœxÍ{–z˜ ópİ¨F`î‰şª.´¤Û®GŠ„9H³ 8N%µö‰?ô÷QóÏM«N¿!ë·ßu9øt.\/&afq¾e4¥üPa‡tcaùş¹§ÁT"Hk…
+„}Î2jU:,¾¸bÑ¿ë,¬÷–lDgÕ¤ïÓjÚãnÉÎ‘Z%#n¤>	áJñG›&DK;sÊt“ç‡Uê$?¦–p1Ö’CİÊ$’’Geª‹,•÷'{KæÖé‡Â€Ê"PÚË¬:Núœ%§IX™eXÆ¿LºÙ•åõ&P³Ch`u#šø|L†MÆçtb1;l#Ÿíürô¾¡`œE77ŒÕ=wN‡Ü™u-Mç‡
+-y±è&æ‡¢¦«¹ \ç5{,îÜl`éÍ·9F)ñ±”R5ö“Aßp_v]ƒYGÁ°É…Ç90MúËÓÙGTÙ€vöONO¡2u#ÒI£µK9©©@9©ÏŠv˜{é›£æ®ºy:é€¢à	äJš‰¤T¹ä…T>+œ |UXA§tğ•ºùœZe‹6YŞ=àk1ÚX‚„ÓKègTLRÍÜğ[âaf#\ºı|»+õ0=<Å>í}ÜÛ;İ;ÜkÆ òÈúÅ²ˆb|zQŒœ±£oñ¥‹ê³|É$¼&AGc†º³ va”¾ô¯™9Eİªe"£O‡ä¹ß»Ä†ÜçB:Šw
+Ïò+ÇAÏ%¡Ë}—V*çÃÃLHuOu•¹†‡ÁH Óx/ï.ëüÆÂsÎ¿€•ô¯nÍÕ%^;rÏ3RêÚâ™q|º•á†#Êÿ´7{$@İèÎ’öA%yP÷ËÃr·Z%;VŸÿšå¡—¿wÜèí˜ÒôƒHO¿øJÌóª²¥öÖZçAèÅĞí™rNé]Ä/é^*Ë¨Òò4ÎUÀ®NìÆ¹åôOª<‹º\I/¥`ÅŠS·8ÜˆDêÅªÇ’°‘RÔ´ Ç{İifÅĞ§ük°e4—A=™©NcÚç¦â
+Å—s:0³Ûü‚ñ3tî†±**FÌ¹øÉÄU,”]ÓQ;á/¥ï¨j(ŞfDeueÖvnÒ¿ä¥şşê(&SM}ãŠ’ı¯"ñ)¥ªü~8¼RL_ê^ o3Œ3Û“'—W 9—-»IzãÈÜ'Ç$¸R9$ÅrEŞÕ¼íªæ¯:è³Úk`-~TYşé[†®¼N[°şÔAç	#Êôò£†¯x+}IgÕ+Öğ¦ì fÿ|$”›Iß™›¨\~ZÎQø÷K/Û}[_ë ı$ªÙ4ú†iÃÊ?ß,ıf•ae½Që ŠxéÇt—	‰Ğ~Hğ%=j	lZö6¼œ½ËàXÚ¿Â›³ì`Í°|ë++—ºMÜ §•Š©Ømµ…âİÚ”Ş›uû´C>òÍÓ®ËvëgÂÚ{È6Šjü½ &ış-•ÅZ3»üTÊ^¡Ğ—³w”"¿8+©è}äû¦_˜-±læ|öÑÍÑ7m¸}mNL®2à#ß7İ²L»Æ ›ª¨tÀÛÿù   ÿÿ –ÍÚ6
