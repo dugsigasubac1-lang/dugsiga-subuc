@@ -69,7 +69,8 @@ import {
   Crown,
   ShieldCheck,
   CheckSquare,
-  Square
+  Square,
+  FileDown
 } from 'lucide-react';
 import { 
   DatabaseState, 
@@ -90,6 +91,9 @@ import {
 import { MoneyTransferTab } from './MoneyTransferTab';
 import { WeeklyAssessmentTab } from './WeeklyAssessmentTab';
 import { LandingControlTab } from './LandingControlTab';
+import { StudentAttendanceTab } from './StudentAttendanceTab';
+import { BillingTab } from './BillingTab';
+import { BackupTab } from './BackupTab';
 import StudentMediaModal from './StudentMediaModal';
 import { DugsigaSubucLogo } from './Logo';
 import { ChangeWebsiteLogoModal } from './ChangeWebsiteLogoModal';
@@ -1934,7 +1938,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     setFeedbackMsg(
       makeAdmin
         ? ` ${teacherName} si guul ah ayaa looga dhigay Maamule (Admin)! Hadda wuxuu geli karaa nidaamka Maamulka.`
-        : `á½®1ï¸ Doorkii Maamulaha (Admin) waa laga qaaday ${teacherName}. Wuxuu hadda yahay Macallin caadi ah.`
+        : `1 Doorkii Maamulaha (Admin) waa laga qaaday ${teacherName}. Wuxuu hadda yahay Macallin caadi ah.`
     );
     setTimeout(() => setFeedbackMsg(''), 5000);
   };
@@ -2274,7 +2278,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     });
 
     if (studentScoresList.length < 2) {
-      return { trend: 'No Data', icon: 'â–', diff: 0 };
+      return { trend: 'No Data', icon: '-', diff: 0 };
     }
 
     const latest = studentScoresList[studentScoresList.length - 1];
@@ -2282,11 +2286,11 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
     const diff = latest - previous;
 
     if (diff > 1) {
-      return { trend: 'Improving', icon: 'á½Œ8', diff };
+      return { trend: 'Improving', icon: '8', diff };
     } else if (diff < -1) {
-      return { trend: 'Declining', icon: 'á½Œ9', diff };
+      return { trend: 'Declining', icon: '9', diff };
     } else {
-      return { trend: 'Stable', icon: 'â–', diff };
+      return { trend: 'Stable', icon: '-', diff };
     }
   };
 
@@ -5818,7 +5822,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
       title: "Waafaqidda dib u soo celinta Backup-ka",
       message: `Ma hubtaa inaad rabto inaad dib u soo celiso backup-kan (${previewBackupData.sourceName})? Tani waxay gabi ahaanba beddeli doontaa xogta hadda ee live-ka ah ku dhowaad ${previewBackupData.state.students?.length || 0} arday. (Are you sure you want to restore this backup snapshot to your live database?)`,
       accentColor: 'teal',
-      confirmText: 'Haa, Dib U Soo Celi Now á½4',
+      confirmText: 'Haa, Dib U Soo Celi Now 4',
       onConfirm: async () => {
         setConfirmModal(null);
         setFeedbackMsg("Xogta dib ayaa loo soo celinayaa, fadlan sug... (Restoring backup state...)");
@@ -6717,7 +6721,7 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                   onClick={() => setActiveTab('backup')}
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all self-start sm:self-center cursor-pointer"
                 >
-                  Manage Backups á½Œ1
+                  Manage Backups 1
                 </button>
               </div>
             </div>
@@ -8822,9 +8826,8 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
           </div>
         )}
 
-        {/* --- TEACHER GEOLOCATION ATTENDANCE WORKSPACE --- */}
-        {activeTab === 'teacherAttendance' && null}
-        {false && (() => {
+        {/* --- TEACHER GEOLOCATION ATTENDANCE & SUBMISSIONS WORKSPACE --- */}
+        {(activeTab === 'teacherAttendance' || activeTab === 'submissions') && (() => {
           const todayLogs = (database.teacherAttendance || []).filter(a => a.date === todayDateStr);
           const presentTodayCount = todayLogs.filter(a => a.status === 'Present').length;
           const lateTodayCount = todayLogs.filter(a => a.status === 'Late').length;
@@ -10672,53 +10675,355 @@ export function AdminDashboard({ database, onSaveDatabase, onLogout }: AdminDash
                       {showPayReportStudentSuggestions && (
                         <div className="absolute left-0 right-0 mt-1.5 max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1.5 scrollbar-thin">
                           {filteredPayReportStudents.length === 0 ? (
-                            <div className="px-3.5 py-2 text-xs text-slate-400 font-semibold italic text-centexœì=isÛ8²ßß¯Àø¥by7’Ä™Œ×ö”ÏŒw'9›lÍ›Ú@",qL‘
-ØZ¯ÿûC 	’ êğ‘‰j7cQÄÕènô…îpi÷,@#÷‡®?@Qœ8Ä#t$¾³½ê¸_wÿi?+hµ¿#táz1	‰óOŞ“qÆ]1B'òÜ>i­=C¯V:#<nEhgİ;C¨øQŒÜè`DÄG;(ê¸ÚÙÙAãÒ 'Îßjú
-Iœ„~Íüá³İKâ8ğkßCè’Lvn`J·/Ç“1ÙYâ}/Y¼øo‚$"‡Á•¿sÓZ±ÿD$.ƒÿÄiÁ4Wê`¤í KpØş#!á„öäã±ï«;®*ı%ƒ‰b—îoë{‘]w·6pî{8ŠÎèwn>_µ/ÏC1¹Û¹ˆÑøºı¼³‰Æ“öz¡ağ•„[½A;òpLÚëkkèÂ#×ÈÉ(j÷élIˆşHèl/&í‰¯EÅ8Ä~äÂÚıÀÂ=±Û™FËtL×wÜAĞŞ\ãÓ_„9~Üî³L©n™ıÊ'˜ı8"›Œ–m ÷¹r&ÂO?Û”AH ^bp‚ K6=Ğ>¢1öÀZèòB«åpøm}½³9¾ş}i÷†£Ûíö*´›rÑçíI|‘A2ğ6%eô_t -·ıõÑ`üZ6š~n2\xúmIÿRôCÕ!ûWF—kkKhu·~G·W9·©›Kíİ®˜ı4ŒpĞ´Ó¶Q¼/Ş­<¿Yı:†$r¿4Éˆ	Úë­¢×aŒÑq M÷pˆş²ªèØ„å(m±¿ÃàÊÌ"xÜ~Æq{õ‚Ğ!a;NÿÈ9Í(no,!×ÙY
-ŒÚ˜Í´M'§$¨íqÄîy˜"U2“°#l«IOşö•Kç¡às0é4öÚkMAW¨+$tP 6ënHÛ_ÑEév¾Òûî&=‰÷¢ÀKb‚\ßs}Ò]26.¸y²
-qøÊBÉˆ„ØsØ¢ƒ1î»ñ¤ı#¼™bõ«G.Œ%V&¹IiÑ8ñ7öÓ{‚	İ­a{“ØícºFˆ\Ãõl¯Ğ…Ù†S#€Kºjã$ÔHÉøI¤ÙÛşö?]rõ&p“Ó–¯†G–éi§¼¶õì©^³ªÿ€ÊŸ—;7Cì;ª¼ ;ar{qL|û}bb©0Az !â({Ğ	ö€)ç‚{Ç4#É«!¥°“®½LğÈNx±\µGÙ_iŸ«ëk|T2‰t×á¬ÈELw´Ÿ„Q¶ÇËŞ*ï³˜uD±PNÒY[ÿÁn%é³µÎO?ınnìÆËáÖÿ&ƒÈànÒKú\Ş‹şOßÒt.m§[T<_P"|§Ÿ¡é£tN¡l8›Ò£ñ.‘Kñ©HÒá@¢Ô‚½–Y~QŠÚJÉé™ñÕ(Æa|HYê–à#İô¹¥¹Õÿjn“íNÚŠÉN]âÆ1mo¢ƒ‰Üø	÷“LoüÑ«©îS—‘F
-ÑQ“kˆ€Q[Pˆîwõ/`#PÂÔpï'ãF¸çgçæAW‰“©Ê&´Ôœ#¢í8IÒåm¥’Ğ‹µG}º,öŒø{„TèzÇÄœ0s‡LJ«ò˜YŞó¼Ú™	€e3+Cò¡Kfò}Ì´:ãY%vn!ÇÕC9ª6í_<ŞáÉˆöğûr~·ª]?“MèØƒ¥‡”,Ù£)©áûQVù,Xİy(ÚÎ¼z¦lÌñ?úw`©hÂî0«Î‚´*L¿Ÿeì,;v}ª#¸ØC|'ç¨©v]cZW>V<¬<*= cfƒ¾İn£îù‡Ã£³s´w~~tv¸wvp„Î÷öÙO²İı†ïÌ9îTÅ\›Z‰|J—Í›Å0Ò´_¢Ô˜|Òv}nÅ ÓcBôÛÆYÇ%Cf¹[ŠöÏÇ´ç×ŸSdçfüª5_ w4BéŒ^Tl¥ö¦Yú·…ƒAL¢WÍ¸§O@iK>¯sËå|»TK»‚cì_b´:xâ`Ô¼	å[HQ}àFq8YÙ^>·tläÎŒ”»Œbî˜ø„¿¸î.úCóÑŸ!ã¡ëÀ_î‚¾Pr£;3ÄôoL¹Gv˜é¼2	‘¨ö¬ê7Q;l'kı™Z:u‡”ˆ¯c´ƒÄ'!\ün2áPœ- úSºê3ácÜÃ×<´ç”n‘O®Ğ>ı³õÅïÏĞ[œğ\¯=ìúëqHõ$¾h¿Z¦§“¹ç$ôhÇŞŸvú!¡|Ûûƒjqô{Æ¬iŒiS'è' ˆöGo­e¼¬mŒ;Ã\Ğ¶tpı;N*­í Ï97ùwÄáüï'7Xo; Ÿõ}õa[š	i"J'7œÛ/æ$ukÏåô ÎyœñHV¡³Æ6ì+¤^ÙÊãNwvšN¼^=]Á?À«£ö:°èüëÎ‘›°\÷ˆW8r¼ ™Æ@¬±is$®¸I÷Tã×¥Ø?êÁ^-ícºîå˜2 #å¾lHåd\œ¨…Î§(C j.õ{	Ù)`½›A §ìŒdB~Ş¨E:Tì¸Ã:Ô¯2òçá<Ipİ\SĞdFÜ—À‚nÄŒüÀ'BÂT-_¡†cä^ĞàGØ£Gd‹±v#DÌTf±Ë¬«ÆÛÌZ=ü}™chÂaµDU»¥İÃ!¦\
-ûˆmƒ‡étøËoz¿àI;¥Òœì{,tRk´`±‰ôİÛtÛàï]ö¯yÜöÀãáãú'*ãa‡K¡8Næ„í¼¯cŞÚéåÆ%ÜG8¢:Ëä['úâP ‘ıJ­ß…$¢ò×3èŠï5´Sêä®İCªà	jòs°Aû½ŸÃü…Rq‹5vñxÈå=ÆË5·6‘JIJÃ¥tAb<bX!Ò•ãÔ²ˆ/Ğm?Gq0n?×Ê}!%S a‡ê!}2¤€"áÎÒ<À}ª70:9ìt:ºF%NÀ¦³«™¸ khwöIßkÿ„Æá¼è?"#wqG)ğÌË¼dgifŠUèÂ£ƒQ€øµ™ìık§XT†Í"n—ÍÅ|¨^àáq¤¦’íxH°£Áó8,-=Ûï4@:'|äiGù¡Ş^¤ØŒtÌTœÿİ^‡M“Ù†Všv dØ¦Í2q@2T5íã‡ÖFE?ÅÔñğŒR>ZEŸ’(I"××wB	Õ$¦E˜í¸8y`ŠÔt»Û$şÈ)C0]gjöé¤—ƒ4íğ»>uyÜÔ’5ô˜xÁåF])Âı ¿¹’^ÙaDô1êÒœÅ®/ÊpóĞ”Æuâà4¸"á]ºÎ“÷¿•PlÔqı¾Gaµ¾¬Àâ~€ûúWl×§wáˆöq˜h›kƒ÷™.ÑŠ!×¹®¹\Ä!6ƒ¾"°«¥(’>£¸à;­1t3îdÎ*fÍg7¶(0Æ0ğG¹Æo 45bB#3êçNnpCÿı/Zşà{Á`@œe;‘Dñ*ò‘$,”ßÍ6Ë§|şoz?ªÅ-3`íùÍ1™fKÎ¶ÍµÕWkÕ›F5÷l¶c§Ä€ò;.ê;TXÚ½¡x€şŠÖ©vkÎ$ıµW*t“sA¾ôcq•FÙw¾Zåíˆô²Å ‹GùöUï6¸x·
-WÑJ¿RÑÇ”…şT°¸†U¸ØT7S‹{Ow¢›ÏZÓ´<€˜ÈdqO/e:À„Â¹,îëå?x§éwº7Ëh«QÏ ‡¦İâQŠbi§üÛ]rÍ4í4¢\`d_,»\Öa ¥œºë†·ŸomPá’–o3Y5LÊ~ãn$8u~vó4Æ¡È¸|_Ô#oÊËâ}ĞZÂºÉRÉ³Áhì‘˜8ì<m×,jÖé‚rBåpÏí£¾n_^J%¿ÏŒ4ös¿È…j:íüyñW7ß“/ç²$@Î?ZF}C;Y]¥*3µrA±~=ıÚëvºİ7•±Š>í½éZ…dk<Šæ†qEÈ¥7iÓVt¿FÌ°V\İGöÂ^ö;Ì"9w2ıä~%‡Ù/Åï·E;…ˆÎö~9zºößœt»'oÏºhïÃáÉ9zŠí‚W’ŞÈ"¸Ù>¯°•¼Çïñ*òó©âU>ƒÓıˆÃ{íú>¸cŞà>ö<wäº>ı±uNpHĞÍ!?Ÿ°•Ìä¸îı/\a€•/.Å…	L„`#if	Š‚ §çN(<D°ÌÃ»ıüáy·»C
-5gHHºÌ¶3“·'ÛñôÊ€À…>]V¯g‰¸,<Ÿ™}!æ‹˜±"¶v{ÆL±[Ê¾ìÒÿ0µ„qÑGØô q>qnk¦õØ£gAĞÇˆó¿Öùdl™ŠVh§3
-mÿg¥Ø‰eh@©#9UÇlå€Í:ioi÷d»×é!µŠş‘K­#¿)ÿgKXÿ\P¾ö/Aˆ±ÇÜ TŸò¼ÀÂ*‘n–ª‘KTÕÁw×¨µkTI:ETÉe£S7ª2ÜM+÷úH½Rİù·ß«„Ìó“ôtfq×	B%»{ÒKÏù‡›ßuë=&šq)Y(MŸª4,CdJr=©šÙ¸ x,_
-Í„gF¯TmŸÜE·ÃÖ%¹æÀˆ²¼2C¿"N7íYJOÙ/sÀ@ Î6işÙW1lıVªXÑ»¦ğ«	ZÒÓºÓÒt†G×cü‡‚ƒˆ?sbNıfL®2©!ï¼iİ8Û}wD5<£ŸY$>‹¦-üÀ¡wŸh+z¶ØÍW aÆıslG”ş-£g‹±îÔbó¾Uš%š™$Àˆ¡gY…‘çg0X í.<7Ú0K}@†Âõ5*¬çgÒNí­¸²À3ªskd©°tµÊì×xÉ<†T…/Í.ZwÀifÛ_é×]d.ÊRoÄ$:½íc×#,Ş†æ%“¸Ö	¨N‹oL{A¨ĞÏğEC›V4;HGÀ1?n·W‡/¦rC‚ µ&R%'ĞKI€9
-7¤­²rÄ¤ÊĞ\Ü**¢¼¼º%X9
--©*ƒ`úàU…¬²WÄ÷Wssµ™æ˜©‹l6BÅ›“W«hš˜NoÄw‹şÂ×$dˆ[¥Ôzº$’Ùïs l›„ÂöÙ«×ä2DK’2~fA+tƒùÙl¼^¾[¶Îo…?/rƒR Ê†>NaŠ;fÍï•¥ŸtcH{S Ìò?pè¢<>/ÆŒ“°øĞ*ık±kHèú5üãâ‘”%uMÏ.ñÜ‚3¼i>Àê½.	Eò^ä[ñ¡›¹á{±Höíe	Ë¦Eš,á¹Ænˆ¹kæAPƒjç!†
-ãOM‚€ú4ò337“ñSèÀiŒç!‰±ë©Ÿv¨6ˆ‡h­•š¥ÑK¼rçî>EêÛú8k©ëúˆksXkŞ‘>æZ~+¬MB*PG\¿0F\K}›ú0ëÂ$‹d±Qpmnš]î˜¶ËĞis'"ˆzúr†lÓ‡9fC¼Q«ëƒW´ÅmÎ3ˆ8\‹Y ©#ÛRú¨	(µÂ?EÏ†6ˆB)O¬cGÍİ+l¯Ğ}¶L¡ØL;È”ê•zª2˜¼e ª:8R s’e, ÜĞ8”]ü¡!’Ğjx+%…n*µ©÷`«ò7§ÆÏ¢Ì±’‡Ï±‰Î§ç<6à1‰Ø‰06»aêyŸÎ›]èC¦VxE°&¿0Ï
- *#lÉá1E\ÜşÉééÉÙkôœıóíÉÁ‘]@\Ï…p“ÁœB¼Do%şS<Æàèiûø+=<™“¶ÎÍ3s€ÖÔQdv±cVÚ³^]©SRªúñ>‡.#İ¾Öò!Ñ²û
-,?Ë«¢Ue¹hÌK¦9zòŒ8B±YiH¥x¼,fs©¤D”Ş[İĞré-}”÷K¥†¯êHUWFE»§¸moKi¢Î8J{ûI„)ª^C—Å¡HŸF0ú·ëÜşCÄ–ò¿UÄ9q]
-ğ!F¿1 ß×ĞYÔzñ`ÕïP›LŞ‰À’S‰•š­˜íi.Y—ïI
-ñÎ£”nméÒwHŠè ¡
-”õ«eƒâ«ãÃŠ$õpWØ:%Î€@¡šƒ/4á³âV´WisÄ,ífv7õi¡wgé³
-IA4$ZP¤VM¬–M´–2^kd™¶"‹ÖJ±Ü˜¸B§µ/7µÏ2Fhİo|–&BË v˜ƒ·ì‰y¾9+TCÙÙSç`I­³¡>¤Üb¾ÍòWè5Êa¡ëÄ"…®)cŒ”%î»Sj­ ªöArš¦ašF£y[a4rÃxi÷|å°‡Z¼_ MvŒëí|ì¶ÖÉ0àc™>ÁVàÊæ”ğÉcíÓV¤ãŞeê
-ø˜ÍL),X'¦”RYÀGäÊ(-‹¼µ,Z®x¼•yCŠ,Á;¾ûüä†uÕ¡çâ1å£ÿ¢ÛÒZ¹m?¹qvÙ¯¬Õ8ÿŠÖW:c(„Ã¸µñ-¯QS›!V^lı{Ò§ü¥úÍNh«"kp”&kµ@7z‡¡Ärq¨Ná¾6}A"˜,‹-/8Â:F£$ê¾íœ+L†¡íß2!‹®¡Ø	ˆónâXÏÄ¾,ÛNb±ğ»×äği’@ƒƒÃÎC1-ØP
-YLñÉM‘âñˆ+>L,Ö7õ¬gHb º=Êó¡êúç'O²¯·ŸÁHUwé–™O…¦w˜À>‚“Ûø.@‹Á¬}|7ù¤>bc¯İ	dé€‡RnxNwÄw(B®Xlä˜,ÆNÃ„µ!İt•–ÑÁ¢g‹H®ücÓ•”Ñ]`ª|‡'¼OTã=Ì?úpBÙ,÷bZ›0gıJ?¶.ê×Äs¹}Ên«,+°óOJÆ «Ò pa:l0à=+ˆ;!Û
-œ­Âb#wt:,aÅ1Õûè=\×Ú6·E3º±´†ˆP[i„ƒV{6G!°>TÁ¨¶è\ã‘3^ÖTÕ\ı¸.â`”»³¾ûª£Lé7P¹O1:tC<ùî4HÂ¡‰ü;æ<áşˆÌÆƒ ZOãA8‘›~÷ T÷ (ø„Ô+=•'á§½KH¬ñŠ’9Ó™åóú>Ó´şˆBB'Sy2ş¤><WB%¢K”Rß maç(pÜ&ŞBÃ)¼´}º®³ ÆI ï†¤ï]›ı¸<tú÷™šAf!Vj£Ú_Ø++›õT¦¬¦öê
-ZX[KÍÕ…Q2SuáéÑ.5	6%‘÷cKötÀT[4é.ŠùÂÖ)÷©ÎÄû„1öö˜évøpŸ†MXeÅ5¯ÛÕÎÃØÅŞboIXZOoòÉÙ¶­.ÈÏ€ä¶–ĞEÙA›X¾š[½Ô÷[EJ!ù½;<fGˆ•KuÍuZÛÖì–,aÅêrÈ.¢k±ihi Vôlj¼jb¸ºl ûç‘ã¦
-îcG…øQu¤G¨¶¨U}å%. ˆ6¾iDà×Ş%4 Râ3TÍf@Œ»½
-ŸF¾?GlPİ‹_:ÌIÒ«³Që¯Òİ—ZÅ¸÷GG'ïÎ»è—“îùÛ÷ÿ²ºrEô‹ÅA8™ÓM¸´×öwû=ã¹ü|ªŒçRhá®bif…ƒ)Bbçœá<L‡r]äú	¡POøşc1;„!™wóœæŠGvóŠšÌ¨ÆâM›±8é¦Ò ëÓ,>¥iÁísœoÖCAÁâæû*X[$P8ü5kKÍ,Ol¯ª·›‹ÓÑ³ é5¤Itôıè@ÚÜÀÃ–×$†íÄ_f½ Rx^S—Œ/`‚şyL!ìü4ƒy”˜òO DÌaš»Ô"GÂ,;õ¢‰ba[C—[«GÔÅÑ,ú²èªG­œş.ä·¤§V8+­õ-2©ñË¤,è*HÜKA¨7oÏ¨¤ÿ~ï¬{|ô¾‹ZŸö>îíîî­X) ”[É9lø	çUìˆuÚÓ^ËâÿyÌ»ªµ¿wğë‡wè):8}ûá´¥·ÿ<¢ZÒSÔı×Ù:<Ù{}ö¶{~r`™:„JTÉx^™CXgúÄ!tÍèlšÜ!W!+Ru ªÅjõ§bòb*Æº±.0cõÇLªV¶:öjf¨Št*i6ÇÅ? šY_™ÉArd(¨³'uÅ÷OîNIè?£evEŸ«4‰I4²×r¶ˆÚÌÑH=¿­»™Ÿ21DIIÍÎ"6ñêtË»¥`’5ğÕ'ÅsAŸU`cŒu'~¿}	ÅÀDQx€³í¥4xŠŒ$åë'WtíC	”L‹“vç9D	'^DóÊ;!	Õs!‡´«{&…<ùŸ–¼ qlÉà,ùBÑ,A¬ĞA‹wÀ1â)»>GÃ ®¤åQ‹IêFş©H´±T˜!Ğ`GùÍÆÃêá¯ ¸I>ŒÁ÷^‘¯¿'!‰†¬Vkºsƒ#`-íİRœz.ĞaU((S0ò¬"‰Ï‚›–u¡<ø
-ÓC³ÒZ´SömùQiÇUaÉÛU¡á‚áĞ~Šş‘Pîx@:À¡S+9ÌÁ»ùm[bULîn9³råòZÍçW<qØñ¶Dƒõ5;ê":‰Öùh@{*£Ì\lÃÊIâ0IB<ÄèØ¥t!aU0/	›|<×“0_ã×	Pä¢kXv4Â!ºÂ^£„Ol¥AG¹[Óòr±ÚFk°ÔÛJ©¢ÎCw0 ¡ÄÔÆ Ç@ktvnÜH´qı©E)¿7¼˜ë­ye™ÊV·P¦A¥¾öæZƒ|Í²O±Ye‚Hi©&>`ÜétXôOT%Ş`yªĞ/«¼ºh22Ìeø|®AWlºõ’<•í¼xvß`“ÕÑ'æ†@˜C„ù{÷í8©¡aï*µ
-K0}X	Û4àû0à5’%SÀíHÁ“‘‚57\8’_¸Ñ™q¿OÆñÎRçHo^Í¯¢È¤ÀgeQWPxù”/jjüi
-G6¨ÇÌŠúqÉ[Š_]r…^CMæ²ìU=Ÿf)İ\6†ËîBÙ®£³è¼R{‰ìÿ„Œ¦CÈ²º]HØĞ¸ô'Åûªêc
-—T©ûÌè¼!*«ü›•W?†şæP	„TÚ¥HPa€˜åH%üX•1¥ÿ—;›ú’"
-@k ¨G¡Œ«$r<D©~	’İ%•V¹·µ!œ,E¸y¢öœQ±š¶ù…š\(6 £7l4ŒîĞ%Ãê¦iõIÔ×¤Õm~	—`.îgÊı†„©_ÉŸƒºt]ôaP\õ1†qƒt«ôN~4„x˜Åok¿Ë5(K?ÕÔ£äé?†xhr~Ì)ÙİKâ ¸¸ƒŠÆ1Vp·KúV^•G`y>OÛHó†s°H—¯-l#§®v0‘`°3œËv†Ü&ÑÒíÿ^ØR&¥±•(/Ïn+y“$_ B7ˆ.Ìüœd Eu`Ò‘ËŒ%°ÊâéqÚAñ5¦ÚĞeR•jô§0ÆøŠDô$=úsÜJØ¯}/Äo1©Ü­!¥b^­· œ`7ß/)|,äb¶¨ş9^Ìh5y€ü U¸ó%Å^ 'HÑ3`)€£18­·ĞÒÒíç[A2¤;H¢^øx¹n#í»¡š%&ËÔ-¢Ğ¯ªëyú)dbfİ_Sx1TrÇ+¾±bçRÎ®ÁxĞ)—{I!ş²Ìåi4!§EµÊ…j¤tĞì)Ûqğ#³ÍË”m:)§ìt„îÂQ¿`>·í)O/zê­P6iÑf	nàå­½ö6Âöp³z6Œ’ØŒşpCÌ7l…Øˆ ¸ÿeÚôÚÔe³ÿôZ_Ú}üá‚E}È²²éáÂN8Lèñ 6Ğ(@~*«&TVaÈdU52˜TİGi*¿C¹™Ñç¥xf1Š×Õq{wêæ¶îÙùµÊK©ŒRWZ/Z.X1wA¢ˆanÃ‹y[\o9õ’
-Üãöf¡îã@Ÿ¼b”eÖUÚò¢ ïrAŸşm‘~I¹mtºøÜÖĞ^G#×o_µM	3æãKËz++°¥˜æR½¢¶‘+bê{éºlBúˆµâ§SØj/gëë&³BİÜ2\LÒ ŠÏyö¥ªò¦ªèE‹ªœ "[vÍ:_'‰‡V…i†uÔUO÷ºÏüL@,>I+”×ås´SŒï—OkÉ—cDî¤ã<Ç
-Ïó
-ô«/×xøf]¼:è.Wän2¢ˆuÙÖëãYÏ¼H·’U¸k®|Êá½Vû`Œ…•©rÊ\ÆZ)°¨RÍQ¨ÕÕĞD™D-:dş ²¸Sr ’†ˆ_çË¶ª7˜ò-Ï¹ÜR][LpH%ÁG¹¶4auYâbù]–œöÆê¸ŒÜÿ´‹Ö×6^ ¿°ÿ›!–ïû¦%·^E-©ù
-iÇî5qZ+·èÍşçš· Ã78vØ
-K]³.oÑ¯ûŠªuíã–RX=kÊ®a>µw™lï1)ï0½	x°%%¬•IGFCÖÊD'Âcj¥2Âåò^IöÎ$É†¢<M©$ç¨¯Ñ.-MtÙÖğ¿r£®°s]œ@G,à,7~nÍÕwjäGÒTGäŸt†-±•ú´lõw¯Œ±iàPs”ùrÛoÓ,¦sE=4Ëò]à	$­„Ÿ)i¶Ü@iœÖÃE¢÷Ü©=?z`¦%+|9,x8wòóXŞ)QGco‚;¡öpq‡gšêlpU»Ä€ªêª'{<=ó™½Á¾ÎÎ´)qfú„CuØ`çô5ìÛ¨¶„Z¯…´ò İ ¸N7xr—ñ‹Îš³àx„Šuğ•äƒ×G*w{Ÿ®)¢Ëà›ñ1SZ¶)J«xÃ MÛ _1êa2§å´ƒÄ †Ÿ \ñbÔä å v»O(;r oxzî7¿„[SCô´ÕÌAó*¤İíc_lÛ‡æu´7ª^úçEIíÕb%2Ë
-ÚS‚û€4€ûJ(vÊXC½øB?ĞûÄè¯,—^öŞ2÷¢Êysàe=Y»†Ù 6NM7ÆcÊ¾ÓŒú)l<< êñ(ä”£ÉL¥óY©Vmvøk–ÏXıUgªv®oÍå2Ë•½RÀ|%4×é&u9şÓ)YØ{îœœò$ûÿM¿×¡µ0«ìZc©3İn®Ù[¯À×Øë¡;p}¨›˜XáqÁ¨
-Eé³ÌábÎâ2³‘{¶X+©—»Iv“Šr´§?C¦›ùY|´™ªç™×FHjPÂ&ååíWªáö‹åö2táı®M£æŞÉşÔªğ±Ëd¤ZãÏº£zMc&E£Ü°ø¤&½húgš>çtïìğäì5z·÷ú¼=;ÿöÔ*Q‡YıÇ9eÊ½µ¡@xåÌB§üçşë‚R)Ù^a7Oü‘‚mïô½>}»¿wŠŞ¼=Ü;ífğ’^\ï ¤Qœƒ ±êŒPo¨´~¿ğ
-€Üæ7äDûì%in‰ÈvŠÈ›ü! 8diFºò«-Vì£€."s¼ò!ôrĞvÄö¼ÃÒ%qLÿŒ~îxüµâ qhŸ‰şâ{şV¶+`mtË!Fu3À	5°ØüÌÊ+ø˜¨ÜOWŞ^CÿñI/l¥5
-—A¹Ÿì<NŒ©bš„ »–09Ï?:©æµJq
-ª>‹Kz…Føº}Õ~ÁS5±bg\½‡X£œ–FúªÎ  ]Û¿ı´öuø{1 ©&a¯…(jÔûõ­RJ†,é‚6È^(R§³OÆÀÏavµë#ÓD¸­6jü#ªÌóÊ	ÔUà{Ë§aL´”…>äºU%¥M)%¹Jk¢+öä“b7Œ‰•ŠOë3‹ ·å¡éî•SoRg4ÊémæÉ­à’%uFCøy5<E² ŸÑ€øTtŠÉ^ßÁ~Ÿtyï§¥ì—Êp!K¥ù)§=~Í@÷,;:«Î¾­lf]®!åy¨ÍdmN–ësY3ëedÓ¬·¶6/còã<åL¬2ªê8Ù=“w–´ ñ–\WØÉf$øOnÈ2TU±Jk±šE§0‡á»Ãã&°³O¢a„œmÊ‡‘“ş•¼º1;«mšQ#Ë¦AÁÕ„k¾…ºçÄóã¢w<°F¬•Ë¿Yqîı´ÒÜ‚E6¥§Heå·¥İ¼{V[ UÄMM«›˜Rgæt) RÇ‡,Ü¨U|è:·+
-S±Z±'£ø.¿•ÍÖXIßS0Oy©?ŠÑ¨L:¯,ÀÊø¼êª.kŒ.EG^ÅYe×›Çx²—'[W¼§*ÕüNnÔ:cc”+6+íPÅPN³S¸ÿ2]„SÉ`U£Y@ÊK ¢í%Ñ1!è*RÃt.è(œª—vÑšŞË¥ôØİ^a¯1¡•±êQKF®}riÑ+oÖ½‚)@él«ƒñ|J¢$‰¨ØÑ:¨Êi`;Ğ5‰ê._¾ù¬“L…½oSú½P·şãáı?v¡~¦^=xjwn6îˆ=	¹`JñhÁèbÏòÈÃT8Åè,øÜ¥²	¦l!º’»‚Ìô€kâB3®¢NJ=ÏAŸü„¿¸.ÕŸ¢_ÉÄ);Öæ®!¾`"ÔRQ«†âÇo[=¤šÔ£QhÈOaÚlgi½¢ÚyÇ&{a¿«{ù2_6µËçÑ¬Uó|m|«œ~„â±.`UU¤y,°S/í~xİ=y½‡ºö?¨ãHë£Hy¤ñêâkªŒBÊíOî…ã¢n2À¾µCÅêózªï·K7ÙEÁ¿-],”:lL!Ó›L2¥"jªît­'‡]æ‰óÉl‹YgZµn®kÔHÍÀ4¨Pı<Ï[g.Ú§^©¢Æ¤=hª™4ŸTaR¨´g	˜o@éhz2>LÅã“[¼#^C×Ü”æN®ùj%ÚËµÙÔxq0B¢Î<:	ƒ­¢#Ç…?”ºxûÛÖm6æÉdšÛÔ|çË¡ØàúƒM~FËñ5Ø2ö‰ã/Å©jE†QP¶¢’wwaÊŒª’`ã2ÖŠBU$úöQaµœåW_­TGú3êGö7÷ÌÅ6ŒÅîÅò¨@¹`F®ëA:ÿéı0¸Ñûáú_ƒpDOKwì¦j„µäDÑÚÆ4şĞ| %c½Ø+Œ=n®¢/ÁÅ¥ÎVoë@¹G”:'¹ÿ‘éİ‚}zlbÍ¿tZ{¹~Í?3bÚùûèŞ9Æ¡ë^™°*"Ú`'K6ÆI–iğbâ#àMoÇğûiĞÓaBXfÇ™ÿÖØé‚·û–qBÏmîÁé/ùÏŸ¢4`Ï¿ØÿFŞÿ©ÍÎ?/~éÀJáK©Qäækk¤ŸoİıÿpÔº‡iÜ»§¨Êæ«¯V¸PhA€@j¡¨f«˜«ÀÚöc'-åyâGcÒóÚSÔÅ$½¥Uµ¶ù¼\½sÛæ}˜Û6çanÛ¨»8(•£®Kg´À;…VyT‰èË-ó’¿´”®¹’ Œ9>µå£•¶ì¦"îLù%š›9E„Ë´|µ¨lİRPizRW±ZáQË“d‹åyBìÂ¦èÒ“¯Û¥'¯²ˆN$aŸè-HÓÔŒœ¹Ê”bYæÈ¼›+Ÿ[è‰éeÈ{òìÌšbn¿$=‘P‘°´T„j¶DS½}ñ®?oL«`›ôĞşŠÎq/²cİÆDÆFÖmÈs¬@L)S¿"zöLdeŒØKÓY´–ÅĞË5×'n>gªMkÌ²¨÷¡>Q‰çT—)M˜_.N'­ág?£åâGI&Ìêo±Æ¶B9í]ÕÑ­"·’'Ö”+Ğ¤L;‰zÌgÆêíµİ‹(UÊR½Ù¬á+[>g¾#aY ªF«Ğì¾‘LbÙŒ•h2†Í¿ªØ¥`¡§x$1«Òİ ·^'‰3Â!j¥u¾ïèJ³wD´˜’E=LÜÉfüXqçCDÂF•·D†9ÔR‰’+ùƒÔ9<oâÿ‹Önï»DG„]ÙŒ+v½±“`€Ñ7Á²BI®¥zh¸ÖséìıÁãAµtÂÓÜ°a„TP
-»îÀo‚li*Y	+_d@9a[p(w!òŠ‰éò)?V´ÛÃàê”\ÄïİÁ0n‚tŸÒµMümødr;q1%—Ó©ÈÜx¼8+Y‘„*¿¸2EÆaû·çkkìbGY†Lñ¿ì½>ê²¼‹ŠrÇf4æ¦ê´uô™êmaé.”²ÓÕ¬“ªZƒã‹ŠQLQ'Rôù“Ş½.íJùÛŠúaVUhˆH$ÜZÑ¥{WÚêÕı o!û±v+²Šƒ+›]€<(Ÿôğdù¶i]^À~•P‡ƒ<7Š«¦"&)&ç“+‘ó+2"”übJtÚ¤*ì‘Ğ7YIÃ"ê¤¿mq‡¹Wêst«J5+pI.i©å×¦â\ T+ó²ht»«Šé‡)<¸ÒœŸâA‚qHŸµşj·[b*L/›«¶ØtóP«‘#}}^›¦Úr,‹zo!ìOX*õ-Äó\Ô¤TG†¤êR©2^å¶a¥ÚimÙF·¡b†há©Ğa$×a©Ìé_Y's(É©M=U…•†L)$#z¶:vŒ©ôò´ÌITá©r¦Jé¹³%6ÂL<é“–!¥õ„,¸Ñ/¢æÂ)”ZèbÎÚöÛô89Ry÷É•Øf}gIêÏı²$zpeªpœ”¾8-+êy‰š±ÊŠØS³"e"‰±Şë˜Qf.ÕÉC%`ß	÷™M ÊfÌXë½^ÃöBâ5HyáZÆ€:nT[V¦Ç¢€¡ÌY¾ÏcÃ»få^0ª0hvÜ²®î‹vÙÊ¨š'l
-qcçıã¶‡Ï>-³­îúöŸGïÿyrô±™á#sK.Â¸Q"ù"É¿Ğ†”©ú*'#7$ ¯7“(°Ç"ı…Á\‚A€ÑÄÁaŒS–ÃÔ“ \E[¹Oi19ÄL0áèã„~Á¡s‡°W;ˆş\°?ÆfÂ;„;ë¦ì$ùs= ¹‡É»Cğ«TSÁ_ÿƒz[0HtÕmáËÒ¼$w³Š	æƒgÏ#aÌ=}Úìi|œ—Rmƒ4ÒT'…›$9K«=”	4‡îÀ§Lıš€Q¡Ñ=…JÔ²^"E8Ô™`q¨ÆâSä1ØèVz>vf¤÷f%¦Bâák¢F¨X ¦Å+=C¥It…¯ñ„îFÏExˆ±ßÃè2AÜšï²‚¬1Æ"pvÈŠÊüáÂé
-O\Şeß'Yíä:ÆG{BÄ­ëC]×!™D8xLg\¥E_¡lã¡¨bn@Ô>„æxÜ@ë8<:;oèÀÊB„šÉqj"(¿»£é(¦KpØj5Ôœ™QL¼„êQ¹ˆ™ë2¨¼ºÚÌÌ^œÀ=éowÖßEÏsûr ò‰Ÿ“p¤“ã•‰~Ëínz–.Ò½§¸IÑY	[<«À3trø±ƒô¯h.„Ã§ i ?öàÆÅ8LîS^,Ü¼úI´UtCBŠ3å¤”ÛeÍÕ3¯ï5÷úÚ¶é›ç›Jo°*Æ½2'Ïï4 "f«Ãõ!¾céĞº’bö$ªà÷/'›×Šwğ´¹K¡’ğÚĞdŠC£Ê‹çåsH¼·½›¶©.D†Âiz¨<MÓi‚§èœxÍ{–z˜ ópİ¨F`î‰şª.´¤Û®GŠ„9H³ 8N%µö‰?ô÷QóÏM«N¿!ë·ßu9øt.\/&afq¾e4¥üPa‡tcaùş¹§ÁT"Hk…
-„}Î2jU:,¾¸bÑ¿ë,¬÷–lDgÕ¤ïÓjÚãnÉÎ‘Z%#n¤>	áJñG›&DK;sÊt“ç‡Uê$?¦–p1Ö’CİÊ$’’Geª‹,•÷'{KæÖé‡Â€Ê"PÚË¬:Núœ%§IX™eXÆ¿LºÙ•åõ&P³Ch`u#šø|L†MÆçtb1;l#Ÿíürô¾¡`œE77ŒÕ=wN‡Ü™u-Mç‡
--y±è&æ‡¢¦«¹ \ç5{,îÜl`éÍ·9F)ñ±”R5ö“Aßp_v]ƒYGÁ°É…Ç90MúËÓÙGTÙ€vöONO¡2u#ÒI£µK9©©@9©ÏŠv˜{é›£æ®ºy:é€¢à	äJš‰¤T¹ä…T>+œ |UXA§tğ•ºùœZe‹6YŞ=àk1ÚX‚„ÓKègTLRÍÜğ[âaf#\ºı|»+õ0=<Å>í}ÜÛ;İ;ÜkÆ òÈúÅ²ˆb|zQŒœ±£oñ¥‹ê³|É$¼&AGc†º³ va”¾ô¯™9Eİªe"£O‡ä¹ß»Ä†ÜçB:Šw
-Ïò+ÇAÏ%¡Ë}—V*çÃÃLHuOu•¹†‡ÁH Óx/ï.ëüÆÂsÎ¿€•ô¯nÍÕ%^;rÏ3RêÚâ™q|º•á†#Êÿ´7{$@İèÎ’öA%yP÷ËÃr·Z%;VŸÿšå¡—¿wÜèí˜ÒôƒHO¿øJÌóª²¥öÖZçAèÅĞí™rNé]Ä/é^*Ë¨Òò4ÎUÀ®NìÆ¹åôOª<‹º\I/¥`ÅŠS·8ÜˆDêÅªÇ’°‘RÔ´ Ç{İifÅĞ§ük°e4—A=™©NcÚç¦â
-Å—s:0³Ûü‚ñ3tî†±**FÌ¹øÉÄU,”]ÓQ;á/¥ï¨j(ŞfDeueÖvnÒ¿ä¥şşê(&SM}ãŠ’ı¯"ñ)¥ªü~8¼RL_ê^ o3Œ3Û“'—W 9—-»IzãÈÜ'Ç$¸R9$ÅrEŞÕ¼íªæ¯:è³Úk`-~TYşé[†®¼N[°şÔAç	#Êôò£†¯x+}IgÕ+Öğ¦ì fÿ|$”›Iß™›¨\~ZÎQø÷K/Û}[_ë ı$ªÙ4ú†iÃÊ?ß,ıf•ae½Që ŠxéÇt—	‰Ğ~Hğ%=j	lZö6¼œ½ËàXÚ¿Â›³ì`Í°|ë++—ºMÜ §•Š©Ømµ…âİÚ”Ş›uû´C>òÍÓ®ËvëgÂÚ{È6Šjü½ &ış-•ÅZ3»üTÊ^¡Ğ—³w”"¿8+©è}äû¦_˜-±læ|öÑÍÑ7m¸}mNL®2à#ß7İ²L»Æ ›ª¨tÀÛÿù   ÿÿ 
-ÊÕ²
+                            <div className="px-3.5 py-2 text-xs text-slate-400 font-semibold italic text-center">No matching students found</div>
+                          ) : (
+                            filteredPayReportStudents.slice(0, 8).map(s => {
+                              const isChosen = s.id === payReportStudentId;
+                              return (
+                                <button
+                                  key={s.id}
+                                  type="button"
+                                  onMouseDown={() => {
+                                    setPayReportStudentId(s.id);
+                                    setPayReportStudentSearchQuery(s.name);
+                                    setShowPayReportStudentSuggestions(false);
+                                  }}
+                                  className={`w-full text-left px-3.5 py-2 text-xs hover:bg-slate-100 flex items-center justify-between transition-colors ${
+                                    isChosen ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-700 font-medium'
+                                  }`}
+                                >
+                                  <div className="flex flex-col">
+                                    <span className="font-extrabold text-[11.5px]">{s.name}</span>
+                                    <span className="text-[10px] text-slate-400 font-mono">{s.id} | Class: {s.className}</span>
+                                  </div>
+                                  {isChosen && <Check className="w-3.5 h-3.5 text-indigo-600" />}
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Report Action Buttons */}
+                <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center gap-3">
+                  {reportViewMode === 'payments_range' ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!payReportStudentId) {
+                            alert("Fadlan marka hore dooro ardayga!");
+                            return;
+                          }
+                          handleDownloadPaymentRangePDF(payReportStudentId, payReportStartMonth, payReportEndMonth);
+                        }}
+                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+                      >
+                        <FileDown className="w-4 h-4" />
+                        <span>Export Statement (PDF)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!payReportStudentId) {
+                            alert("Fadlan marka hore dooro ardayga!");
+                            return;
+                          }
+                          handleDownloadPaymentRangeTxt(payReportStudentId, payReportStartMonth, payReportEndMonth);
+                        }}
+                        className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>Download Statement (TXT)</span>
+                      </button>
+                    </>
+                  ) : reportViewMode === 'whole' ? (
+                    <button
+                      type="button"
+                      onClick={handleDownloadWholeAttendance}
+                      className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download Class Attendance (TXT)</span>
+                    </button>
+                  ) : reportViewMode === 'student' ? (
+                    <button
+                      type="button"
+                      onClick={handleDownloadStudentAttendance}
+                      className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download Student Attendance (TXT)</span>
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            {/* Reports Result View / Preview */}
+            {reportViewMode === 'payments_range' && payReportStudentId && (() => {
+              const report = getStudentPaymentRangeReport(payReportStudentId, payReportStartMonth, payReportEndMonth);
+              if (!report) return null;
+              const { student, records, totalDue, totalPaid, totalDebt } = report;
+
+              return (
+                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6">
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-100">
+                      <span className="text-[10px] font-extrabold text-indigo-600 uppercase tracking-widest block">Total Invoiced</span>
+                      <span className="text-xl font-black text-indigo-950 font-mono mt-1 block">${totalDue.toFixed(2)}</span>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-100">
+                      <span className="text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest block">Total Deposited</span>
+                      <span className="text-xl font-black text-emerald-950 font-mono mt-1 block">${totalPaid.toFixed(2)}</span>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-100">
+                      <span className="text-[10px] font-extrabold text-rose-600 uppercase tracking-widest block">Outstanding Due Debt</span>
+                      <span className="text-xl font-black text-rose-950 font-mono mt-1 block">${totalDebt.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {/* Table */}
+                  <div className="overflow-x-auto rounded-2xl border border-slate-100">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50/80 text-slate-500 font-extrabold border-b border-slate-100">
+                          <th className="p-3.5 pl-4">Month</th>
+                          <th className="p-3.5">Status</th>
+                          <th className="p-3.5">Invoice Due</th>
+                          <th className="p-3.5">Paid Amount</th>
+                          <th className="p-3.5">Debt</th>
+                          <th className="p-3.5 pr-4">Receipt Ref</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                        {records.map((r, idx) => {
+                          const due = r.amountDue ?? student.monthlyFee;
+                          const debt = r.debtAmount ?? Math.max(0, due - r.amountPaid);
+                          return (
+                            <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                              <td className="p-3.5 pl-4 font-bold text-slate-900">{r.month}</td>
+                              <td className="p-3.5">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                                  r.status === 'Paid' ? 'bg-emerald-100 text-emerald-800' :
+                                  r.status === 'Partial' ? 'bg-amber-100 text-amber-800' :
+                                  'bg-rose-100 text-rose-800'
+                                }`}>
+                                  {r.status}
+                                </span>
+                              </td>
+                              <td className="p-3.5 font-mono">${due.toFixed(2)}</td>
+                              <td className="p-3.5 font-mono font-bold text-emerald-700">${r.amountPaid.toFixed(2)}</td>
+                              <td className="p-3.5 font-mono font-bold text-rose-600">${debt.toFixed(2)}</td>
+                              <td className="p-3.5 pr-4 font-mono text-slate-400">{r.receiptNo || '-'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* --- STUDENT ATTENDANCE TAB --- */}
+        {activeTab === 'studentAttendance' && (
+          <StudentAttendanceTab database={database} onSaveDatabase={onSaveDatabase} />
+        )}
+
+        {/* --- WEEKLY EXAMS / ASSESSMENT TAB --- */}
+        {activeTab === 'exams' && (
+          <WeeklyAssessmentTab database={database} onSaveDatabase={onSaveDatabase} />
+        )}
+
+        {/* --- BILLING & FEES TAB --- */}
+        {activeTab === 'billing' && (
+          <BillingTab
+            database={database}
+            onSaveDatabase={onSaveDatabase}
+            initialSubTab={billingSubTab}
+          />
+        )}
+
+        {/* --- RECEIPTS HISTORY TAB --- */}
+        {activeTab === 'receiptsHistory' && (
+          <BillingTab
+            database={database}
+            onSaveDatabase={onSaveDatabase}
+            isReceiptsHistoryOnly={true}
+          />
+        )}
+
+        {/* --- MONEY TRANSFER (XAWAALADDA) TAB --- */}
+        {activeTab === 'moneyTransfers' && (
+          <MoneyTransferTab database={database} onSaveDatabase={onSaveDatabase} />
+        )}
+
+        {/* --- BACKUP & SYNC DIAGNOSTICS TAB --- */}
+        {activeTab === 'backup' && (
+          <BackupTab
+            database={database}
+            onSaveDatabase={onSaveDatabase}
+            backupSubTab={backupSubTab}
+          />
+        )}
+
+        {/* --- LANDING PAGE MANAGEMENT TAB --- */}
+        {activeTab === 'landing' && (
+          <LandingControlTab database={database} onSaveDatabase={onSaveDatabase} />
+        )}
+
+      </div>
+    </main>
+
+    {/* --- GLOBAL POPUPS & MODALS --- */}
+    {showLogoModal && (
+      <ChangeWebsiteLogoModal
+        isOpen={showLogoModal}
+        currentLogoUrl={database.landingPageSettings?.logoUrl}
+        onSaveLogo={handleSaveLogo}
+        onClose={() => setShowLogoModal(false)}
+      />
+    )}
+
+    {showActiveStudentsModal && (
+      <ActiveStudentsModal
+        database={database}
+        onNavigateTab={(tab) => {
+          setActiveTab(tab);
+          setShowActiveStudentsModal(false);
+        }}
+        onClose={() => setShowActiveStudentsModal(false)}
+      />
+    )}
+
+    {showParentsModal && (
+      <ParentsModal
+        database={database}
+        onNavigateTab={(tab) => {
+          setActiveTab(tab);
+          setShowParentsModal(false);
+        }}
+        onClose={() => setShowParentsModal(false)}
+      />
+    )}
+
+    {showTuitionInvoicedModal && (
+      <TuitionInvoicedModal
+        database={database}
+        currentMonth={new Date().toISOString().slice(0, 7)}
+        onNavigateTab={(tab) => {
+          setActiveTab(tab);
+          setShowTuitionInvoicedModal(false);
+        }}
+        onClose={() => setShowTuitionInvoicedModal(false)}
+      />
+    )}
+
+    {showActiveRidersModal && (
+      <ActiveRidersModal
+        database={database}
+        onNavigateTab={(tab) => {
+          setActiveTab(tab);
+          setShowActiveRidersModal(false);
+        }}
+        onClose={() => setShowActiveRidersModal(false)}
+      />
+    )}
+
+    {showBusInvoicedModal && (
+      <BusInvoicedModal
+        database={database}
+        currentMonth={new Date().toISOString().slice(0, 7)}
+        onNavigateTab={(tab) => {
+          setActiveTab(tab);
+          setShowBusInvoicedModal(false);
+        }}
+        onClose={() => setShowBusInvoicedModal(false)}
+      />
+    )}
+
+    {showCollectedFeesBreakdownMonth && (
+      <CollectedFeesModal
+        database={database}
+        currentMonth={showCollectedFeesBreakdownMonth}
+        onNavigateTab={(tab) => {
+          setActiveTab(tab);
+          setShowCollectedFeesBreakdownMonth(null);
+        }}
+        onClose={() => setShowCollectedFeesBreakdownMonth(null)}
+      />
+    )}
+
+    {showPendingFeesBreakdownMonth && (
+      <PendingFeesModal
+        database={database}
+        currentMonth={showPendingFeesBreakdownMonth}
+        onNavigateTab={(tab) => {
+          setActiveTab(tab);
+          setShowPendingFeesBreakdownMonth(null);
+        }}
+        onClose={() => setShowPendingFeesBreakdownMonth(null)}
+      />
+    )}
+
+    {showPendingBusBreakdownMonth && (
+      <PendingBusModal
+        database={database}
+        currentMonth={showPendingBusBreakdownMonth}
+        onNavigateTab={(tab) => {
+          setActiveTab(tab);
+          setShowPendingBusBreakdownMonth(null);
+        }}
+        onClose={() => setShowPendingBusBreakdownMonth(null)}
+      />
+    )}
+
+    {showBusCollectedBreakdownMonth && (
+      <BusCollectedModal
+        database={database}
+        currentMonth={showBusCollectedBreakdownMonth}
+        onNavigateTab={(tab) => {
+          setActiveTab(tab);
+          setShowBusCollectedBreakdownMonth(null);
+        }}
+        onClose={() => setShowBusCollectedBreakdownMonth(null)}
+      />
+    )}
+
+    {confirmModal && confirmModal.isOpen && (
+      <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-scale-up">
+          <h3 className="font-extrabold text-slate-900 text-lg">{confirmModal.title}</h3>
+          <p className="text-xs text-slate-600 font-medium whitespace-pre-wrap">{confirmModal.message}</p>
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setConfirmModal(null)}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+            >
+              Ka Noqo (Cancel)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                confirmModal.onConfirm();
+                setConfirmModal(null);
+              }}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow-md cursor-pointer"
+            >
+              {confirmModal.confirmText || 'Haa, Xaqiiji'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+);
+}

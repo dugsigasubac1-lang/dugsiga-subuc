@@ -5,7 +5,7 @@ import fs from 'fs';
 import * as XLSX from 'xlsx';
 import { createServer as createViteServer } from 'vite';
 import { initializeApp } from 'firebase/app';
-import { initializeFirestore, doc, getDoc, setDoc, onSnapshot, collection, getDocs, deleteDoc, query, orderBy, limit } from 'firebase/firestore';
+import { initializeFirestore, doc, getDoc, setDoc, writeBatch, onSnapshot, collection, getDocs, deleteDoc, query, orderBy, limit } from 'firebase/firestore';
 import { S3Client, PutObjectCommand, GetObjectCommand, CreateBucketCommand, ListBucketsCommand } from "@aws-sdk/client-s3";
 
 
@@ -329,48 +329,20 @@ function sanitizeDatabaseState(state: any): any {
       state.moneyTransfers = [];
     }
 
-    // Bidirectional sync between xawaaladaTransactions and moneyTransfers
-    const existingTransNos = new Set((state.moneyTransfers as any[]).map(m => m.transNo || m.id));
-    const existingTxRefs = new Set((state.xawaaladaTransactions as any[]).map(x => x.referenceNo || x.id));
-
-    (state.xawaaladaTransactions as any[]).forEach(tx => {
-      const key = tx.referenceNo || tx.id;
-      if (!existingTransNos.has(key)) {
-        state.moneyTransfers.push({
-          id: tx.id,
-          transNo: tx.referenceNo || tx.id,
-          customerName: tx.clientName || 'N/A',
-          customerPhone: tx.clientPhone || 'N/A',
-          amountSent: tx.amount,
-          date: tx.date,
-          notes: tx.description || '',
-          createdBy: tx.createdBy || 'yaxyecabdisalanmohamed1234@gmail.com',
-          createdAt: tx.createdAt || new Date().toISOString()
-        });
-        existingTransNos.add(key);
-      }
-    });
-
-    (state.moneyTransfers as any[]).forEach(m => {
-      const key = m.transNo || m.id;
-      if (!existingTxRefs.has(key)) {
-        state.xawaaladaTransactions.push({
-          id: m.id.startsWith('TXN-') ? m.id : `TXN-${m.id.replace('MT-', '')}`,
-          accountId: 'acc-4',
-          type: 'out',
-          amount: m.amountSent,
-          clientName: m.customerName || 'N/A',
-          clientPhone: m.customerPhone || '',
-          referenceNo: m.transNo || `REF-${m.id}`,
-          description: m.notes || 'Xawaalad / Bixin',
-          date: m.date || new Date().toISOString().split('T')[0],
-          time: '12:00',
-          createdBy: m.createdBy || 'yaxyecabdisalanmohamed1234@gmail.com',
-          createdAt: m.createdAt || new Date().toISOString()
-        });
-        existingTxRefs.add(key);
-      }
-    });
+    // Mirror moneyTransfers from xawaaladaTransactions for legacy backward compatibility
+    state.moneyTransfers = (state.xawaaladaTransactions as any[])
+      .filter(tx => tx.type === 'out')
+      .map(tx => ({
+        id: tx.id,
+        transNo: tx.referenceNo || tx.id,
+        customerName: tx.clientName || 'N/A',
+        customerPhone: tx.clientPhone || 'N/A',
+        amountSent: tx.amount,
+        date: tx.date,
+        notes: tx.description || '',
+        createdBy: tx.createdBy || 'yaxyecabdisalanmohamed1234@gmail.com',
+        createdAt: tx.createdAt || new Date().toISOString()
+      }));
   }
 
   return state;
@@ -1788,21 +1760,20 @@ async function startServer() {
           lastUpdatedTime: now
         };
 
-        const writePromises: Promise<any>[] = [
-          setDoc(coreDocRef, removeUndefined(coreData)),
-          setDoc(progressDocRef, removeUndefined(progData)),
-          setDoc(financeDocRef, removeUndefined(finData)),
-          setDoc(logsDocRef, removeUndefined(logsData))
-        ];
-
-        if (stateDocRef) {
-          writePromises.push(setDoc(stateDocRef, {
-            state: removeUndefined(currentDatabaseState),
-            lastUpdated: new Date().toISOString()
-          }).catch(() => null));
+        if (db) {
+          const batch = writeBatch(db);
+          batch.set(coreDocRef, removeUndefined(coreData));
+          batch.set(progressDocRef, removeUndefined(progData));
+          batch.set(financeDocRef, removeUndefined(finData));
+          batch.set(logsDocRef, removeUndefined(logsData));
+          if (stateDocRef) {
+            batch.set(stateDocRef, {
+              state: removeUndefined(currentDatabaseState),
+              lastUpdated: new Date().toISOString()
+            });
+          }
+          await batch.commit();
         }
-
-        await Promise.all(writePromises);
         fs.writeFileSync(DB_FILE, JSON.stringify(currentDatabaseState, null, 2), 'utf-8');
 
         return res.json({
@@ -2097,70 +2068,69 @@ async function startServer() {
         console.warn('[Server POST API] Local cache update error:', localWriteErr);
       }
 
-      // 2. Persist to Firestore partitioned documents in parallel (background async)
-      if (coreDocRef) {
-        const isTeacher = userRole === 'teacher';
+      // 2. Persist to Firestore partitioned documents atomically in background
+      if (coreDocRef && db) {
+        try {
+          const isTeacher = userRole === 'teacher';
+          const batch = writeBatch(db);
 
-        const progressData = { progress: mergedDbState.progress || [] };
-        const logsData = {
-          submissions: mergedDbState.submissions || [],
-          teacherAttendance: mergedDbState.teacherAttendance || [],
-          notifications: mergedDbState.notifications || [],
-          exams: mergedDbState.exams || []
-        };
-
-        const writePromises: Promise<any>[] = [
-          setDoc(progressDocRef, removeUndefined(progressData)),
-          setDoc(logsDocRef, removeUndefined(logsData))
-        ];
-
-        // ONLY NON-TEACHERS (ADMINS) CAN WRITE CORE AND FINANCE TO FIRESTORE
-        if (!isTeacher) {
-          const coreData = {
-            teachers: mergedDbState.teachers || [],
-            students: mergedDbState.students || [],
-            classes: mergedDbState.classes || [],
-            schoolLocation: mergedDbState.schoolLocation || null,
-            landingPageSettings: mergedDbState.landingPageSettings || null,
-            contactMessages: mergedDbState.contactMessages || [],
-            adminSessionId: mergedDbState.adminSessionId || null,
-            adminAllowedSessionId: mergedDbState.adminAllowedSessionId || null,
-            adminRevokeTime: mergedDbState.adminRevokeTime || null,
-            lastUpdatedTime: mergedDbState.lastUpdatedTime || Date.now(),
-            lastBackupDownloadDate: mergedDbState.lastBackupDownloadDate || null
-          };
-          const financeData = {
-            billing: mergedDbState.billing || [],
-            invoices: mergedDbState.invoices || [],
-            moneyTransfers: mergedDbState.moneyTransfers || [],
-            xawaaladaAccounts: mergedDbState.xawaaladaAccounts || [],
-            xawaaladaTransactions: mergedDbState.xawaaladaTransactions || [],
-            xawaaladaSettings: mergedDbState.xawaaladaSettings || null
+          const progressData = { progress: mergedDbState.progress || [] };
+          const logsData = {
+            submissions: mergedDbState.submissions || [],
+            teacherAttendance: mergedDbState.teacherAttendance || [],
+            notifications: mergedDbState.notifications || [],
+            exams: mergedDbState.exams || []
           };
 
-          // If landingPageSettings logoUrl changed, sync static branding files to disk and R2
-          if (mergedDbState.landingPageSettings?.logoUrl) {
-            syncStaticBrandingFiles(mergedDbState.landingPageSettings.logoUrl);
+          batch.set(progressDocRef, removeUndefined(progressData));
+          batch.set(logsDocRef, removeUndefined(logsData));
+
+          // ONLY NON-TEACHERS (ADMINS) CAN WRITE CORE AND FINANCE TO FIRESTORE
+          if (!isTeacher) {
+            const coreData = {
+              teachers: mergedDbState.teachers || [],
+              students: mergedDbState.students || [],
+              classes: mergedDbState.classes || [],
+              schoolLocation: mergedDbState.schoolLocation || null,
+              landingPageSettings: mergedDbState.landingPageSettings || null,
+              contactMessages: mergedDbState.contactMessages || [],
+              adminSessionId: mergedDbState.adminSessionId || null,
+              adminAllowedSessionId: mergedDbState.adminAllowedSessionId || null,
+              adminRevokeTime: mergedDbState.adminRevokeTime || null,
+              lastUpdatedTime: mergedDbState.lastUpdatedTime || Date.now(),
+              lastBackupDownloadDate: mergedDbState.lastBackupDownloadDate || null
+            };
+            const financeData = {
+              billing: mergedDbState.billing || [],
+              invoices: mergedDbState.invoices || [],
+              moneyTransfers: mergedDbState.moneyTransfers || [],
+              xawaaladaAccounts: mergedDbState.xawaaladaAccounts || [],
+              xawaaladaTransactions: mergedDbState.xawaaladaTransactions || [],
+              xawaaladaSettings: mergedDbState.xawaaladaSettings || null
+            };
+
+            // If landingPageSettings logoUrl changed, sync static branding files to disk and R2
+            if (mergedDbState.landingPageSettings?.logoUrl) {
+              syncStaticBrandingFiles(mergedDbState.landingPageSettings.logoUrl);
+            }
+
+            batch.set(coreDocRef, removeUndefined(coreData));
+            batch.set(financeDocRef, removeUndefined(financeData));
+
+            if (stateDocRef) {
+              batch.set(stateDocRef, removeUndefined({ state: mergedDbState }));
+            }
           }
 
-          writePromises.push(setDoc(coreDocRef, removeUndefined(coreData)));
-          writePromises.push(setDoc(financeDocRef, removeUndefined(financeData)));
-
-          if (stateDocRef) {
-            writePromises.push(
-              setDoc(stateDocRef, removeUndefined({ state: mergedDbState })).catch(err => {
-                console.warn('[Server POST API] Legacy system/state write notice:', err?.message);
-              })
-            );
-          }
+          // Commit all documents in one single gRPC write stream operation
+          batch.commit().then(() => {
+            console.log(`[Server POST API] Successfully written update to Firestore (User: ${userRole || 'admin'}, Students: ${mergedDbState.students?.length || 0})`);
+          }).catch((fbWriteErr: any) => {
+            console.warn('[Server POST API] Background Firestore batch write warning:', fbWriteErr?.message);
+          });
+        } catch (batchPrepErr: any) {
+          console.warn('[Server POST API] Batch preparation notice:', batchPrepErr?.message);
         }
-
-        // Fire-and-forget background cloud sync to guarantee instant API response
-        Promise.all(writePromises).then(() => {
-          console.log(`[Server POST API] Successfully written update to Firestore (User: ${userRole || 'admin'}, Students: ${mergedDbState.students?.length || 0})`);
-        }).catch((fbWriteErr: any) => {
-          console.warn('[Server POST API] Background Firestore write warning:', fbWriteErr?.message);
-        });
       }
 
       // Check if a scheduled backup is due after a successful user save

@@ -46,16 +46,8 @@ export const DEFAULT_XAWAALADA_ACCOUNTS: XawaaladaAccount[] = [
     id: "acc-3",
     name: "Merchant",
     accountNumber: "328958",
-    openingBalance: 244.34,
+    openingBalance: 469.34,
     notes: "akoonka wayn ee merchantga",
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: "acc-4",
-    name: "Account 4 (Cash Box / Sanduuqa)",
-    accountNumber: "CASH-MAIN",
-    openingBalance: 1500,
-    notes: "Physical cash on hand at office counter",
     createdAt: new Date().toISOString()
   }
 ];
@@ -495,6 +487,16 @@ export function sanitizeLocalDatabase(parsed: DatabaseState): DatabaseState {
     }
   }
 
+  // 7. Ensure Xawaalada accounts & transactions always exist with realistic seeds if empty
+  if (parsed) {
+    if (!parsed.xawaaladaAccounts || !Array.isArray(parsed.xawaaladaAccounts) || parsed.xawaaladaAccounts.length === 0) {
+      parsed.xawaaladaAccounts = [...DEFAULT_XAWAALADA_ACCOUNTS];
+    }
+    if (!parsed.xawaaladaTransactions || !Array.isArray(parsed.xawaaladaTransactions) || parsed.xawaaladaTransactions.length === 0) {
+      parsed.xawaaladaTransactions = [...DEFAULT_XAWAALADA_TRANSACTIONS];
+    }
+  }
+
   return parsed;
 }
 
@@ -660,6 +662,30 @@ export function mergeSeedRemittances(parsed: DatabaseState): { updated: Database
         createdAt: tx.createdAt || new Date().toISOString()
       });
       existingTransNos.add(key);
+      changed = true;
+    }
+  });
+
+  // 2. moneyTransfers -> xawaaladaTransactions (ensure any legacy money transfers show in Xawaalada accounts)
+  const defaultAccId = parsed.xawaaladaAccounts?.[0]?.id || 'acc-1';
+  (parsed.moneyTransfers || []).forEach(mt => {
+    const key = mt.transNo || mt.id;
+    if (!existingTxRefs.has(key)) {
+      parsed.xawaaladaTransactions.push({
+        id: mt.id || `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        accountId: defaultAccId,
+        type: 'in',
+        amount: Number(mt.amountSent || 0),
+        clientName: mt.customerName || 'N/A',
+        clientPhone: mt.customerPhone || 'N/A',
+        referenceNo: mt.transNo || `REF-${mt.id}`,
+        description: mt.notes || 'Money Transfer Record',
+        date: mt.date || new Date().toISOString().split('T')[0],
+        time: '12:00',
+        createdBy: mt.createdBy || 'yaxyecabdisalanmohamed1234@gmail.com',
+        createdAt: mt.createdAt || new Date().toISOString()
+      });
+      existingTxRefs.add(key);
       changed = true;
     }
   });
@@ -1237,8 +1263,32 @@ export function safeMergeDatabaseStates(
     });
     mergedMoneyTransfers = Array.from(mtMap.values());
 
-    mergedXawaaladaAccounts = Array.isArray(incoming.xawaaladaAccounts) ? incoming.xawaaladaAccounts : (current.xawaaladaAccounts || []);
-    mergedXawaaladaTransactions = Array.isArray(incoming.xawaaladaTransactions) ? incoming.xawaaladaTransactions : (current.xawaaladaTransactions || []);
+    const accMap = new Map<string, XawaaladaAccount>();
+    (current.xawaaladaAccounts || []).forEach(acc => { if (acc && acc.id) accMap.set(acc.id, acc); });
+    (incoming.xawaaladaAccounts || []).forEach(acc => {
+      if (acc && acc.id) {
+        const curAcc = accMap.get(acc.id);
+        accMap.set(acc.id, curAcc ? (preferIncoming ? { ...curAcc, ...acc } : { ...acc, ...curAcc }) : acc);
+      }
+    });
+    mergedXawaaladaAccounts = Array.from(accMap.values());
+    if (mergedXawaaladaAccounts.length === 0) {
+      mergedXawaaladaAccounts = [...DEFAULT_XAWAALADA_ACCOUNTS];
+    }
+
+    const txMap = new Map<string, XawaaladaTransaction>();
+    (current.xawaaladaTransactions || []).forEach(tx => { if (tx && tx.id) txMap.set(tx.id, tx); });
+    (incoming.xawaaladaTransactions || []).forEach(tx => {
+      if (tx && tx.id) {
+        const curTx = txMap.get(tx.id);
+        txMap.set(tx.id, curTx ? (preferIncoming ? { ...curTx, ...tx } : { ...tx, ...curTx }) : tx);
+      }
+    });
+    mergedXawaaladaTransactions = Array.from(txMap.values());
+    if (mergedXawaaladaTransactions.length === 0 && (!current.xawaaladaTransactions || current.xawaaladaTransactions.length === 0)) {
+      mergedXawaaladaTransactions = [...DEFAULT_XAWAALADA_TRANSACTIONS];
+    }
+
     mergedXawaaladaSettings = incoming.xawaaladaSettings !== undefined ? incoming.xawaaladaSettings : (current.xawaaladaSettings || null);
   }
 

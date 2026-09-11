@@ -136,6 +136,10 @@ export interface XawaaladaTransaction {
   description: string;
   date: string; // YYYY-MM-DD
   time?: string;
+  isTransfer?: boolean; // True if internal transfer between our own accounts
+  transferToAccountId?: string; // Destination account ID if transfer
+  transferFromAccountId?: string; // Source account ID if transfer
+  category?: string; // Specific expense or income category
   createdBy?: string;
   createdAt: string; // ISO string
 }

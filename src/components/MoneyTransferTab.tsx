@@ -45,10 +45,80 @@ import {
   Sparkles,
   ExternalLink,
   Coins,
-  CheckCheck
+  CheckCheck,
+  RefreshCw,
+  BarChart3,
+  ShieldAlert
 } from 'lucide-react';
 import { DatabaseState, MoneyTransferRecord, XawaaladaAccount, XawaaladaTransaction } from '../types';
 import { DEFAULT_XAWAALADA_ACCOUNTS, DEFAULT_XAWAALADA_TRANSACTIONS, triggerFileDownload } from '../db';
+
+// Check if a transaction is an internal transfer between our own accounts (NOT an external business expense)
+export const isInternalTransfer = (tx: XawaaladaTransaction, accountsList: XawaaladaAccount[] = []): boolean => {
+  if (tx.isTransfer === true || tx.category === 'transfer') return true;
+  const desc = (tx.description || '').toLowerCase();
+  const client = (tx.clientName || '').toLowerCase();
+  const ref = (tx.referenceNo || '').toLowerCase();
+  const combined = `${desc} ${client} ${ref}`;
+
+  // Direct keywords indicating internal transfer/routing between accounts
+  if (
+    combined.includes('xawilaad gudaha') ||
+    combined.includes('xawilaadda gudaha') ||
+    combined.includes('inter-account') ||
+    combined.includes('internal transfer') ||
+    combined.includes('wareejin') ||
+    combined.includes('u wareegay') ||
+    combined.includes('laga wareejiyay') ||
+    combined.includes('ka timid ⬅️') ||
+    combined.includes('wareejin ➔') ||
+    combined.includes('routing') ||
+    combined.includes('transfer to') ||
+    combined.includes('transfer from') ||
+    combined.includes('akoon kale') ||
+    combined.includes('akoonka kale') ||
+    combined.includes('edahab bakad') ||
+    combined.includes('dahabshiil routing')
+  ) {
+    return true;
+  }
+
+  // Check if client name is an internal account name
+  if (
+    client.includes('akoonka wayn') ||
+    client.includes('akoonka quranka') ||
+    client.includes('akoonka qur\'anka') ||
+    client.includes('akoonka higgaada') ||
+    client.includes('akoonka higgaadda') ||
+    (client.includes('akoon') && (client.includes('merchent') || client.includes('merchant') || client.includes('quran') || client.includes('higgaad')))
+  ) {
+    return true;
+  }
+
+  // Check if referencing internal account names in transfer context
+  const isMerchantMentioned = combined.includes('merchant') || combined.includes('merchent') || combined.includes('328958');
+  const isHiggaadMentioned = combined.includes('higgaad') || combined.includes('516963');
+  const isQuraanMentioned = combined.includes('qur') || combined.includes('516962');
+
+  if (
+    (isMerchantMentioned && (isHiggaadMentioned || isQuraanMentioned)) ||
+    (combined.includes('transfer') && (isMerchantMentioned || isHiggaadMentioned || isQuraanMentioned))
+  ) {
+    return true;
+  }
+
+  return false;
+};
+
+// Real External Expense (Must NOT be an internal transfer)
+export const isRealExpense = (tx: XawaaladaTransaction, accountsList: XawaaladaAccount[] = []): boolean => {
+  return tx.type === 'out' && !isInternalTransfer(tx, accountsList);
+};
+
+// Real External Income (Must NOT be an internal transfer)
+export const isRealIncome = (tx: XawaaladaTransaction, accountsList: XawaaladaAccount[] = []): boolean => {
+  return tx.type === 'in' && !isInternalTransfer(tx, accountsList);
+};
 
 // Categorize expense records by purpose and recipient keyword
 export const categorizeExpense = (desc: string, client: string) => {
@@ -80,8 +150,8 @@ export const categorizeExpense = (desc: string, client: string) => {
   if (text.includes('wicitaan') || text.includes('prepaid') || text.includes('hadal')) {
     return 'Wicitaanka & Isgaarsiinta (Communication/Airtime)';
   }
-  if (text.includes('edahab') || text.includes('e-dahab') || text.includes('bakad') || text.includes('merchent') || text.includes('merchant')) {
-    return 'Xawaalad / Akoon Weyn (Account Transfer/Routing)';
+  if (text.includes('edahab') || text.includes('e-dahab') || text.includes('bakad') || text.includes('merchent') || text.includes('merchant') || text.includes('wareejin') || text.includes('xawilaad gudaha')) {
+    return 'Xawaalad / Akoon Gudaha (Internal Transfer/Routing)';
   }
   return 'Kharash Guud (General Expense)';
 };
@@ -136,12 +206,23 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<XawaaladaTransaction | null>(null);
 
+  // Inter-Account Transfer Modal State
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [transferSourceId, setTransferSourceId] = useState('');
+  const [transferDestId, setTransferDestId] = useState('');
+  const [transferAmount, setTransferAmount] = useState<number | ''>('');
+  const [transferRefNo, setTransferRefNo] = useState('');
+  const [transferNotes, setTransferNotes] = useState('');
+  const [transferDate, setTransferDate] = useState(todayDateStr);
+  const [transferTime, setTransferTime] = useState('12:00');
+  const [transferError, setTransferError] = useState('');
+
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [receiptTransaction, setReceiptTransaction] = useState<XawaaladaTransaction | null>(null);
 
   // Interactive Metric Breakdown Modal State
-  type MetricBreakdownType = 'opening' | 'moneyIn' | 'moneyOut' | 'liquidity' | 'reconciliation' | null;
+  type MetricBreakdownType = 'opening' | 'moneyIn' | 'moneyOut' | 'liquidity' | 'reconciliation' | 'monthlyIncome' | 'monthlyExpense' | 'monthlyTransfers' | null;
   const [activeMetricBreakdown, setActiveMetricBreakdown] = useState<MetricBreakdownType>(null);
   const [breakdownSearch, setBreakdownSearch] = useState('');
   const [breakdownCategory, setBreakdownCategory] = useState('all');
@@ -409,6 +490,175 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
       isBalanced
     };
   }, [accounts, transactions, dateFilter, monthFilter, yearFilter]);
+
+  // MONTHLY FINANCIAL ANALYSIS (INCOME VS EXPENSE VS INTER-ACCOUNT TRANSFERS)
+  // Accounting Rule: Inter-account transfers (Higgaad ➔ Merchant, Qur'aan ➔ Merchant) are NOT expenses!
+  // Expenses only include money going out to merchants/vendors/salaries/rent.
+  const monthlyFinanceStats = useMemo(() => {
+    const currentKey = reportMonth || `${currentYearStr}-${currentMonthStr}`;
+    const monthTxns = transactions.filter(t => !currentKey || (t.date && t.date.startsWith(currentKey)));
+
+    const realIncomes = monthTxns.filter(t => isRealIncome(t, accounts));
+    const realExpenses = monthTxns.filter(t => isRealExpense(t, accounts));
+    const internalTransfers = monthTxns.filter(t => isInternalTransfer(t, accounts));
+
+    const totalRealIncome = realIncomes.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+    const totalRealExpense = realExpenses.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+    // Sum outgoing transfer movements
+    const totalInternalTransfers = internalTransfers
+      .filter(t => t.type === 'out' || !internalTransfers.some(other => other.id !== t.id && other.date === t.date && Math.abs(Number(other.amount) - Number(t.amount)) < 0.01))
+      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+    const netSurplus = totalRealIncome - totalRealExpense;
+
+    // Group real expenses by category
+    const expenseCategoriesMap: Record<string, { total: number; count: number; txns: XawaaladaTransaction[] }> = {};
+    realExpenses.forEach(tx => {
+      const cat = categorizeExpense(tx.description || '', tx.clientName || '');
+      if (!expenseCategoriesMap[cat]) {
+        expenseCategoriesMap[cat] = { total: 0, count: 0, txns: [] };
+      }
+      expenseCategoriesMap[cat].total += Number(tx.amount) || 0;
+      expenseCategoriesMap[cat].count += 1;
+      expenseCategoriesMap[cat].txns.push(tx);
+    });
+
+    const sortedExpenseCategories = Object.entries(expenseCategoriesMap).sort((a, b) => b[1].total - a[1].total);
+
+    // Group real incomes by account
+    const incomeByAccountMap: Record<string, { total: number; count: number; txns: XawaaladaTransaction[] }> = {};
+    realIncomes.forEach(tx => {
+      if (!incomeByAccountMap[tx.accountId]) {
+        incomeByAccountMap[tx.accountId] = { total: 0, count: 0, txns: [] };
+      }
+      incomeByAccountMap[tx.accountId].total += Number(tx.amount) || 0;
+      incomeByAccountMap[tx.accountId].count += 1;
+      incomeByAccountMap[tx.accountId].txns.push(tx);
+    });
+
+    return {
+      monthKey: currentKey,
+      monthTxns,
+      realIncomes,
+      realExpenses,
+      internalTransfers,
+      totalRealIncome,
+      totalRealExpense,
+      totalInternalTransfers,
+      netSurplus,
+      sortedExpenseCategories,
+      incomeByAccountMap
+    };
+  }, [transactions, accounts, reportMonth, currentYearStr, currentMonthStr]);
+
+  // Quick Inter-Account Transfer Submission (Xawilaad Gudaha ah)
+  const handleTransferSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setTransferError('');
+
+    if (!transferSourceId || !transferDestId) {
+      setTransferError('Fadlan dooro labada akawn ee lacagtu ka baxayso kuna dhacayso (Please select both source and destination accounts).');
+      return;
+    }
+    if (transferSourceId === transferDestId) {
+      setTransferError('Fadlan laba akawn oo kala duwan dooro (Source and Destination cannot be the same).');
+      return;
+    }
+    const amt = typeof transferAmount === 'number' ? transferAmount : 0;
+    if (amt <= 0) {
+      setTransferError('Fadlan geli lacag sax ah oo ka weyn $0 (Please enter a valid amount).');
+      return;
+    }
+
+    const sourceAcc = accounts.find(a => a.id === transferSourceId);
+    const destAcc = accounts.find(a => a.id === transferDestId);
+
+    const ref = transferRefNo.trim() || `TRF-${Date.now().toString().slice(-6)}`;
+    const nowTime = transferTime || new Date().toTimeString().slice(0, 5);
+    const note = transferNotes.trim() || `Xawilaad gudaha ah: ${sourceAcc?.name} ➔ ${destAcc?.name}`;
+
+    const srcBal = runningBalances.accountCurrentMap.get(transferSourceId) ?? (sourceAcc?.openingBalance ?? 0);
+    const destBal = runningBalances.accountCurrentMap.get(transferDestId) ?? (destAcc?.openingBalance ?? 0);
+
+    // 1. Outgoing from source account
+    const outTx: XawaaladaTransaction = {
+      id: `TXN-TRF-OUT-${Date.now()}`,
+      accountId: transferSourceId,
+      type: 'out',
+      amount: amt,
+      balanceAfter: srcBal - amt,
+      clientName: `Wareejin ➔ ${destAcc?.name}`,
+      clientPhone: destAcc?.accountNumber || '',
+      referenceNo: ref,
+      description: `[Xawilaad Gudaha] Lacag loo wareejiyay ${destAcc?.name}: ${note}`,
+      date: transferDate,
+      time: nowTime,
+      isTransfer: true,
+      transferToAccountId: transferDestId,
+      category: 'transfer',
+      createdBy: 'yaxyecabdisalanmohamed1234@gmail.com',
+      createdAt: new Date().toISOString()
+    };
+
+    // 2. Incoming to destination account
+    const inTx: XawaaladaTransaction = {
+      id: `TXN-TRF-IN-${Date.now() + 1}`,
+      accountId: transferDestId,
+      type: 'in',
+      amount: amt,
+      balanceAfter: destBal + amt,
+      clientName: `Ka timid ⬅️ ${sourceAcc?.name}`,
+      clientPhone: sourceAcc?.accountNumber || '',
+      referenceNo: ref,
+      description: `[Xawilaad Gudaha] Lacag laga soo wareejiyay ${sourceAcc?.name}: ${note}`,
+      date: transferDate,
+      time: nowTime,
+      isTransfer: true,
+      transferFromAccountId: transferSourceId,
+      category: 'transfer',
+      createdBy: 'yaxyecabdisalanmohamed1234@gmail.com',
+      createdAt: new Date(Date.now() + 100).toISOString()
+    };
+
+    const updatedTxns = [outTx, inTx, ...transactions];
+
+    const updatedMoneyTransfers = updatedTxns.map(tx => ({
+      id: tx.id,
+      transNo: tx.referenceNo || tx.id,
+      customerName: tx.clientName || 'N/A',
+      customerPhone: tx.clientPhone || 'N/A',
+      amountSent: tx.amount,
+      date: tx.date,
+      notes: tx.description || '',
+      createdBy: tx.createdBy || 'yaxyecabdisalanmohamed1234@gmail.com',
+      createdAt: tx.createdAt || new Date().toISOString()
+    }));
+
+    onSaveDatabase({
+      ...database,
+      xawaaladaTransactions: updatedTxns,
+      moneyTransfers: updatedMoneyTransfers
+    });
+
+    triggerFeedback(`Xawilaadda $${amt.toFixed(2)} (${sourceAcc?.name} ➔ ${destAcc?.name}) si guul leh ayaa loo kaydiyay!`);
+    setIsTransferModalOpen(false);
+    setTransferAmount('');
+    setTransferNotes('');
+  };
+
+  // Open Inter-Account Transfer Modal
+  const openNewTransfer = (sourceId?: string) => {
+    setTransferSourceId(sourceId || (accounts[0]?.id || ''));
+    setTransferDestId(accounts.find(a => a.id !== (sourceId || accounts[0]?.id))?.id || accounts[1]?.id || accounts[0]?.id || '');
+    setTransferAmount('');
+    setTransferRefNo(`TRF-${Date.now().toString().slice(-6)}`);
+    setTransferNotes('');
+    setTransferDate(todayDateStr);
+    setTransferTime(new Date().toTimeString().slice(0, 5));
+    setTransferError('');
+    setIsTransferModalOpen(true);
+  };
 
   // Handle Account Form Submission (Create or Edit)
   const handleAccountSubmit = (e: React.FormEvent) => {
@@ -1326,6 +1576,16 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
 
             <button
               type="button"
+              onClick={() => openNewTransfer()}
+              className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer border border-purple-400/30"
+              title="Xawilaad & Wareejin lacag u dhaxaysa akoonnada dugsiga"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Xawil Akoon (Transfer)
+            </button>
+
+            <button
+              type="button"
               onClick={() => setIsReportModalOpen(true)}
               className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-extrabold text-xs rounded-xl transition-all flex items-center gap-2 cursor-pointer backdrop-blur-md border border-white/10"
             >
@@ -1475,6 +1735,232 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
               Audit & Hubinta ➔
             </span>
           </button>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* DEDICATED 1-CLICK MONTHLY FINANCIAL REPORTING HUB (INCOME, EXPENSE & TRANSFERS) */}
+      {/* ========================================================================= */}
+      <div className="bg-gradient-to-b from-slate-900 via-slate-900 to-indigo-950 rounded-3xl p-5 sm:p-6 text-white shadow-xl border border-indigo-900/60 space-y-4">
+        
+        {/* Hub Header with Month Navigator */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-black uppercase tracking-wider">
+                1-Click Quick Reports
+              </span>
+              <span className="text-xs text-slate-400 font-medium">Bisha Xulan:</span>
+              <strong className="text-xs font-mono text-white bg-slate-800 px-2.5 py-0.5 rounded-lg border border-slate-700">
+                {monthlyFinanceStats.monthKey}
+              </strong>
+            </div>
+            <h3 className="text-lg font-black text-white flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-indigo-400" />
+              Warbixinta Dhaqaalaha ee Bishaan (Income vs Expense 1-Click Details)
+            </h3>
+            <p className="text-xs text-slate-300">
+              Guji badhannada hoose si aad 1-guji ugu aragto dakhliga, kharashka dhabta ah, iyo xawilaadaha akoonnada ee bishan.
+            </p>
+          </div>
+
+          {/* Month Selector Controls */}
+          <div className="flex items-center gap-2 shrink-0 bg-slate-800/80 p-1.5 rounded-2xl border border-slate-700/80">
+            <button
+              type="button"
+              onClick={() => {
+                const parts = (reportMonth || `${currentYearStr}-${currentMonthStr}`).split('-');
+                let y = parseInt(parts[0], 10);
+                let m = parseInt(parts[1], 10) - 1;
+                if (m < 1) { m = 12; y -= 1; }
+                setReportMonth(`${y}-${String(m).padStart(2, '0')}`);
+              }}
+              className="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 active:bg-slate-500 text-white rounded-xl text-xs font-black transition-colors cursor-pointer"
+              title="Bishii Hore (Previous Month)"
+            >
+              ◀ Bishii Hore
+            </button>
+
+            <input
+              type="month"
+              value={reportMonth}
+              onChange={(e) => setReportMonth(e.target.value)}
+              className="bg-slate-900 border border-slate-600 text-white font-mono font-bold text-xs rounded-xl px-3 py-1.5 outline-none focus:border-indigo-400"
+            />
+
+            <button
+              type="button"
+              onClick={() => {
+                const parts = (reportMonth || `${currentYearStr}-${currentMonthStr}`).split('-');
+                let y = parseInt(parts[0], 10);
+                let m = parseInt(parts[1], 10) + 1;
+                if (m > 12) { m = 1; y += 1; }
+                setReportMonth(`${y}-${String(m).padStart(2, '0')}`);
+              }}
+              className="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 active:bg-slate-500 text-white rounded-xl text-xs font-black transition-colors cursor-pointer"
+              title="Bisha Xigta (Next Month)"
+            >
+              Bisha Xigta ▶
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setReportMonth(`${currentYearStr}-${currentMonthStr}`)}
+              className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-colors cursor-pointer"
+              title="Bisha Hadda Joogta"
+            >
+              Bishan Hadda
+            </button>
+          </div>
+        </div>
+
+        {/* Important Accounting Notice Banner */}
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-3 text-xs text-amber-200/90 flex items-start gap-2.5">
+          <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <strong className="text-amber-300 font-bold block">Qaanuunka Xisaabaadka ee Dugsiga:</strong>
+            Lacagaha loo wareejiyo akoonnada dugsiga dhexdooda (tusaale: <em>Higgaad ➔ Merchant</em> ama <em>Qur'aan ➔ Merchant</em>) <strong>MA AHA KHARASH</strong>. Kharashka rasmiga ahi waa kan ka baxa akoonka ama Merchant-ka ee lagu bixiyo mushaharaadka, kirada, baska, korontada, iyo adeegyada dugsiga.
+          </div>
+        </div>
+
+        {/* 4 Interactive 1-Click Report Buttons */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+          
+          {/* Button 1: Dakhliga Bishaan (This Month's Income) */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveMetricBreakdown('monthlyIncome');
+              setBreakdownSearch('');
+              setBreakdownAccountId('all');
+            }}
+            className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/80 to-emerald-900/50 hover:from-emerald-900 hover:to-emerald-800 border border-emerald-500/30 hover:border-emerald-400 transition-all text-left group cursor-pointer shadow-lg hover:shadow-emerald-500/10 active:scale-[0.98] flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className="text-[11px] font-black uppercase text-emerald-300 tracking-wider flex items-center gap-1.5">
+                  <ArrowDownLeft className="w-4 h-4 text-emerald-400" />
+                  Dakhliga Bishaan
+                </span>
+                <span className="text-[10px] font-mono font-black px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  {monthlyFinanceStats.realIncomes.length} Diiwaan
+                </span>
+              </div>
+              <div className="text-2xl font-black font-mono text-emerald-300">
+                +${monthlyFinanceStats.totalRealIncome.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-[11px] text-emerald-200/70 font-medium mt-1">
+                Dhammaan dakhliga soo galay dugsiga (Ardayda, Fiiga, Baska, Diiwaangelinta).
+              </p>
+            </div>
+            <div className="pt-3 mt-3 border-t border-emerald-500/20 flex items-center justify-between text-xs font-bold text-emerald-300 group-hover:text-white transition-colors">
+              <span>Guji si aad u aragto Faahfaahinta</span>
+              <span className="text-sm group-hover:translate-x-1 transition-transform">➔</span>
+            </div>
+          </button>
+
+          {/* Button 2: Kharashka Bishaan (This Month's Real Expense) */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveMetricBreakdown('monthlyExpense');
+              setBreakdownSearch('');
+              setBreakdownCategory('all');
+              setBreakdownAccountId('all');
+            }}
+            className="p-4 rounded-2xl bg-gradient-to-br from-rose-950/80 to-rose-900/50 hover:from-rose-900 hover:to-rose-800 border border-rose-500/30 hover:border-rose-400 transition-all text-left group cursor-pointer shadow-lg hover:shadow-rose-500/10 active:scale-[0.98] flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className="text-[11px] font-black uppercase text-rose-300 tracking-wider flex items-center gap-1.5">
+                  <ArrowUpRight className="w-4 h-4 text-rose-400" />
+                  Kharashka Bishaan
+                </span>
+                <span className="text-[10px] font-mono font-black px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                  {monthlyFinanceStats.realExpenses.length} Kharash
+                </span>
+              </div>
+              <div className="text-2xl font-black font-mono text-rose-300">
+                -${monthlyFinanceStats.totalRealExpense.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-[11px] text-rose-200/70 font-medium mt-1">
+                Kharashka dhabta ah ee baxay (Mushahar, Kiro, Bas, Koronto, Qalab).
+              </p>
+            </div>
+            <div className="pt-3 mt-3 border-t border-rose-500/20 flex items-center justify-between text-xs font-bold text-rose-300 group-hover:text-white transition-colors">
+              <span>Guji si aad u aragto Faahfaahinta</span>
+              <span className="text-sm group-hover:translate-x-1 transition-transform">➔</span>
+            </div>
+          </button>
+
+          {/* Button 3: Xawilaadaha Gudaha (Inter-Account Transfers) */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveMetricBreakdown('monthlyTransfers');
+              setBreakdownSearch('');
+              setBreakdownAccountId('all');
+            }}
+            className="p-4 rounded-2xl bg-gradient-to-br from-purple-950/80 to-purple-900/50 hover:from-purple-900 hover:to-purple-800 border border-purple-500/30 hover:border-purple-400 transition-all text-left group cursor-pointer shadow-lg hover:shadow-purple-500/10 active:scale-[0.98] flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className="text-[11px] font-black uppercase text-purple-300 tracking-wider flex items-center gap-1.5">
+                  <RefreshCw className="w-4 h-4 text-purple-400" />
+                  Xawilaadaha Akoonnada
+                </span>
+                <span className="text-[10px] font-mono font-black px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                  {monthlyFinanceStats.internalTransfers.length} Wareejin
+                </span>
+              </div>
+              <div className="text-2xl font-black font-mono text-purple-300">
+                ${monthlyFinanceStats.totalInternalTransfers.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-[11px] text-purple-200/70 font-medium mt-1">
+                Wareejinta u dhaxaysa akoonnada (Higgaad ➔ Merchant) — MA AHA KHARASH!
+              </p>
+            </div>
+            <div className="pt-3 mt-3 border-t border-purple-500/20 flex items-center justify-between text-xs font-bold text-purple-300 group-hover:text-white transition-colors">
+              <span>Guji si aad u aragto Xawilaadaha</span>
+              <span className="text-sm group-hover:translate-x-1 transition-transform">➔</span>
+            </div>
+          </button>
+
+          {/* Button 4: Faa'iidada Saafiga ah (Net Profit / Surplus) */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveMetricBreakdown('reconciliation');
+            }}
+            className="p-4 rounded-2xl bg-gradient-to-br from-amber-950/80 to-amber-900/50 hover:from-amber-900 hover:to-amber-800 border border-amber-500/30 hover:border-amber-400 transition-all text-left group cursor-pointer shadow-lg hover:shadow-amber-500/10 active:scale-[0.98] flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className="text-[11px] font-black uppercase text-amber-300 tracking-wider flex items-center gap-1.5">
+                  <Scale className="w-4 h-4 text-amber-400" />
+                  Faa'iidada Saafiga ah
+                </span>
+                <span className={`text-[10px] font-mono font-black px-2 py-0.5 rounded-md ${
+                  monthlyFinanceStats.netSurplus >= 0 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                }`}>
+                  {monthlyFinanceStats.netSurplus >= 0 ? 'Surplus Positive' : 'Deficit'}
+                </span>
+              </div>
+              <div className={`text-2xl font-black font-mono ${
+                monthlyFinanceStats.netSurplus >= 0 ? 'text-emerald-300' : 'text-rose-300'
+              }`}>
+                {monthlyFinanceStats.netSurplus >= 0 ? '+' : '-'}${Math.abs(monthlyFinanceStats.netSurplus).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </div>
+              <p className="text-[11px] text-amber-200/70 font-medium mt-1">
+                Dakhliga Dhabta ah (- Kharashka Dhabta ah).
+              </p>
+            </div>
+            <div className="pt-3 mt-3 border-t border-amber-500/20 flex items-center justify-between text-xs font-bold text-amber-300 group-hover:text-white transition-colors">
+              <span>Xisaab-xirka & Audit-ka</span>
+              <span className="text-sm group-hover:translate-x-1 transition-transform">➔</span>
+            </div>
+          </button>
+
         </div>
       </div>
 
@@ -2978,14 +3464,16 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                 <div className="flex items-center gap-3">
                   <div className={`p-2.5 rounded-2xl ${
                     activeMetricBreakdown === 'opening' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' :
-                    activeMetricBreakdown === 'moneyIn' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
-                    activeMetricBreakdown === 'moneyOut' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
+                    activeMetricBreakdown === 'moneyIn' || activeMetricBreakdown === 'monthlyIncome' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                    activeMetricBreakdown === 'moneyOut' || activeMetricBreakdown === 'monthlyExpense' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
+                    activeMetricBreakdown === 'monthlyTransfers' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
                     activeMetricBreakdown === 'liquidity' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
                     'bg-teal-500/20 text-teal-300 border border-teal-500/30'
                   }`}>
                     {activeMetricBreakdown === 'opening' && <Wallet className="w-5 h-5" />}
-                    {activeMetricBreakdown === 'moneyIn' && <ArrowDownLeft className="w-5 h-5" />}
-                    {activeMetricBreakdown === 'moneyOut' && <ArrowUpRight className="w-5 h-5" />}
+                    {(activeMetricBreakdown === 'moneyIn' || activeMetricBreakdown === 'monthlyIncome') && <ArrowDownLeft className="w-5 h-5" />}
+                    {(activeMetricBreakdown === 'moneyOut' || activeMetricBreakdown === 'monthlyExpense') && <ArrowUpRight className="w-5 h-5" />}
+                    {activeMetricBreakdown === 'monthlyTransfers' && <RefreshCw className="w-5 h-5" />}
                     {activeMetricBreakdown === 'liquidity' && <Coins className="w-5 h-5" />}
                     {activeMetricBreakdown === 'reconciliation' && <ShieldCheck className="w-5 h-5" />}
                   </div>
@@ -2994,6 +3482,9 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                       {activeMetricBreakdown === 'opening' && 'Total Opening Balance ($536.14) Breakdown'}
                       {activeMetricBreakdown === 'moneyIn' && `Total Money In (+)${accountCalculations.grandIn.toFixed(2)} Breakdown`}
                       {activeMetricBreakdown === 'moneyOut' && `Total Money Out (-)${accountCalculations.grandOut.toFixed(2)} Breakdown`}
+                      {activeMetricBreakdown === 'monthlyIncome' && `Dakhliga Dhabta ah ee Bisha (${monthlyFinanceStats.monthKey}): +$${monthlyFinanceStats.totalRealIncome.toFixed(2)}`}
+                      {activeMetricBreakdown === 'monthlyExpense' && `Kharashka Dhabta ah ee Bisha (${monthlyFinanceStats.monthKey}): -$${monthlyFinanceStats.totalRealExpense.toFixed(2)}`}
+                      {activeMetricBreakdown === 'monthlyTransfers' && `Xawilaadaha Akoonnada Gudaha (${monthlyFinanceStats.monthKey}): $${monthlyFinanceStats.totalInternalTransfers.toFixed(2)}`}
                       {activeMetricBreakdown === 'liquidity' && `Current Total Net Liquidity ($${accountCalculations.grandCurrent.toFixed(2)}) Breakdown`}
                       {activeMetricBreakdown === 'reconciliation' && 'Balancing & Reconciliation Audit Report'}
                     </h3>
@@ -3001,6 +3492,9 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                       {activeMetricBreakdown === 'opening' && 'Asalka iyo xisaabinta Haraagii Hore ee bilowga ah ee xisaabaadka dugsiga'}
                       {activeMetricBreakdown === 'moneyIn' && 'Dhammaan dakhliga soo galay (Ardayda, Fiiga, Baska, Diiwaangelinta & Dhigaalka)'}
                       {activeMetricBreakdown === 'moneyOut' && 'Halka iyo cidda lacagta la siiyay (Mushaharaadka, Kirada, Baska, Korontada & Qalabka)'}
+                      {activeMetricBreakdown === 'monthlyIncome' && `Dakhliga dhabta ah ee ardayda iyo waalidiinta laga qabtay bishan ${monthlyFinanceStats.monthKey} (kuma jiraan xawilaadaha gudaha).`}
+                      {activeMetricBreakdown === 'monthlyExpense' && `Kharashka rasmiga ah ee ka baxay Merchant-ka iyo gacanta dugsiga bishan ${monthlyFinanceStats.monthKey} (Mushaharaadka, Kirada, Baska, Korontada).`}
+                      {activeMetricBreakdown === 'monthlyTransfers' && `Diiwaanka lacagaha loo kala wareejiyay akoonnada dugsiga (Higgaad ➔ Merchant, iwm) — Xisaab ahaan MA AHA kharash!`}
                       {activeMetricBreakdown === 'liquidity' && 'Xisaabinta & Asalka saxda ah ee lacagta hadda u taalla dugsiga (Ledger Balance)'}
                       {activeMetricBreakdown === 'reconciliation' && 'Hubinta saxnaanta xisaabta iyo isku dheelitirnaanta buugaagta (Zero Variance Audit)'}
                     </p>
@@ -3462,6 +3956,342 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                 )}
 
                 {/* ========================================================================= */}
+                {/* MONTHLY 1-CLICK BREAKDOWN 1: THIS MONTH'S REAL INCOME */}
+                {/* ========================================================================= */}
+                {activeMetricBreakdown === 'monthlyIncome' && (
+                  <div className="space-y-6">
+                    {/* Top Overview Banner */}
+                    <div className="bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900 p-5 rounded-3xl text-white border border-emerald-800/50 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-black uppercase tracking-wider">
+                            Dakhliga Dhabta Ah • Real Inflow
+                          </span>
+                          <span className="text-xs text-slate-300 font-mono">Bisha: {monthlyFinanceStats.monthKey}</span>
+                        </div>
+                        <div className="text-3xl font-black font-mono text-emerald-300">
+                          +${monthlyFinanceStats.totalRealIncome.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </div>
+                        <p className="text-xs text-emerald-200/80 font-medium mt-1">
+                          Wadarta dakhliga dhabta ah ee soo galay bishan (<strong className="text-white">{monthlyFinanceStats.realIncomes.length} diiwaan</strong>).
+                        </p>
+                      </div>
+
+                      <div className="bg-white/10 backdrop-blur-sm p-3.5 rounded-2xl border border-white/15 text-xs space-y-1">
+                        <div className="flex justify-between gap-4">
+                          <span className="text-emerald-200">Wadarta Dakhliga:</span>
+                          <span className="font-mono font-black text-emerald-300">+${monthlyFinanceStats.totalRealIncome.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-emerald-200">Xawilaadaha Gudaha (Laga Reebay):</span>
+                          <span className="font-mono font-bold text-slate-300">${monthlyFinanceStats.totalInternalTransfers.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Filter & Search Bar */}
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <div className="flex-1 relative">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          placeholder="Raadi magaca macmiilka, taleefanka, ref..."
+                          value={breakdownSearch}
+                          onChange={(e) => setBreakdownSearch(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <select
+                        value={breakdownAccountId}
+                        onChange={(e) => setBreakdownAccountId(e.target.value)}
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none"
+                      >
+                        <option value="all">Dhammaan Akoonnada ({accounts.length})</option>
+                        {accounts.map(a => (
+                          <option key={a.id} value={a.id}>{a.name} ({a.accountNumber || ''})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Detailed List */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider">
+                          Liiska Dakhliga Dhabta ah ee Bisha ({monthlyFinanceStats.monthKey}):
+                        </h4>
+                        <span className="text-xs text-slate-500 font-mono font-bold">
+                          {monthlyFinanceStats.realIncomes.filter(t => {
+                            const q = breakdownSearch.toLowerCase().trim();
+                            const matchSearch = !q ||
+                              (t.clientName && t.clientName.toLowerCase().includes(q)) ||
+                              (t.clientPhone && t.clientPhone.toLowerCase().includes(q)) ||
+                              (t.referenceNo && t.referenceNo.toLowerCase().includes(q)) ||
+                              (t.description && t.description.toLowerCase().includes(q));
+                            const matchAcc = breakdownAccountId === 'all' || t.accountId === breakdownAccountId;
+                            return matchSearch && matchAcc;
+                          }).length} Diiwaan
+                        </span>
+                      </div>
+
+                      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                        <div className="overflow-x-auto max-h-[380px]">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-100/80 text-slate-600 font-extrabold text-[11px] sticky top-0 border-b border-slate-200">
+                              <tr>
+                                <th className="p-2.5">Taariikh</th>
+                                <th className="p-2.5">Macmiilka / Ardayga</th>
+                                <th className="p-2.5">Akawnka</th>
+                                <th className="p-2.5 text-right">Lacagta (+)</th>
+                                <th className="p-2.5">Ujeeddada</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 font-medium">
+                              {monthlyFinanceStats.realIncomes.filter(t => {
+                                const q = breakdownSearch.toLowerCase().trim();
+                                const matchSearch = !q ||
+                                  (t.clientName && t.clientName.toLowerCase().includes(q)) ||
+                                  (t.clientPhone && t.clientPhone.toLowerCase().includes(q)) ||
+                                  (t.referenceNo && t.referenceNo.toLowerCase().includes(q)) ||
+                                  (t.description && t.description.toLowerCase().includes(q));
+                                const matchAcc = breakdownAccountId === 'all' || t.accountId === breakdownAccountId;
+                                return matchSearch && matchAcc;
+                              }).map(tx => (
+                                <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
+                                  <td className="p-2.5 font-mono text-slate-600 whitespace-nowrap">{tx.date}</td>
+                                  <td className="p-2.5">
+                                    <div className="font-bold text-slate-900">{tx.clientName || 'N/A'}</div>
+                                    {tx.clientPhone && <span className="text-[10px] text-slate-500 font-mono">{tx.clientPhone}</span>}
+                                  </td>
+                                  <td className="p-2.5 text-slate-700 whitespace-nowrap">
+                                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 text-[10px] font-bold">
+                                      {getAccountName(tx.accountId)}
+                                    </span>
+                                  </td>
+                                  <td className="p-2.5 text-right font-mono font-black text-emerald-600 whitespace-nowrap">
+                                    +${Number(tx.amount).toFixed(2)}
+                                  </td>
+                                  <td className="p-2.5 text-slate-600 max-w-[240px] truncate">{tx.description || 'Dakhli soo galay'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ========================================================================= */}
+                {/* MONTHLY 1-CLICK BREAKDOWN 2: THIS MONTH'S REAL EXPENSE */}
+                {/* ========================================================================= */}
+                {activeMetricBreakdown === 'monthlyExpense' && (
+                  <div className="space-y-6">
+                    {/* Top Overview Banner */}
+                    <div className="bg-gradient-to-br from-slate-900 via-rose-950 to-slate-900 p-5 rounded-3xl text-white border border-rose-800/50 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-black uppercase tracking-wider">
+                            Kharashka Dhabta Ah • Real Outflow
+                          </span>
+                          <span className="text-xs text-slate-300 font-mono">Bisha: {monthlyFinanceStats.monthKey}</span>
+                        </div>
+                        <div className="text-3xl font-black font-mono text-rose-300">
+                          -${monthlyFinanceStats.totalRealExpense.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </div>
+                        <p className="text-xs text-rose-200/80 font-medium mt-1">
+                          Wadarta kharashka dhabta ah ee ka baxay Merchant-ka ama gacanta dugsiga (<strong className="text-white">{monthlyFinanceStats.realExpenses.length} kharash</strong>).
+                        </p>
+                      </div>
+
+                      <div className="bg-white/10 backdrop-blur-sm p-3.5 rounded-2xl border border-white/15 text-xs space-y-1">
+                        <div className="flex justify-between gap-4">
+                          <span className="text-rose-200">Kharashka Rasmiga ah:</span>
+                          <span className="font-mono font-black text-rose-300">-${monthlyFinanceStats.totalRealExpense.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-rose-200">Xawilaadaha Gudaha (MA AHA Kharash):</span>
+                          <span className="font-mono font-bold text-slate-300">${monthlyFinanceStats.totalInternalTransfers.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Filter & Search Bar */}
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <div className="flex-1 relative">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          placeholder="Raadi kharashka, cidda la siiyay, qoraalka..."
+                          value={breakdownSearch}
+                          onChange={(e) => setBreakdownSearch(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-rose-500"
+                        />
+                      </div>
+
+                      <select
+                        value={breakdownAccountId}
+                        onChange={(e) => setBreakdownAccountId(e.target.value)}
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none"
+                      >
+                        <option value="all">Dhammaan Akoonnada ({accounts.length})</option>
+                        {accounts.map(a => (
+                          <option key={a.id} value={a.id}>{a.name} ({a.accountNumber || ''})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Detailed List */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider">
+                          Liiska Kharashka Dhabta ah ee Bisha ({monthlyFinanceStats.monthKey}):
+                        </h4>
+                        <span className="text-xs text-slate-500 font-mono font-bold">
+                          {monthlyFinanceStats.realExpenses.filter(t => {
+                            const q = breakdownSearch.toLowerCase().trim();
+                            const matchSearch = !q ||
+                              (t.clientName && t.clientName.toLowerCase().includes(q)) ||
+                              (t.clientPhone && t.clientPhone.toLowerCase().includes(q)) ||
+                              (t.referenceNo && t.referenceNo.toLowerCase().includes(q)) ||
+                              (t.description && t.description.toLowerCase().includes(q));
+                            const matchAcc = breakdownAccountId === 'all' || t.accountId === breakdownAccountId;
+                            return matchSearch && matchAcc;
+                          }).length} Kharash
+                        </span>
+                      </div>
+
+                      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                        <div className="overflow-x-auto max-h-[380px]">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-100/80 text-slate-600 font-extrabold text-[11px] sticky top-0 border-b border-slate-200">
+                              <tr>
+                                <th className="p-2.5">Taariikh</th>
+                                <th className="p-2.5">Cidda La Siiyay / Qaybta</th>
+                                <th className="p-2.5">Akawnka Ka Baxday</th>
+                                <th className="p-2.5 text-right">Lacagta (-)</th>
+                                <th className="p-2.5">Ujeeddada & Faahfaahinta</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 font-medium">
+                              {monthlyFinanceStats.realExpenses.filter(t => {
+                                const q = breakdownSearch.toLowerCase().trim();
+                                const matchSearch = !q ||
+                                  (t.clientName && t.clientName.toLowerCase().includes(q)) ||
+                                  (t.clientPhone && t.clientPhone.toLowerCase().includes(q)) ||
+                                  (t.referenceNo && t.referenceNo.toLowerCase().includes(q)) ||
+                                  (t.description && t.description.toLowerCase().includes(q));
+                                const matchAcc = breakdownAccountId === 'all' || t.accountId === breakdownAccountId;
+                                return matchSearch && matchAcc;
+                              }).map(tx => (
+                                <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
+                                  <td className="p-2.5 font-mono text-slate-600 whitespace-nowrap">{tx.date}</td>
+                                  <td className="p-2.5">
+                                    <div className="font-bold text-slate-900">{tx.clientName || 'Kharash Guud'}</div>
+                                    <span className="text-[10px] text-rose-600 font-bold">
+                                      {categorizeExpense(tx.description || '', tx.clientName || '')}
+                                    </span>
+                                  </td>
+                                  <td className="p-2.5 text-slate-700 whitespace-nowrap">
+                                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 text-[10px] font-bold">
+                                      {getAccountName(tx.accountId)}
+                                    </span>
+                                  </td>
+                                  <td className="p-2.5 text-right font-mono font-black text-rose-600 whitespace-nowrap">
+                                    -${Number(tx.amount).toFixed(2)}
+                                  </td>
+                                  <td className="p-2.5 text-slate-600 max-w-[240px] truncate">{tx.description || 'Kharash baxay'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ========================================================================= */}
+                {/* MONTHLY 1-CLICK BREAKDOWN 3: INTER-ACCOUNT TRANSFERS */}
+                {/* ========================================================================= */}
+                {activeMetricBreakdown === 'monthlyTransfers' && (
+                  <div className="space-y-6">
+                    {/* Top Overview Banner */}
+                    <div className="bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 p-5 rounded-3xl text-white border border-purple-800/50 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-black uppercase tracking-wider">
+                            Xawilaadaha Akoonnada Gudaha
+                          </span>
+                          <span className="text-xs text-slate-300 font-mono">Bisha: {monthlyFinanceStats.monthKey}</span>
+                        </div>
+                        <div className="text-3xl font-black font-mono text-purple-300">
+                          ${monthlyFinanceStats.totalInternalTransfers.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </div>
+                        <p className="text-xs text-purple-200/80 font-medium mt-1">
+                          Wadarta lacagaha loo kala wareejiyay akoonnada dugsiga (<strong className="text-white">{monthlyFinanceStats.internalTransfers.length} diiwaan</strong>).
+                        </p>
+                      </div>
+
+                      <div className="bg-white/10 backdrop-blur-sm p-3.5 rounded-2xl border border-white/15 text-xs space-y-1">
+                        <div className="text-purple-200 font-bold">Xusuusin Xisaabeed:</div>
+                        <p className="text-[11px] text-slate-300">
+                          Lacagahani kuma jiraan dakhliga cusub kumana jiraan kharashka, waa lacag akoon ka baxday oo akoon kale gashay.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Detailed List */}
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider">
+                        Diiwaanka Wareejinta Akoonnada ee Bisha ({monthlyFinanceStats.monthKey}):
+                      </h4>
+
+                      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                        <div className="overflow-x-auto max-h-[380px]">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-100/80 text-slate-600 font-extrabold text-[11px] sticky top-0 border-b border-slate-200">
+                              <tr>
+                                <th className="p-2.5">Taariikh</th>
+                                <th className="p-2.5">Nooca</th>
+                                <th className="p-2.5">Akawnka</th>
+                                <th className="p-2.5 text-right">Lacagta</th>
+                                <th className="p-2.5">Faahfaahinta Xawilaadda</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 font-medium">
+                              {monthlyFinanceStats.internalTransfers.map(tx => (
+                                <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
+                                  <td className="p-2.5 font-mono text-slate-600 whitespace-nowrap">{tx.date}</td>
+                                  <td className="p-2.5 whitespace-nowrap">
+                                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${
+                                      tx.type === 'in' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                                    }`}>
+                                      {tx.type === 'in' ? 'Xawilaad Soo Galay (+)' : 'Xawilaad Ka Baxay (-)'}
+                                    </span>
+                                  </td>
+                                  <td className="p-2.5 text-slate-700 whitespace-nowrap">
+                                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 text-[10px] font-bold">
+                                      {getAccountName(tx.accountId)}
+                                    </span>
+                                  </td>
+                                  <td className="p-2.5 text-right font-mono font-black whitespace-nowrap">
+                                    <span className={tx.type === 'in' ? 'text-emerald-600' : 'text-rose-600'}>
+                                      {tx.type === 'in' ? '+' : '-'}${Number(tx.amount).toFixed(2)}
+                                    </span>
+                                  </td>
+                                  <td className="p-2.5 text-slate-600 max-w-[280px] truncate">{tx.description || 'Xawilaad akoonnada dhexdooda ah'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ========================================================================= */}
                 {/* 4. BREAKDOWN: CURRENT TOTAL NET LIQUIDITY ($1,432.65) */}
                 {/* ========================================================================= */}
                 {activeMetricBreakdown === 'liquidity' && (
@@ -3723,6 +4553,184 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
           </div>
         );
       })()}
+
+      {/* MODAL: INTER-ACCOUNT TRANSFER (XAWILAAD & WAREEJIN AKOONNADA GUDAHA) */}
+      {isTransferModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-[20000] animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden my-auto">
+            
+            {/* Header */}
+            <div className="bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 p-5 text-white flex items-center justify-between border-b border-purple-900/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                  <RefreshCw className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">Xawilaad Akoon (Internal Transfer)</h3>
+                  <p className="text-xs text-purple-200/80">Wareeji lacag u dhaxaysa labo akoon (tusaale: Higgaad ➔ Merchant)</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsTransferModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-white/10"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleTransferSubmit} className="p-6 space-y-4 text-xs">
+              
+              {/* Notice */}
+              <div className="p-3 rounded-2xl bg-purple-50 border border-purple-200 text-purple-950 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-purple-900">
+                  <CheckCircle2 className="w-4 h-4 text-purple-600 shrink-0" />
+                  Qawaaniinta Xisaabinta ee Dugsiga:
+                </div>
+                <p className="text-[11px] leading-relaxed text-purple-900/90">
+                  Lacagtani si toos ah ayay akoonka <strong>Laga Qaadayo</strong> uga jarmi doontaa (-), waxayna ku dari doontaa (+) akoonka <strong>Loo Dirayo</strong>. Xisaab ahaan MA AHA KHARASH.
+                </p>
+              </div>
+
+              {transferError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl font-bold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  {transferError}
+                </div>
+              )}
+
+              {/* Source Account (Laga Qaadayo) */}
+              <div className="space-y-1.5">
+                <label className="font-extrabold text-slate-700 uppercase text-[10px] tracking-wider block">
+                  1. Akoonka Laga Qaadayo (Source / From Account) *
+                </label>
+                <select
+                  value={transferSourceId}
+                  onChange={(e) => setTransferSourceId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-slate-800 outline-none focus:border-purple-500"
+                  required
+                >
+                  <option value="">-- Dooro Akoonka Laga Qaadayo --</option>
+                  {accounts.map(a => {
+                    const calc = accountCalculations.perAccount[a.id];
+                    return (
+                      <option key={a.id} value={a.id}>
+                        {a.name} ({a.accountNumber || 'Acc'}) — Haraaga: ${calc?.currentBalance.toFixed(2) || '0.00'}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* Destination Account (Loo Dirayo) */}
+              <div className="space-y-1.5">
+                <label className="font-extrabold text-slate-700 uppercase text-[10px] tracking-wider block">
+                  2. Akoonka Loo Wareejinayo (Destination / To Account) *
+                </label>
+                <select
+                  value={transferDestId}
+                  onChange={(e) => setTransferDestId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-slate-800 outline-none focus:border-purple-500"
+                  required
+                >
+                  <option value="">-- Dooro Akoonka Loo Dirayo --</option>
+                  {accounts.filter(a => a.id !== transferSourceId).map(a => {
+                    const calc = accountCalculations.perAccount[a.id];
+                    return (
+                      <option key={a.id} value={a.id}>
+                        {a.name} ({a.accountNumber || 'Acc'}) — Haraaga: ${calc?.currentBalance.toFixed(2) || '0.00'}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* Amount and Date */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="font-extrabold text-slate-700 uppercase text-[10px] tracking-wider block">
+                    3. Lacagta La Wareejinayo ($) *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-slate-400">$</span>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0.01"
+                      placeholder="0.00"
+                      value={transferAmount}
+                      onChange={(e) => setTransferAmount(e.target.value ? parseFloat(e.target.value) : '')}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-7 pr-3 py-2 font-mono font-black text-base text-purple-950 outline-none focus:border-purple-500"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="font-extrabold text-slate-700 uppercase text-[10px] tracking-wider block">
+                    4. Taariikhda *
+                  </label>
+                  <input
+                    type="date"
+                    value={transferDate}
+                    onChange={(e) => setTransferDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-bold text-slate-800 outline-none focus:border-purple-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Reference and Note */}
+              <div className="space-y-1.5">
+                <label className="font-extrabold text-slate-700 uppercase text-[10px] tracking-wider block">
+                  5. Tixraac (Reference No. - Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Tusaale: TR-109384, Zaad Ref..."
+                  value={transferRefNo}
+                  onChange={(e) => setTransferRefNo(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-medium text-slate-800 outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-extrabold text-slate-700 uppercase text-[10px] tracking-wider block">
+                  6. Faahfaahin / Ujeeddada Wareejinta
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Sababta lacagta loo wareejiyay..."
+                  value={transferNotes}
+                  onChange={(e) => setTransferNotes(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-medium text-slate-800 outline-none focus:border-purple-500 resize-none"
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="pt-3 flex items-center justify-end gap-2.5 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setIsTransferModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl"
+                >
+                  Kansal (Cancel)
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Xaqiiji Wareejinta ($)
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* CONFIRMATION DIALOG MODAL */}
       {confirmModal && confirmModal.isOpen && (

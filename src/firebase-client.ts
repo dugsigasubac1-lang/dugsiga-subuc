@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { initializeFirestore, getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { initializeFirestore, getFirestore, doc, getDoc, setDoc, writeBatch, onSnapshot } from 'firebase/firestore';
 import { DatabaseState } from './types';
 import { safeMergeDatabaseStates } from './db';
 import appConfig from '../firebase-applet-config.json';
@@ -212,7 +212,7 @@ export async function saveRemoteDatabaseState(
       if (saveDebounceTimeout) clearTimeout(saveDebounceTimeout);
       saveDebounceTimeout = setTimeout(() => {
         processSaveQueue();
-      }, 50);
+      }, 350);
     }
   });
 }
@@ -232,25 +232,25 @@ async function processSaveQueue() {
     currentJob.resolve(false);
   } finally {
     isWriteInProgress = false;
-    // If another save arrived while writing, process next after a brief pause
+    // If another save arrived while writing, process next after a quiet pause
     if (pendingSave) {
       setTimeout(() => {
         processSaveQueue();
-      }, 100);
+      }, 400);
     }
   }
 }
 
-async function safeSetDocWithBackoff(docRef: any, data: any, retries = 2): Promise<void> {
+async function safeBatchCommitWithBackoff(batch: any, retries = 2): Promise<void> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      await setDoc(docRef, data);
+      await batch.commit();
       return;
     } catch (err: any) {
       const errMsg = err?.message || String(err);
       if ((errMsg.includes('resource-exhausted') || errMsg.includes('RESOURCE_EXHAUSTED')) && attempt < retries) {
         console.warn(`[Firestore] Write stream busy, backing off (attempt ${attempt + 1}/${retries})...`);
-        await new Promise(r => setTimeout(r, 250 * (attempt + 1)));
+        await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
         continue;
       }
       throw err;
@@ -268,142 +268,37 @@ async function executeDirectFirestoreSave(
     explicitDeletedInvoiceIds?: string[];
   }
 ): Promise<boolean> {
-  const { coreDocRef, progressDocRef, financeDocRef, logsDocRef } = initFirebaseClient();
-  if (!coreDocRef) return false;
+  const { db, coreDocRef, progressDocRef, financeDocRef, logsDocRef } = initFirebaseClient();
+  if (!db || !coreDocRef) return false;
 
   try {
     const isTeacher = options?.userRole === 'teacher';
     const clean = removeUndefined(state);
 
+    const batch = writeBatch(db);
+
     // 1. Progress partition
     if (progressDocRef) {
-      try {
-        const liveProgSnap = await getDoc(progressDocRef);
-        if (liveProgSnap && liveProgSnap.exists()) {
-          const liveProg = liveProgSnap.data() as any;
-          const tempProgMerged = safeMergeDatabaseStates(
-            {
-              teachers: [],
-              students: [],
-              progress: liveProg.progress || [],
-              billing: []
-            },
-            state,
-            {
-              userRole: isTeacher ? 'teacher' : 'admin',
-              explicitDeletedStudentIds: options?.explicitDeletedStudentIds,
-              preferIncomingMeta: true
-            }
-          );
-          clean.progress = tempProgMerged.progress || clean.progress;
-        }
-      } catch (pErr) {
-        console.warn('[Firestore] Pre-save live progress merge notice:', pErr);
-      }
-
       const progressData = {
         progress: clean.progress || []
       };
-      await safeSetDocWithBackoff(progressDocRef, removeUndefined(progressData));
+      batch.set(progressDocRef, removeUndefined(progressData));
     }
 
     // 2. Logs partition (teacher attendance, submissions, exams, notifications)
     if (logsDocRef) {
-      try {
-        const liveLogsSnap = await getDoc(logsDocRef);
-        if (liveLogsSnap && liveLogsSnap.exists()) {
-          const liveLogs = liveLogsSnap.data() as any;
-          const tempLogsMerged = safeMergeDatabaseStates(
-            {
-              teachers: [],
-              students: [],
-              progress: [],
-              billing: [],
-              submissions: liveLogs.submissions || [],
-              teacherAttendance: liveLogs.teacherAttendance || [],
-              notifications: liveLogs.notifications || [],
-              exams: liveLogs.exams || []
-            },
-            state,
-            {
-              userRole: isTeacher ? 'teacher' : 'admin',
-              explicitDeletedStudentIds: options?.explicitDeletedStudentIds,
-              explicitDeletedExamIds: options?.explicitDeletedExamIds,
-              preferIncomingMeta: true
-            }
-          );
-          clean.submissions = tempLogsMerged.submissions || clean.submissions;
-          clean.teacherAttendance = tempLogsMerged.teacherAttendance || clean.teacherAttendance;
-          clean.notifications = tempLogsMerged.notifications || clean.notifications;
-          clean.exams = tempLogsMerged.exams || clean.exams;
-        }
-      } catch (lErr) {
-        console.warn('[Firestore] Pre-save live logs merge notice:', lErr);
-      }
-
       const logsData = {
         submissions: clean.submissions || [],
         teacherAttendance: clean.teacherAttendance || [],
         notifications: clean.notifications || [],
         exams: clean.exams || []
       };
-      await safeSetDocWithBackoff(logsDocRef, removeUndefined(logsData));
+      batch.set(logsDocRef, removeUndefined(logsData));
     }
 
-    // CRITICAL: ONLY ADMIN CAN MODIFY CORE ROSTER & FINANCIAL PARTITIONS!
+    // 3. Admin-only partitions: Core Roster & Finance
     if (!isTeacher) {
       if (coreDocRef) {
-        try {
-          const liveCoreSnap = await getDoc(coreDocRef);
-          if (liveCoreSnap && liveCoreSnap.exists()) {
-            const liveCore = liveCoreSnap.data() as any;
-            const tempMerged = safeMergeDatabaseStates(
-              {
-                teachers: liveCore.teachers || [],
-                students: liveCore.students || [],
-                classes: liveCore.classes || [],
-                contactMessages: liveCore.contactMessages || [],
-                schoolLocation: liveCore.schoolLocation,
-                landingPageSettings: liveCore.landingPageSettings,
-                adminAllowedSessionId: liveCore.adminAllowedSessionId,
-                adminRevokeTime: liveCore.adminRevokeTime,
-                progress: [],
-                billing: []
-              },
-              state,
-              {
-                userRole: 'admin',
-                explicitDeletedStudentIds: options?.explicitDeletedStudentIds,
-                explicitDeletedTeacherIds: options?.explicitDeletedTeacherIds,
-                preferIncomingMeta: true
-              }
-            );
-            clean.students = tempMerged.students || clean.students;
-            clean.teachers = tempMerged.teachers || clean.teachers;
-            clean.classes = tempMerged.classes || clean.classes;
-            clean.schoolLocation = tempMerged.schoolLocation || clean.schoolLocation;
-            clean.landingPageSettings = tempMerged.landingPageSettings || clean.landingPageSettings;
-            clean.contactMessages = tempMerged.contactMessages || clean.contactMessages;
-            if (state.adminAllowedSessionId !== undefined) {
-              clean.adminAllowedSessionId = state.adminAllowedSessionId;
-            } else if (tempMerged.adminAllowedSessionId !== undefined) {
-              clean.adminAllowedSessionId = tempMerged.adminAllowedSessionId;
-            }
-            if (state.adminSessionId !== undefined) {
-              clean.adminSessionId = state.adminSessionId;
-            } else if (tempMerged.adminSessionId !== undefined) {
-              clean.adminSessionId = tempMerged.adminSessionId;
-            }
-            if (state.adminRevokeTime !== undefined) {
-              clean.adminRevokeTime = state.adminRevokeTime;
-            } else if (tempMerged.adminRevokeTime !== undefined) {
-              clean.adminRevokeTime = tempMerged.adminRevokeTime;
-            }
-          }
-        } catch (mErr) {
-          console.warn('[Firestore] Pre-save live core merge notice:', mErr);
-        }
-
         const coreData = {
           teachers: clean.teachers || [],
           students: clean.students || [],
@@ -417,45 +312,10 @@ async function executeDirectFirestoreSave(
           lastUpdatedTime: clean.lastUpdatedTime || Date.now(),
           lastBackupDownloadDate: clean.lastBackupDownloadDate || null
         };
-        await safeSetDocWithBackoff(coreDocRef, removeUndefined(coreData));
+        batch.set(coreDocRef, removeUndefined(coreData));
       }
 
       if (financeDocRef) {
-        try {
-          const liveFinSnap = await getDoc(financeDocRef);
-          if (liveFinSnap && liveFinSnap.exists()) {
-            const liveFin = liveFinSnap.data() as any;
-            const tempFinMerged = safeMergeDatabaseStates(
-              {
-                teachers: [],
-                students: [],
-                progress: [],
-                billing: liveFin.billing || [],
-                invoices: liveFin.invoices || [],
-                moneyTransfers: liveFin.moneyTransfers || [],
-                xawaaladaAccounts: liveFin.xawaaladaAccounts || [],
-                xawaaladaTransactions: liveFin.xawaaladaTransactions || [],
-                xawaaladaSettings: liveFin.xawaaladaSettings || null
-              },
-              state,
-              {
-                userRole: 'admin',
-                explicitDeletedStudentIds: options?.explicitDeletedStudentIds,
-                explicitDeletedInvoiceIds: options?.explicitDeletedInvoiceIds,
-                preferIncomingMeta: true
-              }
-            );
-            clean.billing = tempFinMerged.billing || clean.billing;
-            clean.invoices = tempFinMerged.invoices || clean.invoices;
-            clean.moneyTransfers = tempFinMerged.moneyTransfers || clean.moneyTransfers;
-            clean.xawaaladaAccounts = tempFinMerged.xawaaladaAccounts || clean.xawaaladaAccounts;
-            clean.xawaaladaTransactions = tempFinMerged.xawaaladaTransactions || clean.xawaaladaTransactions;
-            clean.xawaaladaSettings = tempFinMerged.xawaaladaSettings || clean.xawaaladaSettings || null;
-          }
-        } catch (finErr) {
-          console.warn('[Firestore] Pre-save live finance merge notice:', finErr);
-        }
-
         const financeData = {
           billing: clean.billing || [],
           invoices: clean.invoices || [],
@@ -464,10 +324,12 @@ async function executeDirectFirestoreSave(
           xawaaladaTransactions: clean.xawaaladaTransactions || [],
           xawaaladaSettings: clean.xawaaladaSettings || null
         };
-        await safeSetDocWithBackoff(financeDocRef, removeUndefined(financeData));
+        batch.set(financeDocRef, removeUndefined(financeData));
       }
     }
 
+    // Single atomic commit for all partitions!
+    await safeBatchCommitWithBackoff(batch);
     return true;
   } catch (error) {
     console.error('[Dugsiga Subuc] Direct Firestore save error:', error);
@@ -552,7 +414,7 @@ export function subscribeToRemoteDatabaseState(
       };
 
       onUpdate(assembled);
-    }, 30);
+    }, 150);
   };
 
   // Seed initial values in parallel so live state is ready immediately

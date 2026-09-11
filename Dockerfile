@@ -21,6 +21,7 @@ WORKDIR /app
 
 # Set production environment
 ENV NODE_ENV=production
+ENV PORT=8080
 
 # Copy package files to install production dependencies
 COPY package*.json ./
