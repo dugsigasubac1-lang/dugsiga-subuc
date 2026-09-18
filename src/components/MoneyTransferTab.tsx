@@ -461,22 +461,40 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
       const totalOut = accTxns.filter(t => t.type === 'out').reduce((sum, t) => sum + Number(t.amount || 0), 0);
       const netChange = totalIn - totalOut;
 
+      // If viewing a specific month, calculate the real starting balance brought forward from prior months
+      let periodOpening = Number(acc.openingBalance || 0);
+      if (monthFilter) {
+        const targetYear = yearFilter || currentYearStr;
+        const targetPeriod = `${targetYear}-${monthFilter}`;
+        const priorTxns = allAccTxns.filter(t => {
+          if (!t.date) return false;
+          const parts = t.date.split('-');
+          const period = `${parts[0]}-${parts[1]}`;
+          return period < targetPeriod;
+        });
+        const priorIn = priorTxns.filter(t => t.type === 'in').reduce((sum, t) => sum + Number(t.amount || 0), 0);
+        const priorOut = priorTxns.filter(t => t.type === 'out').reduce((sum, t) => sum + Number(t.amount || 0), 0);
+        periodOpening = Number(acc.openingBalance || 0) + priorIn - priorOut;
+      }
+
+      const periodClosing = periodOpening + totalIn - totalOut;
+
       map[acc.id] = {
         account: acc,
-        openingBalance: Number(acc.openingBalance || 0),
+        openingBalance: periodOpening,
         totalIn,
         totalOut,
         netChange,
-        currentBalance: liveCurrentBalance,
+        currentBalance: monthFilter ? periodClosing : liveCurrentBalance,
         allTimeIn,
         allTimeOut,
         filteredTxns: accTxns.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       };
 
-      grandOpening += Number(acc.openingBalance || 0);
+      grandOpening += periodOpening;
       grandIn += totalIn;
       grandOut += totalOut;
-      grandCurrent += liveCurrentBalance;
+      grandCurrent += monthFilter ? periodClosing : liveCurrentBalance;
     });
 
     const isBalanced = true;
@@ -2166,7 +2184,9 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                     {/* Opening Balance Subheader (Matching "opening balance" in sketch) */}
                     <div className="bg-slate-50 p-3.5 border-b border-slate-200/80 flex items-center justify-between">
                       <div>
-                        <span className="text-[10px] font-extrabold text-slate-400 uppercase block">Opening Balance</span>
+                        <span className="text-[10px] font-extrabold text-slate-400 uppercase block">
+                          {monthFilter ? 'Haraagii Hore (Brought Forward)' : 'Opening Balance'}
+                        </span>
                         <span className="text-sm font-black text-slate-800 font-mono">${calc.openingBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                       </div>
                       <div className="text-right">
@@ -2558,8 +2578,12 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black font-mono text-slate-900 outline-none focus:border-indigo-500 focus:bg-white transition-all"
                   required
                 />
-                <span className="text-[10px] text-slate-400 mt-1 block">
-                  Kani waa hantida bilowga ah ee lagu furayo akawnkan.
+                <span className="text-[10px] text-slate-500 mt-1 block leading-relaxed">
+                  {editingAccount ? (
+                    <strong className="text-amber-700">Fiiro gaar ah: Kani waa hantidii bilowgii hore ee akawnka markii la furay. Ha beddelin bil kasta! Haraaga bisha cusub si toos ah ayuu uga wareegaa bishii hore.</strong>
+                  ) : (
+                    'Kani waa hantida bilowga ah ee lagu furayo akawnkan markii ugu horreysay.'
+                  )}
                 </span>
               </div>
 
