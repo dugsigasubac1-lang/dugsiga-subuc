@@ -2255,39 +2255,45 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                               {tx.description}
                             </p>
 
-                            {/* Remaining Balance (Haraaga) & Point-in-time calculation breakdown */}
-                            <div className="mt-2.5 p-2 bg-white/90 rounded-xl border border-indigo-200/90 shadow-2xs space-y-1.5 text-[11px]">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1.5 text-indigo-950 font-black">
-                                  <Wallet className="w-3.5 h-3.5 text-indigo-600" />
-                                  <span>Haraaga (Balance):</span>
-                                </div>
-                                <span className="font-mono font-black text-xs text-indigo-900 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-200">
-                                  ${(runningBalances.map.get(tx.id) ?? tx.balanceAfter ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                                </span>
-                              </div>
+                              {/* Remaining Balance (Haraaga) & Point-in-time calculation breakdown */}
+                              {(() => {
+                                const balAfter = runningBalances.map.get(tx.id) ?? (typeof tx.balanceAfter === 'number' && !isNaN(tx.balanceAfter) ? tx.balanceAfter : (tx.type === 'in' ? calc.openingBalance + tx.amount : calc.openingBalance - tx.amount));
+                                const balBefore = runningBalances.prevMap.get(tx.id) ?? (tx.type === 'in' ? balAfter - tx.amount : balAfter + tx.amount);
+                                return (
+                                  <div className="mt-2.5 p-2 bg-white/90 rounded-xl border border-indigo-200/90 shadow-2xs space-y-1.5 text-[11px]">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-1.5 text-indigo-950 font-black">
+                                        <Wallet className="w-3.5 h-3.5 text-indigo-600" />
+                                        <span>Haraaga (Balance):</span>
+                                      </div>
+                                      <span className="font-mono font-black text-xs text-indigo-900 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-200">
+                                        ${balAfter.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                      </span>
+                                    </div>
 
-                              <div className="grid grid-cols-3 gap-1 pt-1 border-t border-slate-100 text-[10px] text-slate-500">
-                                <div className="text-left">
-                                  <span className="block text-[9px] font-semibold text-slate-400">Hore:</span>
-                                  <span className="font-mono font-bold text-slate-700">
-                                    ${(runningBalances.prevMap.get(tx.id) ?? 0).toFixed(2)}
-                                  </span>
-                                </div>
-                                <div className="text-center">
-                                  <span className="block text-[9px] font-semibold text-slate-400">Dhaqdhaqaaq:</span>
-                                  <span className={`font-mono font-bold ${tx.type === 'in' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                    {tx.type === 'in' ? '+' : '-'}${tx.amount.toFixed(2)}
-                                  </span>
-                                </div>
-                                <div className="text-right">
-                                  <span className="block text-[9px] font-black text-indigo-900">Haraa Ka Dib:</span>
-                                  <span className="font-mono font-black text-indigo-950">
-                                    ${(runningBalances.map.get(tx.id) ?? tx.balanceAfter ?? 0).toFixed(2)}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
+                                    <div className="grid grid-cols-3 gap-1 pt-1 border-t border-slate-100 text-[10px] text-slate-500">
+                                      <div className="text-left">
+                                        <span className="block text-[9px] font-semibold text-slate-400">Hore:</span>
+                                        <span className="font-mono font-bold text-slate-700">
+                                          ${balBefore.toFixed(2)}
+                                        </span>
+                                      </div>
+                                      <div className="text-center">
+                                        <span className="block text-[9px] font-semibold text-slate-400">Dhaqdhaqaaq:</span>
+                                        <span className={`font-mono font-bold ${tx.type === 'in' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                          {tx.type === 'in' ? '+' : '-'}${tx.amount.toFixed(2)}
+                                        </span>
+                                      </div>
+                                      <div className="text-right">
+                                        <span className="block text-[9px] font-black text-indigo-900">Haraa Ka Dib:</span>
+                                        <span className="font-mono font-black text-indigo-950">
+                                          ${balAfter.toFixed(2)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
 
                             <div className="flex items-center justify-end gap-2 mt-2 pt-1">
                               <button
