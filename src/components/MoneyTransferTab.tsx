@@ -372,22 +372,28 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
     });
   }, [transactions, searchTerm, selectedAccountId, dateFilter, monthFilter, yearFilter]);
 
-  // Chronological running balances (Haraaga) map for every transaction in every account
+  // Chronological running balances (Haraaga) map for transactions in the active period
   const runningBalances = useMemo(() => {
     const map = new Map<string, number>(); // tx.id -> balanceAfter
     const prevMap = new Map<string, number>(); // tx.id -> balanceBefore
-    const accountCurrentMap = new Map<string, number>(); // accountId -> all-time latest balance
+    const accountCurrentMap = new Map<string, number>(); // accountId -> latest balance in period
 
     const txByAccount: Record<string, XawaaladaTransaction[]> = {};
     accounts.forEach(acc => {
       txByAccount[acc.id] = [];
     });
 
+    // Only process transactions matching the active month/year/date filter
     transactions.forEach(tx => {
       if (!txByAccount[tx.accountId]) {
         txByAccount[tx.accountId] = [];
       }
-      txByAccount[tx.accountId].push(tx);
+      const matchDate = !dateFilter || tx.date === dateFilter;
+      const matchMonth = !monthFilter || (tx.date && tx.date.split('-')[1] === monthFilter);
+      const matchYear = !yearFilter || (tx.date && tx.date.split('-')[0] === yearFilter);
+      if (matchDate && matchMonth && matchYear) {
+        txByAccount[tx.accountId].push(tx);
+      }
     });
 
     accounts.forEach(acc => {
@@ -403,6 +409,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
         return (a.id || '').localeCompare(b.id || '');
       });
 
+      // Starts cleanly from the account opening balance for this month without prior month deductions
       let currentRunningBal = Number(acc.openingBalance || 0);
       list.forEach(tx => {
         prevMap.set(tx.id, currentRunningBal);
@@ -418,7 +425,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
     });
 
     return { map, prevMap, accountCurrentMap };
-  }, [accounts, transactions]);
+  }, [accounts, transactions, dateFilter, monthFilter, yearFilter]);
 
   // Accounting Ledger calculations per account
   const accountCalculations = useMemo(() => {
@@ -440,12 +447,6 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
     let grandCurrent = 0;
 
     accounts.forEach(acc => {
-      // All-time transactions for this account to compute true current balance
-      const allAccTxns = transactions.filter(t => t.accountId === acc.id);
-      const allTimeIn = allAccTxns.filter(t => t.type === 'in').reduce((sum, t) => sum + Number(t.amount || 0), 0);
-      const allTimeOut = allAccTxns.filter(t => t.type === 'out').reduce((sum, t) => sum + Number(t.amount || 0), 0);
-      const liveCurrentBalance = Number(acc.openingBalance || 0) + allTimeIn - allTimeOut;
-
       // Filtered transactions for this account subject to date/month/search filters
       const accTxns = transactions.filter(t => {
         if (t.accountId !== acc.id) return false;
@@ -461,40 +462,26 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
       const totalOut = accTxns.filter(t => t.type === 'out').reduce((sum, t) => sum + Number(t.amount || 0), 0);
       const netChange = totalIn - totalOut;
 
-      // If viewing a specific month, calculate the real starting balance brought forward from prior months
-      let periodOpening = Number(acc.openingBalance || 0);
-      if (monthFilter) {
-        const targetYear = yearFilter || currentYearStr;
-        const targetPeriod = `${targetYear}-${monthFilter}`;
-        const priorTxns = allAccTxns.filter(t => {
-          if (!t.date) return false;
-          const parts = t.date.split('-');
-          const period = `${parts[0]}-${parts[1]}`;
-          return period < targetPeriod;
-        });
-        const priorIn = priorTxns.filter(t => t.type === 'in').reduce((sum, t) => sum + Number(t.amount || 0), 0);
-        const priorOut = priorTxns.filter(t => t.type === 'out').reduce((sum, t) => sum + Number(t.amount || 0), 0);
-        periodOpening = Number(acc.openingBalance || 0) + priorIn - priorOut;
-      }
-
-      const periodClosing = periodOpening + totalIn - totalOut;
+      // Start cleanly from this month's chosen Opening Balance
+      const accountOpening = Number(acc.openingBalance || 0);
+      const accountClosing = accountOpening + totalIn - totalOut;
 
       map[acc.id] = {
         account: acc,
-        openingBalance: periodOpening,
+        openingBalance: accountOpening,
         totalIn,
         totalOut,
         netChange,
-        currentBalance: monthFilter ? periodClosing : liveCurrentBalance,
-        allTimeIn,
-        allTimeOut,
+        currentBalance: accountClosing,
+        allTimeIn: totalIn,
+        allTimeOut: totalOut,
         filteredTxns: accTxns.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       };
 
-      grandOpening += periodOpening;
+      grandOpening += accountOpening;
       grandIn += totalIn;
       grandOut += totalOut;
-      grandCurrent += monthFilter ? periodClosing : liveCurrentBalance;
+      grandCurrent += accountClosing;
     });
 
     const isBalanced = true;
@@ -2184,9 +2171,7 @@ export function MoneyTransferTab({ database, onSaveDatabase }: MoneyTransferTabP
                     {/* Opening Balance Subheader (Matching "opening balance" in sketch) */}
                     <div className="bg-slate-50 p-3.5 border-b border-slate-200/80 flex items-center justify-between">
                       <div>
-                        <span className="text-[10px] font-extrabold text-slate-400 uppercase block">
-                          {monthFilter ? 'Haraagii Hore (Brought Forward)' : 'Opening Balance'}
-                        </span>
+                        <span className="text-[10px] font-extrabold text-slate-400 uppercase block">Opening Balance</span>
                         <span className="text-sm font-black text-slate-800 font-mono">${calc.openingBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                       </div>
                       <div className="text-right">
